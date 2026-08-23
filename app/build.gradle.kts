@@ -25,12 +25,17 @@ android {
 
     // Бинарник ByeDPI должен лежать распакованным файлом в nativeLibraryDir.
     packaging { jniLibs { useLegacyPackaging = true } }
+
+    tasks.matching { it.name == "preBuild" }.configureEach {
+        dependsOn(rootProject.tasks.named("buildMihomoAar"))
+    }
 }
 
 // AGP 9 built-in Kotlin targets Java 17 via compileOptions above (no kotlin-android plugin).
 // AAR движка появится в Task 2; до этого строку закомментировать нельзя —
 // поэтому Task 2 выполняется сразу за этим и preBuild-зависимость включается там.
 dependencies {
+    implementation(files("../engine/libs/engine.aar"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.ktx)
