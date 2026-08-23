@@ -47,6 +47,7 @@ else:
 PYEOF
 
 cp "$BIND_DIR/go.mod" "$WORK_DIR/go.mod"
+cp "$BIND_DIR/go.sum" "$WORK_DIR/go.sum"
 cp "$BIND_DIR/engine.go" "$WORK_DIR/engine.go"
 cd "$WORK_DIR"
 python3 - <<PYEOF
@@ -61,7 +62,6 @@ PYEOF
 
 export PATH="$PATH:$(go env GOPATH)/bin"
 export GOFLAGS="-mod=mod"
-go mod tidy
 # -libname dropped: gomobile@latest no longer supports it; output defaults to <package>.aar == engine.aar
 gomobile bind -target android/arm64,android/amd64 -androidapi 24 -javapkg=dev.triplet.engine .
 mkdir -p "$(dirname "$OUT")"
