@@ -1,7 +1,6 @@
 package dev.triplet.app.ui
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,7 +21,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -59,15 +57,12 @@ fun AppsScreen(store: RoutesStore, modifier: Modifier = Modifier) {
         LazyColumn {
             items(filtered, key = { it.packageName }) { app ->
                 val current = settings?.routes?.get(app.packageName) ?: AppRoute.DIRECT
-                Row(
-                    Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(app.label, style = MaterialTheme.typography.bodyLarge)
-                        Text(app.packageName, style = MaterialTheme.typography.bodySmall)
-                    }
-                    SingleChoiceSegmentedButtonRow {
+                Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Text(app.label, style = MaterialTheme.typography.bodyLarge)
+                    Text(app.packageName, style = MaterialTheme.typography.bodySmall)
+                    // Кнопки отдельной строкой на всю ширину: в одной строке с
+                    // названием на узких экранах и в RU они не помещаются.
+                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                         AppRoute.entries.forEach { route ->
                             SegmentedButton(
                                 selected = current == route,
