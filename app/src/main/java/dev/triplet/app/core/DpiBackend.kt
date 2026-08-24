@@ -17,10 +17,17 @@ class DpiBackend(context: Context) {
     fun start(preset: DpiPreset, port: Int): Boolean {
         stop()
         if (!bin.exists()) return false
+        // -U: TCP-only для DPI-маршрута (fail-closed); QUIC режется правилом
+        // с быстрым отказом, YouTube сразу уходит на TCP-обход.
         val cmd = listOf(bin.absolutePath, "-i", "127.0.0.1", "-p", port.toString(), "-U") +
             preset.args
         return try {
-            proc = ProcessBuilder(cmd).redirectErrorStream(true).start()
+            // Обязательно уводим stdout/stderr: непрочитанный пайп заполняется
+            // (~64KB) и ciadpi блокируется на записи — выглядит как «повис».
+            proc = ProcessBuilder(cmd)
+                .redirectErrorStream(true)
+                .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+                .start()
             awaitPort(port, timeoutMs = 4000)
         } catch (e: Exception) {
             stop()

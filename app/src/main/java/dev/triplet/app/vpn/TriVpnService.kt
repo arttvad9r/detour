@@ -207,7 +207,9 @@ class TriVpnService : VpnService() {
         builder.addAddress("198.18.0.1", 16)
 
         builder.addRoute("0.0.0.0", 0)
-        builder.addRoute("::", 0)
+        // IPv6 в TUN не маршрутизируем (как в ByeByeDPI): приложения мгновенно
+        // видят отсутствие v6 и идут по IPv4. Захват ::/0 с REJECT-правилами
+        // давал бесконечные v6-ретраи вместо быстрого отката (приёмка OnePlus).
 
         if (Build.VERSION.SDK_INT >= 33) {
             ConfigGenerator.LAN_PREFIXES.forEach { prefix ->

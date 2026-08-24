@@ -16,7 +16,7 @@ object ConfigGenerator {
         "fc00::/7", "fe80::/10",
     )
 
-    private val ROUTE_ADDRESS = listOf("0.0.0.0/1", "128.0.0.0/1", "::/1", "8000::/1")
+    private val ROUTE_ADDRESS = listOf("0.0.0.0/1", "128.0.0.0/1")
 
     fun build(input: RoutingInput): String {
         require(input.vpnUids.keys.containsAll(input.vpnApps + input.dpiApps)) {
@@ -29,12 +29,8 @@ object ConfigGenerator {
             }
         }
         val rules = buildList {
-            // IPv6 внутри TUN запрещён: на реальных сетях v6-egress через
-            // DPI/VPN-пути ненадёжен, приложения должны сразу использовать
-            // IPv4 (быстрый REJECT вместо чёрной дыры). Движок и его
-            // исходящие не затронуты — правила действуют только в TUN.
-            add("- IP-CIDR,::/1,REJECT,no-resolve")
-            add("- IP-CIDR,8000::/1,REJECT,no-resolve")
+            // IPv6 в TUN не маршрутизируется (см. TriVpnService.openTun) —
+            // приложения сразу используют IPv4.
             input.profile?.let { input.vpnApps.forEach { pkg -> add("- ${attr(pkg)},VLESS") } }
             input.dpiApps.forEach { pkg ->
                 add("- AND,((${attr(pkg)}),(NETWORK,UDP),(DST-PORT,443)),REJECT")
@@ -86,7 +82,7 @@ object ConfigGenerator {
         return """
 mode: rule
 log-level: info
-ipv6: true
+ipv6: false
 find-process-mode: strict
 mixed-port: ${input.mixedPort}
 bind-address: 127.0.0.1
@@ -108,9 +104,9 @@ tun:
     - any:53
 dns:
   enable: true
-  enhanced-mode: fake-ip
+  enhanced-mode: redir-host
   nameserver:
-    - https://1.1.1.1/dns-query
+    - 8.8.8.8
 proxies:
 $proxies
 rules:

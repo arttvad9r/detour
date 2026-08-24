@@ -13,9 +13,11 @@ enum class DpiPreset(val id: String, val args: List<String>) {
     ),
     COMPATIBLE(
         "compatible",
-        listOf("--split", "1+s",
-               "--auto=torst", "--timeout", "3",
-               "--split", "3+s"),
+        // Ladder strategy proven on the user's DPI-blocking carrier
+        // (OnePlus acceptance, 2026-08-24; matches ByeByeDPI app preset).
+        listOf("-d", "1", "-s", "1+s", "-d", "3+s", "-s", "6+s",
+               "-d", "9+s", "-s", "12+s", "-d", "15+s", "-s", "20+s",
+               "-d", "25+s", "-s", "30+s", "-d", "35+s", "-a", "1"),
     );
 
     companion object {

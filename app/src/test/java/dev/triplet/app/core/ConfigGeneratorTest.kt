@@ -106,7 +106,7 @@ class ConfigGeneratorTest {
         private val GOLDEN = """
             |mode: rule
             |log-level: info
-            |ipv6: true
+            |ipv6: false
             |find-process-mode: strict
             |mixed-port: 10809
             |bind-address: 127.0.0.1
@@ -125,8 +125,6 @@ class ConfigGeneratorTest {
             |  route-address:
             |    - 0.0.0.0/1
             |    - 128.0.0.0/1
-            |    - ::/1
-            |    - 8000::/1
             |  route-exclude-address:
             |    - 0.0.0.0/8
             |    - 10.0.0.0/8
@@ -145,9 +143,9 @@ class ConfigGeneratorTest {
             |    - any:53
             |dns:
             |  enable: true
-            |  enhanced-mode: fake-ip
+            |  enhanced-mode: redir-host
             |  nameserver:
-            |    - https://1.1.1.1/dns-query
+            |    - 8.8.8.8
             |proxies:
             |- name: VLESS
             |  type: vless
@@ -169,8 +167,6 @@ class ConfigGeneratorTest {
             |  port: 10808
             |  udp: false
             |rules:
-            |- IP-CIDR,::/1,REJECT,no-resolve
-            |- IP-CIDR,8000::/1,REJECT,no-resolve
             |- PROCESS-NAME,org.telegram.messenger,VLESS
             |- AND,((PROCESS-NAME,com.google.android.youtube),(NETWORK,UDP),(DST-PORT,443)),REJECT
             |- PROCESS-NAME,com.google.android.youtube,DPI
