@@ -42,12 +42,13 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
     // ошибка — красная, пока текст не валиден или не очищен.
     val parse = if (field.isBlank()) null else VlessKeyParser.parse(field)
     var flashGreen by remember { mutableStateOf(false) }
-    LaunchedEffect(field) {
-        if (parse is ParseResult.Ok) {
-            flashGreen = true
+    // Вспышка — только на пользовательский ввод, ставший валидным.
+    // При входе на экран (поле уже с сохранённым ключом) рамка не мигает.
+    LaunchedEffect(flashGreen) {
+        if (flashGreen) {
             kotlinx.coroutines.delay(1000)
             flashGreen = false
-        } else flashGreen = false
+        }
     }
     val borderColor = when {
         parse is ParseResult.Err -> Color(0xFFD64545)
@@ -60,7 +61,10 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
 
         OutlinedTextField(
             value = field,
-            onValueChange = { field = it },
+            onValueChange = {
+                field = it
+                flashGreen = VlessKeyParser.parse(it) is ParseResult.Ok
+            },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 13.dp),
             placeholder = { Text("vless://…") },
             minLines = 4,

@@ -1,6 +1,7 @@
 package dev.triplet.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -53,15 +54,16 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
             }
         }
 
-        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
+        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)
+            .clickable { choose(DpiPreset.RECOMMENDED) },
             verticalAlignment = Alignment.CenterVertically) {
             RadioButton(selected = settings?.preset == DpiPreset.RECOMMENDED,
                 onClick = { choose(DpiPreset.RECOMMENDED) })
             Text(stringResource(R.string.preset_recommended), fontSize = 14.5.sp,
                 fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-            Spacer(Modifier.weight(1f))
         }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
+        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)
+            .clickable { choose(DpiPreset.CUSTOM) },
             verticalAlignment = Alignment.CenterVertically) {
             RadioButton(selected = settings?.preset == DpiPreset.CUSTOM,
                 onClick = { choose(DpiPreset.CUSTOM) })
