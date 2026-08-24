@@ -20,6 +20,11 @@
     <string name="nav_routes_sub">в туннеле: %1$d</string>
     <string name="nav_key">Ключ VLESS</string>
     <string name="nav_key_sub">Reality + vision</string>
+    <string name="nav_theme">Оформление</string>
+    <string name="nav_theme_sub">4 темы</string>
+    <string name="theme_title">Оформление</string>
+    <string name="theme_hint">Тема применяется сразу ко всему приложению</string>
+    <string name="auto_connect">Подключаться при запуске</string>
     <string name="nav_dpi">Обход DPI</string>
     <string name="nav_dpi_sub">стратегия обхода блокировок</string>
 

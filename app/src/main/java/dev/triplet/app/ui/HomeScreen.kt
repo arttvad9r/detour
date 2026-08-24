@@ -20,8 +20,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -32,12 +37,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.triplet.app.R
+import dev.triplet.app.core.ParseResult
+import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
 import kotlinx.coroutines.launch
-
-private data class StatusStyle(val container: Color, val content: Color)
 
 @Composable
 fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
@@ -46,11 +51,27 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
     val ctx = LocalContext.current
     val st = state
 
-    val style = when (st) {
-        VpnState.Active -> StatusStyle(Color(0xFFDFF0E6), Color(0xFF1F9D5A))
-        VpnState.Starting -> StatusStyle(Color(0xFFE4EAFC), Color(0xFF4C6EF5))
-        is VpnState.Failed -> StatusStyle(Color(0xFFF9E4E4), Color(0xFFC94444))
-        VpnState.Idle -> StatusStyle(Color(0xFFE9E4EF), Color(0xFF6E6679))
+    val settings by store.settings.collectAsState(initial = null)
+    val theme = AppTheme.byId(settings?.themeId ?: "")
+    val style = theme.statusFor(st)
+    // Таймер сессии: тикает, пока туннель активен.
+    var elapsed by remember { mutableIntStateOf(0) }
+    LaunchedEffect(st) {
+        if (st == VpnState.Active) {
+            while (true) {
+                elapsed += 1
+                kotlinx.coroutines.delay(1000)
+            }
+        } else elapsed = 0
+    }
+    val timerText = remember(elapsed) {
+        val h = elapsed / 3600; val m = (elapsed % 3600) / 60; val sec = elapsed % 60
+        "%02d:%02d:%02d".format(h, m, sec)
+    }
+    val serverHost = remember(settings?.vlessUri) {
+        settings?.vlessUri?.let { VlessKeyParser.parse(it) }.let { r ->
+            (r as? ParseResult.Ok)?.profile?.server
+        }
     }
     val titleRes = when (st) {
         VpnState.Active -> R.string.status_active
@@ -98,6 +119,21 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
                     fontSize = 19.sp, fontWeight = FontWeight.ExtraBold,
                     letterSpacing = 1.2.sp, color = style.content,
                 )
+                if (st == VpnState.Active) {
+                    Text(
+                        timerText,
+                        fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                        color = style.content, letterSpacing = 0.6.sp,
+                        modifier = Modifier.padding(top = 10.dp),
+                    )
+                    serverHost?.let {
+                        Text(
+                            "через VLESS · $it",
+                            fontSize = 11.5.sp, color = style.content.copy(alpha = 0.7f),
+                            modifier = Modifier.padding(top = 3.dp),
+                        )
+                    }
+                }
                 if (st is VpnState.Failed) {
                     Text(
                         st.reason,

@@ -14,11 +14,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -30,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import dev.triplet.app.R
 import dev.triplet.app.core.AppRoute
 import dev.triplet.app.data.RoutesStore
+import kotlinx.coroutines.launch
 
 private data class MenuItem(val titleRes: Int, val subRes: Int, val iconRes: Int, val tint: Color)
 
@@ -39,10 +42,12 @@ fun SettingsMenuScreen(
     onOpenRoutes: () -> Unit,
     onOpenVless: () -> Unit,
     onOpenDpi: () -> Unit,
+    onOpenTheme: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val settings by store.settings.collectAsState(initial = null)
+    val scope = rememberCoroutineScope()
     val routed = settings?.routes?.countValues { it != AppRoute.DIRECT } ?: 0
 
     Column(modifier.fillMaxSize()) {
@@ -78,6 +83,41 @@ fun SettingsMenuScreen(
                 }
                 Text("›", fontSize = 20.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 5.dp)
+                .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.large)
+                .clickable(onClick = onOpenTheme)
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier.size(42.dp).background(Color(0xFF8B5CF6).copy(alpha = 0.12f), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(painterResource(R.drawable.ic_theme), null,
+                    tint = Color(0xFF8B5CF6), modifier = Modifier.size(22.dp))
+            }
+            Column(Modifier.padding(start = 14.dp).weight(1f)) {
+                Text(stringResource(R.string.nav_theme), fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface)
+                Text(stringResource(R.string.nav_theme_sub), fontSize = 11.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 5.dp)
+                .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.large)
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.auto_connect), fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface)
+            }
+            Switch(checked = settings?.autoConnect == true, onCheckedChange = { v ->
+                scope.launch { store.setAutoConnect(v) }
+            })
         }
         Spacer(Modifier.height(12.dp))
         Text(
