@@ -1,4 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Triplet</string>
+
+    <string name="notif_channel">Triplet VPN</string>
+    <string name="notif_starting">Connecting…</string>
+    <string name="notif_active">Active</string>
+    <string name="notif_stop">Stop</string>
+    <string name="err_invalid_key">Invalid VLESS key (Reality + Vision over TCP required)</string>
+    <string name="err_key_required">A VLESS key is required for VPN-routed apps</string>
+    <string name="err_dpi_failed">DPI bypass failed to start</string>
+    <string name="err_engine">Routing engine failed</string>
+    <string name="err_no_connect">No connection through the server</string>
+    <string name="err_vpn_permission">VPN permission denied</string>
 </resources>

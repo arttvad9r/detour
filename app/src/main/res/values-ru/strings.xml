@@ -1,4 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Triplet</string>
+
+    <string name="notif_channel">Triplet VPN</string>
+    <string name="notif_starting">Подключение…</string>
+    <string name="notif_active">Активно</string>
+    <string name="notif_stop">Остановить</string>
+    <string name="err_invalid_key">Невалидный ключ VLESS (нужен Reality + Vision поверх TCP)</string>
+    <string name="err_key_required">Для приложений с маршрутом VPN нужен ключ VLESS</string>
+    <string name="err_dpi_failed">Не удалось запустить DPI-обход</string>
+    <string name="err_engine">Сбой движка маршрутизации</string>
+    <string name="err_no_connect">Нет соединения через сервер</string>
+    <string name="err_vpn_permission">Отказано в разрешении VPN</string>
 </resources>
