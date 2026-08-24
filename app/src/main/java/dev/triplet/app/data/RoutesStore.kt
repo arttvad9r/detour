@@ -1,0 +1,61 @@
+package dev.triplet.app.data
+
+import android.content.Context
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStoreFile
+import dev.triplet.app.core.AppRoute
+import dev.triplet.app.core.DpiPreset
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+
+data class TriSettings(
+    val vlessUri: String,
+    val preset: DpiPreset,
+    val routes: Map<String, AppRoute>,
+)
+
+object RoutesMapping {
+    private const val KEY_URI = "vless_uri"
+    private const val KEY_PRESET = "dpi_preset"
+    private const val PREFIX_ROUTE = "route:"
+
+    /** Pure mapping DataStore-snapshot -> settings. JVM-tested. */
+    fun toSettings(entries: Map<String, Any?>): TriSettings = TriSettings(
+        vlessUri = entries[KEY_URI] as? String ?: "",
+        preset = DpiPreset.byId(entries[KEY_PRESET] as? String ?: ""),
+        routes = entries.mapNotNull { (k, v) ->
+            if (k.startsWith(PREFIX_ROUTE) && v is String && v != AppRoute.DIRECT.name) {
+                k.removePrefix(PREFIX_ROUTE) to AppRoute.valueOf(v)
+            } else null
+        }.toMap(),
+    )
+
+    fun sortApps(apps: List<AppInfo>) = apps.sortedBy { it.label.lowercase() }
+    fun routeKey(pkg: String) = stringPreferencesKey(PREFIX_ROUTE + pkg)
+    fun uriKey() = stringPreferencesKey(KEY_URI)
+    fun presetKey() = stringPreferencesKey(KEY_PRESET)
+}
+
+data class AppInfo(val packageName: String, val label: String)
+
+class RoutesStore(context: Context) {
+    private val store = PreferenceDataStoreFactory.create {
+        context.preferencesDataStoreFile("triplet_settings")
+    }
+
+    val settings: Flow<TriSettings> = store.data.map { prefs ->
+        RoutesMapping.toSettings(prefs.asMap().mapKeys { (k, _) -> k.name })
+    }
+
+    suspend fun snapshot(): TriSettings = settings.first()
+
+    suspend fun setVlessUri(uri: String) = store.edit { it[RoutesMapping.uriKey()] = uri }
+    suspend fun setPreset(preset: DpiPreset) = store.edit { it[RoutesMapping.presetKey()] = preset.id }
+    suspend fun setRoute(pkg: String, route: AppRoute) = store.edit {
+        val key = RoutesMapping.routeKey(pkg)
+        if (route == AppRoute.DIRECT) it.remove(key) else it[key] = route.name
+    }
+}
