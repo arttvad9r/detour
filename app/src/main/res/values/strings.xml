@@ -37,6 +37,12 @@
     <string name="set_preset_title">DPI preset</string>
     <string name="preset_recommended">Recommended</string>
     <string name="preset_compatible">Compatible</string>
+    <string name="preset_custom">Custom strategy</string>
+    <string name="custom_args_hint">ciadpi args, e.g. -s 1+s -d 3+s -a 1</string>
+    <string name="settings_autorestart">Changes apply automatically — an active tunnel is restarted</string>
+    <string name="key_not_set">No key set</string>
+    <string name="btn_edit">Edit</string>
+    <string name="key_dialog_title">VLESS key</string>
     <string name="set_diag_title">Diagnostics</string>
     <string name="diag_probe_now">Check connection</string>
 </resources>

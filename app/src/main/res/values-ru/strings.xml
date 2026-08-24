@@ -37,6 +37,12 @@
     <string name="set_preset_title">Пресет DPI-обхода</string>
     <string name="preset_recommended">Рекомендуемый</string>
     <string name="preset_compatible">Совместимый</string>
+    <string name="preset_custom">Своя стратегия</string>
+    <string name="custom_args_hint">Аргументы ciadpi, напр. -s 1+s -d 3+s -a 1</string>
+    <string name="settings_autorestart">Изменения применяются автоматически — активный туннель перезапускается</string>
+    <string name="key_not_set">Ключ не задан</string>
+    <string name="btn_edit">Изменить</string>
+    <string name="key_dialog_title">Ключ VLESS</string>
     <string name="set_diag_title">Диагностика</string>
     <string name="diag_probe_now">Проверить соединение</string>
 </resources>

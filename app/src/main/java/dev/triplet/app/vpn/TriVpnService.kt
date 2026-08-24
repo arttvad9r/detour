@@ -19,6 +19,7 @@ import dev.triplet.app.R
 import dev.triplet.app.core.AppRoute
 import dev.triplet.app.core.Attribution
 import dev.triplet.app.core.ConfigGenerator
+import dev.triplet.app.core.DpiArgs
 import dev.triplet.app.core.DpiBackend
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.RoutingInput
@@ -117,7 +118,7 @@ class TriVpnService : VpnService() {
         val dpiApps = settings.routes.filterValues { it == AppRoute.DPI }.keys
         if (dpiApps.isNotEmpty()) {
             ServiceLog.i("dpi: starting (${settings.preset.id})")
-            if (!dpi.start(settings.preset, 10808)) {
+            if (!dpi.start(DpiArgs.resolve(settings.preset, settings.dpiCustomArgs), 10808)) {
                 VpnController.setState(VpnState.Failed(getString(R.string.err_dpi_failed)))
                 stopSequence(stopSelf = true)
                 return

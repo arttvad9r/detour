@@ -14,13 +14,13 @@ class DpiBackend(context: Context) {
     private val bin = File(context.applicationInfo.nativeLibraryDir, "libciadpi.so")
     private var proc: Process? = null
 
-    fun start(preset: DpiPreset, port: Int): Boolean {
+    fun start(strategyArgs: List<String>, port: Int): Boolean {
         stop()
         if (!bin.exists()) return false
         // -U: TCP-only для DPI-маршрута (fail-closed); QUIC режется правилом
-        // с быстрым отказом, YouTube сразу уходит на TCP-обход.
+        // с быстрым отказом, приложения сразу уходят на TCP-обход.
         val cmd = listOf(bin.absolutePath, "-i", "127.0.0.1", "-p", port.toString(), "-U") +
-            preset.args
+            strategyArgs
         return try {
             // Обязательно уводим stdout/stderr: непрочитанный пайп заполняется
             // (~64KB) и ciadpi блокируется на записи — выглядит как «повис».
