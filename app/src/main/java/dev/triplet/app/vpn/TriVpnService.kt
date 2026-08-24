@@ -31,7 +31,6 @@ import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.net.InetAddress
 import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicReference
 
 class TriVpnService : VpnService() {
 
@@ -42,7 +41,6 @@ class TriVpnService : VpnService() {
         // "-2": Android кэширует имя канала по ID; суффикс после ребрендинга
         private const val CHANNEL_ID = "detour_vpn_2"
         private const val NOTIFICATION_ID = 1
-        private val lastTun = AtomicReference<ParcelFileDescriptor?>(null)
     }
 
     private val executor = Executors.newSingleThreadExecutor()
@@ -179,12 +177,10 @@ class TriVpnService : VpnService() {
     private fun stopSequence(stopSelf: Boolean) {
         runCatching { Engine.stop() }
         dpi.stop()
-        // Владение TUN-fd передано движку (sing-tun закрывает fd сам);
-        // detach только снимает java-владение — обычный close дал бы
-        // double-close и SIGABRT от fdsan.
-        // ponytail: если Engine.start упал до передачи fd, он утечёт до смерти процесса;
-        // апгрейд — track-список сырых fd с ручным Os.close().
-        lastTun.getAndSet(null)?.let { runCatching { it.detachFd() } }
+        // Владение TUN-fd полностью у движка: detachFd выполнен в openTun
+        // ДО передачи (иначе между Engine.stop() -> close(fd) и нашим
+        // detachFd() освободившийся номер мог занять RenderThread под fence
+        // — fdsan абортнул весь процесс, см. креш 22:05 на OnePlus).
         lastNetwork = null
         if (VpnController.state.value !is VpnState.Failed) VpnController.setState(VpnState.Idle)
         stopForeground(STOP_FOREGROUND_REMOVE)
@@ -236,8 +232,11 @@ class TriVpnService : VpnService() {
 
         val pfd = builder.establish()
             ?: throw IllegalStateException(getString(R.string.err_vpn_permission))
-        lastTun.set(pfd)
-        return pfd.fd
+        // detach СРАЗУ: убирает java-владение из fdsan до передачи в движок.
+        // Движок закроет fd сам при остановке; двойного close нет.
+        val fd = pfd.detachFd()
+        runCatching { pfd.close() }
+        return fd
     }
 
     private fun toPrefix(cidr: String): android.net.IpPrefix {

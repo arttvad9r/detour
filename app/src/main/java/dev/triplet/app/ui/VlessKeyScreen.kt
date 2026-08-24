@@ -46,7 +46,7 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
     // При входе на экран (поле уже с сохранённым ключом) рамка не мигает.
     LaunchedEffect(flashGreen) {
         if (flashGreen) {
-            kotlinx.coroutines.delay(1000)
+            kotlinx.coroutines.delay(450)
             flashGreen = false
         }
     }
