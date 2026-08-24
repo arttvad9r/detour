@@ -1,6 +1,8 @@
 package dev.triplet.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,7 +54,7 @@ fun SettingsMenuScreen(
     val scope = rememberCoroutineScope()
     val routed = settings?.routes?.countValues { it != AppRoute.DIRECT } ?: 0
 
-    Column(modifier.fillMaxSize()) {
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ScreenHeader(stringResource(R.string.settings_title), onBack)
 
         val items = listOf(
