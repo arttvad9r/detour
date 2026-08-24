@@ -1,7 +1,6 @@
 package dev.triplet.app.data
 
 import android.content.Context
-import android.content.pm.PackageManager
 
 object AppInventory {
     fun load(context: Context): List<AppInfo> {

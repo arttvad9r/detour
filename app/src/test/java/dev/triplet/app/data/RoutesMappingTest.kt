@@ -3,6 +3,7 @@ package dev.triplet.app.data
 import dev.triplet.app.core.AppRoute
 import dev.triplet.app.core.DpiPreset
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -23,7 +24,7 @@ class RoutesMappingTest {
         assertEquals(AppRoute.VPN, s.routes["a"])
         assertEquals(AppRoute.DPI, s.routes["b"])
         // DIRECT не хранится как отдельная запись-маршрут
-        assertTrue(s.routes.containsKey("a") && !s.routes.containsKey("__none__"))
+        assertFalse(s.routes.containsKey("c"))
     }
 
     @Test fun `defaults when empty`() {
