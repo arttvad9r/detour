@@ -221,7 +221,13 @@ class TriVpnService : VpnService() {
                 ServiceLog.w("allow-list: $pkg: ${e.message}")
             }
         }
-        builder.addDisallowedApplication(packageName)
+        if (allowed.isEmpty()) {
+            // capture-all fallback: exclude self so the engine's own traffic bypasses TUN;
+            // with a non-empty allow-list self is already outside it, and Android forbids
+            // mixing allowed+disallowed on one Builder (ISE "addAllowedApplication
+            // already called").
+            builder.addDisallowedApplication(packageName)
+        }
 
         val pfd = builder.establish()
             ?: throw IllegalStateException(getString(R.string.err_vpn_permission))

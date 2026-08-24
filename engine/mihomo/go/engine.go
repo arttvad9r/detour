@@ -11,10 +11,14 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
+	"github.com/metacubex/mihomo/common/observable"
 	"github.com/metacubex/mihomo/component/process"
 	"github.com/metacubex/mihomo/config"
 	"github.com/metacubex/mihomo/hub/executor"
+	"github.com/metacubex/mihomo/listener"
+	LC "github.com/metacubex/mihomo/listener/config"
 	"github.com/metacubex/mihomo/log"
 )
 
@@ -67,19 +71,48 @@ func Start(configYAML string, logPath string) error {
 // Stop shuts down the mihomo runtime.
 func Stop() {
 	executor.Shutdown()
+	// Shutdown closes the TUN listener but leaves LastTunConf behind. The next
+	// Start typically gets an equal conf (the OS reuses the fd number), and
+	// ReCreateTun then silently skips creation while tunLister is nil — leaving
+	// a live engine with no TUN reader. Reset so it always rebuilds.
+	listener.LastTunConf = LC.Tun{}
+	unsubscribeLogs()
 }
 
+var (
+	logMu  sync.Mutex
+	logSub observable.Subscription[log.Event]
+)
+
 func subscribeLogs(path string) {
+	logMu.Lock()
+	defer logMu.Unlock()
+	unsubscribeLogsLocked()
 	sub := log.Subscribe()
 	f, err := os.Create(path)
 	if err != nil {
 		return
 	}
+	logSub = sub
 	go func() {
 		defer f.Close()
-		defer log.UnSubscribe(sub)
 		for e := range sub {
 			_, _ = fmt.Fprintf(f, "%s %s\n", e.Type(), e.Payload)
 		}
 	}()
+}
+
+func unsubscribeLogs() {
+	logMu.Lock()
+	defer logMu.Unlock()
+	unsubscribeLogsLocked()
+}
+
+// caller must hold logMu; UnSubscribe closes the subscription channel, which
+// ends the writer goroutine and closes its file — one writer per Start.
+func unsubscribeLogsLocked() {
+	if logSub != nil {
+		log.UnSubscribe(logSub)
+		logSub = nil
+	}
 }
