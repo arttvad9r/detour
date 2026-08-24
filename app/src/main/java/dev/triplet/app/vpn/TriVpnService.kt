@@ -196,7 +196,7 @@ class TriVpnService : VpnService() {
     /** [allowed] пуст => capture-all fallback; иначе только выбранные приложения внутри TUN. */
     private fun openTun(allowed: Set<String>): Int {
         val builder = Builder()
-            .setSession("Triplet")
+            .setSession("Detour")
             .setMtu(ConfigGenerator.MTU)
         builder.addAddress(ConfigGenerator.INET4.substringBefore('/'),
             ConfigGenerator.INET4.substringAfter('/').toInt())
@@ -301,7 +301,7 @@ class TriVpnService : VpnService() {
         )
         val n: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_warning)
-            .setContentTitle("Triplet")
+            .setContentTitle("Detour")
             .setContentText(text)
             .setContentIntent(content)
             .setOngoing(true)

@@ -1,4 +1,4 @@
-# Triplet
+# Detour
 
 Android VPN-клиент: локальный прокси на базе mihomo + обход блокировок через ByeDPI.
 
