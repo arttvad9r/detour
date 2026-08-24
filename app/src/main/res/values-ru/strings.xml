@@ -12,4 +12,31 @@
     <string name="err_engine">Сбой движка маршрутизации</string>
     <string name="err_no_connect">Нет соединения через сервер</string>
     <string name="err_vpn_permission">Отказано в разрешении VPN</string>
+
+    <string name="tab_home">Главная</string>
+    <string name="tab_apps">Приложения</string>
+    <string name="tab_settings">Настройки</string>
+    <string name="status_idle">Отключено</string>
+    <string name="status_starting">Подключение…</string>
+    <string name="status_active">Активно</string>
+    <string name="btn_connect">Подключить</string>
+    <string name="btn_disconnect">Отключить</string>
+    <string name="home_summary">%1$d прил. → VPN · %2$d → DPI</string>
+    <string name="apps_search">Search</string>
+    <string name="route_direct">Напрямую</string>
+    <string name="route_vpn">VPN</string>
+    <string name="route_dpi">DPI</string>
+    <string name="set_key_title">Ключ VLESS</string>
+    <string name="key_valid">Ключ корректен</string>
+    <string name="key_invalid">Некорректный ключ</string>
+    <string name="key_invalid_format">Неверный формат ссылки</string>
+    <string name="key_invalid_transport">Не поддерживается транспорт (только TCP)</string>
+    <string name="key_invalid_reality">Требуется Reality + Vision</string>
+    <string name="btn_save">Сохранить</string>
+    <string name="btn_clear">Очистить</string>
+    <string name="set_preset_title">Пресет DPI-обхода</string>
+    <string name="preset_recommended">Рекомендуемый</string>
+    <string name="preset_compatible">Совместимый</string>
+    <string name="set_diag_title">Диагностика</string>
+    <string name="diag_probe_now">Проверить соединение</string>
 </resources>

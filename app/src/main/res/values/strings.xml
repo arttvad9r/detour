@@ -12,4 +12,31 @@
     <string name="err_engine">Routing engine failed</string>
     <string name="err_no_connect">No connection through the server</string>
     <string name="err_vpn_permission">VPN permission denied</string>
+
+    <string name="tab_home">Home</string>
+    <string name="tab_apps">Apps</string>
+    <string name="tab_settings">Settings</string>
+    <string name="status_idle">Disconnected</string>
+    <string name="status_starting">Connecting…</string>
+    <string name="status_active">Active</string>
+    <string name="btn_connect">Connect</string>
+    <string name="btn_disconnect">Disconnect</string>
+    <string name="home_summary">%1$d apps → VPN · %2$d → DPI</string>
+    <string name="apps_search">Search</string>
+    <string name="route_direct">Net</string>
+    <string name="route_vpn">VPN</string>
+    <string name="route_dpi">DPI</string>
+    <string name="set_key_title">VLESS key</string>
+    <string name="key_valid">Valid</string>
+    <string name="key_invalid">Invalid</string>
+    <string name="key_invalid_format">Invalid link format</string>
+    <string name="key_invalid_transport">Unsupported transport (TCP only)</string>
+    <string name="key_invalid_reality">Reality + Vision required</string>
+    <string name="btn_save">Save</string>
+    <string name="btn_clear">Clear</string>
+    <string name="set_preset_title">DPI preset</string>
+    <string name="preset_recommended">Recommended</string>
+    <string name="preset_compatible">Compatible</string>
+    <string name="set_diag_title">Diagnostics</string>
+    <string name="diag_probe_now">Check connection</string>
 </resources>

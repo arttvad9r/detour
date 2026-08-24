@@ -50,7 +50,9 @@ class TriVpnService : VpnService() {
 
     override fun onCreate() {
         super.onCreate()
-        store = RoutesStore(this)
+        // Один DataStore на файл: используем синглет из Application, иначе
+        // второй экземпляр RoutesStore падает с IllegalStateException при старте VPN.
+        store = (applicationContext as dev.triplet.app.TripletApp).routesStore
         dpi = DpiBackend(this)
         createChannel()
         registerNetworkMonitor()
