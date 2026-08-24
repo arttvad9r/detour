@@ -46,6 +46,53 @@ else:
     print("patch: already applied or upstream changed")
 PYEOF
 
+# Triplet host-side UID resolver bridge (Task 3 round 2):
+# tunnel.go consults process.TripletHostFinder (wired to the app's
+# ConnectivityManager.getConnectionOwnerUid via engine.SetProcessResolver)
+# instead of netlink/procfs, which are banned for ordinary apps.
+python3 - <<'PYEOF'
+p = 'tunnel/tunnel.go'
+s = open(p).read()
+marker = 'tripletFinder := process.TripletHostFinder'
+anchor = '\t\t\t\tattemptProcessLookup = false\n\t\t\t\tif !features.CMFA {'
+inject = (
+    '\t\t\t\tattemptProcessLookup = false\n'
+    '\t\t\t\tif tripletFinder := process.TripletHostFinder; tripletFinder != nil {\n'
+    '\t\t\t\t\ttripletUID, tripletPkg, tripletOK := tripletFinder(metadata.NetWork.String(), metadata.SrcIP, int(metadata.SrcPort), metadata.DstIP, int(metadata.DstPort))\n'
+    '\t\t\t\t\tif tripletOK {\n'
+    '\t\t\t\t\t\tmetadata.Uid = tripletUID\n'
+    '\t\t\t\t\t\tmetadata.Process = tripletPkg\n'
+    '\t\t\t\t\t\tmetadata.ProcessPath = tripletPkg\n'
+    '\t\t\t\t\t}\n'
+    '\t\t\t\t} else if !features.CMFA {'
+)
+if marker in s:
+    print("triplet tunnel patch: already applied")
+elif s.count(anchor) == 1:
+    open(p, 'w').write(s.replace(anchor, inject, 1))
+    print("triplet tunnel patch applied")
+else:
+    raise SystemExit(f"FATAL: tunnel.go anchor not found or ambiguous ({p})")
+PYEOF
+
+python3 - <<'PYEOF'
+p = 'component/process/process.go'
+s = open(p).read()
+marker = 'TripletHostFinder func(network string'
+anchor = 'func FindProcessName('
+decl = (
+    '// TripletHostFinder: optional host-side owner resolution (Android embedding).\n'
+    'var TripletHostFinder func(network string, srcIP netip.Addr, srcPort int, dstIP netip.Addr, dstPort int) (uint32, string, bool)\n\n'
+)
+if marker in s:
+    print("triplet process patch: already applied")
+elif s.count(anchor) == 1:
+    open(p, 'w').write(s.replace(anchor, decl + anchor, 1))
+    print("triplet process patch applied")
+else:
+    raise SystemExit(f"FATAL: process.go anchor not found or ambiguous ({p})")
+PYEOF
+
 cp "$BIND_DIR/go.mod" "$WORK_DIR/go.mod"
 cp "$BIND_DIR/go.sum" "$WORK_DIR/go.sum"
 cp "$BIND_DIR/engine.go" "$WORK_DIR/engine.go"
@@ -61,7 +108,7 @@ open('go.mod', 'w').write(s)
 PYEOF
 
 export PATH="$PATH:$(go env GOPATH)/bin"
-export GOFLAGS="-mod=mod"
+export GOFLAGS="-mod=mod -tags=with_gvisor"
 # -libname dropped: gomobile@latest no longer supports it; output defaults to <package>.aar == engine.aar
 gomobile bind -target android/arm64,android/amd64 -androidapi 24 -javapkg=dev.triplet.engine .
 mkdir -p "$(dirname "$OUT")"
