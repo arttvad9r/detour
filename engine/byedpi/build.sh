@@ -27,7 +27,9 @@ declare -A CLANG=(
 
 for abi in arm64-v8a x86_64; do
   make -C "$CACHE" clean >/dev/null 2>&1 || true
-  make -C "$CACHE" -j"$(nproc)" CC="$TC/${CLANG[$abi]}" LDFLAGS="-static" >/dev/null
+  # Dynamic linking: a static bionic binary cannot resolve DNS (getaddrinfo
+  # requires libnetd_client, unavailable in static executables).
+  make -C "$CACHE" -j"$(nproc)" CC="$TC/${CLANG[$abi]}" LDFLAGS="" >/dev/null
   mkdir -p "$OUT_DIR/$abi"
   cp "$CACHE/ciadpi" "$OUT_DIR/$abi/libciadpi.so"
   chmod +x "$OUT_DIR/$abi/libciadpi.so"

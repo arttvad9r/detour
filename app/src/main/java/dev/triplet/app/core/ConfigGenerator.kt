@@ -29,6 +29,12 @@ object ConfigGenerator {
             }
         }
         val rules = buildList {
+            // IPv6 внутри TUN запрещён: на реальных сетях v6-egress через
+            // DPI/VPN-пути ненадёжен, приложения должны сразу использовать
+            // IPv4 (быстрый REJECT вместо чёрной дыры). Движок и его
+            // исходящие не затронуты — правила действуют только в TUN.
+            add("- IP-CIDR,::/1,REJECT,no-resolve")
+            add("- IP-CIDR,8000::/1,REJECT,no-resolve")
             input.profile?.let { input.vpnApps.forEach { pkg -> add("- ${attr(pkg)},VLESS") } }
             input.dpiApps.forEach { pkg ->
                 add("- AND,((${attr(pkg)}),(NETWORK,UDP),(DST-PORT,443)),REJECT")

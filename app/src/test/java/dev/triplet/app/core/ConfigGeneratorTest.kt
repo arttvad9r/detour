@@ -169,6 +169,8 @@ class ConfigGeneratorTest {
             |  port: 10808
             |  udp: false
             |rules:
+            |- IP-CIDR,::/1,REJECT,no-resolve
+            |- IP-CIDR,8000::/1,REJECT,no-resolve
             |- PROCESS-NAME,org.telegram.messenger,VLESS
             |- AND,((PROCESS-NAME,com.google.android.youtube),(NETWORK,UDP),(DST-PORT,443)),REJECT
             |- PROCESS-NAME,com.google.android.youtube,DPI
