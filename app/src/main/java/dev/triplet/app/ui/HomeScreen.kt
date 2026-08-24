@@ -1,5 +1,8 @@
 package dev.triplet.app.ui
 
+import android.app.Activity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -32,6 +35,11 @@ fun HomeScreen(store: RoutesStore, modifier: Modifier = Modifier) {
     val settings by store.settings.collectAsState(initial = null)
     val scope = rememberCoroutineScope()
     val ctx = LocalContext.current
+    // System VPN consent: on approval retry the start sequence immediately,
+    // so one Connect tap carries the user all the way to Active.
+    val consentLauncher = rememberLauncherForActivityResult(StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) VpnController.startNow(ctx)
+    }
 
     Column(
         modifier.fillMaxSize().padding(24.dp),
@@ -58,7 +66,7 @@ fun HomeScreen(store: RoutesStore, modifier: Modifier = Modifier) {
             onClick = {
                 scope.launch {
                     if (state == VpnState.Active) VpnController.stop(ctx)
-                    else VpnController.start(ctx)
+                    else VpnController.start(ctx, consentLauncher::launch)
                 }
             },
             enabled = enabled,

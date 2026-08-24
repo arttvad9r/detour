@@ -11,16 +11,19 @@ object VpnController {
 
     internal fun setState(s: VpnState) { _state.value = s }
 
-    fun start(ctx: Context) {
+    fun startNow(ctx: Context) =
+        ctx.startForegroundService(intent(ctx, TriVpnService.ACTION_START))
+
+    fun start(ctx: Context, requestConsent: (Intent) -> Unit) {
         // First connect: the system consent dialog must be approved by the
-        // user; after that prepare() returns null and the next tap connects.
+        // user; the caller relaunches startNow() on RESULT_OK.
         val consent = android.net.VpnService.prepare(ctx)
         if (consent != null) {
             dev.triplet.app.log.ServiceLog.i("vpn: requesting user consent")
-            ctx.startActivity(consent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            requestConsent(consent)
             return
         }
-        ctx.startForegroundService(intent(ctx, TriVpnService.ACTION_START))
+        startNow(ctx)
     }
 
     fun stop(ctx: Context) =
