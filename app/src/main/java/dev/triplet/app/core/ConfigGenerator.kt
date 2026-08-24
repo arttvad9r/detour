@@ -19,6 +19,9 @@ object ConfigGenerator {
     private val ROUTE_ADDRESS = listOf("0.0.0.0/1", "128.0.0.0/1", "::/1", "8000::/1")
 
     fun build(input: RoutingInput): String {
+        require(input.vpnUids.keys.containsAll(input.vpnApps + input.dpiApps)) {
+            "missing uid resolution for routed packages"
+        }
         val attr = { pkg: String ->
             when (input.attribution) {
                 Attribution.PROCESS_NAME -> "PROCESS-NAME,$pkg"
@@ -37,8 +40,7 @@ object ConfigGenerator {
             add("- MATCH,DIRECT")
         }.joinToString("\n")
 
-        // mihomo требует единый список proxies; оба исходящих (VLESS + SOCKS5 DPI)
-        // объявляются в одном блоке.
+        // mihomo требует единый список proxies; оба исходящих объявляются в одном блоке.
         val proxies = buildList {
             input.profile?.let { p ->
                 add(
@@ -71,45 +73,45 @@ object ConfigGenerator {
             )
         }.joinToString("\n")
 
-        val excludeLan = if (input.apiLevel >= 33) {
-            "\n" + LAN_PREFIXES.joinToString("\n") { "      - $it" }
-        } else " []"
+        // Шаблон flush-left; отступы фрагментов задают сами хелперы,
+        // trimIndent не используется (смешанные отступы ломали YAML).
+        val excludeLan = if (input.apiLevel >= 33) items(LAN_PREFIXES) else " []"
 
         return """
-        mode: rule
-        log-level: info
-        ipv6: true
-        find-process-mode: strict
-        mixed-port: ${input.mixedPort}
-        bind-address: 127.0.0.1
-        tun:
-          enable: true
-          stack: gvisor
-          file-descriptor: ${input.tunFd}
-          auto-route: false
-          auto-detect-interface: false
-          strict-route: false
-          mtu: $MTU
-          inet4-address:
-            - $INET4
-          inet6-address:
-            - $INET6
-          route-address:${yamlItems(ROUTE_ADDRESS)}
-          route-exclude-address:$excludeLan
-          dns-hijack:
-            - any:53
-        dns:
-          enable: true
-          enhanced-mode: fake-ip
-          nameserver:
-            - https://1.1.1.1/dns-query
-        proxies:
-        $proxies
-        rules:
-        $rules
-        """.trimIndent()
+mode: rule
+log-level: info
+ipv6: true
+find-process-mode: strict
+mixed-port: ${input.mixedPort}
+bind-address: 127.0.0.1
+tun:
+  enable: true
+  stack: gvisor
+  file-descriptor: ${input.tunFd}
+  auto-route: false
+  auto-detect-interface: false
+  strict-route: false
+  mtu: $MTU
+  inet4-address:
+    - $INET4
+  inet6-address:
+    - $INET6
+  route-address:${items(ROUTE_ADDRESS)}
+  route-exclude-address:$excludeLan
+  dns-hijack:
+    - any:53
+dns:
+  enable: true
+  enhanced-mode: fake-ip
+  nameserver:
+    - https://1.1.1.1/dns-query
+proxies:
+$proxies
+rules:
+$rules""".trim()
     }
 
-    private fun yamlItems(items: List<String>) =
-        "\n" + items.joinToString("\n") { "      - $it" }
+    // Элементы последовательности под ключом с отступом 2: элементы на 4 пробела.
+    private fun items(items: List<String>) =
+        "\n" + items.joinToString("\n") { "    - $it" }
 }
