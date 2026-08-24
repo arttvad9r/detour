@@ -17,11 +17,12 @@ class DpiPresetsTest {
     @Test fun `compatible avoids fake packets`() {
         val a = DpiPreset.COMPATIBLE.args
         assertTrue(a.none { it == "--fake" || it == "-f" })
-        // ladder strategy: alternating disorder/split, golden-pinned
+        // ladder strategy + connection-setup timeout; golden-pinned
         assertEquals(
             listOf("-d", "1", "-s", "1+s", "-d", "3+s", "-s", "6+s",
                    "-d", "9+s", "-s", "12+s", "-d", "15+s", "-s", "20+s",
-                   "-d", "25+s", "-s", "30+s", "-d", "35+s", "-a", "1"),
+                   "-d", "25+s", "-s", "30+s", "-d", "35+s", "-a", "1",
+                   "--timeout", "3"),
             a,
         )
     }
