@@ -39,7 +39,8 @@ class TriVpnService : VpnService() {
         const val ACTION_START = "dev.triplet.app.action.START"
         const val ACTION_STOP = "dev.triplet.app.action.STOP"
         const val ACTION_RESTART = "dev.triplet.app.action.RESTART"
-        private const val CHANNEL_ID = "triplet_vpn"
+        // "-2": Android кэширует имя канала по ID; суффикс после ребрендинга
+        private const val CHANNEL_ID = "detour_vpn_2"
         private const val NOTIFICATION_ID = 1
         private val lastTun = AtomicReference<ParcelFileDescriptor?>(null)
     }
