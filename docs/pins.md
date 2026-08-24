@@ -1,5 +1,6 @@
 # Pins
 - mihomo: v1.19.29 (patch: buildAndroidRules -> nil; triplet host-resolver bridge in tunnel.go/process.go)
+- byedpi: v0.17.3 (ciadpi cross-compiled via engine/byedpi/build.sh; -static, android21, arm64-v8a + x86_64)
 
 ## Attribution decision
 
