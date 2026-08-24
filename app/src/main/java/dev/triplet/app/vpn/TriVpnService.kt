@@ -63,8 +63,10 @@ class TriVpnService : VpnService() {
             ACTION_START -> executor.execute { startSequence() }
             ACTION_STOP -> executor.execute { stopSequence(stopSelf = true) }
             ACTION_RESTART -> executor.execute { stopSequence(stopSelf = false); startSequence() }
+            // Sticky-restart приходит с null intent: сервис не нужен без явного старта UI.
+            null -> stopSelf()
         }
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = super.onBind(intent)
