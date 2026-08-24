@@ -30,6 +30,17 @@
         </activity>
 
         <service
+            android:name=".tile.DetourTile"
+            android:exported="true"
+            android:icon="@drawable/ic_gear"
+            android:label="Detour"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
             android:name=".vpn.TriVpnService"
             android:exported="false"
             android:permission="android.permission.BIND_VPN_SERVICE"

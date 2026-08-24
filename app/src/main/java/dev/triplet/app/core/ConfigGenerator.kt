@@ -106,7 +106,7 @@ dns:
   enable: true
   enhanced-mode: redir-host
   nameserver:
-    - 8.8.8.8
+    - ${input.nameserver}
 proxies:
 $proxies
 rules:

@@ -12,6 +12,7 @@ data class RoutingInput(
     val vpnUids: Map<String, Int>,
     val dpiApps: Set<String>,
     val attribution: Attribution,
+    val nameserver: String = "8.8.8.8",
     val dpiPort: Int = 10808,
     val mixedPort: Int = 10809,
 )

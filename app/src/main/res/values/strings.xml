@@ -25,6 +25,19 @@
     <string name="theme_title">Оформление</string>
     <string name="theme_hint">Тема применяется сразу ко всему приложению</string>
     <string name="auto_connect">Подключаться при запуске</string>
+    <string name="nav_dns">DNS</string>
+    <string name="nav_dns_sub">резолвер для туннеля</string>
+    <string name="dns_title">DNS</string>
+    <string name="dns_custom">Свой адрес</string>
+    <string name="nav_backup">Экспорт / импорт</string>
+    <string name="nav_backup_sub">перенос настроек на другое устройство</string>
+    <string name="backup_title">Экспорт / импорт</string>
+    <string name="backup_note">В файл попадают ключ, маршруты приложений, стратегия и тема. Ключ секретный — храни файл аккуратно.</string>
+    <string name="backup_export">Экспортировать в файл</string>
+    <string name="backup_import">Импортировать из файла</string>
+    <string name="backup_exported">Экспортировано</string>
+    <string name="backup_imported">Импортировано и применено</string>
+    <string name="backup_bad_file">Файл не похож на резервную копию Detour</string>
     <string name="nav_dpi">Обход DPI</string>
     <string name="nav_dpi_sub">стратегия обхода блокировок</string>
 

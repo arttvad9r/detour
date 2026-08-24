@@ -43,6 +43,8 @@ fun SettingsMenuScreen(
     onOpenVless: () -> Unit,
     onOpenDpi: () -> Unit,
     onOpenTheme: () -> Unit,
+    onOpenDns: () -> Unit,
+    onOpenBackup: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -57,6 +59,8 @@ fun SettingsMenuScreen(
             MenuItem(R.string.nav_routes, 0, R.drawable.ic_routes, Color(0xFF4C6EF5)) to onOpenRoutes,
             MenuItem(R.string.nav_key, R.string.nav_key_sub, R.drawable.ic_lock, Color(0xFF1F9D5A)) to onOpenVless,
             MenuItem(R.string.nav_dpi, R.string.nav_dpi_sub, R.drawable.ic_dpi, Color(0xFF34507B)) to onOpenDpi,
+            MenuItem(R.string.nav_dns, R.string.nav_dns_sub, R.drawable.ic_globe, Color(0xFF0E7490)) to onOpenDns,
+            MenuItem(R.string.nav_backup, R.string.nav_backup_sub, R.drawable.ic_export, Color(0xFF8B5CF6)) to onOpenBackup,
         )
         items.forEach { (item, onClick) ->
             Row(

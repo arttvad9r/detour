@@ -19,6 +19,7 @@ import dev.triplet.app.R
 import dev.triplet.app.core.AppRoute
 import dev.triplet.app.core.Attribution
 import dev.triplet.app.core.ConfigGenerator
+import dev.triplet.app.core.DnsOptions
 import dev.triplet.app.core.DpiArgs
 import dev.triplet.app.core.DpiBackend
 import dev.triplet.app.core.ParseResult
@@ -149,6 +150,7 @@ class TriVpnService : VpnService() {
                 tunFd = fd, apiLevel = Build.VERSION.SDK_INT, ownPackage = packageName,
                 profile = profile, vpnApps = effVpn, vpnUids = vpnUids,
                 dpiApps = effDpi, attribution = Attribution.UID,
+                nameserver = DnsOptions.resolve(settings.dnsId, settings.dnsCustom),
             ),
         )
         val logPath = File(cacheDir, "mihomo.log").absolutePath

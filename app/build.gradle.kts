@@ -35,6 +35,7 @@ android {
 // AAR движка появится в Task 2; до этого строку закомментировать нельзя —
 // поэтому Task 2 выполняется сразу за этим и preBuild-зависимость включается там.
 dependencies {
+    testImplementation("org.json:json:20240303")
     implementation(files("../engine/libs/engine.aar"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

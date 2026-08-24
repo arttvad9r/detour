@@ -19,6 +19,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import dev.triplet.app.ui.AppsScreen
+import dev.triplet.app.ui.BackupScreen
+import dev.triplet.app.ui.DnsScreen
 import dev.triplet.app.ui.DpiScreen
 import dev.triplet.app.ui.HomeScreen
 import dev.triplet.app.ui.AppTheme
@@ -29,7 +31,7 @@ import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
 import dev.triplet.app.ui.VlessKeyScreen
 
-private enum class Screen { HOME, SETTINGS, ROUTES, VLESS, DPI, THEME }
+private enum class Screen { HOME, SETTINGS, ROUTES, VLESS, DPI, THEME, DNS, BACKUP }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -66,6 +68,8 @@ class MainActivity : ComponentActivity() {
                                 onOpenVless = { screen = Screen.VLESS },
                                 onOpenDpi = { screen = Screen.DPI },
                                 onOpenTheme = { screen = Screen.THEME },
+                                onOpenDns = { screen = Screen.DNS },
+                                onOpenBackup = { screen = Screen.BACKUP },
                                 onBack = { screen = Screen.HOME },
                                 modifier,
                             )
@@ -73,6 +77,8 @@ class MainActivity : ComponentActivity() {
                             Screen.VLESS -> VlessKeyScreen(store, onBack = { screen = Screen.SETTINGS }, modifier)
                             Screen.DPI -> DpiScreen(store, onBack = { screen = Screen.SETTINGS }, modifier)
                             Screen.THEME -> ThemeScreen(store, onBack = { screen = Screen.SETTINGS }, modifier)
+                            Screen.DNS -> DnsScreen(store, onBack = { screen = Screen.SETTINGS }, modifier)
+                            Screen.BACKUP -> BackupScreen(store, onBack = { screen = Screen.SETTINGS }, modifier)
                         }
                     }
                 }
