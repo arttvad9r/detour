@@ -7,12 +7,8 @@ import org.junit.Test
 class DpiArgsTest {
     @Test fun `fixed presets ignore custom string`() {
         assertEquals(
-            DpiPreset.COMPATIBLE.args,
-            DpiArgs.resolve(DpiPreset.COMPATIBLE, "-s 9 -d 9"),
-        )
-        assertEquals(
             DpiPreset.RECOMMENDED.args,
-            DpiArgs.resolve(DpiPreset.RECOMMENDED, ""),
+            DpiArgs.resolve(DpiPreset.RECOMMENDED, "-s 9 -d 9"),
         )
     }
     @Test fun `custom preset tokenizes on any whitespace`() {

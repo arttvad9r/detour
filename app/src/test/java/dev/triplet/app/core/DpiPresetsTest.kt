@@ -1,6 +1,7 @@
 package dev.triplet.app.core
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -11,13 +12,13 @@ class DpiPresetsTest {
             assertTrue(preset.args.none { it == "-i" || it == "-p" || it == "-U" })
         }
     }
-    @Test fun `recommended uses fake packets`() {
-        assertTrue(DpiPreset.RECOMMENDED.args.contains("--fake"))
+    @Test fun `recommended avoids fake packets`() {
+        // fake-пакеты на сети МТС не нужны и мешают: лестница без -f
+        assertFalse(DpiPreset.RECOMMENDED.args.contains("--fake"))
     }
-    @Test fun `compatible avoids fake packets`() {
-        val a = DpiPreset.COMPATIBLE.args
-        assertTrue(a.none { it == "--fake" || it == "-f" })
-        // ladder strategy + connection-setup timeout; golden-pinned
+    @Test fun `recommended is the tuned ladder with setup timeout`() {
+        val a = DpiPreset.RECOMMENDED.args
+        // ladder strategy (МТС Вологда) + fast-fail на мёртвых GGC-нодах; golden-pinned
         assertEquals(
             listOf("-d", "1", "-s", "1+s", "-d", "3+s", "-s", "6+s",
                    "-d", "9+s", "-s", "12+s", "-d", "15+s", "-s", "20+s",
@@ -28,6 +29,8 @@ class DpiPresetsTest {
     }
     @Test fun `stable ids for persistence`() {
         assertEquals("recommended", DpiPreset.RECOMMENDED.id)
-        assertEquals("compatible", DpiPreset.COMPATIBLE.id)
+        assertEquals("custom", DpiPreset.CUSTOM.id)
+        // легаси-id «compatible» мигрирует на RECOMMENDED
+        assertEquals(DpiPreset.RECOMMENDED, DpiPreset.byId("compatible"))
     }
 }

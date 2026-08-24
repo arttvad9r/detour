@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Detour — макет UI v2</title>
+<style>
+  :root{
+    --bg:#eef0f4; --surface:#ffffff; --surface2:#f3f5f8;
+    --primary:#34507b; --on-primary:#fff;
+    --green:#22a55e; --green-dim:#e6f4ec;
+    --blue:#4c6ef5; --blue-dim:#eaefff;
+    --red:#d64545;
+    --text:#1a2230; --muted:#68727f; --border:#dde2ea;
+    --radius:20px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;font-family:'Inter',Roboto,-apple-system,'Segoe UI',sans-serif}
+  body{background:linear-gradient(160deg,#dfe4ec,#cfd6e2);min-height:100vh;padding:36px 20px;display:flex;flex-direction:column;align-items:center;gap:28px}
+  h1{font-size:22px;color:#26303f;font-weight:700}
+  .sub{color:#5a6575;font-size:14px;margin-top:-18px}
+  .row{display:flex;gap:34px;flex-wrap:wrap;justify-content:center}
+  .frame{width:340px;background:#111;border-radius:38px;padding:10px;box-shadow:0 24px 60px rgba(20,30,50,.35)}
+  .screen{background:var(--bg);border-radius:30px;height:660px;overflow:hidden;display:flex;flex-direction:column;position:relative}
+  .label{text-align:center;color:#414c5c;font-size:13px;margin-top:-22px;margin-bottom:14px;font-weight:600;letter-spacing:.3px}
+  /* top bar */
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:18px 18px 10px}
+  .brand{font-size:19px;font-weight:800;color:var(--text);letter-spacing:.2px}
+  .iconbtn{width:40px;height:40px;border-radius:12px;border:none;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--primary);transition:background .15s}
+  .iconbtn:hover{background:rgba(52,80,123,.09)}
+  svg{display:block}
+  /* status card */
+  .statuscard{margin:8px 14px;background:var(--surface);border-radius:var(--radius);padding:22px 20px;text-align:center;box-shadow:0 1px 3px rgba(25,35,55,.06)}
+  .dot{width:13px;height:13px;border-radius:50%;display:inline-block;margin-right:9px;vertical-align:baseline}
+  .st-active .dot{background:var(--green);box-shadow:0 0 0 4px var(--green-dim)}
+  .st-off .dot{background:#98a2b3;box-shadow:0 0 0 4px #eceff3}
+  .statetitle{font-size:21px;font-weight:800;color:var(--text);letter-spacing:.4px}
+  .statesub{color:var(--muted);font-size:13px;margin-top:5px}
+  .chips{display:flex;gap:8px;justify-content:center;margin-top:15px;flex-wrap:wrap}
+  .chip{font-size:12px;font-weight:600;color:var(--primary);background:rgba(52,80,123,.08);padding:6px 11px;border-radius:999px}
+  .chip b{color:var(--green)}
+  /* big action */
+  .action{margin:14px;display:flex;justify-content:center}
+  .bigbtn{border:none;cursor:pointer;font-size:15px;font-weight:700;letter-spacing:.4px;padding:17px 46px;border-radius:16px;transition:transform .06s, box-shadow .15s}
+  .bigbtn:active{transform:scale(.97)}
+  .btn-connect{background:var(--primary);color:var(--on-primary);box-shadow:0 8px 20px rgba(52,80,123,.35)}
+  .btn-disconnect{background:var(--surface);color:var(--red);border:1.5px solid #eccaca}
+  .diag{color:var(--muted);font-size:12px;text-align:center;margin-top:auto;padding:12px;border-top:1px solid var(--border)}
+  .diag b{color:var(--green)}
+  /* connecting pulse */
+  .pulse{animation:pulse 1.4s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+  /* settings */
+  .sethead{display:flex;align-items:center;gap:6px;padding:14px 10px 8px}
+  .sethead .title{font-size:18px;font-weight:800;color:var(--text)}
+  .section{background:var(--surface);border-radius:16px;margin:0 14px 12px;overflow:hidden;box-shadow:0 1px 3px rgba(25,35,55,.05)}
+  .sectitle{font-size:13px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.7px;margin:14px 16px 6px}
+  .item{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--surface2)}
+  .item:last-child{border-bottom:none}
+  .appname{font-size:14.5px;color:var(--text);font-weight:600}
+  .apppkg{font-size:11px;color:var(--muted);margin-top:2px}
+  .seg{display:flex;background:var(--surface2);border-radius:11px;padding:3px;gap:2px}
+  .seg span{font-size:11.5px;font-weight:700;padding:6px 12px;border-radius:8px;color:var(--muted);cursor:default}
+  .seg .on{background:var(--primary);color:#fff}
+  .val{font-size:13.5px;color:var(--text);font-weight:600}
+  .ok{color:var(--green);font-weight:700}
+  .radio{display:flex;align-items:center;gap:10px;padding:11px 16px;font-size:14px;color:var(--text)}
+  .rdot{width:19px;height:19px;border-radius:50%;border:2px solid #b6bfcc;position:relative;flex:none}
+  .rdot.on{border-color:var(--primary)}
+  .rdot.on::after{content:'';position:absolute;inset:3.5px;background:var(--primary);border-radius:50%}
+  .customargs{margin:4px 16px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:10px 12px;font-family:ui-monospace,Menlo,monospace;font-size:11.5px;color:#3c475a;line-height:1.5}
+  .hint{font-size:11.5px;color:var(--muted);padding:0 16px 12px}
+</style>
+</head>
+<body>
+<h1>Detour · предложение интерфейса v2</h1>
+<div class="sub">клик по шестерёнке на первом экране открывает настройки, стрелка возвращает · макет, не финальный дизайн</div>
+
+<div class="row">
+<!-- ЭКРАН 1: главная, активно -->
+<div>
+<div class="frame"><div class="screen st-active">
+  <div class="topbar">
+    <span class="brand">Detour</span>
+    <button class="iconbtn" onclick="show('settings')" title="Настройки">
+      <svg width="23" height="23" viewBox="0 0 256 256" fill="currentColor"><path d="M128,80a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,80Zm0,80a32,32,0,1,1,32-32A32,32,0,0,1,128,160Zm88-29.84q.06-2.16,0-4.32l14.92-18.64a8,8,0,0,0,1.48-7.06,107.21,107.21,0,0,0-10.07-24.28,8,8,0,0,0-6-4.13l-23.72-2.64q-1.48-1.56-3-3L186.4,73.41a8,8,0,0,0-4.13-6,107.71,107.71,0,0,0-24.28-10.09,8,8,0,0,0-7.06,1.49L131.84,73.7q-2.16-.05-4.32,0L108.87,58.82a8,8,0,0,0-7.06-1.48A107.6,107.6,0,0,0,77.53,67.42a8,8,0,0,0-4.13,6L70.76,97.15q-1.56,1.49-3,3L44.11,102.8a8,8,0,0,0-6,4.13,107.71,107.71,0,0,0-10.09,24.28,8,8,0,0,0,1.49,7.06l14.71,18.64q-.05,2.16,0,4.32L29.51,180a8,8,0,0,0-1.48,7.06,107.21,107.21,0,0,0,10.07,24.28,8,8,0,0,0,6,4.13l23.72,2.64q1.49,1.56,3,3l2.33,23.19a8,8,0,0,0,4.13,6,107.71,107.71,0,0,0,24.28,10.09,8,8,0,0,0,7.06-1.49l18.64-14.92q2.16.05,4.32,0l18.64,14.92a8,8,0,0,0,7.06,1.48,107.21,107.21,0,0,0,24.28-10.07,8,8,0,0,0,4.13-6l2.64-23.72q1.56-1.48,3-3l23.19-2.33a8,8,0,0,0,6-4.13,107.71,107.71,0,0,0,10.09-24.28,8,8,0,0,0-1.49-7.06Z"/></svg>
+    </button>
+  </div>
+  <div class="statuscard">
+    <div class="statetitle"><span class="dot"></span>АКТИВНО</div>
+    <div class="statesub">туннель работает · 3 приложения маршрутизировано</div>
+    <div class="chips"><span class="chip">Telegram → <b>VPN</b></span><span class="chip">YouTube → <b>DPI</b></span><span class="chip">остальные → напрямую</span></div>
+  </div>
+  <div class="action"><button class="bigbtn btn-disconnect">ОТКЛЮЧИТЬ</button></div>
+  <div class="diag">probe ok · 21 МБ/с · стратегия «Совместимая»</div>
+</div></div>
+<div class="label">Главная · подключено</div>
+</div>
+
+<!-- ЭКРАН 2: главная, отключено -->
+<div>
+<div class="frame"><div class="screen st-off">
+  <div class="topbar">
+    <span class="brand">Detour</span>
+    <button class="iconbtn" onclick="show('settings')" title="Настройки">
+      <svg width="23" height="23" viewBox="0 0 256 256" fill="currentColor"><path d="M128,80a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,80Zm0,80a32,32,0,1,1,32-32A32,32,0,0,1,128,160Zm88-29.84q.06-2.16,0-4.32l14.92-18.64a8,8,0,0,0,1.48-7.06,107.21,107.21,0,0,0-10.07-24.28,8,8,0,0,0-6-4.13l-23.72-2.64q-1.48-1.56-3-3L186.4,73.41a8,8,0,0,0-4.13-6,107.71,107.71,0,0,0-24.28-10.09,8,8,0,0,0-7.06,1.49L131.84,73.7q-2.16-.05-4.32,0L108.87,58.82a8,8,0,0,0-7.06-1.48A107.6,107.6,0,0,0,77.53,67.42a8,8,0,0,0-4.13,6L70.76,97.15q-1.56,1.49-3,3L44.11,102.8a8,8,0,0,0-6,4.13,107.71,107.71,0,0,0-10.09,24.28,8,8,0,0,0,1.49,7.06l14.71,18.64q-.05,2.16,0,4.32L29.51,180a8,8,0,0,0-1.48,7.06,107.21,107.21,0,0,0,10.07,24.28,8,8,0,0,0,6,4.13l23.72,2.64q1.49,1.56,3,3l2.33,23.19a8,8,0,0,0,4.13,6,107.71,107.71,0,0,0,24.28,10.09,8,8,0,0,0,7.06-1.49l18.64-14.92q2.16.05,4.32,0l18.64,14.92a8,8,0,0,0,7.06,1.48,107.21,107.21,0,0,0,24.28-10.07,8,8,0,0,0,4.13-6l2.64-23.72q1.56-1.48,3-3l23.19-2.33a8,8,0,0,0,6-4.13,107.71,107.71,0,0,0,10.09-24.28,8,8,0,0,0-1.49-7.06Z"/></svg>
+    </button>
+  </div>
+  <div class="statuscard">
+    <div class="statetitle"><span class="dot"></span>ОТКЛЮЧЕНО</div>
+    <div class="statesub">маршруты сохранены · ключ корректен</div>
+    <div class="chips"><span class="chip">Telegram → VPN</span><span class="chip">YouTube → DPI</span></div>
+  </div>
+  <div class="action"><button class="bigbtn btn-connect">ПОДКЛЮЧИТЬ</button></div>
+  <div class="diag">последний запуск: today 18:02 · ошибок нет</div>
+</div></div>
+<div class="label">Главная · отключено</div>
+</div>
+
+<!-- ЭКРАН 3: настройки -->
+<div id="settings" class="frame" style="display:none"><div class="screen">
+  <div class="sethead">
+    <button class="iconbtn" onclick="show('main')" title="Назад">
+      <svg width="22" height="22" viewBox="0 0 256 256" fill="currentColor"><path d="M224,128a8,8,0,0,1-8,8H59.31l58.35,58.34a8,8,0,0,1-11.32,11.32l-72-72a8,8,0,0,1,0-11.32l72-72a8,8,0,0,1,11.32,11.32L59.31,120H216A8,8,0,0,1,224,128Z"/></svg>
+    </button>
+    <span class="title">Настройки</span>
+  </div>
+
+  <div class="sectitle">Приложения</div>
+  <div class="section">
+    <div class="item"><div><div class="appname">Telegram</div><div class="apppkg">org.telegram.messenger</div></div>
+      <div class="seg"><span>Напрямую</span><span class="on">VPN</span><span>DPI</span></div></div>
+    <div class="item"><div><div class="appname">YouTube</div><div class="apppkg">com.google.android.youtube</div></div>
+      <div class="seg"><span>Напрямую</span><span>VPN</span><span class="on">DPI</span></div></div>
+    <div class="item" style="color:var(--primary);font-weight:700;font-size:13.5px">Все приложения →</div>
+  </div>
+
+  <div class="sectitle">Ключ VLESS</div>
+  <div class="section">
+    <div class="item"><div><div class="appname"><span class="ok">✓ Корректен</span></div><div class="apppkg">blog.polarjamesy.cfd:443</div></div>
+      <span class="val" style="color:var(--primary)">Изменить</span></div>
+  </div>
+
+  <div class="sectitle">Стратегия обхода DPI</div>
+  <div class="section">
+    <div class="radio"><span class="rdot"></span>Рекомендуемая</div>
+    <div class="radio"><span class="rdot on"></span>Совместимая<span style="margin-left:auto;font-size:11px;color:var(--muted)">+ таймаут 3с</span></div>
+    <div class="radio"><span class="rdot"></span>Своя стратегия</div>
+    <div class="customargs">-d 1 -s 1+s -d 3+s -s 6+s -d 9+s -s 12+s<br>-d 15+s -s 20+s -d 25+s -s 30+s -d 35+s -a 1<br>--timeout 3</div>
+  </div>
+
+  <div class="sectitle">Диагностика</div>
+  <div class="section">
+    <div class="item"><span class="val">Проверка связи</span><span class="ok">probe ok</span></div>
+    <div class="item" style="color:var(--primary);font-weight:700;font-size:13.5px">Журнал →</div>
+  </div>
+  <div class="hint">Изменения применяются автоматически — активный туннель перезапускается</div>
+</div></div>
+<div class="label" id="settings-label" style="visibility:hidden">Настройки</div>
+</div>
+
+<script>
+function show(id){
+  document.querySelectorAll('.frame').forEach(f=>f.style.display='none');
+  document.querySelectorAll('.label').forEach(l=>l.style.visibility='hidden');
+  const el=document.getElementById(id==='settings'?'settings':null);
+  if(id==='settings'){
+    document.getElementById('settings').style.display='block';
+    document.getElementById('settings-label').style.visibility='visible';
+  }else{
+    document.querySelectorAll('.frame').forEach((f,i)=>{ if(i<2) f.style.display='block'; });
+    document.getElementById('settings-label').style.visibility='hidden';
+    document.querySelectorAll('.label').forEach((l,i)=>{ if(i<2) l.style.visibility='visible'; });
+  }
+}
+</script>
+</body>
+</html>

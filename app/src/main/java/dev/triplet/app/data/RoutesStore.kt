@@ -43,7 +43,7 @@ object RoutesMapping {
     fun customArgsKey() = stringPreferencesKey(KEY_CUSTOM_ARGS)
 }
 
-data class AppInfo(val packageName: String, val label: String)
+data class AppInfo(val packageName: String, val label: String, val isSystem: Boolean)
 
 class RoutesStore(context: Context) {
     private val store = PreferenceDataStoreFactory.create {

@@ -20,7 +20,9 @@ class RoutesMappingTest {
             ),
         )
         assertEquals("vless://x", s.vlessUri)
-        assertEquals(DpiPreset.COMPATIBLE, s.preset)
+        assertEquals(DpiPreset.RECOMMENDED, s.preset)
+        // Легаси-id «compatible» мигрирует на единственную встроенную стратегию
+        assertEquals(DpiPreset.RECOMMENDED, DpiPreset.byId("compatible"))
         assertEquals(AppRoute.VPN, s.routes["a"])
         assertEquals(AppRoute.DPI, s.routes["b"])
         // DIRECT не хранится как отдельная запись-маршрут
@@ -40,7 +42,7 @@ class RoutesMappingTest {
     }
 
     @Test fun `apps sorted by label case-insensitive`() {
-        val sorted = RoutesMapping.sortApps(listOf(AppInfo("b", "Zebra"), AppInfo("a", "apple")))
+        val sorted = RoutesMapping.sortApps(listOf(AppInfo("b", "Zebra", isSystem = false), AppInfo("a", "apple", isSystem = false)))
         assertEquals(listOf("apple", "Zebra"), sorted.map { it.label })
     }
 }

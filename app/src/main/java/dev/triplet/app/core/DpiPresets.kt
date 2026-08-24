@@ -1,31 +1,19 @@
 package dev.triplet.app.core
 
 /**
- * Fixed ByeDPI strategy sets. Exact values are tuned during device
- * acceptance (spec: two presets only, no arbitrary arguments).
+ * ByeDPI strategy presets.
+ * RECOMMENDED — лестница, подобранная и проверенная на сети провайдера
+ * владельца (МТС Вологда, приёмка 2026-08-24); CUSTOM — свободное поле
+ * аргументов из настроек.
  */
 enum class DpiPreset(val id: String, val args: List<String>) {
     RECOMMENDED(
         "recommended",
-        listOf("--fake", "-1", "--ttl", "8",
-               "--auto=torst,ssl_err", "--timeout", "3",
-               "--fake", "-1", "--ttl", "5"),
-    ),
-    COMPATIBLE(
-        "compatible",
-        // Ladder strategy proven on the user's DPI-blocking carrier
-        // (OnePlus acceptance, 2026-08-24; matches ByeByeDPI app preset).
-        // --timeout 3: у МТС есть мёртвые GGC-ноды (напр. rr4---sn-q4flrnsl);
-        // таймаут действует только на фазу установки соединения и снимается
-        // после ответа — мёртвая нода отваливается за 3с вместо минутного
-        // зависания, YouTube сразу перебирает следующую.
         listOf("-d", "1", "-s", "1+s", "-d", "3+s", "-s", "6+s",
                "-d", "9+s", "-s", "12+s", "-d", "15+s", "-s", "20+s",
                "-d", "25+s", "-s", "30+s", "-d", "35+s", "-a", "1",
                "--timeout", "3"),
     ),
-    // Пользовательская стратегия: аргументы вводятся в настройках.
-    // args не используется напрямую — см. DpiArgs.resolve().
     CUSTOM("custom", emptyList());
 
     companion object {
