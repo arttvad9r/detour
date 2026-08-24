@@ -183,6 +183,7 @@ class TriVpnService : VpnService() {
         // ponytail: если Engine.start упал до передачи fd, он утечёт до смерти процесса;
         // апгрейд — track-список сырых fd с ручным Os.close().
         lastTun.getAndSet(null)?.let { runCatching { it.detachFd() } }
+        lastNetwork = null
         if (VpnController.state.value !is VpnState.Failed) VpnController.setState(VpnState.Idle)
         stopForeground(STOP_FOREGROUND_REMOVE)
         if (stopSelf) stopSelf()
@@ -247,13 +248,23 @@ class TriVpnService : VpnService() {
 
     // ---- network monitor --------------------------------------------------
 
+    private var lastNetwork: Network? = null
+
     private fun registerNetworkMonitor() {
         val cm = getSystemService(ConnectivityManager::class.java)
         val cb = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
-                ServiceLog.i("network: available, restarting tunnel if active")
-                // Перепосылка интента безопасна при любом состоянии.
-                VpnController.restartIfActive(this@TriVpnService)
+                // VPN establishment/validation re-fires onAvailable for the
+                // same or the VPN network itself; restarting on that caused an
+                // infinite stop/start storm. Restart only when the underlying
+                // default network actually changes (Wi-Fi <-> LTE).
+                val caps = cm.getNetworkCapabilities(network) ?: return
+                if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) return
+                if (network == lastNetwork) return
+                lastNetwork = network
+                if (VpnController.state.value != VpnState.Active) return
+                ServiceLog.i("network changed, restarting tunnel")
+                executor.execute { stopSequence(stopSelf = false); startSequence() }
             }
         }
         cm.registerDefaultNetworkCallback(cb)
