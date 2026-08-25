@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonElevation
@@ -29,6 +30,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -141,22 +143,34 @@ fun GroupDivider(startInset: Int = 64) {
 
 /** Общий компактный switch: 44x26dp visual, 48x48dp touch target. */
 @Composable
-fun DetourSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+fun DetourSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, animate: Boolean = true, compact: Boolean = false) {
     val c = detourColors
-    val thumbOffset by animateDpAsState(if (checked) 21.dp else 3.dp, tween(180), label = "switchThumb")
+    val trackWidth = if (compact) 40.dp else 44.dp
+    val trackHeight = if (compact) 24.dp else 26.dp
+    val thumbSize = if (compact) 18.dp else 20.dp
+    val thumbStart = if (compact) 4.dp else 3.dp
+    val targetOffset = if (checked) trackWidth - thumbSize - thumbStart else thumbStart
+    val animatedOffset by animateDpAsState(targetOffset, tween(180), label = "switchThumb")
+    val thumbOffset = if (animate) animatedOffset else targetOffset
     Box(
-        Modifier.size(48.dp).toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange),
+        Modifier.size(48.dp).toggleable(
+            value = checked,
+            role = Role.Switch,
+            onValueChange = onCheckedChange,
+            interactionSource = remember { MutableInteractionSource() },
+            indication = null,
+        ),
         contentAlignment = Alignment.CenterStart,
     ) {
         Box(
-            Modifier.padding(start = 2.dp).size(44.dp, 26.dp)
-                .background(if (checked) c.accent else c.surfaceSoft, androidx.compose.foundation.shape.CircleShape)
-                .border(1.dp, if (checked) c.accent else c.border, androidx.compose.foundation.shape.CircleShape),
+            Modifier.padding(start = if (compact) 4.dp else 2.dp).size(trackWidth, trackHeight)
+                .background(if (checked) c.accent else c.border.copy(alpha = .85f), androidx.compose.foundation.shape.CircleShape)
+                .border(1.dp, if (checked) c.accent else c.textMuted.copy(alpha = .25f), androidx.compose.foundation.shape.CircleShape),
         ) {
             Box(
-                Modifier.padding(start = thumbOffset - 2.dp, top = 3.dp).size(20.dp)
-                    .background(if (checked) Color.White else c.background, androidx.compose.foundation.shape.CircleShape)
-                    .border(1.dp, if (checked) Color.Transparent else c.border, androidx.compose.foundation.shape.CircleShape),
+                Modifier.padding(start = thumbOffset - thumbStart, top = 3.dp).size(thumbSize)
+                    .background(Color.White, androidx.compose.foundation.shape.CircleShape)
+                    .border(1.dp, if (checked) Color.Transparent else c.textMuted.copy(alpha = .25f), androidx.compose.foundation.shape.CircleShape),
             )
         }
     }
@@ -339,8 +353,8 @@ fun ScreenHeader(title: String, onBack: () -> Unit, modifier: Modifier = Modifie
 /** Общие цвета полей ввода: поверхность, волосная граница, лавандовый фокус. */
 @Composable
 fun fieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedContainerColor = detourColors.surface,
-    unfocusedContainerColor = detourColors.surface,
+    focusedContainerColor = Color.Transparent,
+    unfocusedContainerColor = Color.Transparent,
     focusedBorderColor = detourColors.accent,
     unfocusedBorderColor = detourColors.border,
     cursorColor = detourColors.accent,

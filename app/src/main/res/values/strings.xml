@@ -69,6 +69,12 @@
     <string name="key_edit">Изменить</string>
     <string name="key_cancel">Отмена</string>
     <string name="key_paste">Вставить из буфера</string>
+    <string name="key_list_title">Ключи</string>
+    <string name="key_empty">Нет добавленных ключей</string>
+    <string name="key_add">Добавить</string>
+    <string name="key_delete">Удалить</string>
+    <string name="key_name">Название</string>
+    <string name="key_uri">VLESS URL</string>
 
     <!-- DNS -->
     <string name="dns_note">DNS применяется к маршрутизированным приложениям через движок. AdGuard дополнительно режет рекламу и трекеры.</string>

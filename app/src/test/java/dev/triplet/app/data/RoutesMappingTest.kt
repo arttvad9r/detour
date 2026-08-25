@@ -8,6 +8,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RoutesMappingTest {
+    @Test
+    fun `system apps visibility is restored from settings`() {
+        assertTrue(RoutesMapping.toSettings(mapOf("show_system_apps" to true)).showSystemApps)
+    }
 
     @Test fun `routes partition into vpn and dpi sets`() {
         val s = RoutesMapping.toSettings(

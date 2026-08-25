@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -65,14 +64,12 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
         DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
             RadioRow(
                 title = stringResource(R.string.preset_recommended),
-                subtitle = stringResource(R.string.nav_dpi_sub),
                 selected = settings?.preset == DpiPreset.RECOMMENDED,
                 onClick = { choose(DpiPreset.RECOMMENDED) },
             )
             GroupDivider(startInset = 46)
             RadioRow(
                 title = stringResource(R.string.preset_custom),
-                subtitle = stringResource(R.string.custom_args_hint),
                 selected = settings?.preset == DpiPreset.CUSTOM,
                 onClick = { choose(DpiPreset.CUSTOM) },
             )
@@ -85,9 +82,8 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
                 value = customField,
                 onValueChange = { customField = it },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.space16),
-                placeholder = { Text("-s 1+s -d 3+s -a 1", style = MaterialTheme.typography.bodyLarge, color = c.textMuted) },
                 shape = AppShapes.small,
-                textStyle = MaterialTheme.typography.bodyLarge,
+                textStyle = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
                 colors = fieldColors(),
             )
             Spacer(Modifier.height(Spacing.space12))
@@ -105,13 +101,6 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
             )
         }
 
-        Spacer(Modifier.height(Spacing.space12))
-        Text(
-            stringResource(R.string.autorestart_note),
-            style = MaterialTheme.typography.bodySmall,
-            color = c.textMuted,
-            modifier = Modifier.padding(horizontal = Spacing.space20),
-        )
         Spacer(Modifier.height(Spacing.space24))
     }
 }

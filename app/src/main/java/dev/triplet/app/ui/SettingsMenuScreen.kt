@@ -102,6 +102,7 @@ fun SettingsMenuScreen(
                 )
                 DetourSwitch(
                     checked = settings?.autoConnect == true,
+                    compact = true,
                     onCheckedChange = { v -> scope.launch { store.setAutoConnect(v) } },
                 )
             }

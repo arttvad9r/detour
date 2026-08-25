@@ -30,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -54,6 +55,8 @@ import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.data.AppRouteOrdering
 import dev.triplet.app.vpn.VpnController
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modifier) {
@@ -61,18 +64,22 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
     val scope = rememberCoroutineScope()
     val c = detourColors
     val settings by store.settings.collectAsState(initial = null)
+    val currentSettings = settings ?: return
     val pm = ctx.packageManager
 
     var query by remember { mutableStateOf("") }
-    var showSystem by remember { mutableStateOf(false) }
-    // Полный список загружается один раз; сортировка/фильтры — обычный список.
-    val allApps = remember { AppInventory.load(ctx) }
-    val routes = settings?.routes ?: emptyMap()
-    val screenOrder = remember(allApps, settings != null) {
-        AppRouteOrdering.snapshot(allApps, routes)
+    val showSystem = currentSettings.showSystemApps
+    // PackageManager queries are slow on the main thread; let the screen open first.
+    val allApps by produceState<List<AppInfo>?>(initialValue = null, ctx) {
+        value = withContext(Dispatchers.IO) { AppInventory.load(ctx) }
     }
-    val apps = remember(allApps, screenOrder, query, showSystem) {
-        val ordered = AppRouteOrdering.apply(allApps, screenOrder, routes)
+    val routes = currentSettings.routes
+    val loadedApps = allApps.orEmpty()
+    val screenOrder = remember(loadedApps) {
+        AppRouteOrdering.snapshot(loadedApps, currentSettings.routes)
+    }
+    val apps = remember(loadedApps, screenOrder, query, showSystem) {
+        val ordered = AppRouteOrdering.apply(loadedApps, screenOrder, routes)
         ordered
             .filter { showSystem || !it.isSystem }
             .filter {
@@ -131,7 +138,7 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
         Row(
             Modifier.fillMaxWidth()
                 .padding(horizontal = Spacing.space20, vertical = Spacing.space8)
-                .clickable { showSystem = !showSystem },
+                .clickable { scope.launch { store.setShowSystemApps(!showSystem) } },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -141,11 +148,12 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
                 color = c.textPrimary,
                 modifier = Modifier.weight(1f),
             )
-            DetourSwitch(checked = showSystem, onCheckedChange = { showSystem = it })
+            DetourSwitch(checked = showSystem, onCheckedChange = { value -> scope.launch { store.setShowSystemApps(value) } })
         }
 
-        // Единая поверхность-список: тонкие разделители вместо карточек.
-        LazyColumn(Modifier.weight(1f).padding(horizontal = Spacing.space16)) {
+        // Единая поверхность-список: общая рамка и скругления как у остальных карточек.
+        DetourCard(Modifier.weight(1f).padding(horizontal = Spacing.space16)) {
+          LazyColumn(Modifier.fillMaxWidth()) {
             itemsIndexed(apps, key = { _, app -> app.packageName }) { i, app ->
                 val current = routes[app.packageName] ?: AppRoute.DIRECT
                 val shape = when {
@@ -155,9 +163,7 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
                     else -> RoundedCornerShape(0.dp)
                 }
                 Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .background(c.surface, shape),
+                    Modifier.fillMaxWidth().clip(shape),
                 ) {
                     AppRow(app, current, pm) { route ->
                         scope.launch {
@@ -176,6 +182,7 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
                 }
             }
             item { Spacer(Modifier.height(Spacing.space24)) }
+          }
         }
     }
 }

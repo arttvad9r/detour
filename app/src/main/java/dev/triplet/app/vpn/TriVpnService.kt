@@ -168,11 +168,13 @@ class TriVpnService : VpnService() {
         }
 
         VpnController.setState(VpnState.Active)
+        runBlocking { store.setSessionStartedAt(System.currentTimeMillis()) }
         goForeground(getString(R.string.notif_active))
         ServiceLog.i("active")
     }
 
     private fun stopSequence(stopSelf: Boolean) {
+        runCatching { runBlocking { store.setSessionStartedAt(null) } }
         runCatching { Engine.stop() }
         dpi.stop()
         // Владение TUN-fd полностью у движка: detachFd выполнен в openTun

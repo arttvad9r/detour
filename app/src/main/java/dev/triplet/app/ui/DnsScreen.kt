@@ -36,7 +36,7 @@ import kotlinx.coroutines.launch
 private val DNS_LABELS = mapOf(
     "google" to "Google DNS",
     "cloudflare" to "Cloudflare",
-    "adguard" to "AdGuard · блокирует рекламу",
+    "adguard" to "AdGuard",
 )
 
 @Composable
@@ -71,10 +71,9 @@ fun DnsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
 
         // Один сгруппированный селектор вместо отдельных карточек.
         DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-            DnsOptions.servers.forEach { (id, addr) ->
+            DnsOptions.servers.forEach { (id, _) ->
                 RadioRow(
                     title = DNS_LABELS[id] ?: id,
-                    subtitle = addr,
                     selected = selectedDns == id,
                     onClick = { apply(id) },
                 )
@@ -118,13 +117,6 @@ fun DnsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
             )
         }
 
-        Spacer(Modifier.height(Spacing.space12))
-        Text(
-            stringResource(R.string.dns_note),
-            style = MaterialTheme.typography.bodySmall,
-            color = c.textMuted,
-            modifier = Modifier.padding(horizontal = Spacing.space20),
-        )
         Spacer(Modifier.height(Spacing.space24))
     }
 }

@@ -10,6 +10,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -47,12 +48,23 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.triplet.app.R
 import dev.triplet.app.core.DpiPreset
+import dev.triplet.app.core.AppRoute
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
 import kotlinx.coroutines.delay
+
+fun homeProtocol(vlessUri: String, routes: Map<String, AppRoute>): String {
+    val dpi = routes.values.any { it == AppRoute.DPI }
+    val vless = vlessUri.isNotBlank()
+    return when {
+        dpi && vless -> "Vless + DPI"
+        dpi -> "DPI"
+        else -> "Vless"
+    }
+}
 
 /**
  * Главный экран: header, воздух, компактная статус-карточка, горная сцена,
@@ -75,14 +87,15 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
         border = animateColorAsState(status.border, tween(400), label = "cardBorder").value,
     )
 
-    // Таймер: тикает в Starting (длительность подключения) и Active (сессия).
+    // Таймер берётся от сохранённого начала сессии, поэтому не сбрасывается
+    // при пересоздании Activity.
     var elapsed by remember { mutableIntStateOf(0) }
-    LaunchedEffect(st) {
+    LaunchedEffect(st, settings?.sessionStartedAt) {
         if (st == VpnState.Active || st == VpnState.Starting) {
-            elapsed = 0
+            val started = settings?.sessionStartedAt ?: System.currentTimeMillis()
             while (true) {
+                elapsed = ((System.currentTimeMillis() - started) / 1000L).coerceAtLeast(0).toInt()
                 delay(1000)
-                elapsed += 1
             }
         } else elapsed = 0
     }
@@ -93,9 +106,6 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
     val serverHost = remember(settings?.vlessUri) {
         (VlessKeyParser.parse(settings?.vlessUri ?: "") as? ParseResult.Ok)?.profile?.server
     }
-    val strategyLabel = stringResource(
-        if (settings?.preset == DpiPreset.CUSTOM) R.string.preset_custom else R.string.preset_recommended,
-    )
 
     // Системное согласие VPN: после одобрения сразу продолжаем подключение.
     val consentLauncher = rememberLauncherForActivityResult(StartActivityForResult()) { result ->
@@ -137,7 +147,7 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
                 style = style,
                 timerText = timerText,
                 serverHost = serverHost,
-                strategyLabel = strategyLabel,
+                protocol = homeProtocol(settings?.vlessUri ?: "", settings?.routes ?: emptyMap()),
                 onRetry = onMainAction,
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
@@ -223,7 +233,7 @@ private fun StatusCard(
     style: StatusStyle,
     timerText: String,
     serverHost: String?,
-    strategyLabel: String,
+    protocol: String,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -240,8 +250,13 @@ private fun StatusCard(
             .background(style.container.copy(alpha = 0.96f))
             .border(1.dp, style.border, AppShapes.medium)
             .padding(Spacing.space20),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
             Text(
                 stringResource(titleRes),
                 style = MaterialTheme.typography.titleMedium,
@@ -286,12 +301,11 @@ private fun StatusCard(
         Box(Modifier.fillMaxWidth().height(1.dp).background(c.divider))
         Spacer(Modifier.height(10.dp))
 
-        InfoRow(stringResource(R.string.row_protocol), "VLESS")
+        InfoRow(stringResource(R.string.row_protocol), protocol)
         InfoRow(
             stringResource(R.string.row_server),
             serverHost ?: stringResource(R.string.server_missing),
         )
-        InfoRow(stringResource(R.string.row_strategy), strategyLabel)
 
         if (state is VpnState.Failed) {
             Spacer(Modifier.height(4.dp))
