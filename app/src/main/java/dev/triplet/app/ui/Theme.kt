@@ -14,144 +14,192 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontVariation
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import dev.triplet.app.R
-import dev.triplet.app.vpn.VpnState
-
-/** Палитра горного фона: 5 слоёв (дальний -> передний), туман и зелёный тинт для Active. */
-data class MountainPalette(
-    val layers: List<Color>,
-    val fog: Color,
-    val activeTint: Color,
-)
 
 /**
- * Четыре темы приложения. Полночь/Графит — тёмные, Океан/Лаванда — светлые.
- * Статусные цвета (карточка состояния) подобраны под каждую тему отдельно.
+ * Семантические токены оформления. Экраны ссылаются только на эти поля —
+ * смена темы обновляет всё приложение системно. Сырые Color(0xFF…) живут
+ * только здесь.
+ */
+data class DetourColors(
+    // Уровень 1: фон приложения
+    val background: Color,
+    // Уровень 2: функциональные поверхности
+    val surface: Color,
+    val surfaceSoft: Color,
+    val surfaceSelected: Color,
+    // Текст
+    val textPrimary: Color,
+    val textSecondary: Color,
+    val textMuted: Color,
+    // Уровень 3: лавандовый акцент (выбор, primary action, фокус)
+    val accent: Color,
+    val onAccent: Color,
+    val accentSoft: Color,
+    val accentBorder: Color,
+    // Разделители и границы
+    val divider: Color,
+    val border: Color,
+    // Зелёный — только успешный VPN; красный — только ошибки
+    val active: Color,
+    val activeStrong: Color,
+    val activeSoft: Color,
+    val activeBorder: Color,
+    val error: Color,
+    val errorSoft: Color,
+    // Горный пейзаж: базовый тон слоями от дальнего к переднему + туман
+    val mountainHue: Color,
+    val mountainAlphas: List<Float>,
+    val fog: Color,
+    val activeMountainTint: Color,
+)
+
+/** Цвета статусной карточки/кнопки под состояние туннеля. */
+data class StatusStyle(val container: Color, val content: Color, val border: Color)
+
+/**
+ * Четыре темы. Полночь/Графит — тёмные, Океан/Лаванда — светлые.
  */
 enum class AppTheme(
     val id: String,
     val label: String,
-    val scheme: ColorScheme,
-    val statusOn: Pair<Color, Color>,
-    val statusStarting: Pair<Color, Color>,
-    val statusFailed: Pair<Color, Color>,
-    val statusIdle: Pair<Color, Color>,
-    val mountains: MountainPalette,
+    val colors: DetourColors,
+    val dark: Boolean,
 ) {
     MIDNIGHT(
         "midnight", "Полночь",
-        darkColorScheme(
-            primary = Color(0xFF22C55E), onPrimary = Color(0xFF0F172A),
-            background = Color(0xFF0F172A), onBackground = Color(0xFFF1F5F9),
-            surface = Color(0xFF192134), onSurface = Color(0xFFF1F5F9),
-            surfaceVariant = Color(0xFF1E293B), onSurfaceVariant = Color(0xFF94A3B8),
-            outline = Color(0xFF334155),
+        DetourColors(
+            background = Color(0xFF0F172A),
+            surface = Color(0xFF182238), surfaceSoft = Color(0xFF1B2740), surfaceSelected = Color(0xFF24304E),
+            textPrimary = Color(0xFFF1F5F9), textSecondary = Color(0xFF94A3B8), textMuted = Color(0xFF64748B),
+            accent = Color(0xFF60A5FA), onAccent = Color(0xFF0B1526),
+            accentSoft = Color(0xFF1B2A4A), accentBorder = Color(0xFF33507E),
+            divider = Color(0xFF223052), border = Color(0xFF2A3A5C),
+            active = Color(0xFF34B377), activeStrong = Color(0xFF4CC78C),
+            activeSoft = Color(0xFF14301F), activeBorder = Color(0xFF245A3C),
+            error = Color(0xFFF87171), errorSoft = Color(0xFF3B1A1A),
+            mountainHue = Color(0xFF5E729E), mountainAlphas = listOf(.10f, .14f, .19f, .24f, .29f),
+            fog = Color(0xFF101A30), activeMountainTint = Color(0xFF3E7A5C),
         ),
-        Color(0xFF16351F) to Color(0xFF22C55E),
-        Color(0xFF16283F) to Color(0xFF60A5FA),
-        Color(0xFF3B1A1A) to Color(0xFFF87171),
-        Color(0xFF1E293B) to Color(0xFF94A3B8),
-        MountainPalette(
-            layers = listOf(
-                Color(0xFF141F36), Color(0xFF182640), Color(0xFF1D2E4B),
-                Color(0xFF233757), Color(0xFF294063),
-            ),
-            fog = Color(0xFF1A2740), activeTint = Color(0xFF2C5A43),
-        ),
+        dark = true,
     ),
     OCEAN(
         "ocean", "Океан",
-        lightColorScheme(
-            primary = Color(0xFF0369A1), onPrimary = Color(0xFFFFFFFF),
-            background = Color(0xFFF0F6FC), onBackground = Color(0xFF0C4A6E),
-            surface = Color(0xFFFFFFFF), onSurface = Color(0xFF0C4A6E),
-            surfaceVariant = Color(0xFFE0EDF7), onSurfaceVariant = Color(0xFF475569),
-            outline = Color(0xFFB9D4E8),
+        DetourColors(
+            background = Color(0xFFF0F6FC),
+            surface = Color(0xFFFBFDFF), surfaceSoft = Color(0xFFF3F8FC), surfaceSelected = Color(0xFFE3EEF7),
+            textPrimary = Color(0xFF0C2A3E), textSecondary = Color(0xFF48657B), textMuted = Color(0xFF7A93A5),
+            accent = Color(0xFF0369A1), onAccent = Color(0xFFFFFFFF),
+            accentSoft = Color(0xFFE0EEF7), accentBorder = Color(0xFFA9C8DE),
+            divider = Color(0xFFE1EAF1), border = Color(0xFFD8E4ED),
+            active = Color(0xFF2E8F5C), activeStrong = Color(0xFF278052),
+            activeSoft = Color(0xFFE2F3E9), activeBorder = Color(0xFFBCDCC9),
+            error = Color(0xFFC95C61), errorSoft = Color(0xFFF9ECEE),
+            mountainHue = Color(0xFF6E8CA6), mountainAlphas = listOf(.07f, .10f, .15f, .19f, .24f),
+            fog = Color(0xFFEBF3F9), activeMountainTint = Color(0xFF5F9478),
         ),
-        Color(0xFFDCF5E7) to Color(0xFF16A34A),
-        Color(0xFFE0EDF7) to Color(0xFF0369A1),
-        Color(0xFFFCE4E4) to Color(0xFFDC2626),
-        Color(0xFFE7EFF5) to Color(0xFF64748B),
-        MountainPalette(
-            layers = listOf(
-                Color(0xFFE5EFF8), Color(0xFFD9E7F3), Color(0xFFCCDDEC),
-                Color(0xFFBFD3E6), Color(0xFFB1C8DF),
-            ),
-            fog = Color(0xFFEAF2F9), activeTint = Color(0xFF9CCDB0),
-        ),
+        dark = false,
     ),
     GRAPHITE(
         "graphite", "Графит и янтарь",
-        darkColorScheme(
-            primary = Color(0xFFF59E0B), onPrimary = Color(0xFF121212),
-            background = Color(0xFF121212), onBackground = Color(0xFFE8E8E8),
-            surface = Color(0xFF1E1E1E), onSurface = Color(0xFFE8E8E8),
-            surfaceVariant = Color(0xFF232323), onSurfaceVariant = Color(0xFF9E9E9E),
-            outline = Color(0xFF3A3A3A),
+        DetourColors(
+            background = Color(0xFF121212),
+            surface = Color(0xFF1B1B1D), surfaceSoft = Color(0xFF1F1F22), surfaceSelected = Color(0xFF2A2A2F),
+            textPrimary = Color(0xFFECEAF2), textSecondary = Color(0xFFA5A1B0), textMuted = Color(0xFF6E6A7A),
+            accent = Color(0xFFE0A32E), onAccent = Color(0xFF17130A),
+            accentSoft = Color(0xFF2E2614), accentBorder = Color(0xFF6B5518),
+            divider = Color(0xFF26262A), border = Color(0xFF2E2E33),
+            active = Color(0xFF3FA46B), activeStrong = Color(0xFF54BA7F),
+            activeSoft = Color(0xFF14261B), activeBorder = Color(0xFF2A5238),
+            error = Color(0xFFF87171), errorSoft = Color(0xFF331B1B),
+            mountainHue = Color(0xFF8A8A94), mountainAlphas = listOf(.10f, .14f, .19f, .24f, .29f),
+            fog = Color(0xFF151517), activeMountainTint = Color(0xFF4E7A60),
         ),
-        Color(0xFF2A2113) to Color(0xFFFBBF24),
-        Color(0xFF1F2430) to Color(0xFF93B4F8),
-        Color(0xFF331B1B) to Color(0xFFF87171),
-        Color(0xFF232323) to Color(0xFF9E9E9E),
-        MountainPalette(
-            layers = listOf(
-                Color(0xFF191A1D), Color(0xFF1F2024), Color(0xFF26272C),
-                Color(0xFF2D2E34), Color(0xFF35363D),
-            ),
-            fog = Color(0xFF212226), activeTint = Color(0xFF3B5744),
-        ),
+        dark = true,
     ),
     LAVENDA(
         "lavenda", "Лаванда",
-        lightColorScheme(
-            primary = Color(0xFF6F62B6), onPrimary = Color(0xFFFFFFFF),
-            secondary = Color(0xFF6F62B6), onSecondary = Color(0xFFFFFFFF),
-            secondaryContainer = Color(0xFFE6E2F6), onSecondaryContainer = Color(0xFF3B3178),
-            background = Color(0xFFF7F5FB), onBackground = Color(0xFF25243B),
-            surface = Color(0xFFFDFCFF), onSurface = Color(0xFF25243B),
-            surfaceVariant = Color(0xFFECE9F5), onSurfaceVariant = Color(0xFF777386),
-            outline = Color(0xFFDCD8EC),
+        DetourColors(
+            background = Color(0xFFF7F5FB),
+            surface = Color(0xFFFCFBFD), surfaceSoft = Color(0xFFF8F6FB), surfaceSelected = Color(0xFFEEEAF8),
+            textPrimary = Color(0xFF29273A), textSecondary = Color(0xFF777382), textMuted = Color(0xFF9994A3),
+            accent = Color(0xFF7162B8), onAccent = Color(0xFFFFFFFF),
+            accentSoft = Color(0xFFE9E4F5), accentBorder = Color(0xFFBDB5DB),
+            divider = Color(0xFFE8E4EC), border = Color(0xFFE3DEE9),
+            active = Color(0xFF319467), activeStrong = Color(0xFF28875B),
+            activeSoft = Color(0xFFE7F3EC), activeBorder = Color(0xFFBFDDCC),
+            error = Color(0xFFC95C61), errorSoft = Color(0xFFF9ECEE),
+            // Лавандово-серый тон, растворённый в фоне: дальний слой почти невидим.
+             mountainHue = Color(0xFF8A82A8), mountainAlphas = listOf(.055f, .075f, .105f, .135f, .17f),
+            fog = Color(0xFFF7F5FB), activeMountainTint = Color(0xFF5F8F74),
         ),
-        Color(0xFFE7F3EC) to Color(0xFF2E8F5C),
-        Color(0xFFEAE6F8) to Color(0xFF6F62B6),
-        Color(0xFFFAE7E7) to Color(0xFFC94444),
-        Color(0xFFF4F2FA) to Color(0xFF6E6679),
-        MountainPalette(
-            // Дальний слой почти растворён в фоне #F7F5FB, передний — самый читаемый.
-            layers = listOf(
-                Color(0xFFF0EEFA), Color(0xFFE9E7F6), Color(0xFFE1DEF2),
-                Color(0xFFD6D1EB), Color(0xFFCBC4E3),
-            ),
-            fog = Color(0xFFF3F1FA), activeTint = Color(0xFFA9CDB6),
-        ),
+        dark = false,
     );
+
+    val scheme: ColorScheme by lazy {
+        val c = colors
+        val light = lightColorScheme(
+            primary = c.accent, onPrimary = c.onAccent,
+            primaryContainer = c.accentSoft, onPrimaryContainer = c.accent,
+            secondaryContainer = c.surfaceSelected, onSecondaryContainer = c.textPrimary,
+            background = c.background, onBackground = c.textPrimary,
+            surface = c.surface, onSurface = c.textPrimary,
+            surfaceVariant = c.surfaceSoft, onSurfaceVariant = c.textSecondary,
+            outline = c.border, outlineVariant = c.divider,
+            error = c.error,
+        )
+        if (dark) darkColorScheme(
+            primary = c.accent, onPrimary = c.onAccent,
+            primaryContainer = c.accentSoft, onPrimaryContainer = c.accent,
+            secondaryContainer = c.surfaceSelected, onSecondaryContainer = c.textPrimary,
+            background = c.background, onBackground = c.textPrimary,
+            surface = c.surface, onSurface = c.textPrimary,
+            surfaceVariant = c.surfaceSoft, onSurfaceVariant = c.textSecondary,
+            outline = c.border, outlineVariant = c.divider,
+            error = c.error,
+        ) else light
+    }
+
+    /** Стиль статусной карточки и главной кнопки под состояние туннеля. */
+    fun statusFor(state: dev.triplet.app.vpn.VpnState): StatusStyle = when (state) {
+        dev.triplet.app.vpn.VpnState.Active -> StatusStyle(colors.activeSoft, colors.activeStrong, colors.activeBorder)
+        dev.triplet.app.vpn.VpnState.Starting -> StatusStyle(colors.accentSoft, colors.accent, colors.accentBorder)
+        is dev.triplet.app.vpn.VpnState.Failed -> StatusStyle(colors.errorSoft, colors.error, colors.error.copy(alpha = .35f))
+        dev.triplet.app.vpn.VpnState.Idle -> StatusStyle(colors.surface, colors.textPrimary, colors.border)
+    }
 
     companion object {
         fun byId(id: String): AppTheme = entries.firstOrNull { it.id == id } ?: LAVENDA
     }
 }
 
-/** Цвета статусной карточки под выбранную тему. */
-data class StatusStyle(val container: Color, val content: Color)
+/** Активная тема приложения (провайдится в MainActivity). */
+val LocalDetourTheme = androidx.compose.runtime.staticCompositionLocalOf<AppTheme> { AppTheme.LAVENDA }
 
-fun AppTheme.statusFor(state: VpnState): StatusStyle = when (state) {
-    VpnState.Active -> StatusStyle(statusOn.first, statusOn.second)
-    VpnState.Starting -> StatusStyle(statusStarting.first, statusStarting.second)
-    is VpnState.Failed -> StatusStyle(statusFailed.first, statusFailed.second)
-    VpnState.Idle -> StatusStyle(statusIdle.first, statusIdle.second)
+/** Единая шкала отступов — никаких случайных 13dp/17dp/27dp. */
+object Spacing {
+    val space2 = 2.dp
+    val space4 = 4.dp
+    val space8 = 8.dp
+    val space12 = 12.dp
+    val space16 = 16.dp
+    val space20 = 20.dp
+    val space24 = 24.dp
+    val space32 = 32.dp
+    val space40 = 40.dp
+    val space48 = 48.dp
 }
 
-/** Единые скругления приложения (см. дизайн-систему): 10/16/22/28 + pill. */
+/** Скругления: сдержанные, без «огромных таблеток». */
 val AppShapes = Shapes(
-    extraSmall = RoundedCornerShape(8.dp),
-    small = RoundedCornerShape(10.dp),
-    medium = RoundedCornerShape(16.dp),
-    large = RoundedCornerShape(22.dp),
-    extraLarge = RoundedCornerShape(28.dp),
+    extraSmall = RoundedCornerShape(10.dp),
+    small = RoundedCornerShape(14.dp),
+    medium = RoundedCornerShape(20.dp),
+    large = RoundedCornerShape(24.dp),
 )
-
-/** Pill-форма для широких кнопок. */
 val PillShape = RoundedCornerShape(999.dp)
 
 private fun inter(weight: FontWeight, w: Int) = Font(
@@ -161,31 +209,33 @@ private fun inter(weight: FontWeight, w: Int) = Font(
     variationSettings = FontVariation.Settings(FontVariation.weight(w)),
 )
 
-/** Inter (variable) — популярный шрифт с полной кириллицей. */
+/** Inter (variable) — уже в проекте, полная кириллица. */
 val AppFontFamily = FontFamily(
     inter(FontWeight.Normal, 400),
     inter(FontWeight.Medium, 500),
     inter(FontWeight.SemiBold, 600),
-    inter(FontWeight.Bold, 700),
-    inter(FontWeight.ExtraBold, 800),
 )
 
-val AppTypography: Typography = Typography().let { t ->
-    t.copy(
-        displayLarge = t.displayLarge.copy(fontFamily = AppFontFamily),
-        displayMedium = t.displayMedium.copy(fontFamily = AppFontFamily),
-        displaySmall = t.displaySmall.copy(fontFamily = AppFontFamily),
-        headlineLarge = t.headlineLarge.copy(fontFamily = AppFontFamily),
-        headlineMedium = t.headlineMedium.copy(fontFamily = AppFontFamily),
-        headlineSmall = t.headlineSmall.copy(fontFamily = AppFontFamily),
-        titleLarge = t.titleLarge.copy(fontFamily = AppFontFamily),
-        titleMedium = t.titleMedium.copy(fontFamily = AppFontFamily),
-        titleSmall = t.titleSmall.copy(fontFamily = AppFontFamily),
-        bodyLarge = t.bodyLarge.copy(fontFamily = AppFontFamily),
-        bodyMedium = t.bodyMedium.copy(fontFamily = AppFontFamily),
-        bodySmall = t.bodySmall.copy(fontFamily = AppFontFamily),
-        labelLarge = t.labelLarge.copy(fontFamily = AppFontFamily),
-        labelMedium = t.labelMedium.copy(fontFamily = AppFontFamily),
-        labelSmall = t.labelSmall.copy(fontFamily = AppFontFamily),
-    )
-}
+/** Роли текста. Экраны не задают sp вручную — только эти стили. */
+val AppTypography: Typography = Typography(
+    // «Detour» на главном экране
+    headlineSmall = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.SemiBold, lineHeight = 30.sp, fontFamily = AppFontFamily),
+    // Заголовки внутренних экранов
+    titleLarge = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.SemiBold, lineHeight = 28.sp, fontFamily = AppFontFamily),
+    // Заголовок статусной карточки
+    titleMedium = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.SemiBold, lineHeight = 24.sp, letterSpacing = 0.2.sp, fontFamily = AppFontFamily),
+    // Заголовок строки настройки
+    titleSmall = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, lineHeight = 20.sp, fontFamily = AppFontFamily),
+    // Основной текст и значения
+    bodyLarge = TextStyle(fontSize = 14.5.sp, fontWeight = FontWeight.Normal, lineHeight = 20.sp, fontFamily = AppFontFamily),
+    // Вторичный текст, подписи
+    bodyMedium = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Normal, lineHeight = 18.sp, fontFamily = AppFontFamily),
+    // Примечания
+    bodySmall = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Normal, lineHeight = 16.sp, fontFamily = AppFontFamily),
+    // Кнопки
+    labelLarge = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFontFamily),
+    // Технические значения, сегменты
+    labelMedium = TextStyle(fontSize = 12.5.sp, fontWeight = FontWeight.Medium, lineHeight = 16.sp, fontFamily = AppFontFamily),
+    // Имена пакетов
+    labelSmall = TextStyle(fontSize = 11.5.sp, fontWeight = FontWeight.Normal, lineHeight = 15.sp, fontFamily = AppFontFamily),
+)

@@ -7,6 +7,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,9 +15,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -31,11 +37,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.triplet.app.R
@@ -48,23 +55,24 @@ import dev.triplet.app.vpn.VpnState
 import kotlinx.coroutines.delay
 
 /**
- * Главный экран: заголовок + настройки, компактная статус-карточка,
- * горный фон в нижней трети и широкая pill-кнопка действия.
- * Экран — простая функция VpnState; логика подключения в VpnController.
+ * Главный экран: header, воздух, компактная статус-карточка, горная сцена,
+ * кнопка действия. Экран — функция VpnState; логика в VpnController.
  */
 @Composable
 fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
     val state by VpnController.state.collectAsState()
     val ctx = LocalContext.current
     val st = state
+    val c = detourColors
+    val theme = LocalDetourTheme.current
 
     val settings by store.settings.collectAsState(initial = null)
-    val theme = AppTheme.byId(settings?.themeId ?: "")
-    val statusStyle = theme.statusFor(st)
-    // Плавный переход OFF -> CONNECTING -> ON (и обратно) за ~350мс.
+    val status = theme.statusFor(st)
+    // Плавный переход OFF -> CONNECTING -> ON (и обратно) за ~400мс.
     val style = StatusStyle(
-        container = animateColorAsState(statusStyle.container, tween(350), label = "cardBg").value,
-        content = animateColorAsState(statusStyle.content, tween(350), label = "cardFg").value,
+        container = animateColorAsState(status.container, tween(400), label = "cardBg").value,
+        content = animateColorAsState(status.content, tween(400), label = "cardFg").value,
+        border = animateColorAsState(status.border, tween(400), label = "cardBorder").value,
     )
 
     // Таймер: тикает в Starting (длительность подключения) и Active (сессия).
@@ -98,73 +106,117 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
         else VpnController.start(ctx, consentLauncher::launch)
     }
 
-    Box(modifier.fillMaxSize()) {
-        MountainBackground(theme.mountains, st, Modifier.matchParentSize())
-
-        Column(Modifier.fillMaxSize()) {
-            // Верх: Detour слева, настройки справа. Без toolbar.
+    Box(modifier.fillMaxSize().background(c.background)) {
+        Column(Modifier.fillMaxSize().statusBarsPadding()) {
+            // Header: Detour + настройки. Иконка 22dp, touch target 48dp.
             Row(
-                Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp, top = 10.dp),
+                Modifier.fillMaxWidth().padding(start = Spacing.space24, end = Spacing.space8, top = Spacing.space8),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
                     stringResource(R.string.app_name),
-                    fontSize = 22.sp, fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = c.textPrimary,
                     modifier = Modifier.weight(1f),
                 )
                 IconButton(onClick = onOpenSettings) {
                     Icon(
                         painter = painterResource(R.drawable.ic_gear),
                         contentDescription = stringResource(R.string.cd_settings),
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = c.textSecondary,
+                        modifier = Modifier.size(22.dp),
                     )
                 }
             }
 
-            // Воздух намеренный: карточка одна, по центру свободного поля.
-            Box(
-                Modifier.weight(1f).fillMaxWidth(),
-                contentAlignment = Alignment.Center,
-            ) {
-                StatusCard(
-                    state = st,
-                    style = style,
-                    timerText = timerText,
-                    serverHost = serverHost,
-                    strategyLabel = strategyLabel,
-                    onRetry = onMainAction,
-                    modifier = Modifier.fillMaxWidth(0.82f),
-                )
-            }
-
-            val activeMain = st == VpnState.Active
-            PillButton(
-                text = when (st) {
-                    VpnState.Active -> stringResource(R.string.btn_disconnect)
-                    VpnState.Starting -> stringResource(R.string.btn_connecting)
-                    else -> stringResource(R.string.btn_connect)
-                },
-                onClick = onMainAction,
-                enabled = st != VpnState.Starting,
-                container = animateColorAsState(
-                    if (activeMain) theme.statusOn.first else MaterialTheme.colorScheme.primary,
-                    tween(350), label = "btnBg",
-                ).value,
-                content = animateColorAsState(
-                    if (activeMain) theme.statusOn.second else MaterialTheme.colorScheme.onPrimary,
-                    tween(350), label = "btnFg",
-                ).value,
+            // Воздух намеренный: карточка в верхней трети свободного поля,
+            // горная сцена — между карточкой и кнопкой.
+            Spacer(Modifier.weight(1f))
+            StatusCard(
+                state = st,
+                style = style,
+                timerText = timerText,
+                serverHost = serverHost,
+                strategyLabel = strategyLabel,
+                onRetry = onMainAction,
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
-                    .padding(horizontal = 28.dp)
-                    .padding(bottom = 44.dp),
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.space24)
+                    .widthIn(max = 360.dp),
             )
+            Spacer(Modifier.weight(1.35f))
+
+            Box(Modifier.fillMaxWidth().navigationBarsPadding()) {
+                MainButton(
+                    state = st,
+                    onClick = onMainAction,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.space32, vertical = Spacing.space20),
+                )
+            }
         }
     }
 }
+/** Главная кнопка: 52dp, состояния OFF/CONNECTING/ON различаются мягко. */
+@Composable
+private fun MainButton(
+    state: VpnState,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val c = detourColors
+    val activeMain = state == VpnState.Active
+    val container by animateColorAsState(
+        when {
+            activeMain -> c.activeSoft
+            state == VpnState.Starting -> c.accentSoft
+            else -> c.accent
+        },
+        tween(400), label = "btnBg",
+    )
+    val content by animateColorAsState(
+        when {
+            activeMain -> c.activeStrong
+            state == VpnState.Starting -> c.accent
+            else -> c.onAccent
+        },
+        tween(400), label = "btnFg",
+    )
+    val borderColor by animateColorAsState(
+        when {
+            activeMain -> c.activeBorder
+            state == VpnState.Starting -> c.accentBorder
+            else -> Color.Transparent
+        },
+        tween(400), label = "btnBorder",
+    )
+    val text = when (state) {
+        VpnState.Active -> stringResource(R.string.btn_disconnect)
+        VpnState.Starting -> stringResource(R.string.btn_connecting)
+        else -> stringResource(R.string.btn_connect)
+    }
+    Box(
+        modifier
+            .background(Color.Transparent)
+            .clip(PillShape)
+            .background(container)
+            .border(1.dp, borderColor, PillShape)
+            .clickable(enabled = state != VpnState.Starting, onClick = onClick)
+            .heightIn(min = 52.dp)
+            .padding(horizontal = Spacing.space24, vertical = 15.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text, style = MaterialTheme.typography.labelLarge,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+            color = content,
+        )
+    }
+}
 
-/** Компактная статус-карточка: статус, таймер, разделитель, строки реальных данных. */
+/** Компактная статус-карточка: статус 18sp, таймер, разделитель, сетка данных. */
 @Composable
 private fun StatusCard(
     state: VpnState,
@@ -175,6 +227,7 @@ private fun StatusCard(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val c = detourColors
     val titleRes = when (state) {
         VpnState.Active -> R.string.status_active
         VpnState.Starting -> R.string.status_starting
@@ -183,76 +236,97 @@ private fun StatusCard(
     }
     Column(
         modifier
-            .background(style.container.copy(alpha = 0.92f), RoundedCornerShape(24.dp))
-            .border(1.dp, hairline(), RoundedCornerShape(24.dp))
-            .padding(horizontal = 22.dp, vertical = 20.dp),
+            .clip(AppShapes.medium)
+            .background(style.container.copy(alpha = 0.96f))
+            .border(1.dp, style.border, AppShapes.medium)
+            .padding(Spacing.space20),
     ) {
-        Text(
-            stringResource(titleRes),
-            fontSize = 20.sp, fontWeight = FontWeight.Bold,
-            letterSpacing = 1.1.sp, color = style.content,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                stringResource(titleRes),
+                style = MaterialTheme.typography.titleMedium,
+                color = style.content,
+            )
+            if (state == VpnState.Starting) {
+                Spacer(Modifier.size(10.dp))
+                // Маленький inline-индикатор вместо огромного спиннера.
+                CircularProgressIndicator(
+                    modifier = Modifier.size(14.dp),
+                    strokeWidth = 1.5.dp,
+                    color = style.content,
+                )
+            }
+        }
         when (state) {
             is VpnState.Failed -> Text(
                 state.reason,
-                fontSize = 13.sp, color = style.content.copy(alpha = 0.9f),
-                modifier = Modifier.padding(top = 4.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = style.content.copy(alpha = 0.9f),
+                modifier = Modifier.padding(top = Spacing.space4),
             )
             VpnState.Idle -> Text(
                 stringResource(R.string.state_sub_idle),
-                fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = c.textSecondary,
+                modifier = Modifier.padding(top = Spacing.space4),
             )
             else -> Text(
                 timerText,
-                fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
-                style = TextStyle(fontFeatureSettings = "tnum"),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                    fontSize = 14.sp,
+                    fontFeatureSettings = "tnum",
+                ),
                 color = style.content,
-                modifier = Modifier.padding(top = 4.dp),
+                modifier = Modifier.padding(top = Spacing.space4),
             )
         }
 
-        Spacer(Modifier.height(14.dp))
-        Box(
-            Modifier.fillMaxWidth().height(1.dp)
-                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
-        )
         Spacer(Modifier.height(12.dp))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(c.divider))
+        Spacer(Modifier.height(10.dp))
 
         InfoRow(stringResource(R.string.row_protocol), "VLESS")
-        InfoRow(stringResource(R.string.row_server), serverHost ?: stringResource(R.string.server_missing))
+        InfoRow(
+            stringResource(R.string.row_server),
+            serverHost ?: stringResource(R.string.server_missing),
+        )
         InfoRow(stringResource(R.string.row_strategy), strategyLabel)
 
         if (state is VpnState.Failed) {
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(4.dp))
             TextButton(
                 onClick = onRetry,
-                colors = ButtonDefaults.textButtonColors(contentColor = style.content),
-                modifier = Modifier.align(Alignment.CenterHorizontally),
+                colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = style.content),
+                modifier = Modifier.align(Alignment.End),
             ) {
-                Text(
-                    stringResource(R.string.action_retry),
-                    fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                )
+                Text(stringResource(R.string.action_retry), style = MaterialTheme.typography.labelMedium)
             }
         }
     }
 }
 
+/** Двухколоночная сетка параметров: подпись secondary, значение Medium. */
 @Composable
 private fun InfoRow(label: String, value: String) {
+    val c = detourColors
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 5.dp),
+        Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            label, fontSize = 12.5.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.fillMaxWidth(0.38f),
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = c.textSecondary,
+            modifier = Modifier.widthIn(min = 88.dp),
         )
         Text(
-            value, fontSize = 13.sp, fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurface,
+            value,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+            color = c.textPrimary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

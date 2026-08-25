@@ -1,5 +1,8 @@
 package dev.triplet.app.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -7,50 +10,68 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ButtonElevation
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.semantics.Role
+import dev.triplet.app.R
 
-/** Волосная граница карточек: слабый lavender-gray. */
-@Composable
-fun hairline(): Color = MaterialTheme.colorScheme.outline.copy(alpha = 0.6f)
+/** Токены активной темы в композиции. */
+val detourColors: DetourColors
+    @Composable get() = LocalDetourTheme.current.colors
+
+/** Волосная граница поверхностей. */
+val hairline: Color
+    @Composable get() = detourColors.border
 
 /**
- * Базовая карточка: светлая поверхность, radius 22, тонкая граница, без тени.
+ * Сгруппированная поверхность: почти белый фон, radius 20, граница 1dp,
+ * без тени. Внутри — строки и разделители; контент клипуется по форме.
  */
 @Composable
 fun DetourCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val c = detourColors
     Column(
         modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface, AppShapes.large)
-            .border(1.dp, hairline(), AppShapes.large)
-            .padding(vertical = 4.dp),
+            .clip(AppShapes.medium)
+            .background(c.surface)
+            .border(1.dp, c.border, AppShapes.medium),
         content = content,
     )
 }
 
 /**
- * Строка настройки: line-иконка на слабом accent-фоне, заголовок, подпись,
- * шеврон. Единый accent-цвет иконок для всех разделов.
+ * Строка настройки: line-иконка 18dp на мягком лавандовом квадрате 36dp,
+ * заголовок 15sp Medium, подпись 13sp, тонкий шеврон. Высота ~64dp.
  */
 @Composable
 fun SettingRow(
@@ -60,142 +81,269 @@ fun SettingRow(
     onClick: () -> Unit,
     trailing: @Composable (() -> Unit)? = null,
 ) {
+    val c = detourColors
     Row(
         Modifier.fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .padding(horizontal = Spacing.space16, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(36.dp).background(
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
-                RoundedCornerShape(12.dp),
-            ),
+            Modifier.size(36.dp).background(c.accentSoft, AppShapes.extraSmall),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 painterResource(iconRes), null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(20.dp),
+                tint = c.accent,
+                modifier = Modifier.size(18.dp),
             )
         }
-        Column(Modifier.padding(start = 14.dp).weight(1f)) {
+        Column(Modifier.padding(start = 12.dp).weight(1f)) {
             Text(
-                title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
+                title, style = MaterialTheme.typography.titleSmall,
+                color = c.textPrimary,
             )
             if (subtitle != null) {
                 Text(
-                    subtitle, fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    subtitle, style = MaterialTheme.typography.bodyMedium,
+                    color = c.textSecondary,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 1.dp),
                 )
             }
         }
-        trailing?.invoke() ?: Text(
-            "›", fontSize = 20.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        trailing?.invoke() ?: Chevron()
     }
 }
 
-/** Разделитель внутри карточки с отступом от иконки. */
+/** Тонкий шеврон «›» для строк-ссылок. */
 @Composable
-fun CardDivider() = Row(
-    Modifier.fillMaxWidth().padding(start = 64.dp, end = 14.dp),
-) {
-    Box(
-        Modifier.fillMaxWidth().height(1.dp)
-            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)),
+fun Chevron() {
+    Text(
+        "›", style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Normal,
+        color = detourColors.textMuted,
+        modifier = Modifier.padding(start = 8.dp),
     )
 }
 
-/** Широкая pill-кнопка главного действия (52–56dp, без иконки питания). */
+/** Разделитель внутри группы с отступом от иконки. */
 @Composable
-fun PillButton(
+fun GroupDivider(startInset: Int = 64) {
+    Box(
+        Modifier.fillMaxWidth()
+            .padding(start = startInset.dp, end = Spacing.space16)
+            .height(1.dp)
+            .background(detourColors.divider),
+    )
+}
+
+/** Общий компактный switch: 44x26dp visual, 48x48dp touch target. */
+@Composable
+fun DetourSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    val c = detourColors
+    val thumbOffset by animateDpAsState(if (checked) 21.dp else 3.dp, tween(180), label = "switchThumb")
+    Box(
+        Modifier.size(48.dp).toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Box(
+            Modifier.padding(start = 2.dp).size(44.dp, 26.dp)
+                .background(if (checked) c.accent else c.surfaceSoft, androidx.compose.foundation.shape.CircleShape)
+                .border(1.dp, if (checked) c.accent else c.border, androidx.compose.foundation.shape.CircleShape),
+        ) {
+            Box(
+                Modifier.padding(start = thumbOffset - 2.dp, top = 3.dp).size(20.dp)
+                    .background(if (checked) Color.White else c.background, androidx.compose.foundation.shape.CircleShape)
+                    .border(1.dp, if (checked) Color.Transparent else c.border, androidx.compose.foundation.shape.CircleShape),
+            )
+        }
+    }
+}
+
+/** Кнопочные стили. */
+enum class ButtonStyle { PRIMARY, SECONDARY }
+
+/**
+ * Кнопка действия. PRIMARY — лавандовая заливка; SECONDARY — поверхность
+ * с тонкой границей. Высота по умолчанию 52dp (главное действие).
+ */
+@Composable
+fun DetourButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    container: Color = MaterialTheme.colorScheme.primary,
-    content: Color = MaterialTheme.colorScheme.onPrimary,
-    disabledContainer: Color = MaterialTheme.colorScheme.primary.copy(alpha = 0.30f),
-    disabledContent: Color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f),
+    style: ButtonStyle = ButtonStyle.PRIMARY,
+    height: Int = 52,
+    container: Color? = null,
+    contentColor: Color? = null,
+    disabledContainer: Color? = null,
+    disabledContent: Color? = null,
+    elevation: ButtonElevation? = null,
 ) {
+    val c = detourColors
+    val bg = container ?: if (style == ButtonStyle.PRIMARY) c.accent else c.surface
+    val fg = contentColor ?: if (style == ButtonStyle.PRIMARY) c.onAccent else c.textPrimary
+    val disBg = disabledContainer ?: if (style == ButtonStyle.PRIMARY) c.accentSoft else c.surfaceSoft
+    val disFg = disabledContent ?: if (style == ButtonStyle.PRIMARY) c.accent else c.textMuted
     Button(
         onClick = onClick,
         enabled = enabled,
-        shape = PillShape,
+        shape = AppShapes.small,
         colors = ButtonDefaults.buttonColors(
-            containerColor = container,
-            contentColor = content,
-            disabledContainerColor = disabledContainer,
-            disabledContentColor = disabledContent,
+            containerColor = bg,
+            contentColor = fg,
+            disabledContainerColor = disBg,
+            disabledContentColor = disFg,
         ),
-        modifier = modifier.fillMaxWidth().height(54.dp),
+        elevation = elevation,
+        border = if (style == ButtonStyle.SECONDARY) androidx.compose.foundation.BorderStroke(1.dp, c.border) else null,
+        modifier = modifier.fillMaxWidth().height(height.dp),
     ) {
-        Text(text, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.3.sp)
+        Text(text, style = MaterialTheme.typography.labelLarge)
     }
 }
 
 /**
- * Выбираемая строка-опция (radio): выбранная — soft lavender, остальные —
- * прозрачные/светлые, без тяжёлых границ.
+ * Строка-опция с радио-индикатором 18dp (touch target — вся строка 48dp+).
+ * Выбранная — мягкий лавандовый фон без толстой границы. Для группировки
+ * кладётся внутрь DetourCard на всю ширину.
  */
 @Composable
-fun OptionRow(
+fun RadioRow(
     title: String,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
+    trailing: @Composable (() -> Unit)? = null,
 ) {
+    val c = detourColors
+    val bg by animateColorAsState(
+        if (selected) c.accentSoft else Color.Transparent, tween(200), label = "radioBg",
+    )
     Row(
         modifier
             .fillMaxWidth()
-            .background(
-                if (selected) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.55f)
-                else MaterialTheme.colorScheme.surface,
-                AppShapes.medium,
-            )
-            .border(
-                1.dp,
-                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.45f) else hairline(),
-                AppShapes.medium,
-            )
+            .background(bg)
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 13.dp),
+            .heightIn(min = 48.dp)
+            .padding(horizontal = Spacing.space16, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            Modifier.size(20.dp).border(
-                2.dp,
-                if (selected) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                androidx.compose.foundation.shape.CircleShape,
-            ),
-            contentAlignment = Alignment.Center,
-        ) {
-            if (selected) {
-                Box(
-                    Modifier.size(10.dp).background(
-                        MaterialTheme.colorScheme.primary,
-                        androidx.compose.foundation.shape.CircleShape,
-                    ),
-                )
-            }
-        }
-        Column(Modifier.padding(start = 14.dp)) {
+        RadioDot(selected)
+        Column(Modifier.padding(start = 12.dp).weight(1f)) {
             Text(
-                title, fontSize = 14.5.sp, fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
+                title, style = MaterialTheme.typography.titleSmall,
+                color = c.textPrimary,
             )
             if (subtitle != null) {
                 Text(
-                    subtitle, fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    subtitle, style = MaterialTheme.typography.bodyMedium,
+                    color = c.textSecondary,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 1.dp),
+                )
+            }
+        }
+        trailing?.invoke()
+    }
+}
+
+/** Радио-индикатор: визуал 18dp, точка 8dp. */
+@Composable
+fun RadioDot(selected: Boolean) {
+    val c = detourColors
+    Box(
+        Modifier.size(18.dp).border(
+            width = 1.5.dp,
+            color = if (selected) c.accent else c.textMuted.copy(alpha = 0.55f),
+            shape = androidx.compose.foundation.shape.CircleShape,
+        ),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (selected) {
+            Box(Modifier.size(8.dp).background(c.accent, androidx.compose.foundation.shape.CircleShape))
+        }
+    }
+}
+
+/**
+ * Компактный сегментный переключатель (32dp): выбран — accentSoft/accent,
+ * не выбран — поверхность/textSecondary, граница 1dp.
+ */
+@Composable
+fun SegmentedControl(
+    options: List<String>,
+    selected: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val c = detourColors
+    Row(
+        modifier
+            .fillMaxWidth()
+            .height(32.dp)
+            .clip(AppShapes.extraSmall)
+            .background(c.surfaceSoft)
+            .border(1.dp, c.border, AppShapes.extraSmall),
+    ) {
+        options.forEachIndexed { i, label ->
+            val on = i == selected
+            val bg by animateColorAsState(if (on) c.accentSoft else Color.Transparent, tween(160), label = "seg")
+            Row(
+                Modifier
+                    .weight(1f)
+                    .fillMaxSize()
+                    .background(bg)
+                    .clickable { onSelect(i) },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+            ) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (on) c.accent else c.textSecondary,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
                 )
             }
         }
     }
 }
+
+/** Заголовок внутреннего экрана: назад + название, высота 56dp. */
+@Composable
+fun ScreenHeader(title: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
+    val c = detourColors
+    Row(
+        modifier.fillMaxWidth().height(56.dp).padding(start = 4.dp, end = Spacing.space20),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onBack) {
+            Icon(
+                painterResource(R.drawable.ic_back), stringResource(R.string.cd_back),
+                tint = c.textPrimary,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        Spacer(Modifier.width(4.dp))
+        Text(title, style = MaterialTheme.typography.titleLarge, color = c.textPrimary)
+    }
+}
+
+/** Общие цвета полей ввода: поверхность, волосная граница, лавандовый фокус. */
+@Composable
+fun fieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedContainerColor = detourColors.surface,
+    unfocusedContainerColor = detourColors.surface,
+    focusedBorderColor = detourColors.accent,
+    unfocusedBorderColor = detourColors.border,
+    cursorColor = detourColors.accent,
+    focusedTextColor = detourColors.textPrimary,
+    unfocusedTextColor = detourColors.textPrimary,
+)
