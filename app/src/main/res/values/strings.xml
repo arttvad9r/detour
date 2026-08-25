@@ -60,6 +60,28 @@
     <string name="key_invalid_transport">поддерживается только transport tcp</string>
     <string name="key_invalid_reality">требуется security=reality и параметр pbk</string>
     <string name="btn_save">Сохранить</string>
+    <string name="key_row_server">Сервер</string>
+    <string name="key_row_security">Security</string>
+    <string name="key_row_flow">Flow</string>
+    <string name="key_config_label">Конфигурация</string>
+    <string name="key_show">Показать</string>
+    <string name="key_hide">Скрыть</string>
+    <string name="key_edit">Изменить</string>
+    <string name="key_cancel">Отмена</string>
+    <string name="key_paste">Вставить из буфера</string>
+    <string name="key_list_title">Ключи</string>
+    <string name="key_empty">Нет добавленных ключей</string>
+    <string name="key_add">Добавить</string>
+    <string name="key_delete">Удалить</string>
+    <string name="key_name">Название</string>
+    <string name="key_uri">VLESS URL</string>
+
+    <!-- DNS -->
+    <string name="dns_note">DNS применяется к маршрутизированным приложениям через движок. AdGuard дополнительно режет рекламу и трекеры.</string>
+    <string name="dns_invalid">Адрес должен начинаться с http:// или https://</string>
+
+    <!-- Резервная копия -->
+    <string name="backup_warning">Конфигурация содержит секретные данные — храни файл в безопасном месте.</string>
 
     <!-- Обход DPI -->
     <string name="dpi_title">Обход DPI</string>
