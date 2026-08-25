@@ -2,7 +2,9 @@
 
 package dev.triplet.app.ui
 
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ColorScheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -12,8 +14,16 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontVariation
+import androidx.compose.ui.unit.dp
 import dev.triplet.app.R
 import dev.triplet.app.vpn.VpnState
+
+/** Палитра горного фона: 5 слоёв (дальний -> передний), туман и зелёный тинт для Active. */
+data class MountainPalette(
+    val layers: List<Color>,
+    val fog: Color,
+    val activeTint: Color,
+)
 
 /**
  * Четыре темы приложения. Полночь/Графит — тёмные, Океан/Лаванда — светлые.
@@ -27,6 +37,7 @@ enum class AppTheme(
     val statusStarting: Pair<Color, Color>,
     val statusFailed: Pair<Color, Color>,
     val statusIdle: Pair<Color, Color>,
+    val mountains: MountainPalette,
 ) {
     MIDNIGHT(
         "midnight", "Полночь",
@@ -41,6 +52,13 @@ enum class AppTheme(
         Color(0xFF16283F) to Color(0xFF60A5FA),
         Color(0xFF3B1A1A) to Color(0xFFF87171),
         Color(0xFF1E293B) to Color(0xFF94A3B8),
+        MountainPalette(
+            layers = listOf(
+                Color(0xFF141F36), Color(0xFF182640), Color(0xFF1D2E4B),
+                Color(0xFF233757), Color(0xFF294063),
+            ),
+            fog = Color(0xFF1A2740), activeTint = Color(0xFF2C5A43),
+        ),
     ),
     OCEAN(
         "ocean", "Океан",
@@ -55,6 +73,13 @@ enum class AppTheme(
         Color(0xFFE0EDF7) to Color(0xFF0369A1),
         Color(0xFFFCE4E4) to Color(0xFFDC2626),
         Color(0xFFE7EFF5) to Color(0xFF64748B),
+        MountainPalette(
+            layers = listOf(
+                Color(0xFFE5EFF8), Color(0xFFD9E7F3), Color(0xFFCCDDEC),
+                Color(0xFFBFD3E6), Color(0xFFB1C8DF),
+            ),
+            fog = Color(0xFFEAF2F9), activeTint = Color(0xFF9CCDB0),
+        ),
     ),
     GRAPHITE(
         "graphite", "Графит и янтарь",
@@ -69,20 +94,37 @@ enum class AppTheme(
         Color(0xFF1F2430) to Color(0xFF93B4F8),
         Color(0xFF331B1B) to Color(0xFFF87171),
         Color(0xFF232323) to Color(0xFF9E9E9E),
+        MountainPalette(
+            layers = listOf(
+                Color(0xFF191A1D), Color(0xFF1F2024), Color(0xFF26272C),
+                Color(0xFF2D2E34), Color(0xFF35363D),
+            ),
+            fog = Color(0xFF212226), activeTint = Color(0xFF3B5744),
+        ),
     ),
     LAVENDA(
         "lavenda", "Лаванда",
         lightColorScheme(
-            primary = Color(0xFF6D5BA6), onPrimary = Color(0xFFFFFFFF),
-            background = Color(0xFFE9E2F2), onBackground = Color(0xFF2F2A3D),
-            surface = Color(0xFFF6F2FB), onSurface = Color(0xFF2F2A3D),
-            surfaceVariant = Color(0xFFE2D9EF), onSurfaceVariant = Color(0xFF6E6679),
-            outline = Color(0xFFC4B9D8),
+            primary = Color(0xFF6F62B6), onPrimary = Color(0xFFFFFFFF),
+            secondary = Color(0xFF6F62B6), onSecondary = Color(0xFFFFFFFF),
+            secondaryContainer = Color(0xFFE6E2F6), onSecondaryContainer = Color(0xFF3B3178),
+            background = Color(0xFFF7F5FB), onBackground = Color(0xFF25243B),
+            surface = Color(0xFFFDFCFF), onSurface = Color(0xFF25243B),
+            surfaceVariant = Color(0xFFECE9F5), onSurfaceVariant = Color(0xFF777386),
+            outline = Color(0xFFDCD8EC),
         ),
-        Color(0xFFDDF2E6) to Color(0xFF34A86B),
-        Color(0xFFE4E0F5) to Color(0xFF6D5BA6),
-        Color(0xFFF9E4E4) to Color(0xFFC94444),
-        Color(0xFFE4DFEC) to Color(0xFF6E6679),
+        Color(0xFFE7F3EC) to Color(0xFF2E8F5C),
+        Color(0xFFEAE6F8) to Color(0xFF6F62B6),
+        Color(0xFFFAE7E7) to Color(0xFFC94444),
+        Color(0xFFF4F2FA) to Color(0xFF6E6679),
+        MountainPalette(
+            // Дальний слой почти растворён в фоне #F7F5FB, передний — самый читаемый.
+            layers = listOf(
+                Color(0xFFF0EEFA), Color(0xFFE9E7F6), Color(0xFFE1DEF2),
+                Color(0xFFD6D1EB), Color(0xFFCBC4E3),
+            ),
+            fog = Color(0xFFF3F1FA), activeTint = Color(0xFFA9CDB6),
+        ),
     );
 
     companion object {
@@ -99,6 +141,18 @@ fun AppTheme.statusFor(state: VpnState): StatusStyle = when (state) {
     is VpnState.Failed -> StatusStyle(statusFailed.first, statusFailed.second)
     VpnState.Idle -> StatusStyle(statusIdle.first, statusIdle.second)
 }
+
+/** Единые скругления приложения (см. дизайн-систему): 10/16/22/28 + pill. */
+val AppShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(10.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(22.dp),
+    extraLarge = RoundedCornerShape(28.dp),
+)
+
+/** Pill-форма для широких кнопок. */
+val PillShape = RoundedCornerShape(999.dp)
 
 private fun inter(weight: FontWeight, w: Int) = Font(
     R.font.inter_variable,

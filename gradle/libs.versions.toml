@@ -5,14 +5,11 @@ composeBom = "2026.06.01"
 # ponytail: 1.17.0 = newest core-ktx compilable against SDK 36 (plan pins compileSdk 36); bump to 1.19.x when compileSdk rises to 37
 coreKtx = "1.17.0"
 activityCompose = "1.13.0"
-# ponytail: 2.10.0 = newest lifecycle compilable against SDK 36 (plan pins compileSdk 36); bump to 2.11.x when compileSdk rises to 37
-lifecycle = "2.10.0"
 datastore = "1.1.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
-androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }

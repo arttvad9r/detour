@@ -3,18 +3,19 @@ package dev.triplet.app.ui
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.foundation.clickable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.triplet.app.R
@@ -96,20 +98,32 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
 
     Column(modifier.fillMaxSize()) {
         ScreenHeader(stringResource(R.string.backup_title), onBack)
+        Spacer(Modifier.height(6.dp))
 
         Text(
             stringResource(R.string.backup_note),
             fontSize = 12.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp),
+            modifier = Modifier.padding(horizontal = 20.dp),
+        )
+        Spacer(Modifier.height(12.dp))
+        PillButton(
+            text = stringResource(R.string.backup_export),
+            onClick = { exportLauncher.launch("detour-backup.json") },
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
         )
         Button(
-            onClick = { exportLauncher.launch("detour-backup.json") },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 6.dp),
-        ) { Text(stringResource(R.string.backup_export)) }
-        OutlinedButton(
             onClick = { importLauncher.launch(arrayOf("application/json", "text/*")) },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 13.dp),
-        ) { Text(stringResource(R.string.backup_import)) }
+            shape = PillShape,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.primary,
+            ),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)),
+            modifier = Modifier.fillMaxWidth().height(54.dp)
+                .padding(horizontal = 16.dp),
+        ) {
+            Text(stringResource(R.string.backup_import), fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        }
         if (status.isNotEmpty()) {
             Text(status, fontSize = 12.5.sp, color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(16.dp))

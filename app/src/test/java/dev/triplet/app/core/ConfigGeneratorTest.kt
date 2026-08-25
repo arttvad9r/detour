@@ -15,15 +15,13 @@ class ConfigGeneratorTest {
 
     private fun input(
         api: Int = 33,
-        attribution: Attribution = Attribution.PROCESS_NAME,
         prof: VlessProfile? = profile,
     ) = RoutingInput(
-        tunFd = 7, apiLevel = api, ownPackage = "dev.triplet.app",
+        tunFd = 7, apiLevel = api,
         profile = prof,
         vpnApps = setOf("org.telegram.messenger"),
         vpnUids = mapOf("org.telegram.messenger" to 10101, "com.google.android.youtube" to 10102),
         dpiApps = setOf("com.google.android.youtube"),
-        attribution = attribution,
     )
 
     @Test fun `contains vless proxy with reality opts`() {
@@ -40,21 +38,16 @@ class ConfigGeneratorTest {
         assertTrue(yaml.contains("servername: translate.yandex.com"))
     }
 
-    @Test fun `vpn apps routed to VLESS by process name`() {
+    @Test fun `vpn apps routed to VLESS by uid`() {
         val yaml = ConfigGenerator.build(input())
-        assertTrue(yaml.contains("- PROCESS-NAME,org.telegram.messenger,VLESS"))
-    }
-
-    @Test fun `vpn apps routed to VLESS by uid when attribution is UID`() {
-        val yaml = ConfigGenerator.build(input(attribution = Attribution.UID))
         assertTrue(yaml.contains("- UID,10101,VLESS"))
-        assertFalse(yaml.contains("PROCESS-NAME,org.telegram.messenger"))
+        assertFalse(yaml.contains("PROCESS-NAME"))
     }
 
     @Test fun `dpi app gets quic reject before socks route`() {
         val yaml = ConfigGenerator.build(input())
-        val quicIdx = yaml.indexOf("- AND,((PROCESS-NAME,com.google.android.youtube),(NETWORK,UDP),(DST-PORT,443)),REJECT")
-        val dpiIdx = yaml.indexOf("- PROCESS-NAME,com.google.android.youtube,DPI")
+        val quicIdx = yaml.indexOf("- AND,((UID,10102),(NETWORK,UDP),(DST-PORT,443)),REJECT")
+        val dpiIdx = yaml.indexOf("- UID,10102,DPI")
         assertTrue(quicIdx >= 0)
         assertTrue(dpiIdx > quicIdx) // QUIC-block строго раньше общего правила DPI
     }
@@ -167,9 +160,9 @@ class ConfigGeneratorTest {
             |  port: 10808
             |  udp: false
             |rules:
-            |- PROCESS-NAME,org.telegram.messenger,VLESS
-            |- AND,((PROCESS-NAME,com.google.android.youtube),(NETWORK,UDP),(DST-PORT,443)),REJECT
-            |- PROCESS-NAME,com.google.android.youtube,DPI
+            |- UID,10101,VLESS
+            |- AND,((UID,10102),(NETWORK,UDP),(DST-PORT,443)),REJECT
+            |- UID,10102,DPI
             |- MATCH,DIRECT
         """.trimMargin()
     }

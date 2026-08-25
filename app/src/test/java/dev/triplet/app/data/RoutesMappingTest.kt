@@ -40,9 +40,4 @@ class RoutesMappingTest {
         val s = RoutesMapping.toSettings(mapOf("dpi_preset" to "bogus"))
         assertEquals(DpiPreset.RECOMMENDED, s.preset)
     }
-
-    @Test fun `apps sorted by label case-insensitive`() {
-        val sorted = RoutesMapping.sortApps(listOf(AppInfo("b", "Zebra", isSystem = false), AppInfo("a", "apple", isSystem = false)))
-        assertEquals(listOf("apple", "Zebra"), sorted.map { it.label })
-    }
 }

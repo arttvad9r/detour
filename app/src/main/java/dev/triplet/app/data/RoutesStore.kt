@@ -49,7 +49,6 @@ object RoutesMapping {
         }.toMap(),
     )
 
-    fun sortApps(apps: List<AppInfo>) = apps.sortedBy { it.label.lowercase() }
     fun routeKey(pkg: String) = stringPreferencesKey(PREFIX_ROUTE + pkg)
     fun uriKey() = stringPreferencesKey(KEY_URI)
     fun presetKey() = stringPreferencesKey(KEY_PRESET)

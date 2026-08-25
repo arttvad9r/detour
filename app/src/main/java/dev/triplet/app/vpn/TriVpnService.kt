@@ -11,13 +11,11 @@ import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.VpnService
 import android.os.Build
-import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import androidx.core.app.NotificationCompat
 import dev.triplet.app.MainActivity
 import dev.triplet.app.R
 import dev.triplet.app.core.AppRoute
-import dev.triplet.app.core.Attribution
 import dev.triplet.app.core.ConfigGenerator
 import dev.triplet.app.core.DnsOptions
 import dev.triplet.app.core.DpiArgs
@@ -71,8 +69,6 @@ class TriVpnService : VpnService() {
         }
         return START_NOT_STICKY
     }
-
-    override fun onBind(intent: Intent?): IBinder? = super.onBind(intent)
 
     override fun onRevoke() {
         ServiceLog.w("vpn permission revoked")
@@ -147,9 +143,9 @@ class TriVpnService : VpnService() {
 
         val yaml = ConfigGenerator.build(
             RoutingInput(
-                tunFd = fd, apiLevel = Build.VERSION.SDK_INT, ownPackage = packageName,
+                tunFd = fd, apiLevel = Build.VERSION.SDK_INT,
                 profile = profile, vpnApps = effVpn, vpnUids = vpnUids,
-                dpiApps = effDpi, attribution = Attribution.UID,
+                dpiApps = effDpi,
                 nameserver = DnsOptions.resolve(settings.dnsId, settings.dnsCustom),
             ),
         )

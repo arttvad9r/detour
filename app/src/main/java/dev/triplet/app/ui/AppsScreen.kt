@@ -2,18 +2,20 @@ package dev.triplet.app.ui
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -28,6 +30,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -52,8 +55,8 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
 
     var query by remember { mutableStateOf("") }
     var showSystem by remember { mutableStateOf(false) }
-    // Полный список загружается один раз; фильтры — мгновенные, без переquery.
-    val allApps = remember { AppInventory.load(ctx).sortedBy { it.label.lowercase() } }
+    // Полный список загружается один раз; сортировка/фильтры — в LazyColumn.
+    val allApps = remember { AppInventory.load(ctx) }
 
     Column(modifier.fillMaxSize()) {
         ScreenHeader(stringResource(R.string.routes_title), onBack)
@@ -61,18 +64,24 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
         OutlinedTextField(
             value = query,
             onValueChange = { query = it },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 13.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             placeholder = { Text(stringResource(R.string.search_hint)) },
-            leadingIcon = { Icon(painterResource(R.drawable.ic_search), null) },
+            leadingIcon = { Icon(painterResource(R.drawable.ic_search), null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant) },
             singleLine = true,
-            shape = RoundedCornerShape(13.dp),
+            shape = AppShapes.medium,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                cursorColor = MaterialTheme.colorScheme.primary,
+            ),
         )
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Text(stringResource(R.string.show_system), fontSize = 13.sp,
+            Text(stringResource(R.string.show_system), fontSize = 13.5.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onBackground)
             Switch(checked = showSystem, onCheckedChange = { showSystem = it })
@@ -95,10 +104,15 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
                 .forEach { app ->
                     item(key = app.packageName) {
                         val current = routes?.get(app.packageName) ?: AppRoute.DIRECT
-                        Column(Modifier.fillMaxWidth().padding(horizontal = 13.dp, vertical = 5.dp)
-                            .background(MaterialTheme.colorScheme.surface, MaterialTheme.shapes.medium)) {
+                        Column(
+                            Modifier.fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 5.dp)
+                                .background(MaterialTheme.colorScheme.surface, AppShapes.medium)
+                                .border(1.dp, hairline(), AppShapes.medium),
+                        ) {
                             Row(
-                                Modifier.fillMaxWidth().padding(start = 12.dp, top = 11.dp, bottom = 9.dp),
+                                Modifier.fillMaxWidth()
+                                    .padding(start = 12.dp, top = 11.dp, bottom = 9.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 val bmp = remember(app.packageName) {
@@ -106,10 +120,10 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
                                 }
                                 if (bmp != null) {
                                     Image(bmp.asImageBitmap(), null,
-                                        modifier = Modifier.size(34.dp))
+                                        modifier = Modifier.size(32.dp))
                                 } else {
                                     Icon(painterResource(R.drawable.ic_routes), null,
-                                        modifier = Modifier.size(30.dp),
+                                        modifier = Modifier.size(28.dp),
                                         tint = MaterialTheme.colorScheme.primary)
                                 }
                                 Column(Modifier.padding(start = 11.dp)) {
@@ -121,7 +135,9 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
                             }
                             // Кнопки отдельной строкой на всю ширину: на узких экранах
                             // и в RU они не помещаются рядом с названием.
-                            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 10.dp)) {
+                            SingleChoiceSegmentedButtonRow(
+                                Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
+                            ) {
                                 AppRoute.entries.forEachIndexed { i, route ->
                                     SegmentedButton(
                                         selected = current == route,
@@ -132,9 +148,23 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
                                             }
                                         },
                                         shape = SegmentedButtonDefaults.itemShape(i, AppRoute.entries.size),
+                                        modifier = Modifier.height(44.dp),
+                                        colors = SegmentedButtonDefaults.colors(
+                                            activeContainerColor =
+                                            MaterialTheme.colorScheme.secondaryContainer,
+                                            activeContentColor =
+                                            MaterialTheme.colorScheme.onSecondaryContainer,
+                                            inactiveContainerColor = Color.Transparent,
+                                            inactiveContentColor =
+                                            MaterialTheme.colorScheme.onSurfaceVariant,
+                                            activeBorderColor =
+                                            MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                                            inactiveBorderColor =
+                                            MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                                        ),
                                         label = {
                                             Text(stringResource(routeLabel(route)), fontSize = 11.5.sp,
-                                                fontWeight = FontWeight.Bold)
+                                                fontWeight = FontWeight.SemiBold)
                                         },
                                     )
                                 }

@@ -4,13 +4,18 @@
 
     <!-- Состояния туннеля -->
     <string name="status_idle">ОТКЛЮЧЕНО</string>
-    <string name="status_starting">ПОДКЛЮЧЕНИЕ…</string>
+    <string name="status_starting">ПОДКЛЮЧЕНИЕ</string>
     <string name="status_active">АКТИВНО</string>
-    <string name="status_failed">ОШИБКА</string>
-    <string name="btn_connect">ПОДКЛЮЧИТЬ</string>
-    <string name="btn_disconnect">ОТКЛЮЧИТЬ</string>
-    <string name="state_sub_idle">маршруты и ключ сохранены</string>
-    <string name="state_sub_active">туннель работает</string>
+    <string name="status_failed">НЕ УДАЛОСЬ ПОДКЛЮЧИТЬСЯ</string>
+    <string name="btn_connect">Подключить</string>
+    <string name="btn_disconnect">Отключить</string>
+    <string name="btn_connecting">Подключение…</string>
+    <string name="action_retry">Повторить</string>
+    <string name="state_sub_idle">Нет активной сессии</string>
+    <string name="row_protocol">Протокол</string>
+    <string name="row_server">Сервер</string>
+    <string name="row_strategy">Стратегия</string>
+    <string name="server_missing">не задан</string>
     <string name="cd_settings">Настройки</string>
     <string name="cd_back">Назад</string>
 
@@ -21,7 +26,6 @@
     <string name="nav_key">Ключ VLESS</string>
     <string name="nav_key_sub">Reality + vision</string>
     <string name="nav_theme">Оформление</string>
-    <string name="nav_theme_sub">4 темы</string>
     <string name="theme_title">Оформление</string>
     <string name="theme_hint">Тема применяется сразу ко всему приложению</string>
     <string name="auto_connect">Подключаться при запуске</string>
@@ -51,19 +55,16 @@
 
     <!-- Ключ VLESS -->
     <string name="key_title">Ключ VLESS</string>
-    <string name="key_valid">Ключ корректен</string>
     <string name="key_invalid">Ключ некорректен</string>
     <string name="key_invalid_format">не похоже на vless:// ссылку</string>
     <string name="key_invalid_transport">поддерживается только transport tcp</string>
     <string name="key_invalid_reality">требуется security=reality и параметр pbk</string>
-    <string name="btn_save">СОХРАНИТЬ</string>
+    <string name="btn_save">Сохранить</string>
 
     <!-- Обход DPI -->
     <string name="dpi_title">Обход DPI</string>
-    <string name="dpi_args_title">Аргументы ciadpi</string>
     <string name="preset_recommended">Рекомендуемая</string>
     <string name="preset_custom">Своя стратегия</string>
-    <string name="preset_builtin">встроена</string>
     <string name="custom_args_hint">Аргументы ciadpi, напр. -s 1+s -d 3+s -a 1</string>
     <string name="autorestart_note">Изменения применяются автоматически — активный туннель перезапускается</string>
 

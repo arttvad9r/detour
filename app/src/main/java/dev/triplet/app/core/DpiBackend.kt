@@ -40,8 +40,6 @@ class DpiBackend(context: Context) {
         proc = null
     }
 
-    fun isRunning(): Boolean = proc?.isAlive == true
-
     private fun awaitPort(port: Int, timeoutMs: Int): Boolean {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {

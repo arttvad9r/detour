@@ -1,10 +1,11 @@
 package dev.triplet.app.ui
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -18,9 +19,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.triplet.app.R
@@ -35,11 +36,12 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val settings by store.settings.collectAsState(initial = null)
+    val theme = AppTheme.byId(settings?.themeId ?: "")
     var field by remember(settings?.vlessUri) { mutableStateOf(settings?.vlessUri ?: "") }
 
     // Состояние рамки: нейтральная пусто / зелёная корректно / красная ошибка.
-    // Рамка: базовый цвет; валидный ввод — зелёная вспышка на секунду;
-    // ошибка — красная, пока текст не валиден или не очищен.
+    // Валидный ввод — зелёная вспышка на секунду; ошибка — красная, пока
+    // текст не валиден или не очищен.
     val parse = if (field.isBlank()) null else VlessKeyParser.parse(field)
     var flashGreen by remember { mutableStateOf(false) }
     // Вспышка — только на пользовательский ввод, ставший валидным.
@@ -51,13 +53,14 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
         }
     }
     val borderColor = when {
-        parse is ParseResult.Err -> Color(0xFFD64545)
-        flashGreen -> Color(0xFF1F9D5A)
+        parse is ParseResult.Err -> MaterialTheme.colorScheme.error
+        flashGreen -> theme.statusOn.second
         else -> MaterialTheme.colorScheme.outline
     }
 
     Column(modifier.fillMaxSize()) {
         ScreenHeader(stringResource(R.string.key_title), onBack)
+        Spacer(Modifier.height(6.dp))
 
         OutlinedTextField(
             value = field,
@@ -65,9 +68,10 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                 field = it
                 flashGreen = VlessKeyParser.parse(it) is ParseResult.Ok
             },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 13.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             placeholder = { Text("vless://…") },
             minLines = 4,
+            shape = AppShapes.medium,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = borderColor,
                 unfocusedBorderColor = borderColor,
@@ -78,12 +82,13 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
             Text(
                 stringResource(R.string.key_invalid) + ": " +
                     stringResource(reasonRes(parse.reasonResId)),
-                color = Color(0xFFD64545), fontSize = 12.5.sp,
-                modifier = Modifier.padding(start = 16.dp, top = 6.dp),
+                color = MaterialTheme.colorScheme.error, fontSize = 12.5.sp,
+                modifier = Modifier.padding(start = 20.dp, top = 6.dp),
             )
         }
 
-        Button(
+        PillButton(
+            text = stringResource(R.string.btn_save),
             onClick = {
                 scope.launch {
                     store.setVlessUri(field.trim())
@@ -92,8 +97,8 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                 }
             },
             enabled = parse is ParseResult.Ok && field.trim() != (settings?.vlessUri ?: ""),
-            modifier = Modifier.fillMaxWidth().padding(13.dp),
-        ) { Text(stringResource(R.string.btn_save)) }
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+        )
     }
 }
 

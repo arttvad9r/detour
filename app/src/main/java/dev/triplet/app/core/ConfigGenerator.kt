@@ -22,12 +22,8 @@ object ConfigGenerator {
         require(input.vpnUids.keys.containsAll(input.vpnApps + input.dpiApps)) {
             "missing uid resolution for routed packages"
         }
-        val attr = { pkg: String ->
-            when (input.attribution) {
-                Attribution.PROCESS_NAME -> "PROCESS-NAME,$pkg"
-                Attribution.UID -> "UID,${input.vpnUids[pkg]}"
-            }
-        }
+        // Приложения атрибутируются по UID (резолвится host-side через VpnService).
+        val attr = { pkg: String -> "UID,${input.vpnUids[pkg]}" }
         val rules = buildList {
             // IPv6 в TUN не маршрутизируется (см. TriVpnService.openTun) —
             // приложения сразу используют IPv4.

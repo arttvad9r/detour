@@ -1,17 +1,14 @@
 package dev.triplet.app.ui
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -20,11 +17,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.triplet.app.R
@@ -46,6 +41,7 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
 
     Column(modifier.fillMaxSize()) {
         ScreenHeader(stringResource(R.string.dpi_title), onBack)
+        Spacer(Modifier.height(6.dp))
 
         fun choose(preset: DpiPreset) {
             scope.launch {
@@ -54,29 +50,34 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
             }
         }
 
-        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)
-            .clickable { choose(DpiPreset.RECOMMENDED) },
-            verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(selected = settings?.preset == DpiPreset.RECOMMENDED,
-                onClick = { choose(DpiPreset.RECOMMENDED) })
-            Text(stringResource(R.string.preset_recommended), fontSize = 14.5.sp,
-                fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-        }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp)
-            .clickable { choose(DpiPreset.CUSTOM) },
-            verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(selected = settings?.preset == DpiPreset.CUSTOM,
-                onClick = { choose(DpiPreset.CUSTOM) })
-            Text(stringResource(R.string.preset_custom), fontSize = 14.5.sp,
-                fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-        }
+        OptionRow(
+            title = stringResource(R.string.preset_recommended),
+            subtitle = stringResource(R.string.nav_dpi_sub),
+            selected = settings?.preset == DpiPreset.RECOMMENDED,
+            onClick = { choose(DpiPreset.RECOMMENDED) },
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp),
+        )
+        OptionRow(
+            title = stringResource(R.string.preset_custom),
+            subtitle = stringResource(R.string.custom_args_hint),
+            selected = settings?.preset == DpiPreset.CUSTOM,
+            onClick = { choose(DpiPreset.CUSTOM) },
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 5.dp),
+        )
         if (settings?.preset == DpiPreset.CUSTOM) {
             OutlinedTextField(
                 value = customField,
                 onValueChange = { customField = it },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 13.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                shape = AppShapes.medium,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                ),
             )
-            Button(
+            PillButton(
+                text = stringResource(R.string.btn_save),
                 onClick = {
                     scope.launch {
                         store.setCustomArgs(customField)
@@ -84,14 +85,15 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
                     }
                 },
                 enabled = DpiArgs.tokenize(customField).isNotEmpty(),
-                modifier = Modifier.fillMaxWidth().padding(13.dp),
-            ) { Text(stringResource(R.string.btn_save)) }
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            )
         }
 
+        Spacer(Modifier.height(8.dp))
         Text(
             stringResource(R.string.autorestart_note),
-            fontSize = 11.5.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp),
+            fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 20.dp),
         )
     }
 }
