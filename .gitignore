@@ -6,6 +6,7 @@ local.properties
 .sdk/
 *.aar
 !engine/libs/.gitkeep
+app/src/main/jniLibs/**/*.so
 .kotlin/
 *.hprof
 .opencode/

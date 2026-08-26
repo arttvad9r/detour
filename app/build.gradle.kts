@@ -14,6 +14,7 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     compileOptions {
@@ -28,14 +29,28 @@ android {
 
     tasks.matching { it.name == "preBuild" }.configureEach {
         dependsOn(rootProject.tasks.named("buildMihomoAar"))
+        dependsOn(rootProject.tasks.named("buildByeDpi"))
+    }
+
+    lint {
+        // Осознанные пины: compileSdk/targetSdk 36 закреплены в shell.nix
+        // (composeAndroidPackages platformVersions), обновления зависимостей
+        // отслеживаются отдельно. QUERY_ALL_PACKAGES не добавляем намеренно —
+        // приватность важнее полноты shared-UID проверки; неполные данные
+        // корректно обрабатываются в EffectiveRoutes (fallback на выбранные).
+        disable += listOf(
+            "OldTargetApi",
+            "AndroidGradlePluginVersion",
+            "GradleDependency",
+            "NewerVersionAvailable",
+            "QueryPermissionsNeeded",
+        )
     }
 }
 
 // AGP 9 built-in Kotlin targets Java 17 via compileOptions above (no kotlin-android plugin).
-// AAR движка появится в Task 2; до этого строку закомментировать нельзя —
-// поэтому Task 2 выполняется сразу за этим и preBuild-зависимость включается там.
 dependencies {
-    testImplementation("org.json:json:20240303")
+    testImplementation(libs.org.json)
     implementation(files("../engine/libs/engine.aar"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
@@ -44,4 +59,10 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.datastore.preferences)
     testImplementation(libs.junit)
+
+    androidTestImplementation(platform(libs.androidx.compose.bom))
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestDebugImplementation(libs.androidx.compose.ui.test.manifest)
 }

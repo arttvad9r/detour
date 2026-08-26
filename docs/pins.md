@@ -55,5 +55,5 @@ API 29+), резолвится ДО Engine.start. Пробы (эмулятор A
   перехватывает TCP (нет [TCP] логов, чёрная дыра) — только ICMP.
 - mihomo v1.19.x игнорирует `tun.inet4-address`: адрес TUN = fake-ip range gateway
   (/30 от 198.18.0.1); VpnService.Builder обязан добавлять 198.18.0.1/30.
-- YAML: generated external scalars are quoted when needed; IPv6 is disabled in
-  the Android TUN policy and no IPv6 address is emitted.
+- YAML: generated external scalars are quoted when needed; IPv6 is captured and
+  explicitly rejected in the Android TUN policy.

@@ -32,17 +32,27 @@
 - Импорт ключа автоматизирован через временный debug-hook в MainActivity
   (`--es import_uri`, force-stop → start). Хук удалён перед коммитом; установленный
   на эмуляторе APK его содержит, что не влияет на продуктовую логику.
-- `match Match using DIRECT` ×4 в логе — DNS/фоновые потоки выбранных приложений,
+- `match Match using REJECT` ×4 в логе — неизвестные потоки выбранных приложений
+  не обходят туннель,
   чей owner-lookup вернул пусто (известная граница getConnectionOwnerUid на
   уже-закрытых сокетах); на маршруты выбранных приложений это не влияет,
   unselected-трафик в TUN не попадает вовсе (allow-list).
+
+## Instrumented (эмулятор, Android 15 / API 35)
+
+`ANDROID_SERIAL=emulator-XXXX nix develop -c ./gradlew :app:connectedDebugAndroidTest`
+
+| Класс | Тесты |
+|---|---|
+| MainActivitySmokeTest | 2/2 (кнопка Connect, вход в настройки) |
+| RoutesStoreInstrumentedTest | 3/3 (add/update/delete, дубликат id отклоняется, импорт не включает auto-connect) |
 
 ## Unit-уровень (накопительно)
 
 | Компонент | Тесты |
 |---|---|
 | VlessKeyParser | 6/6 (reality+vision happy-path, схема/транспорт/security/pbk reject) |
-| ConfigGenerator | 11/11 (золотой YAML целиком, порядок правил QUIC-before-DPI, LAN по API, MATCH,DIRECT последним, без-key профиль) |
+| ConfigGenerator | 12/12 (золотой YAML целиком, IPv6 reject before UID, порядок QUIC-before-DPI, LAN по API, без-key профиль) |
 | DpiPresets | 4/4 |
 | RoutesMapping | 5/5 |
 
@@ -79,10 +89,8 @@
 4. **Статический ciadpi**: у статического bionic-бинарника не работает
    `getaddrinfo` (нет libnetd_client) — сборка переведена на динамическую
    (`interpreter /system/bin/linker64`).
-5. **IPv6-чёрная дыра**: Wi-Fi сети без глобального v6, v6-маршрут по умолчанию
-   существует только через IMS-APN. Захват `::/0` в TUN заставлял приложения
-   (YouTube прежде всего) висеть на v6. TUN теперь IPv4-only (`::/0` не
-   маршрутизируется) — приложения мгновенно откатываются на v4, как в ByeByeDPI.
+5. **IPv6 fail-closed**: IPv6 захватывается в TUN и отклоняется правилом
+   `IP-CIDR6,::/0,REJECT`; выбранные приложения не обходят VPN.
 6. **Заморозка ciadpi на пайпе**: stdout/stderr дочернего процесса никто не
    читал; после заполнения пайпа (~64KB предупреждений) процесс блокировался на
    записи. Вывод перенаправлен через `Redirect.INHERIT`.
@@ -92,7 +100,8 @@
 
 ### Current automated/device limitations
 
-- Current policy is IPv4-only: no IPv6 TUN address or route is emitted.
+- Current policy captures IPv6 in the TUN and explicitly rejects it, preventing
+  selected applications from bypassing the VPN over IPv6.
 - DNS accepts only IP literals or HTTPS DoH URLs and is emitted through
   mihomo DNS hijack for routed applications.
 
