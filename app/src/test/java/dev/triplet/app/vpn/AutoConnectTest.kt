@@ -18,16 +18,25 @@ class AutoConnectTest {
     )
 
     @Test fun `vpn needs key and permission`() {
-        assertFalse(canAutoConnect(settings(AppRoute.VPN), true))
-        assertTrue(canAutoConnect(settings(AppRoute.VPN, true), true))
-        assertFalse(canAutoConnect(settings(AppRoute.VPN, true), false))
+        val effective = EffectiveRoutes(setOf("app"), emptySet())
+        assertFalse(canAutoConnect(settings(AppRoute.VPN), true, effective))
+        assertTrue(canAutoConnect(settings(AppRoute.VPN, true), true, effective))
+        assertFalse(canAutoConnect(settings(AppRoute.VPN, true), false, effective))
     }
 
     @Test fun `dpi only needs no vless key`() {
-        assertTrue(canAutoConnect(settings(AppRoute.DPI), true))
+        assertTrue(canAutoConnect(settings(AppRoute.DPI), true, EffectiveRoutes(emptySet(), setOf("app"))))
     }
 
     @Test fun `no routes does not connect`() {
-        assertFalse(canAutoConnect(settings(AppRoute.DIRECT), true))
+        assertFalse(canAutoConnect(settings(AppRoute.DIRECT), true, EffectiveRoutes(emptySet(), emptySet())))
+    }
+
+    @Test fun `removed vpn route does not require a key for dpi`() {
+        assertTrue(canAutoConnect(
+            settings(AppRoute.VPN), true,
+            EffectiveRoutes(vpnPackages = emptySet(), dpiPackages = setOf("dpi-app")),
+            activeVlessValid = false,
+        ))
     }
 }

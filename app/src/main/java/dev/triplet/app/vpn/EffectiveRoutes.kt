@@ -15,11 +15,13 @@ data class EffectiveRoutes(
 fun effectiveRoutes(
     routes: Map<String, AppRoute>,
     installedUids: Map<String, Int?>,
+    uidPackages: Map<Int, Set<String>> = emptyMap(),
 ): EffectiveRoutes {
     val present = routes.keys.filter { installedUids[it] != null }
     val byUid = present.groupBy { installedUids.getValue(it)!! }
-    val conflicts = byUid.filter { (_, packages) ->
-        packages.map { routes.getValue(it) }.distinct().size > 1
+    val conflicts = byUid.filter { (uid, packages) ->
+        val siblings = uidPackages[uid].orEmpty().ifEmpty { packages.toSet() }
+        siblings.map { routes[it] ?: AppRoute.DIRECT }.distinct().size > 1
     }.keys
     if (conflicts.isNotEmpty()) return EffectiveRoutes(emptySet(), emptySet(), conflicts)
     return EffectiveRoutes(

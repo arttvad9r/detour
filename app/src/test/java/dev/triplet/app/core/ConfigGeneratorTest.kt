@@ -60,10 +60,10 @@ class ConfigGeneratorTest {
         assertTrue(yaml.contains("port: 10808"))
     }
 
-    @Test fun `last rule is MATCH DIRECT`() {
+    @Test fun `last rule rejects unknown ownership`() {
         val yaml = ConfigGenerator.build(input())
         val rulesBlock = yaml.substringAfter("rules:")
-        assertEquals("MATCH,DIRECT", rulesBlock.trim().trimEnd(']').trim().lines().last().removePrefix("- ").trim())
+        assertEquals("MATCH,REJECT", rulesBlock.trim().trimEnd(']').trim().lines().last().removePrefix("- ").trim())
     }
 
     @Test fun `api below 33 adds lan block rules`() {
@@ -85,17 +85,17 @@ class ConfigGeneratorTest {
         assertFalse(yaml.contains(",VLESS"))
     }
 
-    @Test fun `ipv6 is fail closed and absent from tun config`() {
+    @Test fun `ipv6 is captured and explicitly rejected`() {
         val yaml = ConfigGenerator.build(input())
         assertTrue(yaml.contains("ipv6: false"))
         assertFalse(yaml.contains("inet6-address"))
-        assertFalse(yaml.contains("::/0"))
+        assertTrue(yaml.contains("- ::/0"))
+        assertTrue(yaml.contains("- IP-CIDR6,::/0,REJECT,no-resolve"))
     }
 
-    @Test fun `health mixed port bound to loopback`() {
+    @Test fun `generic mixed port is not exposed`() {
         val yaml = ConfigGenerator.build(input())
-        assertTrue(yaml.contains("mixed-port: 10809"))
-        assertTrue(yaml.contains("bind-address: 127.0.0.1"))
+        assertFalse(yaml.contains("mixed-port:"))
     }
 
     @Test fun `health probes are pinned to their outbounds`() {
@@ -118,8 +118,6 @@ class ConfigGeneratorTest {
             |log-level: info
             |ipv6: false
             |find-process-mode: strict
-            |mixed-port: 10809
-            |bind-address: 127.0.0.1
             |tun:
             |  enable: true
             |  stack: gvisor
@@ -133,6 +131,7 @@ class ConfigGeneratorTest {
             |  route-address:
             |    - 0.0.0.0/1
             |    - 128.0.0.0/1
+            |    - ::/0
             |  route-exclude-address:
             |    - 0.0.0.0/8
             |    - 10.0.0.0/8
@@ -184,10 +183,11 @@ class ConfigGeneratorTest {
             |  port: 10811
             |  proxy: DPI
             |rules:
+            |- IP-CIDR6,::/0,REJECT,no-resolve
             |- UID,10101,VLESS
             |- AND,((UID,10102),(NETWORK,UDP),(DST-PORT,443)),REJECT
             |- UID,10102,DPI
-            |- MATCH,DIRECT
+            |- MATCH,REJECT
         """.trimMargin()
     }
 }

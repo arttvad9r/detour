@@ -32,4 +32,24 @@ class EffectiveRoutesTest {
         assertEquals(setOf(10001), result.sharedUidConflict)
         assertTrue(result.isEmpty)
     }
+
+    @Test fun `unknown routed package is filtered before capture`() {
+        val result = effectiveRoutes(
+            mapOf("unknown" to AppRoute.VPN),
+            mapOf("unknown" to null),
+        )
+
+        assertTrue(result.isEmpty)
+    }
+
+    @Test fun `unselected shared uid sibling is rejected`() {
+        val result = effectiveRoutes(
+            mapOf("selected" to AppRoute.VPN),
+            mapOf("selected" to 10001),
+            mapOf(10001 to setOf("selected", "sibling")),
+        )
+
+        assertEquals(setOf(10001), result.sharedUidConflict)
+        assertTrue(result.isEmpty)
+    }
 }

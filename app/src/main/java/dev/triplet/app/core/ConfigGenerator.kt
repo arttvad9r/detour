@@ -14,7 +14,7 @@ object ConfigGenerator {
          "192.168.0.0/16", "198.18.0.0/15", "224.0.0.0/3",
     )
 
-    private val ROUTE_ADDRESS = listOf("0.0.0.0/1", "128.0.0.0/1")
+    private val ROUTE_ADDRESS = listOf("0.0.0.0/1", "128.0.0.0/1", "::/0")
 
     fun build(input: RoutingInput): String {
         require(input.vpnUids.keys.containsAll(input.vpnApps + input.dpiApps)) {
@@ -23,6 +23,7 @@ object ConfigGenerator {
         // Приложения атрибутируются по UID (резолвится host-side через VpnService).
         val attr = { pkg: String -> "UID,${input.vpnUids[pkg]}" }
         val rules = buildList {
+            add("- IP-CIDR6,::/0,REJECT,no-resolve")
             input.profile?.let { input.vpnApps.forEach { pkg -> add("- ${attr(pkg)},VLESS") } }
             input.dpiApps.forEach { pkg ->
                 add("- AND,((${attr(pkg)}),(NETWORK,UDP),(DST-PORT,443)),REJECT")
@@ -31,7 +32,8 @@ object ConfigGenerator {
             if (input.apiLevel < 33) {
                 LAN_PREFIXES.forEach { add("- IP-CIDR,$it,REJECT,no-resolve") }
             }
-            add("- MATCH,DIRECT")
+            // Unknown UID ownership must fail closed rather than bypassing the VPN.
+            add("- MATCH,REJECT")
         }.joinToString("\n")
 
         // mihomo требует единый список proxies; оба исходящих объявляются в одном блоке.
@@ -67,19 +69,22 @@ object ConfigGenerator {
             )
         }.joinToString("\n")
         val probes = buildList {
+            val auth = if (input.probeUsername.isNotBlank() && input.probePassword.isNotBlank())
+                "\n  users:\n    - username: ${yamlScalar(input.probeUsername)}\n      password: ${yamlScalar(input.probePassword)}"
+            else ""
             if (input.vpnApps.isNotEmpty() && input.profile != null) {
                 add("""- name: PROBE_VLESS
   type: mixed
   listen: 127.0.0.1
   port: 10810
-  proxy: VLESS""")
+  proxy: VLESS$auth""")
             }
             if (input.dpiApps.isNotEmpty()) {
                 add("""- name: PROBE_DPI
   type: mixed
   listen: 127.0.0.1
   port: 10811
-  proxy: DPI""")
+  proxy: DPI$auth""")
             }
         }.joinToString("\n")
 
@@ -92,8 +97,6 @@ mode: rule
 log-level: info
 ipv6: false
 find-process-mode: strict
-mixed-port: ${input.mixedPort}
-bind-address: 127.0.0.1
 tun:
   enable: true
   stack: gvisor

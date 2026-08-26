@@ -31,6 +31,7 @@ import java.io.File
 import java.net.InetAddress
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.UUID
 
 class TriVpnService : VpnService() {
 
@@ -47,6 +48,7 @@ class TriVpnService : VpnService() {
     private val restartQueued = AtomicBoolean(false)
     private val stopQueued = AtomicBoolean(false)
     private val destroyed = AtomicBoolean(false)
+    private val lifecycleLock = Any()
     private lateinit var store: RoutesStore
     private lateinit var dpi: DpiBackend
     private var netCallback: ConnectivityManager.NetworkCallback? = null
@@ -57,7 +59,17 @@ class TriVpnService : VpnService() {
         // Один DataStore на файл: используем синглет из Application, иначе
         // второй экземпляр RoutesStore падает с IllegalStateException при старте VPN.
         store = (applicationContext as dev.triplet.app.TripletApp).routesStore
-        dpi = DpiBackend(this)
+        dpi = DpiBackend(this) {
+            runCatching {
+                executor.execute {
+                    if (!destroyed.get() && VpnController.state.value == VpnState.Active) {
+                        ServiceLog.e("dpi: process exited unexpectedly")
+                        VpnController.setState(VpnState.Failed(getString(R.string.err_dpi_failed)))
+                        stopSequence(stopSelf = true)
+                    }
+                }
+            }
+        }
         createChannel()
         registerNetworkMonitor()
         // Мост атрибуции обязан быть зарегистрирован до Engine.start (pins.md round 2).
@@ -92,14 +104,27 @@ class TriVpnService : VpnService() {
         destroyed.set(true)
         unregisterNetworkMonitor()
         stopQueued.set(true)
-        executor.execute { stopSequence(stopSelf = false) }
-        executor.shutdown()
+        executor.shutdownNow()
+        stopSequence(stopSelf = false)
         super.onDestroy()
     }
 
     // ---- sequence -------------------------------------------------------
 
     private fun startSequence() {
+        synchronized(lifecycleLock) {
+            try {
+                startSequenceInternal()
+            } catch (e: Exception) {
+                if (e is InterruptedException) Thread.currentThread().interrupt()
+                ServiceLog.e("startup: ${e.message}")
+                VpnController.setState(VpnState.Failed(e.message ?: getString(R.string.err_engine)))
+                stopSequence(stopSelf = true)
+            }
+        }
+    }
+
+    private fun startSequenceInternal() {
         if (destroyed.get() || stopQueued.get()) return
         val current = VpnController.state.value
         if (current == VpnState.Active || current == VpnState.Starting) return
@@ -120,7 +145,10 @@ class TriVpnService : VpnService() {
             }
         }
         val installed = settings.routes.keys.associateWith { uidOf(it) }
-        val effective = effectiveRoutes(settings.routes, installed)
+        val uidPackages = packageManager.getInstalledApplications(0)
+            .groupBy { it.uid }
+            .mapValues { (_, apps) -> apps.map { it.packageName }.toSet() }
+        val effective = effectiveRoutes(settings.routes, installed, uidPackages)
         if (effective.sharedUidConflict.isNotEmpty()) {
             VpnController.setState(VpnState.Failed(getString(R.string.err_shared_uid)))
             stopSequence(stopSelf = true)
@@ -149,7 +177,10 @@ class TriVpnService : VpnService() {
                 stopSequence(stopSelf = true)
                 return
             }
-            if (!dpi.start(DpiArgs.resolve(settings.preset, settings.dpiCustomArgs), 10808)) {
+            if (!dpi.start(
+                    DpiArgs.resolve(settings.preset, settings.dpiCustomArgs), 10808,
+                    cancelled = { stopQueued.get() || destroyed.get() },
+                )) {
                 VpnController.setState(VpnState.Failed(getString(R.string.err_dpi_failed)))
                 stopSequence(stopSelf = true)
                 return
@@ -165,41 +196,47 @@ class TriVpnService : VpnService() {
         }
         val effVpn = vpnApps intersect vpnUids.keys
         val effDpi = dpiApps intersect vpnUids.keys
+        val probeUsername = UUID.randomUUID().toString()
+        val probePassword = UUID.randomUUID().toString()
 
-        // 4. TUN + движок.
-        val fd = try {
-            openTun(vpnUids.keys)
-        } catch (e: Exception) {
-            VpnController.setState(VpnState.Failed(e.message ?: "tun error"))
-            stopSequence(stopSelf = true)
-            return
-        }
-
-        val yaml = ConfigGenerator.build(
-            RoutingInput(
-                tunFd = fd, apiLevel = Build.VERSION.SDK_INT,
-                profile = profile, vpnApps = effVpn, vpnUids = vpnUids,
-                dpiApps = effDpi,
-                nameserver = DnsOptions.resolve(settings.dnsId, settings.dnsCustom),
-            ),
-        )
-        val logPath = File(cacheDir, "mihomo.log").absolutePath
+        // 4. TUN + движок. Keep the detached descriptor explicitly owned until
+        // Engine.start returns; config/build failures must not leak it.
+        var fd: Int? = null
+        var engineAdopted = false
         try {
+            val tunFd = openTun(vpnUids.keys)
+            fd = tunFd
+            val yaml = ConfigGenerator.build(
+                RoutingInput(
+                    tunFd = tunFd, apiLevel = Build.VERSION.SDK_INT,
+                    profile = profile, vpnApps = effVpn, vpnUids = vpnUids,
+                    dpiApps = effDpi,
+                    nameserver = DnsOptions.resolve(settings.dnsId, settings.dnsCustom),
+                    probeUsername = probeUsername,
+                    probePassword = probePassword,
+                ),
+            )
+            val logPath = File(cacheDir, "mihomo.log").absolutePath
             Engine.start(yaml, logPath)
+            engineAdopted = true
+            check(Engine.ready()) { "engine TUN is not ready" }
+
+            // Dedicated mihomo listeners pin the probe to the configured outbound.
+            val cancelled = { stopQueued.get() || destroyed.get() }
+            val vpnHealthy = effVpn.isEmpty() || HealthCheck.generate204(10810, username = probeUsername, password = probePassword, cancelled = cancelled)
+            val dpiHealthy = effDpi.isEmpty() ||
+                (dpi.isAlive() && HealthCheck.generate204(10811, username = probeUsername, password = probePassword, cancelled = cancelled))
+            check(!cancelled()) { "startup cancelled" }
+            check(vpnHealthy && dpiHealthy) { getString(R.string.err_no_connect) }
         } catch (e: Exception) {
             ServiceLog.e("engine: ${e.message}")
-            VpnController.setState(VpnState.Failed(getString(R.string.err_engine)))
-            stopSequence(stopSelf = true)
-            return
-        }
-
-        // Dedicated mihomo listeners pin the probe to the configured outbound;
-        // the engine-owned mixed port is deliberately never used for health.
-        val vpnHealthy = effVpn.isEmpty() || HealthCheck.generate204(10810)
-        val dpiHealthy = effDpi.isEmpty() || HealthCheck.generate204(10811)
-        val healthy = vpnHealthy && dpiHealthy
-        if (!healthy) {
-            VpnController.setState(VpnState.Failed(getString(R.string.err_no_connect)))
+            VpnController.setState(VpnState.Failed(
+                if (e.message == getString(R.string.err_no_connect)) e.message!!
+                else getString(R.string.err_engine),
+            ))
+            if (engineAdopted) runCatching { Engine.stop() }
+            else fd?.let { closeDetachedFd(it) }
+            dpi.stop()
             stopSequence(stopSelf = true)
             return
         }
@@ -211,18 +248,20 @@ class TriVpnService : VpnService() {
     }
 
     private fun stopSequence(stopSelf: Boolean) {
-        runCatching { runBlocking { store.setSessionStartedAt(null) } }
-        runCatching { Engine.stop() }
-        dpi.stop()
+        synchronized(lifecycleLock) {
+            runCatching { runBlocking { store.setSessionStartedAt(null) } }
+            runCatching { Engine.stop() }
+            dpi.stop()
         // Владение TUN-fd полностью у движка: detachFd выполнен в openTun
         // ДО передачи (иначе между Engine.stop() -> close(fd) и нашим
         // detachFd() освободившийся номер мог занять RenderThread под fence
         // — fdsan абортнул весь процесс, см. креш 22:05 на OnePlus).
-        lastNetwork = null
-        if (VpnController.state.value !is VpnState.Failed) VpnController.setState(VpnState.Idle)
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        if (stopSelf) stopSelf()
-        ServiceLog.i("stopped")
+            lastNetwork = null
+            if (VpnController.state.value !is VpnState.Failed) VpnController.setState(VpnState.Idle)
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            if (stopSelf) stopSelf()
+            ServiceLog.i("stopped")
+        }
     }
 
     // ---- tun -------------------------------------------------------------
@@ -240,9 +279,8 @@ class TriVpnService : VpnService() {
         builder.addAddress("198.18.0.1", 16)
 
         builder.addRoute("0.0.0.0", 0)
-        // Detour is IPv4-only: AF_INET6 is intentionally never allowed and no
-        // IPv6 address/route/DNS is configured. Android may still add a
-        // link-local fe80:: address to TUN; that is not a routable path.
+        // Capture IPv6 too; mihomo explicitly rejects it before the fallback rule.
+        builder.addRoute("::", 0)
 
         if (Build.VERSION.SDK_INT >= 33) {
             ConfigGenerator.LAN_PREFIXES.forEach { prefix ->
@@ -269,7 +307,11 @@ class TriVpnService : VpnService() {
         return fd
     }
 
-    @android.annotation.TargetApi(33)
+    private fun closeDetachedFd(fd: Int) {
+        runCatching { ParcelFileDescriptor.adoptFd(fd).close() }
+    }
+
+    @androidx.annotation.RequiresApi(33)
     private fun toPrefix(cidr: String): android.net.IpPrefix {
         val slash = cidr.indexOf('/')
         val addr = InetAddress.getByName(cidr.substring(0, slash))

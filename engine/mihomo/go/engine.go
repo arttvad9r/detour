@@ -29,6 +29,8 @@ type ProcessResolver interface {
 }
 
 var hostResolver ProcessResolver
+var readyMu sync.RWMutex
+var ready bool
 
 // SetProcessResolver registers the host-side resolver (call once from Android).
 func SetProcessResolver(r ProcessResolver) { hostResolver = r }
@@ -55,7 +57,15 @@ func init() {
 }
 
 // Start parses configYAML and applies it. Logs are mirrored to logPath when non-empty.
-func Start(configYAML string, logPath string) error {
+func Start(configYAML string, logPath string) (err error) {
+	readyMu.Lock()
+	ready = false
+	readyMu.Unlock()
+	defer func() {
+		if err != nil {
+			unsubscribeLogs()
+		}
+	}()
 	if logPath != "" {
 		log.SetLevel(log.DEBUG)
 		subscribeLogs(logPath)
@@ -65,11 +75,25 @@ func Start(configYAML string, logPath string) error {
 		return err
 	}
 	executor.ApplyConfig(cfg, true)
+	readyMu.Lock()
+	ready = true
+	readyMu.Unlock()
 	return nil
+}
+
+// Ready reports that the most recent configuration was applied and the
+// embedded runtime may accept traffic.
+func Ready() bool {
+	readyMu.RLock()
+	defer readyMu.RUnlock()
+	return ready
 }
 
 // Stop shuts down the mihomo runtime.
 func Stop() {
+	readyMu.Lock()
+	ready = false
+	readyMu.Unlock()
 	executor.Shutdown()
 	// Shutdown closes the TUN listener but leaves LastTunConf behind. The next
 	// Start typically gets an equal conf (the OS reuses the fd number), and
@@ -91,6 +115,7 @@ func subscribeLogs(path string) {
 	sub := log.Subscribe()
 	f, err := os.Create(path)
 	if err != nil {
+		log.UnSubscribe(sub)
 		return
 	}
 	logSub = sub
