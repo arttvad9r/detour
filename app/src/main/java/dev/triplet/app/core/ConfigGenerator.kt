@@ -69,22 +69,19 @@ object ConfigGenerator {
             )
         }.joinToString("\n")
         val probes = buildList {
-            val auth = if (input.probeUsername.isNotBlank() && input.probePassword.isNotBlank())
-                "\n  users:\n    - username: ${yamlScalar(input.probeUsername)}\n      password: ${yamlScalar(input.probePassword)}"
-            else ""
             if (input.vpnApps.isNotEmpty() && input.profile != null) {
                 add("""- name: PROBE_VLESS
   type: mixed
   listen: 127.0.0.1
   port: 10810
-  proxy: VLESS$auth""")
+  proxy: VLESS""")
             }
             if (input.dpiApps.isNotEmpty()) {
                 add("""- name: PROBE_DPI
   type: mixed
   listen: 127.0.0.1
   port: 10811
-  proxy: DPI$auth""")
+  proxy: DPI""")
             }
         }.joinToString("\n")
 

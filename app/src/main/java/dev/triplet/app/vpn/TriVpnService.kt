@@ -31,7 +31,6 @@ import java.io.File
 import java.net.InetAddress
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.UUID
 
 class TriVpnService : VpnService() {
 
@@ -196,8 +195,6 @@ class TriVpnService : VpnService() {
         }
         val effVpn = vpnApps intersect vpnUids.keys
         val effDpi = dpiApps intersect vpnUids.keys
-        val probeUsername = UUID.randomUUID().toString()
-        val probePassword = UUID.randomUUID().toString()
 
         // 4. TUN + движок. Keep the detached descriptor explicitly owned until
         // Engine.start returns; config/build failures must not leak it.
@@ -212,8 +209,6 @@ class TriVpnService : VpnService() {
                     profile = profile, vpnApps = effVpn, vpnUids = vpnUids,
                     dpiApps = effDpi,
                     nameserver = DnsOptions.resolve(settings.dnsId, settings.dnsCustom),
-                    probeUsername = probeUsername,
-                    probePassword = probePassword,
                 ),
             )
             val logPath = File(cacheDir, "mihomo.log").absolutePath
@@ -223,9 +218,10 @@ class TriVpnService : VpnService() {
 
             // Dedicated mihomo listeners pin the probe to the configured outbound.
             val cancelled = { stopQueued.get() || destroyed.get() }
-            val vpnHealthy = effVpn.isEmpty() || HealthCheck.generate204(10810, username = probeUsername, password = probePassword, cancelled = cancelled)
+            val vpnHealthy = effVpn.isEmpty() || HealthCheck.generate204(10810, cancelled = cancelled)
             val dpiHealthy = effDpi.isEmpty() ||
-                (dpi.isAlive() && HealthCheck.generate204(10811, username = probeUsername, password = probePassword, cancelled = cancelled))
+                (dpi.isAlive() && HealthCheck.generate204(10811, cancelled = cancelled))
+            ServiceLog.i("probe results: vless=$vpnHealthy dpi=$dpiHealthy")
             check(!cancelled()) { "startup cancelled" }
             check(vpnHealthy && dpiHealthy) { getString(R.string.err_no_connect) }
         } catch (e: Exception) {

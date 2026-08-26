@@ -11,6 +11,4 @@ data class RoutingInput(
     val dpiApps: Set<String>,
     val nameserver: String = "8.8.8.8",
     val dpiPort: Int = 10808,
-    val probeUsername: String = "",
-    val probePassword: String = "",
 )

@@ -1,10 +1,10 @@
 package dev.triplet.app.vpn
 
+import dev.triplet.app.log.ServiceLog
 import java.net.InetSocketAddress
 import java.net.Proxy
 import java.net.URL
 import javax.net.ssl.HttpsURLConnection
-import java.util.Base64
 
 /** End-to-end probe through the engine's loopback mixed inbound. */
 object HealthCheck {
@@ -14,24 +14,25 @@ object HealthCheck {
         "https://cp.cloudflare.com/generate_204",
     )
 
-    fun generate204(proxyPort: Int, timeoutMs: Int = 5000, username: String = "", password: String = "", cancelled: () -> Boolean = { false }): Boolean {
+    fun generate204(proxyPort: Int, timeoutMs: Int = 5000, cancelled: () -> Boolean = { false }): Boolean {
         val proxy = Proxy(Proxy.Type.HTTP, InetSocketAddress("127.0.0.1", proxyPort))
         return retry(endpoints, attempts = 2, cancelled = cancelled) { endpoint ->
-            runCatching {
+            try {
                 val conn = URL(endpoint).openConnection(proxy) as HttpsURLConnection
                 conn.connectTimeout = timeoutMs
                 conn.readTimeout = timeoutMs
-                if (username.isNotBlank()) {
-                    val token = Base64.getEncoder().encodeToString("$username:$password".toByteArray())
-                    conn.setRequestProperty("Proxy-Authorization", "Basic $token")
-                }
                 try {
-                    conn.responseCode == 204
+                    val ok = conn.responseCode == 204
+                    if (!ok) ServiceLog.i("probe :$proxyPort $endpoint -> HTTP ${conn.responseCode}")
+                    ok
                 } finally {
                     conn.disconnect()
                 }
-            }.getOrDefault(false)
-        }
+            } catch (e: Exception) {
+                if (!cancelled()) ServiceLog.i("probe :$proxyPort $endpoint -> ${e.javaClass.simpleName}: ${e.message}")
+                false
+            }
+                }
     }
 
     internal fun retry(
