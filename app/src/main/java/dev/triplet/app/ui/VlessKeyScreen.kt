@@ -128,14 +128,14 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
         } else {
             Box(Modifier.fillMaxWidth().padding(horizontal = Spacing.space16)) {
                 Box(
-                    Modifier.fillMaxWidth().heightIn(min = 160.dp)
+                    Modifier.fillMaxWidth().height(104.dp)
                         .border(1.dp, c.border, AppShapes.small),
                 ) {
                     BasicTextField(
                         value = field,
                         onValueChange = { field = it },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp).padding(top = 12.dp),
-                        minLines = 4,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp).padding(top = 8.dp),
+                        minLines = 2,
                         textStyle = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.5.sp),
                         cursorBrush = androidx.compose.ui.graphics.SolidColor(c.accent),
                     )

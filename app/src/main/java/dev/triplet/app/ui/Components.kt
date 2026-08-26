@@ -300,7 +300,7 @@ fun SegmentedControl(
     Row(
         modifier
             .fillMaxWidth()
-            .height(48.dp)
+            .height(32.dp)
             .clip(AppShapes.extraSmall)
             .background(c.surfaceSoft)
             .border(1.dp, c.border, AppShapes.extraSmall),

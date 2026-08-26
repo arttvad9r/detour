@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -141,7 +142,8 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
         // Системные приложения — компактная строка с переключателем.
         Row(
             Modifier.fillMaxWidth()
-                .padding(horizontal = Spacing.space20, vertical = Spacing.space8),
+                .padding(horizontal = Spacing.space20, vertical = Spacing.space8)
+                .clickable { scope.launch { store.setShowSystemApps(!showSystem) } },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
