@@ -48,8 +48,7 @@ fun DnsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
     // Пустой dnsId означает дефолт (Google) — DnsOptions.resolve резолвит так же.
     val selectedDns = settings?.dnsId?.ifBlank { null } ?: "google"
     var customField by remember(settings?.dnsCustom) { mutableStateOf(settings?.dnsCustom ?: "") }
-    val customInvalid = customField.isNotBlank() &&
-        !customField.trim().startsWith("http://") && !customField.trim().startsWith("https://")
+    val customInvalid = customField.isNotBlank() && !DnsOptions.isValid(customField)
 
     Column(
         modifier.fillMaxSize()

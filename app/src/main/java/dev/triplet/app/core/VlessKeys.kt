@@ -9,6 +9,17 @@ data class VlessKey(val id: String, val name: String, val uri: String)
 data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
     val active: VlessKey? get() = items.firstOrNull { it.id == activeId }
 
+    fun delete(id: String): VlessKeys {
+        if (items.none { it.id == id }) return this
+        val remaining = items.filterNot { it.id == id }
+        val next = when {
+            remaining.isEmpty() -> null
+            activeId != id -> activeId
+            else -> remaining.first().id
+        }
+        return VlessKeys(remaining, next)
+    }
+
     fun toJson(): String = JSONObject().apply {
         put("activeId", activeId)
         put("items", JSONArray().apply {
@@ -23,7 +34,13 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
                 val key = VlessKey(UUID.randomUUID().toString(), "VLESS", legacyUri)
                 return VlessKeys(listOf(key), key.id)
             }
-            return runCatching { fromJson(json) }.getOrDefault(VlessKeys(emptyList(), null))
+            return runCatching { fromJson(json) }.getOrElse {
+                if (legacyUri.isBlank()) VlessKeys(emptyList(), null)
+                else {
+                    val key = VlessKey(UUID.randomUUID().toString(), "VLESS", legacyUri)
+                    VlessKeys(listOf(key), key.id)
+                }
+            }
         }
 
         fun fromJson(json: String): VlessKeys {
@@ -39,6 +56,7 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
                     )
                 }
             }
+            require(parsed.map { it.id }.distinct().size == parsed.size) { "duplicate VLESS key id" }
             return VlessKeys(parsed, root.optString("activeId").takeIf { id -> parsed.any { it.id == id } } ?: parsed.firstOrNull()?.id)
         }
     }

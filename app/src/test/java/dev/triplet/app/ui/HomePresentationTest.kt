@@ -6,9 +6,9 @@ import org.junit.Test
 
 class HomePresentationTest {
     @Test fun `protocol describes configured transports`() {
-        assertEquals("Vless + DPI", homeProtocol("vless://key", mapOf("a" to AppRoute.DPI)))
+        assertEquals("Vless + DPI", homeProtocol("vless://key", mapOf("a" to AppRoute.DPI, "b" to AppRoute.VPN)))
         assertEquals("DPI", homeProtocol("", mapOf("a" to AppRoute.DPI)))
-        assertEquals("Vless", homeProtocol("vless://key", emptyMap()))
-        assertEquals("Vless", homeProtocol("", emptyMap()))
+        assertEquals("Vless", homeProtocol("", mapOf("a" to AppRoute.VPN)))
+        assertEquals("—", homeProtocol("vless://key", emptyMap()))
     }
 }

@@ -6,18 +6,21 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CACHE="${BYEDPI_CACHE:-$REPO_ROOT/.cache/byedpi-src}"
 OUT_DIR="$REPO_ROOT/app/src/main/jniLibs"
+BYEDPI_VERSION="v0.17.3"
+BYEDPI_COMMIT="7efde1b1296eaaa187b70e951894dde17527489c"
 
 [[ -n "${ANDROID_NDK_HOME:-}" ]] || { echo "run inside nix-shell (NDK required)" >&2; exit 127; }
 
-# Pin: последний стабильный тег на момент сборки, фиксируется в docs/pins.md.
-TAG="${BYEDPI_TAG:-$(git ls-remote --tags https://github.com/hufrea/byedpi.git 'v*' \
-  | awk -F/ '{print $NF}' | grep -vi '{}' | sort -V | tail -1)}"
+TAG="${BYEDPI_TAG:-$BYEDPI_VERSION}"
 echo "byedpi tag: $TAG"
 
 if [[ ! -d "$CACHE/.git" ]]; then
   mkdir -p "$CACHE"
   git clone --depth 1 --branch "$TAG" https://github.com/hufrea/byedpi.git "$CACHE"
 fi
+git -C "$CACHE" fetch --tags --force origin "$TAG"
+git -C "$CACHE" reset --hard "$BYEDPI_COMMIT"
+git -C "$CACHE" clean -fdx
 
 TC="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
 declare -A CLANG=(

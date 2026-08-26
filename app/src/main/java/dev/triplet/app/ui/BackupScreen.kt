@@ -36,8 +36,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.triplet.app.R
-import dev.triplet.app.core.AppRoute
-import dev.triplet.app.core.DpiPreset
 import dev.triplet.app.core.SettingsBackup
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.vpn.VpnController
@@ -50,6 +48,9 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
     val scope = rememberCoroutineScope()
     val c = detourColors
     val settings by store.settings.collectAsState(initial = null)
+    val exportedText = stringResource(R.string.backup_exported)
+    val badFileText = stringResource(R.string.backup_bad_file)
+    val importedText = stringResource(R.string.backup_imported)
 
     var status by remember { mutableStateOf("") }
     var statusIsError by remember { mutableStateOf(false) }
@@ -70,11 +71,13 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
                     dnsId = s.dnsId,
                     dnsCustom = s.dnsCustom,
                     routes = s.routes.mapValues { it.value.name },
+                    vlessKeys = s.vlessKeys,
                 ),
             )
             runCatching {
-                ctx.contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
-                status = ctx.getString(R.string.backup_exported); statusIsError = false
+                val output = requireNotNull(ctx.contentResolver.openOutputStream(uri)) { "cannot open backup output" }
+                output.use { it.write(json.toByteArray()) }
+                status = exportedText; statusIsError = false
             }.onFailure { status = it.message ?: "error"; statusIsError = true }
         }
     }
@@ -85,24 +88,15 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
             runCatching {
-                val text = ctx.contentResolver.openInputStream(uri)
-                    ?.bufferedReader()?.readText() ?: return@runCatching
+                val input = requireNotNull(ctx.contentResolver.openInputStream(uri)) { "cannot open backup input" }
+                val text = input.bufferedReader().use { it.readText() }
                 val b = SettingsBackup.fromJson(text) ?: run {
-                    status = ctx.getString(R.string.backup_bad_file); statusIsError = true
+                    status = badFileText; statusIsError = true
                     return@runCatching
                 }
-                store.setVlessUri(b.vlessUri)
-                store.setPreset(DpiPreset.byId(b.presetId))
-                store.setCustomArgs(b.dpiCustomArgs)
-                store.setAutoConnect(b.autoConnect)
-                store.setTheme(b.themeId)
-                store.setDns(b.dnsId, b.dnsCustom)
-                // маршруты: применяем только известные маршруты; сброс снятых — не трогаем
-                b.routes.forEach { (pkg, route) ->
-                    runCatching { store.setRoute(pkg, AppRoute.valueOf(route)) }
-                }
+                store.restoreBackup(b)
                 VpnController.restartIfActive(ctx)
-                status = ctx.getString(R.string.backup_imported); statusIsError = false
+                status = importedText; statusIsError = false
             }.onFailure { status = it.message ?: "error"; statusIsError = true }
         }
     }

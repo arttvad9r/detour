@@ -2,6 +2,7 @@ package dev.triplet.app.core
 
 import java.net.URI
 import java.net.URLDecoder
+import java.util.UUID
 
 data class VlessProfile(
     val uuid: String,
@@ -27,14 +28,20 @@ object VlessKeyParser {
     const val ERR_TRANSPORT = 2    // err_unsupported_transport
     const val ERR_SECURITY = 3     // err_reality_required
 
+    private val fingerprints = setOf("chrome", "firefox", "safari", "edge", "ios", "android", "random")
+    private const val FLOW = "xtls-rprx-vision"
+
     fun parse(uriRaw: String): ParseResult {
         val uri = uriRaw.trim()
         if (!uri.startsWith("vless://")) return ParseResult.Err(ERR_FORMAT)
         return try {
             val u = URI(uri)
             val userInfo = u.userInfo ?: return ParseResult.Err(ERR_FORMAT)
-            val host = u.host ?: return ParseResult.Err(ERR_FORMAT)
-            val port = if (u.port > 0) u.port else 443
+            UUID.fromString(userInfo)
+            val host = u.host?.takeIf { it.isNotBlank() } ?: return ParseResult.Err(ERR_FORMAT)
+            if (host.any { it.code < 0x20 || it.code == 0x7f }) return ParseResult.Err(ERR_FORMAT)
+            val port = if (u.port == -1) 443 else u.port
+            if (port !in 1..65535) return ParseResult.Err(ERR_FORMAT)
             val q = mutableMapOf<String, String>().apply {
                 u.rawQuery?.split('&')?.forEach { p ->
                     val i = p.indexOf('=')
@@ -46,13 +53,22 @@ object VlessKeyParser {
             // Поддерживаемый профиль: Reality (+vision). Plain TLS сознательно отклонён:
             // продукт заточен под проверенный профиль пользователя (см. спеку).
             if (q["security"] != "reality") return ParseResult.Err(ERR_SECURITY)
-            val pbk = q["pbk"] ?: return ParseResult.Err(ERR_SECURITY)
+            val pbk = q["pbk"]?.takeIf { it.matches(Regex("[A-Za-z0-9_-]{32,128}")) }
+                ?: return ParseResult.Err(ERR_SECURITY)
+            val sid = q["sid"]?.takeIf { it.matches(Regex("[0-9a-fA-F]{1,16}")) }
+                ?: return ParseResult.Err(ERR_SECURITY)
+            val fp = q["fp"] ?: "chrome"
+            if (fp !in fingerprints) return ParseResult.Err(ERR_FORMAT)
+            val flow = q["flow"] ?: FLOW
+            if (flow != FLOW) return ParseResult.Err(ERR_FORMAT)
+            val values = listOf(userInfo, host, pbk, sid, fp, flow, q["sni"] ?: host, u.fragment ?: "")
+            if (values.any { it.any { c -> c.code < 0x20 || c.code == 0x7f } }) return ParseResult.Err(ERR_FORMAT)
             val profile = VlessProfile(
                 uuid = userInfo, server = host, port = port,
-                sni = q["sni"] ?: host,
-                publicKey = pbk, shortId = q["sid"] ?: "",
-                fingerprint = q["fp"] ?: "chrome",
-                flow = q["flow"] ?: "xtls-rprx-vision",
+                sni = q["sni"]?.takeIf { it.isNotBlank() } ?: host,
+                publicKey = pbk, shortId = sid,
+                fingerprint = fp,
+                flow = flow,
                 name = URLDecoder.decode(u.fragment ?: "VLESS", "UTF-8"),
             )
             ParseResult.Ok(profile)

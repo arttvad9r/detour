@@ -49,4 +49,16 @@ class VlessKeyParserTest {
     @Test fun `rejects garbage`() {
         assertTrue(VlessKeyParser.parse("not a uri at all") is ParseResult.Err)
     }
+
+    @Test fun `rejects malformed uuid and ports`() {
+        assertTrue(VlessKeyParser.parse(realityUri.replace("b831381d-6324-4d53-ad4f-8cda48b30811", "bad")) is ParseResult.Err)
+        assertTrue(VlessKeyParser.parse(realityUri.replace(":443", ":0")) is ParseResult.Err)
+        assertTrue(VlessKeyParser.parse(realityUri.replace(":443", ":65536")) is ParseResult.Err)
+    }
+
+    @Test fun `rejects control character and malformed reality values`() {
+        assertTrue(VlessKeyParser.parse(realityUri.replace("example.com", "example.com%0A")) is ParseResult.Err)
+        assertTrue(VlessKeyParser.parse(realityUri.replace("sid=6ba85179", "sid=not-hex")) is ParseResult.Err)
+        assertTrue(VlessKeyParser.parse(realityUri.replace("fp=chrome", "fp=unknown")) is ParseResult.Err)
+    }
 }

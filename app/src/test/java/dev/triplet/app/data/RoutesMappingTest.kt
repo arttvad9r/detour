@@ -44,4 +44,14 @@ class RoutesMappingTest {
         val s = RoutesMapping.toSettings(mapOf("dpi_preset" to "bogus"))
         assertEquals(DpiPreset.RECOMMENDED, s.preset)
     }
+
+    @Test fun `unknown route is ignored`() {
+        val s = RoutesMapping.toSettings(mapOf("route:a" to "FUTURE"))
+        assertTrue(s.routes.isEmpty())
+    }
+
+    @Test fun `corrupted keys fall back to legacy uri`() {
+        val s = RoutesMapping.toSettings(mapOf("vless_keys" to "{bad", "vless_uri" to "legacy"))
+        assertEquals("legacy", s.vlessUri)
+    }
 }

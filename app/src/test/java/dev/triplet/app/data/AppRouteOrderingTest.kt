@@ -24,6 +24,6 @@ class AppRouteOrderingTest {
         val changed = initial + ("chrome" to AppRoute.VPN)
 
         assertEquals(listOf("telegram", "youtube", "adguard", "chrome"), order)
-        assertEquals(order, AppRouteOrdering.apply(apps, order, changed).map(AppInfo::packageName))
+        assertEquals(order, AppRouteOrdering.apply(apps, order).map(AppInfo::packageName))
     }
 }

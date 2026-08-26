@@ -1,6 +1,6 @@
 # Pins
-- mihomo: v1.19.29 (patch: buildAndroidRules -> nil; triplet host-resolver bridge in tunnel.go/process.go)
-- byedpi: v0.17.3 (ciadpi cross-compiled via engine/byedpi/build.sh; -static, android21, arm64-v8a + x86_64)
+- mihomo: v1.19.29, commit `e26714a181ac0e2fa803453c0a8e9a9ce94e31cb` (patch: buildAndroidRules -> nil; triplet host-resolver bridge in tunnel.go/process.go)
+- byedpi: v0.17.3, commit `7efde1b1296eaaa187b70e951894dde17527489c` (exact checkout/reset; ciadpi cross-compiled via engine/byedpi/build.sh; dynamic bionic, android21, arm64-v8a + x86_64)
 
 ## Attribution decision
 
@@ -55,4 +55,5 @@ API 29+), резолвится ДО Engine.start. Пробы (эмулятор A
   перехватывает TCP (нет [TCP] логов, чёрная дыра) — только ICMP.
 - mihomo v1.19.x игнорирует `tun.inet4-address`: адрес TUN = fake-ip range gateway
   (/30 от 198.18.0.1); VpnService.Builder обязан добавлять 198.18.0.1/30.
-- YAML: IPv6 CIDR в flow-последовательностях надо квотировать (`"::/1"`), go-yaml падает.
+- YAML: generated external scalars are quoted when needed; IPv6 is disabled in
+  the Android TUN policy and no IPv6 address is emitted.

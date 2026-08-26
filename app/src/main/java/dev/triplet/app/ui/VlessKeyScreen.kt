@@ -68,14 +68,12 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
     var editingId by remember { mutableStateOf<String?>(null) }
     var editing by remember { mutableStateOf(false) }
     var field by remember { mutableStateOf("") }
-    var revealed by remember { mutableStateOf(false) }
     val parse = field.takeIf { it.isNotBlank() }?.let(VlessKeyParser::parse)
 
     fun beginEdit(key: VlessKey?) {
         editing = true
         editingId = key?.id
         field = key?.uri ?: ""
-        revealed = false
     }
 
     Box(modifier.fillMaxSize().background(c.background)) {
@@ -223,22 +221,3 @@ private fun serverValue(key: VlessKey): String =
 
 private fun keyName(uri: String): String =
     (VlessKeyParser.parse(uri) as? ParseResult.Ok)?.profile?.let { it.name.ifBlank { it.server } } ?: "VLESS"
-
-private fun profileValue(key: VlessKey, value: (dev.triplet.app.core.VlessProfile) -> String): String =
-    (VlessKeyParser.parse(key.uri) as? ParseResult.Ok)?.profile?.let { value(it).ifBlank { "—" } } ?: "—"
-
-@Composable
-private fun VlessMask(modifier: Modifier = Modifier) {
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        repeat(14) { Box(Modifier.size(5.dp).background(detourColors.textMuted, androidx.compose.foundation.shape.CircleShape)) }
-    }
-}
-
-@Composable
-private fun SummaryRow(label: String, value: String) {
-    val c = detourColors
-    Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.space16, vertical = 10.dp)) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = c.textSecondary)
-        Text(value, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
-}

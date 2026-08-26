@@ -79,7 +79,7 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
         AppRouteOrdering.snapshot(loadedApps, currentSettings.routes)
     }
     val apps = remember(loadedApps, screenOrder, query, showSystem) {
-        val ordered = AppRouteOrdering.apply(loadedApps, screenOrder, routes)
+        val ordered = AppRouteOrdering.apply(loadedApps, screenOrder)
         ordered
             .filter { showSystem || !it.isSystem }
             .filter {

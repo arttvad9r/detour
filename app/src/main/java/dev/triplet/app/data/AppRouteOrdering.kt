@@ -18,7 +18,7 @@ object AppRouteOrdering {
         ).map(AppInfo::packageName)
     }
 
-    fun apply(apps: List<AppInfo>, order: List<String>, routes: Map<String, AppRoute>): List<AppInfo> {
+    fun apply(apps: List<AppInfo>, order: List<String>): List<AppInfo> {
         val byId = apps.associateBy(AppInfo::packageName)
         return order.mapNotNull(byId::get)
     }

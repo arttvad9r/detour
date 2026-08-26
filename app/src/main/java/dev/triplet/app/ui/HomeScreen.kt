@@ -58,11 +58,12 @@ import kotlinx.coroutines.delay
 
 fun homeProtocol(vlessUri: String, routes: Map<String, AppRoute>): String {
     val dpi = routes.values.any { it == AppRoute.DPI }
-    val vless = vlessUri.isNotBlank()
+    val vless = routes.values.any { it == AppRoute.VPN }
     return when {
         dpi && vless -> "Vless + DPI"
         dpi -> "DPI"
-        else -> "Vless"
+        vless -> "Vless"
+        else -> "—"
     }
 }
 

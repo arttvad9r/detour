@@ -24,4 +24,9 @@ class DpiArgsTest {
         val raw = (1..200).joinToString(" ") { "x$it" }
         assertEquals(64, DpiArgs.tokenize(raw).size)
     }
+    @Test fun `service arguments are rejected`() {
+        assertTrue(DpiArgs.isValid("-s 1+s -d 3+s --timeout 3"))
+        assertTrue(!DpiArgs.isValid("-i 0.0.0.0 -p 9999"))
+        assertTrue(!DpiArgs.isValid("-U"))
+    }
 }

@@ -24,9 +24,24 @@ enum class DpiPreset(val id: String, val args: List<String>) {
 /** Разбор пользовательской строки аргументов ciadpi и выбор источника стратегии. */
 object DpiArgs {
     private const val MAX_TOKENS = 64
+    private val allowed = setOf("-d", "-s", "-a", "--timeout")
 
     fun resolve(preset: DpiPreset, customRaw: String): List<String> =
         if (preset == DpiPreset.CUSTOM) tokenize(customRaw) else preset.args
+
+    fun isValid(raw: String): Boolean {
+        val tokens = tokenize(raw)
+        if (raw.trim().split(Regex("\\s+")).count { it.isNotBlank() } > MAX_TOKENS) return false
+        if (tokens.isEmpty() || tokens.any { it.any { c -> c.code < 0x20 || c.code == 0x7f } }) return false
+        if (tokens.any { it in setOf("-i", "-p", "-U", "--daemon", "--pid", "--log", "--bind", "--listen") }) return false
+        var expecting = false
+        tokens.forEach { token ->
+            if (expecting) { expecting = false; return@forEach }
+            if (token !in allowed) return false
+            expecting = true
+        }
+        return !expecting
+    }
 
     /** Пробелы/переводы строк -> argv; пустые токены отбрасываются, длина ограничена. */
     fun tokenize(raw: String): List<String> =

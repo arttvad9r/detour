@@ -6,6 +6,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MIHOMO_VERSION="v1.19.29"
+MIHOMO_COMMIT="e26714a181ac0e2fa803453c0a8e9a9ce94e31cb"
 CACHE="${MIHOMO_CACHE:-$REPO_ROOT/.cache/mihomo-src}"
 BIND_DIR="$REPO_ROOT/engine/mihomo/go"
 OUT="$REPO_ROOT/engine/libs/engine.aar"
@@ -21,7 +22,10 @@ if [[ ! -d "$CACHE/.git" ]]; then
   git clone --depth 1 --branch "$MIHOMO_VERSION" https://github.com/MetaCubeX/mihomo.git "$CACHE"
 fi
 cd "$CACHE"
-echo "mihomo: $(git describe --tags --exact-match 2>/dev/null || echo "$MIHOMO_VERSION")"
+git fetch --tags --force origin "$MIHOMO_VERSION"
+git reset --hard "$MIHOMO_COMMIT"
+git clean -fdx
+echo "mihomo: $MIHOMO_VERSION ($MIHOMO_COMMIT)"
 
 python3 - <<'PYEOF'
 p = 'listener/sing_tun/server_android.go'
@@ -42,8 +46,10 @@ new = '''func (l *Listener) buildAndroidRules(tunOptions *tun.Options) error {
 if old in s:
     open(p, 'w').write(s.replace(old, new))
     print("patch applied")
+elif new in s:
+    print("patch already applied")
 else:
-    print("patch: already applied or upstream changed")
+    raise SystemExit(f"FATAL: buildAndroidRules layout changed: {p}")
 PYEOF
 
 # Triplet host-side UID resolver bridge (Task 3 round 2):

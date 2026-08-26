@@ -30,6 +30,7 @@ import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.net.InetAddress
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
 
 class TriVpnService : VpnService() {
 
@@ -43,12 +44,16 @@ class TriVpnService : VpnService() {
     }
 
     private val executor = Executors.newSingleThreadExecutor()
+    private val restartQueued = AtomicBoolean(false)
+    private val stopQueued = AtomicBoolean(false)
+    private val destroyed = AtomicBoolean(false)
     private lateinit var store: RoutesStore
     private lateinit var dpi: DpiBackend
     private var netCallback: ConnectivityManager.NetworkCallback? = null
 
     override fun onCreate() {
         super.onCreate()
+        destroyed.set(false)
         // Один DataStore на файл: используем синглет из Application, иначе
         // второй экземпляр RoutesStore падает с IllegalStateException при старте VPN.
         store = (applicationContext as dev.triplet.app.TripletApp).routesStore
@@ -62,8 +67,16 @@ class TriVpnService : VpnService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> executor.execute { startSequence() }
-            ACTION_STOP -> executor.execute { stopSequence(stopSelf = true) }
-            ACTION_RESTART -> executor.execute { stopSequence(stopSelf = false); startSequence() }
+            ACTION_STOP -> {
+                stopQueued.set(true)
+                executor.execute { restartQueued.set(false); stopSequence(stopSelf = true); stopQueued.set(false) }
+            }
+            ACTION_RESTART -> if (!stopQueued.get() && restartQueued.compareAndSet(false, true)) {
+                executor.execute {
+                    restartQueued.set(false)
+                    if (!stopQueued.get()) { stopSequence(stopSelf = false); startSequence() }
+                }
+            }
             // Sticky-restart приходит с null intent: сервис не нужен без явного старта UI.
             null -> stopSelf()
         }
@@ -76,7 +89,9 @@ class TriVpnService : VpnService() {
     }
 
     override fun onDestroy() {
+        destroyed.set(true)
         unregisterNetworkMonitor()
+        stopQueued.set(true)
         executor.execute { stopSequence(stopSelf = false) }
         executor.shutdown()
         super.onDestroy()
@@ -85,6 +100,7 @@ class TriVpnService : VpnService() {
     // ---- sequence -------------------------------------------------------
 
     private fun startSequence() {
+        if (destroyed.get() || stopQueued.get()) return
         val current = VpnController.state.value
         if (current == VpnState.Active || current == VpnState.Starting) return
         VpnController.setState(VpnState.Starting)
@@ -103,7 +119,19 @@ class TriVpnService : VpnService() {
                 return
             }
         }
-        val vpnApps = settings.routes.filterValues { it == AppRoute.VPN }.keys
+        val installed = settings.routes.keys.associateWith { uidOf(it) }
+        val effective = effectiveRoutes(settings.routes, installed)
+        if (effective.sharedUidConflict.isNotEmpty()) {
+            VpnController.setState(VpnState.Failed(getString(R.string.err_shared_uid)))
+            stopSequence(stopSelf = true)
+            return
+        }
+        if (effective.isEmpty) {
+            VpnController.setState(VpnState.Idle)
+            stopSequence(stopSelf = true)
+            return
+        }
+        val vpnApps = effective.vpnPackages
         if (profile == null && vpnApps.isNotEmpty()) {
             VpnController.setState(VpnState.Failed(getString(R.string.err_key_required)))
             stopSequence(stopSelf = true)
@@ -111,9 +139,16 @@ class TriVpnService : VpnService() {
         }
 
         // 2. ByeDPI нужен, если есть DPI-приложения.
-        val dpiApps = settings.routes.filterValues { it == AppRoute.DPI }.keys
+        val dpiApps = effective.dpiPackages
         if (dpiApps.isNotEmpty()) {
             ServiceLog.i("dpi: starting (${settings.preset.id})")
+            if (settings.preset == dev.triplet.app.core.DpiPreset.CUSTOM &&
+                !DpiArgs.isValid(settings.dpiCustomArgs)
+            ) {
+                VpnController.setState(VpnState.Failed(getString(R.string.err_dpi_failed)))
+                stopSequence(stopSelf = true)
+                return
+            }
             if (!dpi.start(DpiArgs.resolve(settings.preset, settings.dpiCustomArgs), 10808)) {
                 VpnController.setState(VpnState.Failed(getString(R.string.err_dpi_failed)))
                 stopSequence(stopSelf = true)
@@ -123,10 +158,9 @@ class TriVpnService : VpnService() {
 
         // 3. UID-резолв выбранного; несуществующие пакеты выкидываем,
         //    иначе ConfigGenerator.require()/allow-list уронят конфиг.
-        val selected = vpnApps + dpiApps
-        val vpnUids = selected.associateWith { uidOf(it) }
-            .filterValues { it != null }.mapValues { it.value!! }
-        (selected - vpnUids.keys).forEach {
+        val selected = effective.packages
+        val vpnUids = selected.associateWith { installed[it]!! }
+        (settings.routes.keys - selected).forEach {
             ServiceLog.w("route skipped, package not found: $it")
         }
         val effVpn = vpnApps intersect vpnUids.keys
@@ -134,7 +168,7 @@ class TriVpnService : VpnService() {
 
         // 4. TUN + движок.
         val fd = try {
-            openTun(if (vpnUids.isEmpty()) emptySet() else vpnUids.keys)
+            openTun(vpnUids.keys)
         } catch (e: Exception) {
             VpnController.setState(VpnState.Failed(e.message ?: "tun error"))
             stopSequence(stopSelf = true)
@@ -159,8 +193,11 @@ class TriVpnService : VpnService() {
             return
         }
 
-        // Одна повторная попытка health-check, затем честная ошибка.
-        val healthy = HealthCheck.generate204(10809) || HealthCheck.generate204(10809)
+        // Dedicated mihomo listeners pin the probe to the configured outbound;
+        // the engine-owned mixed port is deliberately never used for health.
+        val vpnHealthy = effVpn.isEmpty() || HealthCheck.generate204(10810)
+        val dpiHealthy = effDpi.isEmpty() || HealthCheck.generate204(10811)
+        val healthy = vpnHealthy && dpiHealthy
         if (!healthy) {
             VpnController.setState(VpnState.Failed(getString(R.string.err_no_connect)))
             stopSequence(stopSelf = true)
@@ -190,24 +227,22 @@ class TriVpnService : VpnService() {
 
     // ---- tun -------------------------------------------------------------
 
-    /** [allowed] пуст => capture-all fallback; иначе только выбранные приложения внутри TUN. */
+    /** Only the non-empty effective allow-list is ever passed here. */
     private fun openTun(allowed: Set<String>): Int {
         val builder = Builder()
             .setSession("Detour")
             .setMtu(ConfigGenerator.MTU)
         builder.addAddress(ConfigGenerator.INET4.substringBefore('/'),
             ConfigGenerator.INET4.substringAfter('/').toInt())
-        builder.addAddress(ConfigGenerator.INET6.substringBefore('/'),
-            ConfigGenerator.INET6.substringAfter('/').toInt())
 
         // fake-ip DNS-адрес движка должен принадлежать TUN-интерфейсу
         // (mihomo v1.19.x игнорирует tun.inet4-address, см. pins.md).
         builder.addAddress("198.18.0.1", 16)
 
         builder.addRoute("0.0.0.0", 0)
-        // IPv6 в TUN не маршрутизируем (как в ByeByeDPI): приложения мгновенно
-        // видят отсутствие v6 и идут по IPv4. Захват ::/0 с REJECT-правилами
-        // давал бесконечные v6-ретраи вместо быстрого отката (приёмка OnePlus).
+        // Detour is IPv4-only: AF_INET6 is intentionally never allowed and no
+        // IPv6 address/route/DNS is configured. Android may still add a
+        // link-local fe80:: address to TUN; that is not a routable path.
 
         if (Build.VERSION.SDK_INT >= 33) {
             ConfigGenerator.LAN_PREFIXES.forEach { prefix ->
@@ -215,21 +250,16 @@ class TriVpnService : VpnService() {
             }
         }
 
+        var added = 0
         allowed.forEach { pkg ->
             try {
                 builder.addAllowedApplication(pkg)
+                added++
             } catch (e: Exception) {
-                ServiceLog.w("allow-list: $pkg: ${e.message}")
+                throw IllegalStateException("cannot add routed package $pkg", e)
             }
         }
-        if (allowed.isEmpty()) {
-            // capture-all fallback: exclude self so the engine's own traffic bypasses TUN;
-            // with a non-empty allow-list self is already outside it, and Android forbids
-            // mixing allowed+disallowed on one Builder (ISE "addAllowedApplication
-            // already called").
-            builder.addDisallowedApplication(packageName)
-        }
-
+        check(added > 0) { "empty effective VPN allow-list" }
         val pfd = builder.establish()
             ?: throw IllegalStateException(getString(R.string.err_vpn_permission))
         // detach СРАЗУ: убирает java-владение из fdsan до передачи в движок.
@@ -239,6 +269,7 @@ class TriVpnService : VpnService() {
         return fd
     }
 
+    @android.annotation.TargetApi(33)
     private fun toPrefix(cidr: String): android.net.IpPrefix {
         val slash = cidr.indexOf('/')
         val addr = InetAddress.getByName(cidr.substring(0, slash))
@@ -267,7 +298,10 @@ class TriVpnService : VpnService() {
                 lastNetwork = network
                 if (VpnController.state.value != VpnState.Active) return
                 ServiceLog.i("network changed, restarting tunnel")
-                executor.execute { stopSequence(stopSelf = false); startSequence() }
+                if (!stopQueued.get() && restartQueued.compareAndSet(false, true)) executor.execute {
+                    restartQueued.set(false)
+                    if (!stopQueued.get()) { stopSequence(stopSelf = false); startSequence() }
+                }
             }
         }
         cm.registerDefaultNetworkCallback(cb)

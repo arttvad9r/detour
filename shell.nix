@@ -21,6 +21,7 @@ pkgs.mkShell {
     pkgs.jdk17
     pkgs.gradle_9
     pkgs.go
+    pkgs.gomobile
     pkgs.git
     pkgs.python3
     pkgs.cacert
@@ -50,13 +51,13 @@ pkgs.mkShell {
       echo "sdk.dir=$ANDROID_HOME" > local.properties
     fi
 
-    # NixOS: пропатчить кешированный AGP aapt2 на системный загрузчик
-    LD_LINKER="${pkgs.glibc.out}/lib/ld-linux-x86-64.so.2"
-    find "$GRADLE_USER_HOME/caches" -path "*transforms*" -type f -name "aapt2" 2>/dev/null | while read -r f; do
-      if grep -aq "/lib64/ld-linux" "$f" 2>/dev/null; then
-        patchelf --set-interpreter "$LD_LINKER" "$f" 2>/dev/null || true
-      fi
-    done
+    # Use the Nix-provided, already-patched SDK aapt2 instead of mutating
+    # immutable Gradle transform caches.
+    export ORG_GRADLE_PROJECT_android_aapt2FromMavenOverride="$ANDROID_HOME/build-tools/36.0.0/aapt2"
+    export GRADLE_OPTS="$GRADLE_OPTS -Dandroid.aapt2FromMavenOverride=$ANDROID_HOME/build-tools/36.0.0/aapt2"
+    if ! grep -q '^android.aapt2FromMavenOverride=' gradle.properties 2>/dev/null; then
+      printf 'android.aapt2FromMavenOverride=%s/build-tools/36.0.0/aapt2\n' "$ANDROID_HOME" >> gradle.properties
+    fi
 
     echo "Triplet dev shell  ANDROID_HOME=$ANDROID_HOME"
   '';

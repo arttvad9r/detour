@@ -35,6 +35,10 @@ import dev.triplet.app.ui.ThemeScreen
 import dev.triplet.app.ui.VlessKeyScreen
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
+import dev.triplet.app.vpn.canAutoConnect
+import dev.triplet.app.vpn.effectiveRoutes
+import dev.triplet.app.core.ParseResult
+import dev.triplet.app.core.VlessKeyParser
 
 private enum class Screen { HOME, SETTINGS, ROUTES, VLESS, DPI, THEME, DNS, BACKUP }
 
@@ -58,12 +62,20 @@ class MainActivity : ComponentActivity() {
                         var screen by remember { mutableStateOf(Screen.HOME) }
                         // Автоподключение при старте (настройка, по умолчанию выключена).
                         val ctx = this@MainActivity
-                        LaunchedEffect(settings?.autoConnect) {
-                            if (settings?.autoConnect == true &&
-                                VpnController.state.value == VpnState.Idle &&
-                                !settings?.vlessUri.isNullOrBlank()
-                            ) {
-                                VpnController.start(ctx, { })
+                         LaunchedEffect(settings?.autoConnect, settings?.routes, settings?.vlessUri) {
+                             val effective = settings?.let { s ->
+                                 effectiveRoutes(s.routes, s.routes.keys.associateWith { pkg ->
+                                     runCatching { packageManager.getPackageUid(pkg, 0) }.getOrNull()
+                                 })
+                             }
+                             val activeValid = settings?.vlessKeys?.active?.uri?.let {
+                                 VlessKeyParser.parse(it) is ParseResult.Ok
+                             } == true
+                             if (settings != null && effective != null &&
+                                 canAutoConnect(settings!!, android.net.VpnService.prepare(ctx) == null, effective, activeValid) &&
+                                 VpnController.state.value == VpnState.Idle
+                             ) {
+                                 VpnController.startNow(ctx)
                             }
                         }
                         // Назад: с подстраниц — в меню настроек, из настроек — на главную.

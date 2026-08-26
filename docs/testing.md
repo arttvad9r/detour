@@ -3,7 +3,9 @@
 ## Окружение
 
 - Эмулятор: AVD `triplet`, system-images android-35 google_apis x86_64, API 35, эмулятор NixOS (nixpkgs emulator 37.1.11), headless.
-- Сборка: `gradle :app:assembleDebug` под project nix-shell; unit: `:app:testDebugUnitTest` — 25/25 green на момент Task 10.
+- Automated commands are `./gradlew` (preferably from `nix-shell`). Current
+  verification status is recorded by the corrective-pass report; device
+  evidence below is historical evidence, not a fresh run.
 - VLESS-сервер: Reality + xtls-rprx-vision + tcp (ключ пользователя; в репозиторий и логи не попадает, ниже маскирован).
 - ByeDPI v0.17.3 (статический ciadpi из jniLibs), пресет RECOMMENDED.
 
@@ -88,17 +90,16 @@
    (`-d1 -s1+s -d3+s -s6+s -d9+s -s12+s -d15+s -s20+s -d25+s -s30+s -d35+s -a1`,
    идентична рабочей стратегии ByeByeDPI).
 
-### Известные ограничения
+### Current automated/device limitations
 
-- На сетях с рабочим IPv6 трафик v6 выбранных приложений пойдёт мимо туннеля
-  (прямым путём). Для текущей сети носителя это несущественно; при необходимости
-  вернуть захват `::/0` вместе с быстрым REJECT-правилами.
-- DNS движка — plain UDP 8.8.8.8 (redir-host). DoH 1.1.1.1 заменён для
-  соответствия поведению эталонной цепочки; возврат DoH — отдельное решение.
+- Current policy is IPv4-only: no IPv6 TUN address or route is emitted.
+- DNS accepts only IP literals or HTTPS DoH URLs and is emitted through
+  mihomo DNS hijack for routed applications.
 
 ### Итог
 
-Все задачи плана выполнены. Unit: 25/25. Эмулятор e2e + приёмка OnePlus — зелёные.
+The historical device runs above are not a substitute for current automated
+verification commands.
 
 ### Подбор стратегии DPI (МТС Вологда, 2026-08-24)
 

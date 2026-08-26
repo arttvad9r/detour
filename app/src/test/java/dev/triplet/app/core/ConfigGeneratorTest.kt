@@ -85,10 +85,27 @@ class ConfigGeneratorTest {
         assertFalse(yaml.contains(",VLESS"))
     }
 
+    @Test fun `ipv6 is fail closed and absent from tun config`() {
+        val yaml = ConfigGenerator.build(input())
+        assertTrue(yaml.contains("ipv6: false"))
+        assertFalse(yaml.contains("inet6-address"))
+        assertFalse(yaml.contains("::/0"))
+    }
+
     @Test fun `health mixed port bound to loopback`() {
         val yaml = ConfigGenerator.build(input())
         assertTrue(yaml.contains("mixed-port: 10809"))
         assertTrue(yaml.contains("bind-address: 127.0.0.1"))
+    }
+
+    @Test fun `health probes are pinned to their outbounds`() {
+        val yaml = ConfigGenerator.build(input())
+        assertTrue(yaml.contains("name: PROBE_VLESS"))
+        assertTrue(yaml.contains("port: 10810"))
+        assertTrue(yaml.contains("proxy: VLESS"))
+        assertTrue(yaml.contains("name: PROBE_DPI"))
+        assertTrue(yaml.contains("port: 10811"))
+        assertTrue(yaml.contains("proxy: DPI"))
     }
 
     @Test fun `whole output matches golden yaml`() {
@@ -113,8 +130,6 @@ class ConfigGeneratorTest {
             |  mtu: 1500
             |  inet4-address:
             |    - 172.19.0.1/30
-            |  inet6-address:
-            |    - fdfe:dcba:9876::1/126
             |  route-address:
             |    - 0.0.0.0/1
             |    - 128.0.0.0/1
@@ -130,8 +145,6 @@ class ConfigGeneratorTest {
             |    - 192.168.0.0/16
             |    - 198.18.0.0/15
             |    - 224.0.0.0/3
-            |    - fc00::/7
-            |    - fe80::/10
             |  dns-hijack:
             |    - any:53
             |dns:
@@ -159,6 +172,17 @@ class ConfigGeneratorTest {
             |  server: 127.0.0.1
             |  port: 10808
             |  udp: false
+            |listeners:
+            |- name: PROBE_VLESS
+            |  type: mixed
+            |  listen: 127.0.0.1
+            |  port: 10810
+            |  proxy: VLESS
+            |- name: PROBE_DPI
+            |  type: mixed
+            |  listen: 127.0.0.1
+            |  port: 10811
+            |  proxy: DPI
             |rules:
             |- UID,10101,VLESS
             |- AND,((UID,10102),(NETWORK,UDP),(DST-PORT,443)),REJECT

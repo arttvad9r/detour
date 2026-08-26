@@ -4,6 +4,7 @@ import android.content.Context
 import java.io.File
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.util.concurrent.TimeUnit
 
 /**
  * Runs the packaged ciadpi binary as a child process bound to loopback.
@@ -36,13 +37,19 @@ class DpiBackend(context: Context) {
     }
 
     fun stop() {
-        proc?.destroy()
+        val old = proc ?: return
+        old.destroy()
+        if (!old.waitFor(750, TimeUnit.MILLISECONDS)) {
+            old.destroyForcibly()
+            old.waitFor(750, TimeUnit.MILLISECONDS)
+        }
         proc = null
     }
 
     private fun awaitPort(port: Int, timeoutMs: Int): Boolean {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
+            if (proc?.isAlive != true) return false
             try {
                 Socket().use { s ->
                     s.connect(InetSocketAddress("127.0.0.1", port), 250)

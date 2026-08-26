@@ -11,6 +11,7 @@ import dev.triplet.app.core.AppRoute
 import dev.triplet.app.core.DpiPreset
 import dev.triplet.app.core.VlessKey
 import dev.triplet.app.core.VlessKeys
+import dev.triplet.app.core.SettingsBackup
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -54,7 +55,7 @@ object RoutesMapping {
         dnsCustom = entries[KEY_DNS_CUSTOM] as? String ?: "",
         routes = entries.mapNotNull { (k, v) ->
             if (k.startsWith(PREFIX_ROUTE) && v is String && v != AppRoute.DIRECT.name) {
-                k.removePrefix(PREFIX_ROUTE) to AppRoute.valueOf(v)
+                AppRoute.entries.firstOrNull { it.name == v }?.let { k.removePrefix(PREFIX_ROUTE) to it }
             } else null
         }.toMap(),
         showSystemApps = entries[KEY_SHOW_SYSTEM] as? Boolean ?: false,
@@ -110,8 +111,7 @@ class RoutesStore(context: Context) {
     }
     suspend fun deleteVlessKey(id: String) {
         val current = snapshot().vlessKeys
-        val remaining = current.items.filterNot { it.id == id }
-        setVlessKeys(VlessKeys(remaining, remaining.firstOrNull()?.id))
+        setVlessKeys(current.delete(id))
     }
     suspend fun setPreset(preset: DpiPreset) = store.edit { it[RoutesMapping.presetKey()] = preset.id }
     suspend fun setCustomArgs(raw: String) = store.edit { it[RoutesMapping.customArgsKey()] = raw }
@@ -124,5 +124,21 @@ class RoutesStore(context: Context) {
     suspend fun setRoute(pkg: String, route: AppRoute) = store.edit {
         val key = RoutesMapping.routeKey(pkg)
         if (route == AppRoute.DIRECT) it.remove(key) else it[key] = route.name
+    }
+
+    /** Validated backup is committed in one transaction and replaces old routes. */
+    suspend fun restoreBackup(b: SettingsBackup.Backup) = store.edit { prefs ->
+        prefs[RoutesMapping.keysKey()] = b.vlessKeys.toJson()
+        prefs[RoutesMapping.uriKey()] = b.vlessKeys.active?.uri ?: ""
+        prefs[RoutesMapping.presetKey()] = b.presetId
+        prefs[RoutesMapping.customArgsKey()] = b.dpiCustomArgs
+        prefs[RoutesMapping.autoConnectKey()] = b.autoConnect
+        prefs[RoutesMapping.themeKey()] = b.themeId
+        prefs[RoutesMapping.dnsKey()] = b.dnsId
+        prefs[RoutesMapping.dnsCustomKey()] = b.dnsCustom
+        prefs.asMap().keys.filter { it.name.startsWith("route:") }.forEach { prefs.remove(stringPreferencesKey(it.name)) }
+        b.routes.forEach { (pkg, route) ->
+            if (route != AppRoute.DIRECT.name) prefs[RoutesMapping.routeKey(pkg)] = route
+        }
     }
 }

@@ -51,10 +51,6 @@ data class DetourColors(
     val error: Color,
     val errorSoft: Color,
     // Горный пейзаж: базовый тон слоями от дальнего к переднему + туман
-    val mountainHue: Color,
-    val mountainAlphas: List<Float>,
-    val fog: Color,
-    val activeMountainTint: Color,
 )
 
 /** Цвета статусной карточки/кнопки под состояние туннеля. */
@@ -81,8 +77,6 @@ enum class AppTheme(
             active = Color(0xFF34B377), activeStrong = Color(0xFF4CC78C),
             activeSoft = Color(0xFF14301F), activeBorder = Color(0xFF245A3C),
             error = Color(0xFFF87171), errorSoft = Color(0xFF3B1A1A),
-            mountainHue = Color(0xFF5E729E), mountainAlphas = listOf(.10f, .14f, .19f, .24f, .29f),
-            fog = Color(0xFF101A30), activeMountainTint = Color(0xFF3E7A5C),
         ),
         dark = true,
     ),
@@ -98,8 +92,6 @@ enum class AppTheme(
             active = Color(0xFF2E8F5C), activeStrong = Color(0xFF278052),
             activeSoft = Color(0xFFE2F3E9), activeBorder = Color(0xFFBCDCC9),
             error = Color(0xFFC95C61), errorSoft = Color(0xFFF9ECEE),
-            mountainHue = Color(0xFF6E8CA6), mountainAlphas = listOf(.07f, .10f, .15f, .19f, .24f),
-            fog = Color(0xFFEBF3F9), activeMountainTint = Color(0xFF5F9478),
         ),
         dark = false,
     ),
@@ -115,8 +107,6 @@ enum class AppTheme(
             active = Color(0xFF3FA46B), activeStrong = Color(0xFF54BA7F),
             activeSoft = Color(0xFF14261B), activeBorder = Color(0xFF2A5238),
             error = Color(0xFFF87171), errorSoft = Color(0xFF331B1B),
-            mountainHue = Color(0xFF8A8A94), mountainAlphas = listOf(.10f, .14f, .19f, .24f, .29f),
-            fog = Color(0xFF151517), activeMountainTint = Color(0xFF4E7A60),
         ),
         dark = true,
     ),
@@ -133,8 +123,6 @@ enum class AppTheme(
             activeSoft = Color(0xFFE7F3EC), activeBorder = Color(0xFFBFDDCC),
             error = Color(0xFFC95C61), errorSoft = Color(0xFFF9ECEE),
             // Лавандово-серый тон, растворённый в фоне: дальний слой почти невидим.
-             mountainHue = Color(0xFF8A82A8), mountainAlphas = listOf(.055f, .075f, .105f, .135f, .17f),
-            fog = Color(0xFFF7F5FB), activeMountainTint = Color(0xFF5F8F74),
         ),
         dark = false,
     );

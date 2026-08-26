@@ -95,7 +95,7 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
                         VpnController.restartIfActive(ctx)
                     }
                 },
-                enabled = DpiArgs.tokenize(customField).isNotEmpty(),
+                 enabled = DpiArgs.isValid(customField),
                 height = 48,
                 modifier = Modifier.padding(horizontal = Spacing.space16),
             )

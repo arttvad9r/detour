@@ -19,6 +19,7 @@
         android:name=".TripletApp"
         android:label="@string/app_name"
         android:icon="@drawable/ic_launcher"
+        android:allowBackup="false"
         android:supportsRtl="true"
         android:theme="@style/Theme.Triplet">
 
@@ -28,6 +29,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".vpn.VpnConsentActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:theme="@style/Theme.Triplet" />
 
         <service
             android:name=".tile.DetourTile"
