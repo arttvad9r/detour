@@ -91,11 +91,11 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
         border = animateColorAsState(status.border, tween(400), label = "cardBorder").value,
     )
 
-    // Таймер берётся от сохранённого начала сессии, поэтому не сбрасывается
-    // при пересоздании Activity.
+    // Таймер берётся от сохранённого начала активной сессии, поэтому не
+    // сбрасывается при пересоздании Activity; во время подключения его нет.
     var elapsed by rememberSaveable { mutableIntStateOf(0) }
     LaunchedEffect(st, settings?.sessionStartedAt) {
-        if (st == VpnState.Active || st == VpnState.Starting) {
+        if (st == VpnState.Active) {
             val started = settings?.sessionStartedAt ?: System.currentTimeMillis()
             while (true) {
                 elapsed = ((System.currentTimeMillis() - started) / 1000L).coerceAtLeast(0).toInt()
@@ -296,7 +296,16 @@ private fun StatusCard(
                 color = c.textSecondary,
                 modifier = Modifier.padding(top = Spacing.space4),
             )
-            else -> Text(
+            VpnState.Starting -> Text(
+                stringResource(R.string.btn_connecting),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                    fontSize = 14.sp,
+                ),
+                color = style.content,
+                modifier = Modifier.padding(top = Spacing.space4),
+            )
+            VpnState.Active -> Text(
                 timerText,
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
