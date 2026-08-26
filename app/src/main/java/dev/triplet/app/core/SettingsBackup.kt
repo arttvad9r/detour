@@ -6,6 +6,7 @@ import org.json.JSONObject
 /** Versioned, validated user-settings export. Runtime session state is excluded. */
 object SettingsBackup {
     const val VERSION = 2
+    const val MAX_BYTES = 1024 * 1024
     private const val APP = "detour"
     private val themes = setOf("midnight", "ocean", "graphite", "lavenda")
 
@@ -19,6 +20,7 @@ object SettingsBackup {
         val dnsCustom: String = "",
         val routes: Map<String, String> = emptyMap(),
         val vlessKeys: VlessKeys = VlessKeys(emptyList(), null),
+        val showSystemApps: Boolean = false,
     )
 
     fun toJson(b: Backup): String {
@@ -42,10 +44,12 @@ object SettingsBackup {
             put("dns", b.dnsId)
             put("dnsCustom", b.dnsCustom)
             put("routes", JSONObject(b.routes))
+            put("showSystemApps", b.showSystemApps)
         }.toString(2)
     }
 
     fun fromJson(s: String): Backup? = try {
+        if (s.toByteArray(Charsets.UTF_8).size > MAX_BYTES) return null
         val o = JSONObject(s)
         if (o.optString("app") != APP) return null
         when (o.optInt("v", 1)) {
@@ -104,6 +108,7 @@ object SettingsBackup {
             dnsId = o.optString("dns").takeIf { it.isNotBlank() } ?: "google",
             dnsCustom = o.optString("dnsCustom"),
             routes = routes,
+            showSystemApps = o.optBoolean("showSystemApps", false),
         )
     }
 

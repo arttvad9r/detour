@@ -19,9 +19,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -34,9 +33,9 @@ import dev.triplet.app.vpn.VpnController
 import kotlinx.coroutines.launch
 
 private val DNS_LABELS = mapOf(
-    "google" to "Google DNS",
-    "cloudflare" to "Cloudflare",
-    "adguard" to "AdGuard",
+    "google" to R.string.dns_google,
+    "cloudflare" to R.string.dns_cloudflare,
+    "adguard" to R.string.dns_adguard,
 )
 
 @Composable
@@ -47,7 +46,7 @@ fun DnsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
     val settings by store.settings.collectAsState(initial = null)
     // Пустой dnsId означает дефолт (Google) — DnsOptions.resolve резолвит так же.
     val selectedDns = settings?.dnsId?.ifBlank { null } ?: "google"
-    var customField by remember(settings?.dnsCustom) { mutableStateOf(settings?.dnsCustom ?: "") }
+    var customField by rememberSaveable(settings?.dnsCustom) { androidx.compose.runtime.mutableStateOf(settings?.dnsCustom ?: "") }
     val customInvalid = customField.isNotBlank() && !DnsOptions.isValid(customField)
 
     Column(
@@ -72,7 +71,7 @@ fun DnsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
         DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
             DnsOptions.servers.forEach { (id, _) ->
                 RadioRow(
-                    title = DNS_LABELS[id] ?: id,
+                    title = stringResource(DNS_LABELS[id] ?: R.string.dns_custom),
                     selected = selectedDns == id,
                     onClick = { apply(id) },
                 )
@@ -92,7 +91,7 @@ fun DnsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
                 onValueChange = { customField = it },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.space16),
                 singleLine = true,
-                placeholder = { Text("https://…", style = MaterialTheme.typography.bodyLarge, color = c.textMuted) },
+                placeholder = { Text(stringResource(R.string.dns_placeholder), style = MaterialTheme.typography.bodyLarge, color = c.textMuted) },
                 supportingText = if (customInvalid) {
                     { Text(stringResource(R.string.dns_invalid), style = MaterialTheme.typography.bodySmall, color = c.error) }
                 } else null,

@@ -15,8 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -59,7 +58,7 @@ class MainActivity : ComponentActivity() {
             CompositionLocalProvider(LocalDetourTheme provides theme) {
                 MaterialTheme(colorScheme = theme.scheme, typography = AppTypography, shapes = AppShapes) {
                     Box(Modifier.fillMaxSize().background(theme.colors.background)) {
-                        var screen by remember { mutableStateOf(Screen.HOME) }
+                         var screen by rememberSaveable { androidx.compose.runtime.mutableStateOf(Screen.HOME) }
                         // Автоподключение при старте (настройка, по умолчанию выключена).
                         val ctx = this@MainActivity
                          LaunchedEffect(settings?.autoConnect, settings?.routes, settings?.vlessUri) {

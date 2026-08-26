@@ -35,6 +35,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,14 +57,16 @@ import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
 import kotlinx.coroutines.delay
 
-fun homeProtocol(vlessUri: String, routes: Map<String, AppRoute>): String {
+enum class HomeProtocol { VLESS_DPI, DPI, VLESS, NONE }
+
+fun homeProtocol(routes: Map<String, AppRoute>): HomeProtocol {
     val dpi = routes.values.any { it == AppRoute.DPI }
     val vless = routes.values.any { it == AppRoute.VPN }
     return when {
-        dpi && vless -> "Vless + DPI"
-        dpi -> "DPI"
-        vless -> "Vless"
-        else -> "—"
+        dpi && vless -> HomeProtocol.VLESS_DPI
+        dpi -> HomeProtocol.DPI
+        vless -> HomeProtocol.VLESS
+        else -> HomeProtocol.NONE
     }
 }
 
@@ -90,7 +93,7 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
 
     // Таймер берётся от сохранённого начала сессии, поэтому не сбрасывается
     // при пересоздании Activity.
-    var elapsed by remember { mutableIntStateOf(0) }
+    var elapsed by rememberSaveable { mutableIntStateOf(0) }
     LaunchedEffect(st, settings?.sessionStartedAt) {
         if (st == VpnState.Active || st == VpnState.Starting) {
             val started = settings?.sessionStartedAt ?: System.currentTimeMillis()
@@ -148,7 +151,14 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
                 style = style,
                 timerText = timerText,
                 serverHost = serverHost,
-                protocol = homeProtocol(settings?.vlessUri ?: "", settings?.routes ?: emptyMap()),
+                protocol = stringResource(
+                    when (homeProtocol(settings?.routes ?: emptyMap())) {
+                        HomeProtocol.VLESS_DPI -> R.string.protocol_vless_dpi
+                        HomeProtocol.DPI -> R.string.protocol_dpi
+                        HomeProtocol.VLESS -> R.string.protocol_vless
+                        HomeProtocol.NONE -> R.string.protocol_none
+                    },
+                ),
                 onRetry = onMainAction,
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
@@ -214,7 +224,7 @@ private fun MainButton(
             .clip(PillShape)
             .background(container)
             .border(1.dp, borderColor, PillShape)
-            .clickable(enabled = state != VpnState.Starting, onClick = onClick)
+            .clickable(enabled = state != VpnState.Starting, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
             .heightIn(min = 52.dp)
             .padding(horizontal = Spacing.space24, vertical = 15.dp),
         contentAlignment = Alignment.Center,

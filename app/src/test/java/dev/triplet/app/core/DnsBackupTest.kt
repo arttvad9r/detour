@@ -1,6 +1,7 @@
 package dev.triplet.app.core
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -18,6 +19,9 @@ class DnsOptionsTest {
     }
     @Test fun `unknown id falls back to default`() {
         assertEquals("8.8.8.8", DnsOptions.resolve("bogus", ""))
+    }
+    @Test fun `unknown selection is rejected`() {
+        assertFalse(DnsOptions.isSelectionValid("bogus", ""))
     }
     @Test fun `validator accepts ip and https doh only`() {
         assertTrue(DnsOptions.isValid("9.9.9.9"))
@@ -41,11 +45,18 @@ class SettingsBackupTest {
             listOf(VlessKey("primary", "Primary", "vless://b831381d-6324-4d53-ad4f-8cda48b30811@example.com:443?type=tcp&security=reality&fp=chrome&sni=example.com&pbk=SbVKOEMjK0sIlbwg4akyBg5mL5KZwwB-ed4eEE7YnRc&sid=6ba85179&flow=xtls-rprx-vision")),
             "primary",
         ),
+        showSystemApps = true,
     )
 
     @Test fun `roundtrip preserves all fields`() {
         val back = SettingsBackup.fromJson(SettingsBackup.toJson(backup))
         assertEquals(backup, back)
+    }
+
+    @Test
+    fun `oversized backup is rejected`() {
+        val oversized = """{"app":"detour","v":2,"customArgs":"${"x".repeat(SettingsBackup.MAX_BYTES)}"}"""
+        assertNull(SettingsBackup.fromJson(oversized))
     }
     @Test fun `foreign file rejected`() {
         assertNull(SettingsBackup.fromJson("""{"app":"other"}"""))

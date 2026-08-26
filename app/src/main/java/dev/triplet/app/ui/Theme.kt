@@ -66,7 +66,7 @@ enum class AppTheme(
     val dark: Boolean,
 ) {
     MIDNIGHT(
-        "midnight", "Полночь",
+        "midnight", "Midnight",
         DetourColors(
             background = Color(0xFF0F172A),
             surface = Color(0xFF182238), surfaceSoft = Color(0xFF1B2740), surfaceSelected = Color(0xFF24304E),
@@ -81,7 +81,7 @@ enum class AppTheme(
         dark = true,
     ),
     OCEAN(
-        "ocean", "Океан",
+        "ocean", "Ocean",
         DetourColors(
             background = Color(0xFFF0F6FC),
             surface = Color(0xFFFBFDFF), surfaceSoft = Color(0xFFF3F8FC), surfaceSelected = Color(0xFFE3EEF7),
@@ -96,7 +96,7 @@ enum class AppTheme(
         dark = false,
     ),
     GRAPHITE(
-        "graphite", "Графит и янтарь",
+        "graphite", "Graphite and amber",
         DetourColors(
             background = Color(0xFF121212),
             surface = Color(0xFF1B1B1D), surfaceSoft = Color(0xFF1F1F22), surfaceSelected = Color(0xFF2A2A2F),
@@ -111,7 +111,7 @@ enum class AppTheme(
         dark = true,
     ),
     LAVENDA(
-        "lavenda", "Лаванда",
+        "lavenda", "Lavender",
         DetourColors(
             background = Color(0xFFF7F5FB),
             surface = Color(0xFFFCFBFD), surfaceSoft = Color(0xFFF8F6FB), surfaceSelected = Color(0xFFEEEAF8),
@@ -162,6 +162,13 @@ enum class AppTheme(
     companion object {
         fun byId(id: String): AppTheme = entries.firstOrNull { it.id == id } ?: LAVENDA
     }
+}
+
+fun themeLabel(theme: AppTheme): Int = when (theme) {
+    AppTheme.MIDNIGHT -> R.string.theme_midnight
+    AppTheme.OCEAN -> R.string.theme_ocean
+    AppTheme.GRAPHITE -> R.string.theme_graphite
+    AppTheme.LAVENDA -> R.string.theme_lavender
 }
 
 /** Активная тема приложения (провайдится в MainActivity). */

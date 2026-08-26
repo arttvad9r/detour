@@ -86,7 +86,7 @@ fun SettingRow(
     val c = detourColors
     Row(
         Modifier.fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = Spacing.space16, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -242,7 +242,7 @@ fun RadioRow(
         modifier
             .fillMaxWidth()
             .background(bg)
-            .clickable(onClick = onClick)
+            .clickable(role = Role.RadioButton, onClick = onClick)
             .heightIn(min = 48.dp)
             .padding(horizontal = Spacing.space16, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -300,7 +300,7 @@ fun SegmentedControl(
     Row(
         modifier
             .fillMaxWidth()
-            .height(32.dp)
+            .heightIn(min = 48.dp)
             .clip(AppShapes.extraSmall)
             .background(c.surfaceSoft)
             .border(1.dp, c.border, AppShapes.extraSmall),
@@ -313,7 +313,7 @@ fun SegmentedControl(
                     .weight(1f)
                     .fillMaxSize()
                     .background(bg)
-                    .clickable { onSelect(i) },
+                    .clickable(role = Role.RadioButton) { onSelect(i) },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
             ) {

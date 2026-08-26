@@ -50,8 +50,8 @@ class RoutesMappingTest {
         assertTrue(s.routes.isEmpty())
     }
 
-    @Test fun `corrupted keys fall back to legacy uri`() {
+    @Test fun `corrupted keys do not resurrect legacy uri`() {
         val s = RoutesMapping.toSettings(mapOf("vless_keys" to "{bad", "vless_uri" to "legacy"))
-        assertEquals("legacy", s.vlessUri)
+        assertEquals("", s.vlessUri)
     }
 }

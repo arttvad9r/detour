@@ -2,7 +2,6 @@ package dev.triplet.app.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -54,7 +53,7 @@ fun ThemeScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mod
             AppTheme.entries.forEachIndexed { i, t ->
                 val selected = current == t.id
                 RadioRow(
-                    title = t.label,
+                    title = stringResource(themeLabel(t)),
                     selected = selected,
                     onClick = { scope.launch { store.setTheme(t.id) } },
                     trailing = { ThemeSwatches(t) },

@@ -38,8 +38,9 @@ import androidx.compose.ui.unit.dp
 import dev.triplet.app.R
 import dev.triplet.app.core.SettingsBackup
 import dev.triplet.app.data.RoutesStore
-import dev.triplet.app.vpn.VpnController
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Экспорт/импорт: компактные строки-действия вместо двух огромных CTA. */
 @Composable
@@ -51,6 +52,7 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
     val exportedText = stringResource(R.string.backup_exported)
     val badFileText = stringResource(R.string.backup_bad_file)
     val importedText = stringResource(R.string.backup_imported)
+    val genericErrorText = stringResource(R.string.backup_error)
 
     var status by remember { mutableStateOf("") }
     var statusIsError by remember { mutableStateOf(false) }
@@ -72,13 +74,16 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
                     dnsCustom = s.dnsCustom,
                     routes = s.routes.mapValues { it.value.name },
                     vlessKeys = s.vlessKeys,
+                    showSystemApps = s.showSystemApps,
                 ),
             )
             runCatching {
-                val output = requireNotNull(ctx.contentResolver.openOutputStream(uri)) { "cannot open backup output" }
-                output.use { it.write(json.toByteArray()) }
+                withContext(Dispatchers.IO) {
+                    val output = requireNotNull(ctx.contentResolver.openOutputStream(uri))
+                    output.use { it.write(json.toByteArray()) }
+                }
                 status = exportedText; statusIsError = false
-            }.onFailure { status = it.message ?: "error"; statusIsError = true }
+            }.onFailure { status = genericErrorText; statusIsError = true }
         }
     }
 
@@ -88,16 +93,21 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
             runCatching {
-                val input = requireNotNull(ctx.contentResolver.openInputStream(uri)) { "cannot open backup input" }
-                val text = input.bufferedReader().use { it.readText() }
+                val text = withContext(Dispatchers.IO) {
+                    val input = requireNotNull(ctx.contentResolver.openInputStream(uri))
+                    input.use { readLimited(it, SettingsBackup.MAX_BYTES) }
+                }
+                if (text.toByteArray(Charsets.UTF_8).size > SettingsBackup.MAX_BYTES) {
+                    status = badFileText; statusIsError = true
+                    return@runCatching
+                }
                 val b = SettingsBackup.fromJson(text) ?: run {
                     status = badFileText; statusIsError = true
                     return@runCatching
                 }
                 store.restoreBackup(b)
-                VpnController.restartIfActive(ctx)
                 status = importedText; statusIsError = false
-            }.onFailure { status = it.message ?: "error"; statusIsError = true }
+            }.onFailure { status = genericErrorText; statusIsError = true }
         }
     }
 
@@ -149,6 +159,20 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
     }
 }
 
+private fun readLimited(input: java.io.InputStream, maxBytes: Int): String {
+    val out = java.io.ByteArrayOutputStream()
+    val buffer = ByteArray(8192)
+    var total = 0
+    while (true) {
+        val count = input.read(buffer)
+        if (count < 0) break
+        total += count
+        if (total > maxBytes) return "\u0000"
+        out.write(buffer, 0, count)
+    }
+    return out.toString(Charsets.UTF_8.name())
+}
+
 /** Строка-действие 52dp: иконка + подпись. */
 @Composable
 private fun ActionRow(label: String, iconRes: Int, accent: Boolean, onClick: () -> Unit) {
@@ -156,7 +180,7 @@ private fun ActionRow(label: String, iconRes: Int, accent: Boolean, onClick: () 
     val tint = if (accent) c.accent else c.textSecondary
     Row(
         Modifier.fillMaxWidth()
-            .clickable(onClick = onClick)
+            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
             .padding(horizontal = Spacing.space16, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

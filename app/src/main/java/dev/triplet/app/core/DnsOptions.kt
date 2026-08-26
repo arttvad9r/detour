@@ -29,5 +29,5 @@ object DnsOptions {
     }
 
     fun isSelectionValid(id: String, custom: String): Boolean =
-        id != CUSTOM || isValid(custom)
+        id in servers || (id == CUSTOM && isValid(custom))
 }

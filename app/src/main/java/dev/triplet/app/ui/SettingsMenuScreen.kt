@@ -1,7 +1,6 @@
 package dev.triplet.app.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -71,7 +70,7 @@ fun SettingsMenuScreen(
             MenuItem(R.string.nav_dpi, { stringResource(R.string.nav_dpi_sub) }, R.drawable.ic_dpi) to onOpenDpi,
             MenuItem(R.string.nav_dns, { stringResource(R.string.nav_dns_sub) }, R.drawable.ic_globe) to onOpenDns,
             MenuItem(R.string.nav_backup, { stringResource(R.string.nav_backup_sub) }, R.drawable.ic_export) to onOpenBackup,
-            MenuItem(R.string.nav_theme, { theme.label }, R.drawable.ic_theme) to onOpenTheme,
+            MenuItem(R.string.nav_theme, { stringResource(themeLabel(theme)) }, R.drawable.ic_theme) to onOpenTheme,
         )
         DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
             items.forEachIndexed { i, (item, onClick) ->
@@ -90,7 +89,6 @@ fun SettingsMenuScreen(
         DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
             Row(
                 Modifier.fillMaxWidth()
-                    .clickable { scope.launch { store.setAutoConnect(settings?.autoConnect != true) } }
                     .padding(horizontal = Spacing.space16, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {

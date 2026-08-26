@@ -2,6 +2,8 @@ package dev.triplet.app.data
 
 import android.content.Context
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.core.DataMigration
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -11,6 +13,8 @@ import dev.triplet.app.core.AppRoute
 import dev.triplet.app.core.DpiPreset
 import dev.triplet.app.core.VlessKey
 import dev.triplet.app.core.VlessKeys
+import dev.triplet.app.core.VlessKeyParser
+import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.SettingsBackup
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -42,6 +46,7 @@ object RoutesMapping {
     private const val KEY_DNS_CUSTOM = "dns_custom"
     private const val KEY_SESSION_STARTED = "session_started_at"
     private const val KEY_SHOW_SYSTEM = "show_system_apps"
+    private const val KEY_VLESS_MIGRATED = "vless_legacy_migrated"
     private const val PREFIX_ROUTE = "route:"
 
     /** Pure mapping DataStore-snapshot -> settings. JVM-tested. */
@@ -73,14 +78,33 @@ object RoutesMapping {
     fun customArgsKey() = stringPreferencesKey(KEY_CUSTOM_ARGS)
     fun sessionStartedAtKey() = longPreferencesKey(KEY_SESSION_STARTED)
     fun showSystemKey() = booleanPreferencesKey(KEY_SHOW_SYSTEM)
+    fun vlessMigratedKey() = booleanPreferencesKey(KEY_VLESS_MIGRATED)
 }
 
 data class AppInfo(val packageName: String, val label: String, val isSystem: Boolean)
 
 class RoutesStore(context: Context) {
-    private val store = PreferenceDataStoreFactory.create {
-        context.preferencesDataStoreFile("triplet_settings")
-    }
+    private val store = PreferenceDataStoreFactory.create(
+        produceFile = { context.preferencesDataStoreFile("triplet_settings") },
+        migrations = listOf(object : DataMigration<Preferences> {
+        override suspend fun shouldMigrate(currentData: Preferences) =
+            currentData[RoutesMapping.vlessMigratedKey()] != true
+
+        override suspend fun migrate(currentData: Preferences): Preferences =
+            currentData.toMutablePreferences().apply {
+                if (get(RoutesMapping.keysKey()).isNullOrBlank()) {
+                    val keys = VlessKeys.fromStored("", get(RoutesMapping.uriKey()) ?: "")
+                    if (keys.items.isNotEmpty()) {
+                        this[RoutesMapping.keysKey()] = keys.toJson()
+                        this[RoutesMapping.uriKey()] = keys.active?.uri ?: ""
+                    }
+                }
+                this[RoutesMapping.vlessMigratedKey()] = true
+            }
+
+        override suspend fun cleanUp() = Unit
+        }),
+    )
 
     val settings: Flow<TriSettings> = store.data.map { prefs ->
         RoutesMapping.toSettings(prefs.asMap().mapKeys { (k, _) -> k.name })
@@ -94,24 +118,21 @@ class RoutesStore(context: Context) {
     }
     suspend fun setShowSystemApps(value: Boolean) = store.edit { it[RoutesMapping.showSystemKey()] = value }
     suspend fun setVlessKeys(keys: VlessKeys) = store.edit {
+        validateVlessKeys(keys)
         it[RoutesMapping.keysKey()] = keys.toJson()
         it[RoutesMapping.uriKey()] = keys.active?.uri ?: ""
     }
     suspend fun setActiveVlessKey(id: String) {
-        val current = snapshot().vlessKeys
-        setVlessKeys(current.copy(activeId = id))
+        editVless { current -> current.copy(activeId = id) }
     }
     suspend fun addVlessKey(key: VlessKey) {
-        val current = snapshot().vlessKeys
-        setVlessKeys(VlessKeys(current.items + key, key.id))
+        editVless { current -> VlessKeys(current.items + key, key.id) }
     }
     suspend fun updateVlessKey(key: VlessKey) {
-        val current = snapshot().vlessKeys
-        setVlessKeys(VlessKeys(current.items.map { if (it.id == key.id) key else it }, current.activeId))
+        editVless { current -> VlessKeys(current.items.map { if (it.id == key.id) key else it }, current.activeId) }
     }
     suspend fun deleteVlessKey(id: String) {
-        val current = snapshot().vlessKeys
-        setVlessKeys(current.delete(id))
+        editVless { current -> current.delete(id) }
     }
     suspend fun setPreset(preset: DpiPreset) = store.edit { it[RoutesMapping.presetKey()] = preset.id }
     suspend fun setCustomArgs(raw: String) = store.edit { it[RoutesMapping.customArgsKey()] = raw }
@@ -132,13 +153,33 @@ class RoutesStore(context: Context) {
         prefs[RoutesMapping.uriKey()] = b.vlessKeys.active?.uri ?: ""
         prefs[RoutesMapping.presetKey()] = b.presetId
         prefs[RoutesMapping.customArgsKey()] = b.dpiCustomArgs
-        prefs[RoutesMapping.autoConnectKey()] = b.autoConnect
+        // Imported settings never start a VPN implicitly; the user must opt in
+        // again after reviewing the imported routes and endpoint.
+        prefs[RoutesMapping.autoConnectKey()] = false
         prefs[RoutesMapping.themeKey()] = b.themeId
         prefs[RoutesMapping.dnsKey()] = b.dnsId
         prefs[RoutesMapping.dnsCustomKey()] = b.dnsCustom
+        prefs[RoutesMapping.showSystemKey()] = b.showSystemApps
         prefs.asMap().keys.filter { it.name.startsWith("route:") }.forEach { prefs.remove(stringPreferencesKey(it.name)) }
         b.routes.forEach { (pkg, route) ->
             if (route != AppRoute.DIRECT.name) prefs[RoutesMapping.routeKey(pkg)] = route
         }
+    }
+
+    private suspend fun editVless(transform: (VlessKeys) -> VlessKeys) = store.edit { prefs ->
+        val current = VlessKeys.fromStored(
+            prefs[RoutesMapping.keysKey()] ?: "",
+            prefs[RoutesMapping.uriKey()] ?: "",
+        )
+        val next = transform(current)
+        validateVlessKeys(next)
+        prefs[RoutesMapping.keysKey()] = next.toJson()
+        prefs[RoutesMapping.uriKey()] = next.active?.uri ?: ""
+    }
+
+    private fun validateVlessKeys(keys: VlessKeys) {
+        require(keys.items.map { it.id }.distinct().size == keys.items.size)
+        require(keys.activeId == null || keys.items.any { it.id == keys.activeId })
+        keys.items.forEach { require(VlessKeyParser.parse(it.uri) is ParseResult.Ok) }
     }
 }

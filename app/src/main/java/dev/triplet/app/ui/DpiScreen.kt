@@ -17,9 +17,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -38,8 +37,8 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
     val scope = rememberCoroutineScope()
     val c = detourColors
     val settings by store.settings.collectAsState(initial = null)
-    var customField by remember(settings?.dpiCustomArgs) {
-        mutableStateOf(settings?.dpiCustomArgs ?: "")
+    var customField by rememberSaveable(settings?.dpiCustomArgs) {
+        androidx.compose.runtime.mutableStateOf(settings?.dpiCustomArgs ?: "")
     }
 
     Column(

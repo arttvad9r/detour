@@ -4,7 +4,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -29,10 +28,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,6 +41,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
@@ -66,8 +67,9 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
     val settings by store.settings.collectAsState(initial = null)
     val currentSettings = settings ?: return
     val pm = ctx.packageManager
+    val searchHint = stringResource(R.string.search_hint)
 
-    var query by remember { mutableStateOf("") }
+    var query by rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
     val showSystem = currentSettings.showSystemApps
     // PackageManager queries are slow on the main thread; let the screen open first.
     val allApps by produceState<List<AppInfo>?>(initialValue = null, ctx) {
@@ -118,7 +120,7 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
             Box(Modifier.weight(1f)) {
                 if (query.isEmpty()) {
                     Text(
-                        stringResource(R.string.search_hint),
+                        searchHint,
                         style = MaterialTheme.typography.bodyLarge,
                         color = c.textMuted,
                     )
@@ -129,7 +131,9 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
                     singleLine = true,
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = c.textPrimary),
                     cursorBrush = SolidColor(c.accent),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().semantics {
+                        contentDescription = searchHint
+                    },
                 )
             }
         }
@@ -137,8 +141,7 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
         // Системные приложения — компактная строка с переключателем.
         Row(
             Modifier.fillMaxWidth()
-                .padding(horizontal = Spacing.space20, vertical = Spacing.space8)
-                .clickable { scope.launch { store.setShowSystemApps(!showSystem) } },
+                .padding(horizontal = Spacing.space20, vertical = Spacing.space8),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(

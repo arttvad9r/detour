@@ -5,6 +5,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class VlessKeysTest {
+    private val validUri =
+        "vless://b831381d-6324-4d53-ad4f-8cda48b30811@example.com:443" +
+        "?type=tcp&security=reality&fp=chrome&sni=example.com" +
+        "&pbk=SbVKOEMjK0sIlbwg4akyBg5mL5KZwwB-ed4eEE7YnRc&sid=6ba85179" +
+        "&flow=xtls-rprx-vision"
     @Test
     fun `legacy uri migrates to one active key`() {
         val keys = VlessKeys.fromStored("", "vless://legacy")
@@ -15,13 +20,26 @@ class VlessKeysTest {
     }
 
     @Test
+    fun `legacy migration is stable across reads`() {
+        val first = VlessKeys.fromStored("", "vless://legacy")
+        val second = VlessKeys.fromStored("", "vless://legacy")
+
+        assertEquals(first, second)
+    }
+
+    @Test
     fun `json round trip preserves keys and active selection`() {
         val original = VlessKeys(
-            listOf(VlessKey("a", "Primary", "vless://a"), VlessKey("b", "Backup", "vless://b")),
+            listOf(VlessKey("a", "Primary", validUri), VlessKey("b", "Backup", validUri)),
             "b",
         )
 
         assertEquals(original, VlessKeys.fromJson(original.toJson()))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `json rejects malformed entries instead of dropping them`() {
+        VlessKeys.fromJson("""{"items":[{"id":"a","name":"A","uri":"$validUri"},{}]}""")
     }
 
     @Test
@@ -30,17 +48,17 @@ class VlessKeysTest {
     }
 
     @Test fun `delete inactive preserves active`() {
-        val keys = VlessKeys(listOf(VlessKey("a", "a", "a"), VlessKey("b", "b", "b")), "b").delete("a")
+        val keys = VlessKeys(listOf(VlessKey("a", "a", validUri), VlessKey("b", "b", validUri)), "b").delete("a")
         assertEquals("b", keys.activeId)
     }
 
     @Test fun `delete active chooses remaining and deleting only clears active`() {
-        assertEquals("b", VlessKeys(listOf(VlessKey("a", "a", "a"), VlessKey("b", "b", "b")), "a").delete("a").activeId)
-        assertEquals(null, VlessKeys(listOf(VlessKey("a", "a", "a")), "a").delete("a").activeId)
+        assertEquals("b", VlessKeys(listOf(VlessKey("a", "a", validUri), VlessKey("b", "b", validUri)), "a").delete("a").activeId)
+        assertEquals(null, VlessKeys(listOf(VlessKey("a", "a", validUri)), "a").delete("a").activeId)
     }
 
     @Test fun `delete nonexistent is unchanged`() {
-        val keys = VlessKeys(listOf(VlessKey("a", "a", "a")), "a")
+        val keys = VlessKeys(listOf(VlessKey("a", "a", validUri)), "a")
         assertEquals(keys, keys.delete("missing"))
     }
 }

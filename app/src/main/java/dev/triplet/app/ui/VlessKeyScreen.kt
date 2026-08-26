@@ -30,14 +30,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.offset
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
@@ -45,6 +44,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.sp
 import dev.triplet.app.R
 import dev.triplet.app.core.ParseResult
@@ -64,10 +67,12 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
     val settings by store.settings.collectAsState(initial = null)
     val keys = settings?.vlessKeys
     val active = keys?.active
+    val addDescription = stringResource(R.string.key_add)
+    val keyTitle = stringResource(R.string.key_title)
 
-    var editingId by remember { mutableStateOf<String?>(null) }
-    var editing by remember { mutableStateOf(false) }
-    var field by remember { mutableStateOf("") }
+    var editingId by rememberSaveable { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    var editing by rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    var field by rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
     val parse = field.takeIf { it.isNotBlank() }?.let(VlessKeyParser::parse)
 
     fun beginEdit(key: VlessKey?) {
@@ -148,8 +153,12 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
             if (parse is ParseResult.Err) {
                 Text(stringResource(R.string.key_invalid), style = MaterialTheme.typography.bodySmall, color = c.error, modifier = Modifier.padding(start = Spacing.space20, top = Spacing.space8))
             }
-            val clipboard = LocalClipboardManager.current
-            TextButton(onClick = { clipboard.getText()?.toString()?.let { field = it.trim() } }, modifier = Modifier.padding(start = Spacing.space8)) {
+            val clipboard = LocalClipboard.current
+            TextButton(onClick = {
+                scope.launch {
+                    clipboard.getClipEntry()?.clipData?.getItemAt(0)?.text?.toString()?.let { field = it.trim() }
+                }
+            }, modifier = Modifier.padding(start = Spacing.space8)) {
                 Text(stringResource(R.string.key_paste))
             }
             Row(
@@ -167,7 +176,7 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                     text = stringResource(R.string.btn_save),
                     enabled = parse is ParseResult.Ok,
                     onClick = {
-                        val key = VlessKey(editingId ?: UUID.randomUUID().toString(), keyName(field), field.trim())
+                        val key = VlessKey(editingId ?: UUID.randomUUID().toString(), keyName(field, keyTitle), field.trim())
                         scope.launch {
                             if (editingId == null) store.addVlessKey(key) else store.updateVlessKey(key)
                             VpnController.restartIfActive(ctx)
@@ -182,9 +191,13 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
         Spacer(Modifier.height(Spacing.space24))
       }
       if (!editing) {
-          FloatingActionButton(
-              onClick = { beginEdit(null) },
-              modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 88.dp),
+           FloatingActionButton(
+               onClick = { beginEdit(null) },
+               modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 88.dp)
+                   .semantics {
+                       contentDescription = addDescription
+                       role = Role.Button
+                   },
               containerColor = c.accent,
               contentColor = c.onAccent,
           ) { Text("+", style = MaterialTheme.typography.headlineSmall) }
@@ -196,13 +209,13 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
 private fun KeyRow(key: VlessKey, selected: Boolean, onEdit: () -> Unit, onDelete: () -> Unit, onClick: () -> Unit) {
     val c = detourColors
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick)
+        Modifier.fillMaxWidth().clickable(role = androidx.compose.ui.semantics.Role.RadioButton, onClick = onClick)
             .padding(start = Spacing.space16, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RadioDot(selected)
         Column(Modifier.padding(start = 12.dp).weight(1f)) {
-            Text(keyName(key.uri), style = MaterialTheme.typography.titleSmall, color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(keyName(key.uri, stringResource(R.string.key_title)), style = MaterialTheme.typography.titleSmall, color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(serverValue(key), style = MaterialTheme.typography.bodySmall, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Row(Modifier.width(80.dp), horizontalArrangement = Arrangement.End) {
@@ -219,5 +232,5 @@ private fun KeyRow(key: VlessKey, selected: Boolean, onEdit: () -> Unit, onDelet
 private fun serverValue(key: VlessKey): String =
     (VlessKeyParser.parse(key.uri) as? ParseResult.Ok)?.profile?.let { "${it.server}:${it.port}" } ?: "—"
 
-private fun keyName(uri: String): String =
-    (VlessKeyParser.parse(uri) as? ParseResult.Ok)?.profile?.let { it.name.ifBlank { it.server } } ?: "VLESS"
+private fun keyName(uri: String, fallback: String): String =
+    (VlessKeyParser.parse(uri) as? ParseResult.Ok)?.profile?.let { it.name.ifBlank { it.server } } ?: fallback
