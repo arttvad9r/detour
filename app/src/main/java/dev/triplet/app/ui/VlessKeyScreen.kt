@@ -60,7 +60,7 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val c = detourColors
-    val settings by store.settings.collectAsState(initial = null)
+    val settings by store.settings.collectAsState()
     val keys = settings?.vlessKeys
     val addDescription = stringResource(R.string.key_add)
     val keyTitle = stringResource(R.string.key_title)
