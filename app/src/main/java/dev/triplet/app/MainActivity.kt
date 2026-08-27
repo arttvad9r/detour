@@ -57,7 +57,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val store = (application as TripletApp).routesStore
         setContent {
-            val settings by store.settings.collectAsState(initial = null)
+            val settings by store.settings.collectAsState()
             val theme = AppTheme.byId(settings?.themeId ?: "")
             LaunchedEffect(theme) {
                 val style = if (theme.dark) SystemBarStyle.dark(Color.Transparent.toArgb())
