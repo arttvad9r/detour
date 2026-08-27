@@ -4,7 +4,6 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -32,6 +31,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.triplet.app.R
@@ -178,7 +178,7 @@ private fun ActionRow(label: String, iconRes: Int, accent: Boolean, onClick: () 
     Row(
         Modifier.fillMaxWidth()
             .height(56.dp)
-            .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
+            .detourClickable(onClick = onClick, role = Role.Button)
             .padding(horizontal = Spacing.space16),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -192,7 +192,7 @@ private fun ActionRow(label: String, iconRes: Int, accent: Boolean, onClick: () 
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Medium,
             color = c.textPrimary,
-            modifier = Modifier.padding(start = 12.dp),
+            modifier = Modifier.padding(start = Spacing.space12),
         )
     }
 }
