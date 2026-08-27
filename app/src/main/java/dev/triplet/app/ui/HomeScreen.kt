@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -46,7 +45,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import dev.triplet.app.R
 import dev.triplet.app.core.DpiPreset
 import dev.triplet.app.core.AppRoute
@@ -124,7 +122,7 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             // Header: Detour + настройки. Иконка 22dp, touch target 48dp.
             Row(
-                Modifier.fillMaxWidth().padding(start = Spacing.space24, end = Spacing.space8, top = Spacing.space8),
+                Modifier.fillMaxWidth().padding(start = Spacing.space16, end = Spacing.space8, top = Spacing.space8),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -163,7 +161,7 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
                     .fillMaxWidth()
-                    .padding(horizontal = Spacing.space24)
+                    .padding(horizontal = Spacing.space16)
                     .widthIn(max = 360.dp),
             )
             Spacer(Modifier.weight(1.35f))
@@ -174,12 +172,13 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
                     onClick = onMainAction,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = Spacing.space32, vertical = Spacing.space20),
+                        .padding(horizontal = Spacing.space16, vertical = Spacing.space20),
                 )
             }
         }
     }
 }
+
 /** Главная кнопка: 52dp, состояния OFF/CONNECTING/ON различаются мягко. */
 @Composable
 private fun MainButton(
@@ -220,13 +219,12 @@ private fun MainButton(
     }
     Box(
         modifier
-            .background(Color.Transparent)
-            .clip(PillShape)
+            .clip(AppShapes.small)
             .background(container)
-            .border(1.dp, borderColor, PillShape)
+            .border(1.dp, borderColor, AppShapes.small)
             .clickable(enabled = state != VpnState.Starting, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
-            .heightIn(min = 52.dp)
-            .padding(horizontal = Spacing.space24, vertical = 15.dp),
+            .height(52.dp)
+            .padding(horizontal = Spacing.space24),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -298,18 +296,16 @@ private fun StatusCard(
             )
             VpnState.Starting -> Text(
                 stringResource(R.string.btn_connecting),
-                style = MaterialTheme.typography.bodyMedium.copy(
+                style = MaterialTheme.typography.bodyLarge.copy(
                     fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-                    fontSize = 14.sp,
                 ),
                 color = style.content,
                 modifier = Modifier.padding(top = Spacing.space4),
             )
             VpnState.Active -> Text(
                 timerText,
-                style = MaterialTheme.typography.bodyMedium.copy(
+                style = MaterialTheme.typography.bodyLarge.copy(
                     fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-                    fontSize = 14.sp,
                     fontFeatureSettings = "tnum",
                 ),
                 color = style.content,
