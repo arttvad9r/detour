@@ -11,20 +11,20 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,20 +35,17 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import dev.triplet.app.R
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.VlessKey
@@ -57,7 +54,6 @@ import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.vpn.VpnController
 import kotlinx.coroutines.launch
 import java.util.UUID
-import androidx.compose.foundation.text.BasicTextField
 
 @Composable
 fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modifier) {
@@ -66,7 +62,6 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
     val c = detourColors
     val settings by store.settings.collectAsState(initial = null)
     val keys = settings?.vlessKeys
-    val active = keys?.active
     val addDescription = stringResource(R.string.key_add)
     val keyTitle = stringResource(R.string.key_title)
 
@@ -82,126 +77,133 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
     }
 
     Box(modifier.fillMaxSize().background(c.background)) {
-      Column(
-        Modifier.fillMaxSize()
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .imePadding()
-            .verticalScroll(rememberScrollState()),
-    ) {
-        ScreenHeader(stringResource(R.string.key_title), onBack)
-        Spacer(Modifier.height(Spacing.space8))
+        Column(
+            Modifier.fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .imePadding()
+                .verticalScroll(rememberScrollState()),
+        ) {
+            ScreenHeader(stringResource(R.string.key_title), onBack)
+            Spacer(Modifier.height(Spacing.space8))
 
-        if (!editing) {
-            Text(
-                stringResource(R.string.key_list_title),
-                style = MaterialTheme.typography.titleSmall,
-                color = c.textPrimary,
-                modifier = Modifier.padding(horizontal = Spacing.space20),
-            )
-            Spacer(Modifier.height(Spacing.space8))
-            DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-                keys?.items.orEmpty().forEachIndexed { index, key ->
-                    KeyRow(key, key.id == keys?.activeId, onEdit = { beginEdit(key) }, onDelete = {
-                        scope.launch {
-                            store.deleteVlessKey(key.id)
-                            VpnController.restartIfActive(ctx)
-                        }
-                    }) {
-                        scope.launch {
-                            store.setActiveVlessKey(key.id)
-                            VpnController.restartIfActive(ctx)
-                        }
-                    }
-                    if (index < keys?.items.orEmpty().lastIndex) GroupDivider(startInset = 16)
-                }
-                if (keys?.items.isNullOrEmpty()) {
-                    Text(
-                        stringResource(R.string.key_empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = c.textMuted,
-                        modifier = Modifier.padding(Spacing.space16),
-                    )
-                }
-            }
-            Spacer(Modifier.height(Spacing.space8))
-        } else {
-            Box(Modifier.fillMaxWidth().padding(horizontal = Spacing.space16)) {
-                Box(
-                    Modifier.fillMaxWidth().height(104.dp)
-                        .border(1.dp, c.border, AppShapes.small),
-                ) {
-                    BasicTextField(
-                        value = field,
-                        onValueChange = { field = it },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp).padding(top = 8.dp),
-                        minLines = 2,
-                        textStyle = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.5.sp),
-                        cursorBrush = androidx.compose.ui.graphics.SolidColor(c.accent),
-                    )
-                }
+            if (!editing) {
                 Text(
-                    stringResource(R.string.key_uri),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = c.textSecondary,
-                    modifier = Modifier.align(Alignment.TopStart)
-                        .offset(x = 12.dp, y = (-9).dp)
-                        .padding(horizontal = 4.dp, vertical = 2.dp)
-                        .background(c.background),
+                    stringResource(R.string.key_list_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = c.textPrimary,
+                    modifier = Modifier.padding(horizontal = Spacing.space16),
                 )
-            }
-            if (parse is ParseResult.Err) {
-                Text(stringResource(R.string.key_invalid), style = MaterialTheme.typography.bodySmall, color = c.error, modifier = Modifier.padding(start = Spacing.space20, top = Spacing.space8))
-            }
-            val clipboard = LocalClipboard.current
-            TextButton(onClick = {
-                scope.launch {
-                    clipboard.getClipEntry()?.clipData?.getItemAt(0)?.text?.toString()?.let { field = it.trim() }
+                Spacer(Modifier.height(Spacing.space8))
+                DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
+                    keys?.items.orEmpty().forEachIndexed { index, key ->
+                        KeyRow(key, key.id == keys?.activeId, onEdit = { beginEdit(key) }, onDelete = {
+                            scope.launch {
+                                store.deleteVlessKey(key.id)
+                                VpnController.restartIfActive(ctx)
+                            }
+                        }) {
+                            scope.launch {
+                                store.setActiveVlessKey(key.id)
+                                VpnController.restartIfActive(ctx)
+                            }
+                        }
+                        if (index < keys?.items.orEmpty().lastIndex) GroupDivider(startInset = 16)
+                    }
+                    if (keys?.items.isNullOrEmpty()) {
+                        Text(
+                            stringResource(R.string.key_empty),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = c.textMuted,
+                            modifier = Modifier.padding(Spacing.space16),
+                        )
+                    }
                 }
-            }, modifier = Modifier.padding(start = Spacing.space8)) {
-                Text(stringResource(R.string.key_paste))
-            }
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = Spacing.space16),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.space12),
-            ) {
-                DetourButton(
-                    text = stringResource(R.string.key_cancel),
-                    onClick = { editing = false },
-                    style = ButtonStyle.SECONDARY,
-                    height = 48,
-                    modifier = Modifier.weight(1f),
-                )
-                DetourButton(
-                    text = stringResource(R.string.btn_save),
-                    enabled = parse is ParseResult.Ok,
+                Spacer(Modifier.height(Spacing.space8))
+            } else {
+                Box(Modifier.fillMaxWidth().padding(horizontal = Spacing.space16)) {
+                    Box(
+                        Modifier.fillMaxWidth().height(104.dp)
+                            .border(1.dp, c.border, AppShapes.small),
+                    ) {
+                        BasicTextField(
+                            value = field,
+                            onValueChange = { field = it },
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.space16, vertical = Spacing.space12).padding(top = Spacing.space8),
+                            minLines = 2,
+                            textStyle = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace, color = c.textPrimary),
+                            cursorBrush = androidx.compose.ui.graphics.SolidColor(c.accent),
+                        )
+                    }
+                    Text(
+                        stringResource(R.string.key_uri),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = c.textSecondary,
+                        modifier = Modifier.align(Alignment.TopStart)
+                            .offset(x = 12.dp, y = (-9).dp)
+                            .padding(horizontal = Spacing.space4, vertical = Spacing.space2)
+                            .background(c.background),
+                    )
+                }
+                if (parse is ParseResult.Err) {
+                    Text(
+                        stringResource(R.string.key_invalid),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = c.error,
+                        modifier = Modifier.padding(start = Spacing.space16, top = Spacing.space8),
+                    )
+                }
+                val clipboard = LocalClipboard.current
+                TextButton(
                     onClick = {
-                        val key = VlessKey(editingId ?: UUID.randomUUID().toString(), keyName(field, keyTitle), field.trim())
                         scope.launch {
-                            if (editingId == null) store.addVlessKey(key) else store.updateVlessKey(key)
-                            VpnController.restartIfActive(ctx)
-                            editing = false
+                            clipboard.getClipEntry()?.clipData?.getItemAt(0)?.text?.toString()?.let { field = it.trim() }
                         }
                     },
-                    height = 48,
-                    modifier = Modifier.weight(1f),
-                )
+                    modifier = Modifier.padding(start = Spacing.space8),
+                ) {
+                    Text(stringResource(R.string.key_paste))
+                }
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = Spacing.space16),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.space12),
+                ) {
+                    DetourButton(
+                        text = stringResource(R.string.key_cancel),
+                        onClick = { editing = false },
+                        style = ButtonStyle.SECONDARY,
+                        modifier = Modifier.weight(1f),
+                    )
+                    DetourButton(
+                        text = stringResource(R.string.btn_save),
+                        enabled = parse is ParseResult.Ok,
+                        onClick = {
+                            val key = VlessKey(editingId ?: UUID.randomUUID().toString(), keyName(field, keyTitle), field.trim())
+                            scope.launch {
+                                if (editingId == null) store.addVlessKey(key) else store.updateVlessKey(key)
+                                VpnController.restartIfActive(ctx)
+                                editing = false
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
+            Spacer(Modifier.height(Spacing.space24))
         }
-        Spacer(Modifier.height(Spacing.space24))
-      }
-      if (!editing) {
-           FloatingActionButton(
-               onClick = { beginEdit(null) },
-               modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 88.dp)
-                   .semantics {
-                       contentDescription = addDescription
-                       role = Role.Button
-                   },
-              containerColor = c.accent,
-              contentColor = c.onAccent,
-          ) { Text("+", style = MaterialTheme.typography.headlineSmall) }
-      }
+        if (!editing) {
+            FloatingActionButton(
+                onClick = { beginEdit(null) },
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 88.dp)
+                    .semantics {
+                        contentDescription = addDescription
+                        role = Role.Button
+                    },
+                shape = AppShapes.small,
+                containerColor = c.accent,
+                contentColor = c.onAccent,
+            ) { Text("+", style = MaterialTheme.typography.headlineSmall) }
+        }
     }
 }
 
@@ -210,11 +212,11 @@ private fun KeyRow(key: VlessKey, selected: Boolean, onEdit: () -> Unit, onDelet
     val c = detourColors
     Row(
         Modifier.fillMaxWidth().clickable(role = androidx.compose.ui.semantics.Role.RadioButton, onClick = onClick)
-            .padding(start = Spacing.space16, top = 12.dp, bottom = 12.dp),
+            .padding(start = Spacing.space16, top = Spacing.space12, bottom = Spacing.space12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RadioDot(selected)
-        Column(Modifier.padding(start = 12.dp).weight(1f)) {
+        Column(Modifier.padding(start = Spacing.space12).weight(1f)) {
             Text(keyName(key.uri, stringResource(R.string.key_title)), style = MaterialTheme.typography.titleSmall, color = c.textPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(serverValue(key), style = MaterialTheme.typography.bodySmall, color = c.textSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
