@@ -53,10 +53,9 @@ val hairline: Color
     @Composable get() = detourColors.border
 
 /**
- * Lightweight press feedback for custom rows/segments.
- * We intentionally do not use the default ripple here: on these flat custom
- * surfaces it reads as a rectangular flash. Instead the surface tint eases in
- * and out while accessibility/click semantics remain provided by clickable.
+ * Click semantics for flat custom surfaces without a transient overlay.
+ * Selected/idle color is stable; interaction feedback is carried by the
+ * control's actual state change rather than a flash-like press tint.
  */
 @Composable
 fun Modifier.detourClickable(
@@ -65,21 +64,9 @@ fun Modifier.detourClickable(
     idleColor: Color = Color.Transparent,
     pressedColor: Color? = null,
 ): Modifier {
-    val c = detourColors
     val interactionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
-    val targetColor = if (pressed) {
-        pressedColor ?: c.surfaceSelected.copy(alpha = 0.68f)
-    } else {
-        idleColor
-    }
-    val background by animateColorAsState(
-        targetValue = targetColor,
-        animationSpec = tween(if (pressed) 70 else 110),
-        label = "detourPress",
-    )
     return this
-        .background(background)
+        .background(idleColor)
         .clickable(
             interactionSource = interactionSource,
             indication = null,
@@ -194,8 +181,8 @@ fun DetourSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, animate: 
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val pressScale by animateFloatAsState(
-        targetValue = if (animate && pressed) 0.96f else 1f,
-        animationSpec = tween(if (pressed) 70 else 110),
+        targetValue = if (animate && pressed) 0.97f else 1f,
+        animationSpec = tween(if (pressed) 70 else 100),
         label = "switchPress",
     )
     Box(
