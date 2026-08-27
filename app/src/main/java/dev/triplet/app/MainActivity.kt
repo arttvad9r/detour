@@ -2,11 +2,14 @@ package dev.triplet.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
 import androidx.activity.SystemBarStyle
-import androidx.activity.enableEdgeToEdge
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.compose.animation.Crossfade
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -21,6 +24,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import dev.triplet.app.core.ParseResult
+import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.ui.AppShapes
 import dev.triplet.app.ui.AppTheme
 import dev.triplet.app.ui.AppTypography
@@ -37,10 +42,14 @@ import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
 import dev.triplet.app.vpn.canAutoConnect
 import dev.triplet.app.vpn.effectiveRoutes
-import dev.triplet.app.core.ParseResult
-import dev.triplet.app.core.VlessKeyParser
 
 private enum class Screen { HOME, SETTINGS, ROUTES, VLESS, DPI, THEME, DNS, BACKUP }
+
+private fun Screen.depth(): Int = when (this) {
+    Screen.HOME -> 0
+    Screen.SETTINGS -> 1
+    else -> 2
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -79,9 +88,18 @@ class MainActivity : ComponentActivity() {
                         BackHandler(enabled = screen != Screen.HOME) {
                             screen = if (screen == Screen.SETTINGS) Screen.HOME else Screen.SETTINGS
                         }
-                        Crossfade(
+                        AnimatedContent(
                             targetState = screen,
-                            animationSpec = tween(durationMillis = 160),
+                            transitionSpec = {
+                                val forward = targetState.depth() > initialState.depth()
+                                slideInHorizontally(
+                                    animationSpec = tween(durationMillis = 150),
+                                    initialOffsetX = { width -> if (forward) width / 14 else -width / 14 },
+                                ) togetherWith slideOutHorizontally(
+                                    animationSpec = tween(durationMillis = 150),
+                                    targetOffsetX = { width -> if (forward) -width / 14 else width / 14 },
+                                )
+                            },
                             label = "screen",
                         ) { s ->
                             when (s) {
