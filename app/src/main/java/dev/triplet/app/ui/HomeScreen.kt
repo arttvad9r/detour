@@ -74,7 +74,7 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
     val c = detourColors
     val theme = LocalDetourTheme.current
 
-    val settings by store.settings.collectAsState(initial = null)
+    val settings by store.settings.collectAsState()
     val status = theme.statusFor(st)
     val style = StatusStyle(
         container = animateColorAsState(status.container, tween(220), label = "cardBg").value,
