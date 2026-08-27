@@ -5,7 +5,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -145,7 +144,7 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
         Row(
             Modifier.fillMaxWidth()
                 .padding(horizontal = Spacing.space16, vertical = Spacing.space8)
-                .clickable { scope.launch { store.setShowSystemApps(!showSystem) } },
+                .detourClickable(onClick = { scope.launch { store.setShowSystemApps(!showSystem) } }),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
