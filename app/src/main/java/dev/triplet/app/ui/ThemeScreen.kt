@@ -32,7 +32,7 @@ import kotlinx.coroutines.launch
 fun ThemeScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     val c = detourColors
-    val settings by store.settings.collectAsState(initial = null)
+    val settings by store.settings.collectAsState()
     val current = settings?.themeId?.ifBlank { null } ?: AppTheme.LAVENDA.id
 
     Column(
