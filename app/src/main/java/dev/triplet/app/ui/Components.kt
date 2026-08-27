@@ -2,10 +2,13 @@ package dev.triplet.app.ui
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -29,16 +32,18 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.semantics.Role
 import dev.triplet.app.R
 
 val detourColors: DetourColors
@@ -46,6 +51,42 @@ val detourColors: DetourColors
 
 val hairline: Color
     @Composable get() = detourColors.border
+
+/**
+ * Lightweight press feedback for custom rows/segments.
+ * We intentionally do not use the default ripple here: on these flat custom
+ * surfaces it reads as a rectangular flash. Instead the surface tint eases in
+ * and out while accessibility/click semantics remain provided by clickable.
+ */
+@Composable
+fun Modifier.detourClickable(
+    onClick: () -> Unit,
+    role: Role? = null,
+    idleColor: Color = Color.Transparent,
+    pressedColor: Color? = null,
+): Modifier {
+    val c = detourColors
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val targetColor = if (pressed) {
+        pressedColor ?: c.surfaceSelected.copy(alpha = 0.68f)
+    } else {
+        idleColor
+    }
+    val background by animateColorAsState(
+        targetValue = targetColor,
+        animationSpec = tween(if (pressed) 70 else 110),
+        label = "detourPress",
+    )
+    return this
+        .background(background)
+        .clickable(
+            interactionSource = interactionSource,
+            indication = null,
+            role = role,
+            onClick = onClick,
+        )
+}
 
 @Composable
 fun DetourCard(
@@ -74,7 +115,7 @@ fun SettingRow(
     val c = detourColors
     Row(
         Modifier.fillMaxWidth()
-            .clickable(role = Role.Button, onClick = onClick)
+            .detourClickable(onClick = onClick, role = Role.Button)
             .heightIn(min = 56.dp)
             .padding(horizontal = Spacing.space16, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -150,16 +191,30 @@ fun DetourSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, animate: 
         if (checked) Color.Transparent else c.textMuted.copy(alpha = .25f),
         tween(160), label = "switchThumbBorder",
     )
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (animate && pressed) 0.96f else 1f,
+        animationSpec = tween(if (pressed) 70 else 110),
+        label = "switchPress",
+    )
     Box(
         Modifier.size(48.dp).toggleable(
             value = checked,
+            interactionSource = interactionSource,
+            indication = null,
             role = Role.Switch,
             onValueChange = onCheckedChange,
         ),
         contentAlignment = Alignment.CenterStart,
     ) {
         Box(
-            Modifier.padding(start = if (compact) 4.dp else 2.dp).size(trackWidth, trackHeight)
+            Modifier.padding(start = if (compact) 4.dp else 2.dp)
+                .size(trackWidth, trackHeight)
+                .graphicsLayer {
+                    scaleX = pressScale
+                    scaleY = pressScale
+                }
                 .background(trackColor, androidx.compose.foundation.shape.CircleShape)
                 .border(1.dp, trackBorder, androidx.compose.foundation.shape.CircleShape),
         ) {
@@ -227,14 +282,15 @@ fun RadioRow(
     trailing: @Composable (() -> Unit)? = null,
 ) {
     val c = detourColors
-    val bg by animateColorAsState(
-        if (selected) c.accentSoft else Color.Transparent, tween(160), label = "radioBg",
-    )
     Row(
         modifier
             .fillMaxWidth()
-            .background(bg)
-            .clickable(role = Role.RadioButton, onClick = onClick)
+            .detourClickable(
+                onClick = onClick,
+                role = Role.RadioButton,
+                idleColor = if (selected) c.accentSoft else Color.Transparent,
+                pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
+            )
             .heightIn(min = 52.dp)
             .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
         verticalAlignment = Alignment.CenterVertically,
@@ -300,14 +356,17 @@ fun SegmentedControl(
     ) {
         options.forEachIndexed { i, label ->
             val on = i == selected
-            val bg by animateColorAsState(if (on) c.accentSoft else Color.Transparent, tween(140), label = "segBg")
             val fg by animateColorAsState(if (on) c.accent else c.textSecondary, tween(140), label = "segFg")
             Row(
                 Modifier
                     .weight(1f)
                     .fillMaxSize()
-                    .background(bg)
-                    .clickable(role = Role.RadioButton) { onSelect(i) },
+                    .detourClickable(
+                        onClick = { onSelect(i) },
+                        role = Role.RadioButton,
+                        idleColor = if (on) c.accentSoft else Color.Transparent,
+                        pressedColor = if (on) c.accentSoft else c.surfaceSelected,
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
             ) {
