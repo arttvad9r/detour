@@ -41,7 +41,7 @@ fun DnsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val c = detourColors
-    val settings by store.settings.collectAsState(initial = null)
+    val settings by store.settings.collectAsState()
     val selectedDns = settings?.dnsId?.ifBlank { null } ?: "google"
     var customField by rememberSaveable(settings?.dnsCustom) { androidx.compose.runtime.mutableStateOf(settings?.dnsCustom ?: "") }
     val customInvalid = customField.isNotBlank() && !DnsOptions.isValid(customField)
