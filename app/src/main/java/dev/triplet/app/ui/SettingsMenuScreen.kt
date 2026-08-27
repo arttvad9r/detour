@@ -46,7 +46,7 @@ fun SettingsMenuScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val settings by store.settings.collectAsState(initial = null)
+    val settings by store.settings.collectAsState()
     val scope = rememberCoroutineScope()
     val c = detourColors
     val routed = settings?.routes?.countValues { it != AppRoute.DIRECT } ?: 0
