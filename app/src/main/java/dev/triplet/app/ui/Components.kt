@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonElevation
@@ -30,7 +29,6 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -138,27 +136,37 @@ fun DetourSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, animate: 
     val thumbSize = if (compact) 18.dp else 20.dp
     val thumbStart = if (compact) 4.dp else 3.dp
     val targetOffset = if (checked) trackWidth - thumbSize - thumbStart else thumbStart
-    val animatedOffset by animateDpAsState(targetOffset, tween(180), label = "switchThumb")
+    val animatedOffset by animateDpAsState(targetOffset, tween(160), label = "switchThumb")
     val thumbOffset = if (animate) animatedOffset else targetOffset
+    val trackColor by animateColorAsState(
+        if (checked) c.accent else c.border.copy(alpha = .85f),
+        tween(160), label = "switchTrack",
+    )
+    val trackBorder by animateColorAsState(
+        if (checked) c.accent else c.textMuted.copy(alpha = .25f),
+        tween(160), label = "switchBorder",
+    )
+    val thumbBorder by animateColorAsState(
+        if (checked) Color.Transparent else c.textMuted.copy(alpha = .25f),
+        tween(160), label = "switchThumbBorder",
+    )
     Box(
         Modifier.size(48.dp).toggleable(
             value = checked,
             role = Role.Switch,
             onValueChange = onCheckedChange,
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
         ),
         contentAlignment = Alignment.CenterStart,
     ) {
         Box(
             Modifier.padding(start = if (compact) 4.dp else 2.dp).size(trackWidth, trackHeight)
-                .background(if (checked) c.accent else c.border.copy(alpha = .85f), androidx.compose.foundation.shape.CircleShape)
-                .border(1.dp, if (checked) c.accent else c.textMuted.copy(alpha = .25f), androidx.compose.foundation.shape.CircleShape),
+                .background(trackColor, androidx.compose.foundation.shape.CircleShape)
+                .border(1.dp, trackBorder, androidx.compose.foundation.shape.CircleShape),
         ) {
             Box(
                 Modifier.padding(start = thumbOffset - thumbStart, top = 3.dp).size(thumbSize)
                     .background(Color.White, androidx.compose.foundation.shape.CircleShape)
-                    .border(1.dp, if (checked) Color.Transparent else c.textMuted.copy(alpha = .25f), androidx.compose.foundation.shape.CircleShape),
+                    .border(1.dp, thumbBorder, androidx.compose.foundation.shape.CircleShape),
             )
         }
     }
@@ -178,6 +186,7 @@ fun DetourButton(
     contentColor: Color? = null,
     disabledContainer: Color? = null,
     disabledContent: Color? = null,
+    borderColor: Color? = null,
     elevation: ButtonElevation? = null,
 ) {
     val c = detourColors
@@ -185,6 +194,11 @@ fun DetourButton(
     val fg = contentColor ?: if (style == ButtonStyle.PRIMARY) c.onAccent else c.textPrimary
     val disBg = disabledContainer ?: if (style == ButtonStyle.PRIMARY) c.accentSoft else c.surfaceSoft
     val disFg = disabledContent ?: if (style == ButtonStyle.PRIMARY) c.accent else c.textMuted
+    val border = when {
+        borderColor != null -> androidx.compose.foundation.BorderStroke(1.dp, borderColor)
+        style == ButtonStyle.SECONDARY -> androidx.compose.foundation.BorderStroke(1.dp, c.border)
+        else -> null
+    }
     Button(
         onClick = onClick,
         enabled = enabled,
@@ -196,7 +210,7 @@ fun DetourButton(
             disabledContentColor = disFg,
         ),
         elevation = elevation,
-        border = if (style == ButtonStyle.SECONDARY) androidx.compose.foundation.BorderStroke(1.dp, c.border) else null,
+        border = border,
         modifier = modifier.fillMaxWidth().height(height.dp),
     ) {
         Text(text, style = MaterialTheme.typography.labelLarge)
@@ -214,7 +228,7 @@ fun RadioRow(
 ) {
     val c = detourColors
     val bg by animateColorAsState(
-        if (selected) c.accentSoft else Color.Transparent, tween(200), label = "radioBg",
+        if (selected) c.accentSoft else Color.Transparent, tween(160), label = "radioBg",
     )
     Row(
         modifier
@@ -248,17 +262,23 @@ fun RadioRow(
 @Composable
 fun RadioDot(selected: Boolean) {
     val c = detourColors
+    val ringColor by animateColorAsState(
+        if (selected) c.accent else c.textMuted.copy(alpha = 0.55f),
+        tween(140), label = "radioRing",
+    )
+    val dotSize by animateDpAsState(
+        if (selected) 8.dp else 0.dp,
+        tween(140), label = "radioDot",
+    )
     Box(
         Modifier.size(18.dp).border(
             width = 1.5.dp,
-            color = if (selected) c.accent else c.textMuted.copy(alpha = 0.55f),
+            color = ringColor,
             shape = androidx.compose.foundation.shape.CircleShape,
         ),
         contentAlignment = Alignment.Center,
     ) {
-        if (selected) {
-            Box(Modifier.size(8.dp).background(c.accent, androidx.compose.foundation.shape.CircleShape))
-        }
+        Box(Modifier.size(dotSize).background(c.accent, androidx.compose.foundation.shape.CircleShape))
     }
 }
 
@@ -280,7 +300,8 @@ fun SegmentedControl(
     ) {
         options.forEachIndexed { i, label ->
             val on = i == selected
-            val bg by animateColorAsState(if (on) c.accentSoft else Color.Transparent, tween(160), label = "seg")
+            val bg by animateColorAsState(if (on) c.accentSoft else Color.Transparent, tween(140), label = "segBg")
+            val fg by animateColorAsState(if (on) c.accent else c.textSecondary, tween(140), label = "segFg")
             Row(
                 Modifier
                     .weight(1f)
@@ -294,7 +315,7 @@ fun SegmentedControl(
                     label,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
-                    color = if (on) c.accent else c.textSecondary,
+                    color = fg,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                 )
