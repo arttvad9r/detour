@@ -5,7 +5,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -42,7 +41,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Экспорт/импорт: компактные строки-действия вместо двух огромных CTA. */
 @Composable
 fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
@@ -125,14 +123,14 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
             stringResource(R.string.backup_note),
             style = MaterialTheme.typography.bodySmall,
             color = c.textSecondary,
-            modifier = Modifier.padding(horizontal = Spacing.space20),
+            modifier = Modifier.padding(horizontal = Spacing.space16),
         )
         Spacer(Modifier.height(Spacing.space4))
         Text(
             stringResource(R.string.backup_warning),
             style = MaterialTheme.typography.bodySmall,
             color = c.textSecondary,
-            modifier = Modifier.padding(horizontal = Spacing.space20, vertical = Spacing.space4),
+            modifier = Modifier.padding(horizontal = Spacing.space16, vertical = Spacing.space4),
         )
 
         Spacer(Modifier.height(Spacing.space12))
@@ -152,7 +150,7 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
                 status,
                 style = MaterialTheme.typography.bodySmall,
                 color = if (statusIsError) c.error else c.active,
-                modifier = Modifier.padding(horizontal = Spacing.space20),
+                modifier = Modifier.padding(horizontal = Spacing.space16),
             )
         }
         Spacer(Modifier.height(Spacing.space24))
@@ -173,15 +171,15 @@ private fun readLimited(input: java.io.InputStream, maxBytes: Int): String {
     return out.toString(Charsets.UTF_8.name())
 }
 
-/** Строка-действие 52dp: иконка + подпись. */
 @Composable
 private fun ActionRow(label: String, iconRes: Int, accent: Boolean, onClick: () -> Unit) {
     val c = detourColors
     val tint = if (accent) c.accent else c.textSecondary
     Row(
         Modifier.fillMaxWidth()
+            .height(56.dp)
             .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
-            .padding(horizontal = Spacing.space16, vertical = 14.dp),
+            .padding(horizontal = Spacing.space16),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
