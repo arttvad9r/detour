@@ -4,10 +4,10 @@ import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,7 +45,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import dev.triplet.app.R
-import dev.triplet.app.core.DpiPreset
 import dev.triplet.app.core.AppRoute
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.VlessKeyParser
@@ -68,10 +66,6 @@ fun homeProtocol(routes: Map<String, AppRoute>): HomeProtocol {
     }
 }
 
-/**
- * Главный экран: header, воздух, компактная статус-карточка, горная сцена,
- * кнопка действия. Экран — функция VpnState; логика в VpnController.
- */
 @Composable
 fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
     val state by VpnController.state.collectAsState()
@@ -82,15 +76,12 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
 
     val settings by store.settings.collectAsState(initial = null)
     val status = theme.statusFor(st)
-    // Плавный переход OFF -> CONNECTING -> ON (и обратно) за ~400мс.
     val style = StatusStyle(
-        container = animateColorAsState(status.container, tween(400), label = "cardBg").value,
-        content = animateColorAsState(status.content, tween(400), label = "cardFg").value,
-        border = animateColorAsState(status.border, tween(400), label = "cardBorder").value,
+        container = animateColorAsState(status.container, tween(220), label = "cardBg").value,
+        content = animateColorAsState(status.content, tween(220), label = "cardFg").value,
+        border = animateColorAsState(status.border, tween(220), label = "cardBorder").value,
     )
 
-    // Таймер берётся от сохранённого начала активной сессии, поэтому не
-    // сбрасывается при пересоздании Activity; во время подключения его нет.
     var elapsed by rememberSaveable { mutableIntStateOf(0) }
     LaunchedEffect(st, settings?.sessionStartedAt) {
         if (st == VpnState.Active) {
@@ -109,7 +100,6 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
         (VlessKeyParser.parse(settings?.vlessUri ?: "") as? ParseResult.Ok)?.profile?.server
     }
 
-    // Системное согласие VPN: после одобрения сразу продолжаем подключение.
     val consentLauncher = rememberLauncherForActivityResult(StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) VpnController.startNow(ctx)
     }
@@ -120,7 +110,6 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
 
     Box(modifier.fillMaxSize().background(c.background)) {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
-            // Header: Detour + настройки. Иконка 22dp, touch target 48dp.
             Row(
                 Modifier.fillMaxWidth().padding(start = Spacing.space16, end = Spacing.space8, top = Spacing.space8),
                 verticalAlignment = Alignment.CenterVertically,
@@ -141,8 +130,6 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
                 }
             }
 
-            // Воздух намеренный: карточка в верхней трети свободного поля,
-            // горная сцена — между карточкой и кнопкой.
             Spacer(Modifier.weight(1f))
             StatusCard(
                 state = st,
@@ -179,7 +166,6 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
     }
 }
 
-/** Главная кнопка: 52dp, состояния OFF/CONNECTING/ON различаются мягко. */
 @Composable
 private fun MainButton(
     state: VpnState,
@@ -194,7 +180,7 @@ private fun MainButton(
             state == VpnState.Starting -> c.accentSoft
             else -> c.accent
         },
-        tween(400), label = "btnBg",
+        tween(220), label = "btnBg",
     )
     val content by animateColorAsState(
         when {
@@ -202,7 +188,7 @@ private fun MainButton(
             state == VpnState.Starting -> c.accent
             else -> c.onAccent
         },
-        tween(400), label = "btnFg",
+        tween(220), label = "btnFg",
     )
     val borderColor by animateColorAsState(
         when {
@@ -210,32 +196,27 @@ private fun MainButton(
             state == VpnState.Starting -> c.accentBorder
             else -> Color.Transparent
         },
-        tween(400), label = "btnBorder",
+        tween(220), label = "btnBorder",
     )
     val text = when (state) {
         VpnState.Active -> stringResource(R.string.btn_disconnect)
         VpnState.Starting -> stringResource(R.string.btn_connecting)
         else -> stringResource(R.string.btn_connect)
     }
-    Box(
-        modifier
-            .clip(AppShapes.small)
-            .background(container)
-            .border(1.dp, borderColor, AppShapes.small)
-            .clickable(enabled = state != VpnState.Starting, role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
-            .height(52.dp)
-            .padding(horizontal = Spacing.space24),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text, style = MaterialTheme.typography.labelLarge,
-            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-            color = content,
-        )
-    }
+
+    DetourButton(
+        text = text,
+        onClick = onClick,
+        modifier = modifier,
+        enabled = state != VpnState.Starting,
+        container = container,
+        contentColor = content,
+        disabledContainer = container,
+        disabledContent = content,
+        borderColor = borderColor,
+    )
 }
 
-/** Компактная статус-карточка: статус 18sp, таймер, разделитель, сетка данных. */
 @Composable
 private fun StatusCard(
     state: VpnState,
@@ -255,6 +236,7 @@ private fun StatusCard(
     }
     Column(
         modifier
+            .animateContentSize(tween(180))
             .clip(AppShapes.medium)
             .background(style.container.copy(alpha = 0.96f))
             .border(1.dp, style.border, AppShapes.medium)
@@ -273,7 +255,6 @@ private fun StatusCard(
             )
             if (state == VpnState.Starting) {
                 Spacer(Modifier.size(10.dp))
-                // Маленький inline-индикатор вместо огромного спиннера.
                 CircularProgressIndicator(
                     modifier = Modifier.size(14.dp),
                     strokeWidth = 1.5.dp,
@@ -336,7 +317,6 @@ private fun StatusCard(
     }
 }
 
-/** Двухколоночная сетка параметров: подпись secondary, значение Medium. */
 @Composable
 private fun InfoRow(label: String, value: String) {
     val c = detourColors
