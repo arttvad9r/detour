@@ -30,6 +30,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,11 +49,11 @@ import dev.triplet.app.R
 import dev.triplet.app.core.AppRoute
 import dev.triplet.app.data.AppInfo
 import dev.triplet.app.data.AppInventory
-import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.data.AppRouteOrdering
+import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.vpn.VpnController
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
