@@ -1,5 +1,7 @@
 package dev.triplet.app.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -34,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -67,6 +70,11 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
     val searchHint = stringResource(R.string.search_hint)
 
     var query by rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
+    var searchFocused by remember { androidx.compose.runtime.mutableStateOf(false) }
+    val searchBorder by animateColorAsState(
+        if (searchFocused) c.accent else c.border,
+        tween(140), label = "searchBorder",
+    )
     val showSystem = currentSettings.showSystemApps
     val allApps by produceState<List<AppInfo>?>(initialValue = null, ctx) {
         value = withContext(Dispatchers.IO) { AppInventory.load(ctx) }
@@ -102,13 +110,13 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
                 .height(56.dp)
                 .clip(AppShapes.small)
                 .background(c.surface)
-                .border(1.dp, c.border, AppShapes.small)
+                .border(1.dp, searchBorder, AppShapes.small)
                 .padding(horizontal = Spacing.space12),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
                 painterResource(R.drawable.ic_search), null,
-                tint = c.textMuted,
+                tint = if (searchFocused) c.accent else c.textMuted,
                 modifier = Modifier.size(18.dp),
             )
             Spacer(Modifier.width(8.dp))
@@ -126,9 +134,10 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
                     singleLine = true,
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = c.textPrimary),
                     cursorBrush = SolidColor(c.accent),
-                    modifier = Modifier.fillMaxWidth().semantics {
-                        contentDescription = searchHint
-                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onFocusChanged { searchFocused = it.isFocused }
+                        .semantics { contentDescription = searchHint },
                 )
             }
         }
