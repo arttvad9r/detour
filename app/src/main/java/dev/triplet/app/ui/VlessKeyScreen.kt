@@ -1,5 +1,7 @@
 package dev.triplet.app.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -210,8 +212,14 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
 @Composable
 private fun KeyRow(key: VlessKey, selected: Boolean, onEdit: () -> Unit, onDelete: () -> Unit, onClick: () -> Unit) {
     val c = detourColors
+    val bg by animateColorAsState(
+        if (selected) c.accentSoft else androidx.compose.ui.graphics.Color.Transparent,
+        tween(160), label = "keyRowBg",
+    )
     Row(
-        Modifier.fillMaxWidth().clickable(role = androidx.compose.ui.semantics.Role.RadioButton, onClick = onClick)
+        Modifier.fillMaxWidth()
+            .background(bg)
+            .clickable(role = androidx.compose.ui.semantics.Role.RadioButton, onClick = onClick)
             .padding(start = Spacing.space16, top = Spacing.space12, bottom = Spacing.space12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
