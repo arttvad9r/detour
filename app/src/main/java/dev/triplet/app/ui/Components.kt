@@ -43,18 +43,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.Role
 import dev.triplet.app.R
 
-/** Токены активной темы в композиции. */
 val detourColors: DetourColors
     @Composable get() = LocalDetourTheme.current.colors
 
-/** Волосная граница поверхностей. */
 val hairline: Color
     @Composable get() = detourColors.border
 
-/**
- * Сгруппированная поверхность: почти белый фон, radius 20, граница 1dp,
- * без тени. Внутри — строки и разделители; контент клипуется по форме.
- */
 @Composable
 fun DetourCard(
     modifier: Modifier = Modifier,
@@ -71,10 +65,6 @@ fun DetourCard(
     )
 }
 
-/**
- * Строка настройки: line-иконка 18dp на мягком лавандовом квадрате 36dp,
- * заголовок 15sp Medium, подпись 13sp, тонкий шеврон. Высота ~64dp.
- */
 @Composable
 fun SettingRow(
     title: String,
@@ -87,7 +77,8 @@ fun SettingRow(
     Row(
         Modifier.fillMaxWidth()
             .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = Spacing.space16, vertical = 11.dp),
+            .heightIn(min = 56.dp)
+            .padding(horizontal = Spacing.space16, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -100,7 +91,7 @@ fun SettingRow(
                 modifier = Modifier.size(18.dp),
             )
         }
-        Column(Modifier.padding(start = 12.dp).weight(1f)) {
+        Column(Modifier.padding(start = Spacing.space12).weight(1f)) {
             Text(
                 title, style = MaterialTheme.typography.titleSmall,
                 color = c.textPrimary,
@@ -119,18 +110,16 @@ fun SettingRow(
     }
 }
 
-/** Тонкий шеврон «›» для строк-ссылок. */
 @Composable
 fun Chevron() {
     Text(
         "›", style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Normal,
         color = detourColors.textMuted,
-        modifier = Modifier.padding(start = 8.dp),
+        modifier = Modifier.padding(start = Spacing.space8),
     )
 }
 
-/** Разделитель внутри группы с отступом от иконки. */
 @Composable
 fun GroupDivider(startInset: Int = 64) {
     Box(
@@ -141,7 +130,6 @@ fun GroupDivider(startInset: Int = 64) {
     )
 }
 
-/** Общий компактный switch: 44x26dp visual, 48x48dp touch target. */
 @Composable
 fun DetourSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, animate: Boolean = true, compact: Boolean = false) {
     val c = detourColors
@@ -176,13 +164,8 @@ fun DetourSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, animate: 
     }
 }
 
-/** Кнопочные стили. */
 enum class ButtonStyle { PRIMARY, SECONDARY }
 
-/**
- * Кнопка действия. PRIMARY — лавандовая заливка; SECONDARY — поверхность
- * с тонкой границей. Высота по умолчанию 52dp (главное действие).
- */
 @Composable
 fun DetourButton(
     text: String,
@@ -220,11 +203,6 @@ fun DetourButton(
     }
 }
 
-/**
- * Строка-опция с радио-индикатором 18dp (touch target — вся строка 48dp+).
- * Выбранная — мягкий лавандовый фон без толстой границы. Для группировки
- * кладётся внутрь DetourCard на всю ширину.
- */
 @Composable
 fun RadioRow(
     title: String,
@@ -243,12 +221,12 @@ fun RadioRow(
             .fillMaxWidth()
             .background(bg)
             .clickable(role = Role.RadioButton, onClick = onClick)
-            .heightIn(min = 48.dp)
-            .padding(horizontal = Spacing.space16, vertical = 12.dp),
+            .heightIn(min = 52.dp)
+            .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RadioDot(selected)
-        Column(Modifier.padding(start = 12.dp).weight(1f)) {
+        Column(Modifier.padding(start = Spacing.space12).weight(1f)) {
             Text(
                 title, style = MaterialTheme.typography.titleSmall,
                 color = c.textPrimary,
@@ -267,7 +245,6 @@ fun RadioRow(
     }
 }
 
-/** Радио-индикатор: визуал 18dp, точка 8dp. */
 @Composable
 fun RadioDot(selected: Boolean) {
     val c = detourColors
@@ -285,10 +262,6 @@ fun RadioDot(selected: Boolean) {
     }
 }
 
-/**
- * Компактный сегментный переключатель (32dp): выбран — accentSoft/accent,
- * не выбран — поверхность/textSecondary, граница 1dp.
- */
 @Composable
 fun SegmentedControl(
     options: List<String>,
@@ -330,12 +303,11 @@ fun SegmentedControl(
     }
 }
 
-/** Заголовок внутреннего экрана: назад + название, высота 56dp. */
 @Composable
 fun ScreenHeader(title: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val c = detourColors
     Row(
-        modifier.fillMaxWidth().height(56.dp).padding(start = 4.dp, end = Spacing.space20),
+        modifier.fillMaxWidth().height(56.dp).padding(start = Spacing.space4, end = Spacing.space20),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onBack) {
@@ -345,19 +317,21 @@ fun ScreenHeader(title: String, onBack: () -> Unit, modifier: Modifier = Modifie
                 modifier = Modifier.size(22.dp),
             )
         }
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(Spacing.space4))
         Text(title, style = MaterialTheme.typography.titleLarge, color = c.textPrimary)
     }
 }
 
-/** Общие цвета полей ввода: поверхность, волосная граница, лавандовый фокус. */
 @Composable
 fun fieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedContainerColor = Color.Transparent,
-    unfocusedContainerColor = Color.Transparent,
+    focusedContainerColor = detourColors.surface,
+    unfocusedContainerColor = detourColors.surface,
+    disabledContainerColor = detourColors.surfaceSoft,
     focusedBorderColor = detourColors.accent,
     unfocusedBorderColor = detourColors.border,
+    disabledBorderColor = detourColors.border,
     cursorColor = detourColors.accent,
     focusedTextColor = detourColors.textPrimary,
     unfocusedTextColor = detourColors.textPrimary,
+    disabledTextColor = detourColors.textMuted,
 )
