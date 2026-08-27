@@ -1,7 +1,6 @@
 package dev.triplet.app.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -63,7 +62,6 @@ fun SettingsMenuScreen(
         ScreenHeader(stringResource(R.string.settings_title), onBack)
         Spacer(Modifier.height(Spacing.space8))
 
-        // Логически связанные разделы — одна группа, разделители между строками.
         val items = listOf(
             MenuItem(R.string.nav_routes, { stringResource(R.string.nav_routes_sub, routed) }, R.drawable.ic_routes) to onOpenRoutes,
             MenuItem(R.string.nav_key, { stringResource(R.string.nav_key_sub) }, R.drawable.ic_lock) to onOpenVless,
@@ -84,12 +82,12 @@ fun SettingsMenuScreen(
             }
         }
 
-        // Автоподключение — отдельная компактная группа.
         Spacer(Modifier.height(Spacing.space12))
         DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
             Row(
                 Modifier.fillMaxWidth()
-                    .padding(horizontal = Spacing.space16, vertical = 14.dp),
+                    .height(56.dp)
+                    .padding(horizontal = Spacing.space16),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -100,7 +98,6 @@ fun SettingsMenuScreen(
                 )
                 DetourSwitch(
                     checked = settings?.autoConnect == true,
-                    compact = true,
                     onCheckedChange = { v -> scope.launch { store.setAutoConnect(v) } },
                 )
             }
@@ -111,7 +108,7 @@ fun SettingsMenuScreen(
             stringResource(R.string.autorestart_note),
             style = MaterialTheme.typography.bodySmall,
             color = c.textMuted,
-            modifier = Modifier.padding(horizontal = Spacing.space20),
+            modifier = Modifier.padding(horizontal = Spacing.space16),
         )
         Spacer(Modifier.height(Spacing.space24))
     }
