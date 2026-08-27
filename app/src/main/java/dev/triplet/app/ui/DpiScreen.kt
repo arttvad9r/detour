@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -23,7 +22,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import dev.triplet.app.R
 import dev.triplet.app.core.DpiArgs
 import dev.triplet.app.core.DpiPreset
@@ -59,7 +57,6 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
             }
         }
 
-        // Один сгруппированный селектор стратегий.
         DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
             RadioRow(
                 title = stringResource(R.string.preset_recommended),
@@ -74,7 +71,6 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
             )
         }
 
-        // Редактор своей стратегии — отдельный раскрывающийся блок, не subtitle.
         if (settings?.preset == DpiPreset.CUSTOM) {
             Spacer(Modifier.height(Spacing.space12))
             OutlinedTextField(
@@ -94,8 +90,7 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
                         VpnController.restartIfActive(ctx)
                     }
                 },
-                 enabled = DpiArgs.isValid(customField),
-                height = 48,
+                enabled = DpiArgs.isValid(customField),
                 modifier = Modifier.padding(horizontal = Spacing.space16),
             )
         }
