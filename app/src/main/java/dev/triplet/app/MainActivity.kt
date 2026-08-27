@@ -3,16 +3,17 @@ package dev.triplet.app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
-import androidx.compose.runtime.LaunchedEffect
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -49,7 +50,6 @@ class MainActivity : ComponentActivity() {
         setContent {
             val settings by store.settings.collectAsState(initial = null)
             val theme = AppTheme.byId(settings?.themeId ?: "")
-            // Фон продолжается под системные бары; иконки — тёмные на светлых темах.
             LaunchedEffect(theme) {
                 val style = if (theme.dark) SystemBarStyle.dark(Color.Transparent.toArgb())
                 else SystemBarStyle.light(Color.Transparent.toArgb(), Color.Transparent.toArgb())
@@ -58,30 +58,32 @@ class MainActivity : ComponentActivity() {
             CompositionLocalProvider(LocalDetourTheme provides theme) {
                 MaterialTheme(colorScheme = theme.scheme, typography = AppTypography, shapes = AppShapes) {
                     Box(Modifier.fillMaxSize().background(theme.colors.background)) {
-                         var screen by rememberSaveable { androidx.compose.runtime.mutableStateOf(Screen.HOME) }
-                        // Автоподключение при старте (настройка, по умолчанию выключена).
+                        var screen by rememberSaveable { androidx.compose.runtime.mutableStateOf(Screen.HOME) }
                         val ctx = this@MainActivity
-                         LaunchedEffect(settings?.autoConnect, settings?.routes, settings?.vlessUri) {
-                             val effective = settings?.let { s ->
-                                 effectiveRoutes(s.routes, s.routes.keys.associateWith { pkg ->
-                                     runCatching { packageManager.getPackageUid(pkg, 0) }.getOrNull()
-                                 })
-                             }
-                             val activeValid = settings?.vlessKeys?.active?.uri?.let {
-                                 VlessKeyParser.parse(it) is ParseResult.Ok
-                             } == true
-                             if (settings != null && effective != null &&
-                                 canAutoConnect(settings!!, android.net.VpnService.prepare(ctx) == null, effective, activeValid) &&
-                                 VpnController.state.value == VpnState.Idle
-                             ) {
-                                 VpnController.startNow(ctx)
+                        LaunchedEffect(settings?.autoConnect, settings?.routes, settings?.vlessUri) {
+                            val effective = settings?.let { s ->
+                                effectiveRoutes(s.routes, s.routes.keys.associateWith { pkg ->
+                                    runCatching { packageManager.getPackageUid(pkg, 0) }.getOrNull()
+                                })
+                            }
+                            val activeValid = settings?.vlessKeys?.active?.uri?.let {
+                                VlessKeyParser.parse(it) is ParseResult.Ok
+                            } == true
+                            if (settings != null && effective != null &&
+                                canAutoConnect(settings!!, android.net.VpnService.prepare(ctx) == null, effective, activeValid) &&
+                                VpnController.state.value == VpnState.Idle
+                            ) {
+                                VpnController.startNow(ctx)
                             }
                         }
-                        // Назад: с подстраниц — в меню настроек, из настроек — на главную.
                         BackHandler(enabled = screen != Screen.HOME) {
                             screen = if (screen == Screen.SETTINGS) Screen.HOME else Screen.SETTINGS
                         }
-                        Crossfade(targetState = screen, label = "screen") { s ->
+                        Crossfade(
+                            targetState = screen,
+                            animationSpec = tween(durationMillis = 160),
+                            label = "screen",
+                        ) { s ->
                             when (s) {
                                 Screen.HOME -> HomeScreen(store, onOpenSettings = { screen = Screen.SETTINGS })
                                 Screen.SETTINGS -> SettingsMenuScreen(
