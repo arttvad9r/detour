@@ -1,10 +1,7 @@
 package dev.triplet.app.ui
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,6 +34,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -212,14 +210,14 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
 @Composable
 private fun KeyRow(key: VlessKey, selected: Boolean, onEdit: () -> Unit, onDelete: () -> Unit, onClick: () -> Unit) {
     val c = detourColors
-    val bg by animateColorAsState(
-        if (selected) c.accentSoft else androidx.compose.ui.graphics.Color.Transparent,
-        tween(160), label = "keyRowBg",
-    )
     Row(
         Modifier.fillMaxWidth()
-            .background(bg)
-            .clickable(role = androidx.compose.ui.semantics.Role.RadioButton, onClick = onClick)
+            .detourClickable(
+                onClick = onClick,
+                role = Role.RadioButton,
+                idleColor = if (selected) c.accentSoft else Color.Transparent,
+                pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
+            )
             .padding(start = Spacing.space16, top = Spacing.space12, bottom = Spacing.space12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
