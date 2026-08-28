@@ -1,5 +1,8 @@
 package dev.triplet.app.ui
 
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.Easing
+
 /**
  * One restrained motion language for the whole app.
  *
@@ -7,8 +10,7 @@ package dev.triplet.app.ui
  * stay small so motion communicates hierarchy without slowing a utility app down.
  */
 object Motion {
-    // Keep press feedback responsive, but let visible state transitions breathe a
-    // little longer than the first pass. The app should feel fluid, not twitchy.
+    // Keep press feedback responsive, but let visible state transitions breathe.
     const val PRESS_TONE_MS = 80
     const val COLOR_MS = 170
     const val STATE_MS = 200
@@ -27,9 +29,15 @@ object Motion {
     const val PRESS_FAB = 0.965f
     const val PRESS_ICON = 0.94f
 
-    // Slightly softer than the initial pass so switches/capsules settle naturally
-    // instead of snapping to their destination.
+    // Material-like asymmetric curves: entrances settle softly; exits get out of
+    // the way a little faster. These matter more than simply increasing duration.
+    val ENTER_EASING: Easing = CubicBezierEasing(0.20f, 0f, 0f, 1f)
+    val EXIT_EASING: Easing = CubicBezierEasing(0.40f, 0f, 1f, 1f)
+    val STANDARD_EASING: Easing = CubicBezierEasing(0.20f, 0f, 0f, 1f)
+
+    // Softer travel springs than press springs. Segments/switches should visibly
+    // travel to the next state, while pressed controls still respond immediately.
     const val SPRING_DAMPING = 0.82f
     const val SPRING_STIFFNESS = 700f
-    const val SPRING_STIFFNESS_SOFT = 500f
+    const val SPRING_STIFFNESS_SOFT = 440f
 }
