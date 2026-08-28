@@ -28,10 +28,11 @@ object WarpConfigImporter {
                 setMaxAliasesForCollections(50)
                 setNestingDepthLimit(40)
                 setCodePointLimit(MAX_CHARS)
+                // Warp Generator configs rely heavily on `<<: *anchor` inheritance.
                 setMergeOnCompose(true)
             }
-            @Suppress("UNCHECKED_CAST")
-            Yaml(SafeConstructor(options)).load<Any?>(raw) as? Map<Any?, Any?>
+            val loaded: Any? = Yaml(SafeConstructor(options)).load(raw)
+            loaded as? Map<*, *>
         } catch (_: Exception) {
             null
         } ?: return WarpImportResult.Invalid
@@ -105,7 +106,9 @@ object WarpConfigImporter {
     }
 
     private fun Map<*, *>.stringList(key: String): List<String> =
-        (this[key] as? List<*>)?.mapNotNull { it?.toString()?.trim()?.takeIf(String::isNotEmpty) }.orEmpty()
+        (this[key] as? List<*>)?.mapNotNull { value ->
+            value?.toString()?.trim()?.takeIf { it.isNotEmpty() }
+        }.orEmpty()
 
     private fun Map<*, *>.intList(key: String): List<Int> =
         (this[key] as? List<*>)?.mapNotNull {
