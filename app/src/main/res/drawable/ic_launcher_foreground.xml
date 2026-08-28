@@ -5,37 +5,43 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Shield: secondary protection motif, intentionally quieter than the network mark. -->
-    <path
-        android:pathData="M54,23 L77,32 L77,50 C77,68 67,79 54,86 C41,79 31,68 31,50 L31,32 Z"
-        android:fillColor="#00000000"
-        android:strokeColor="#FFFFFF"
-        android:strokeAlpha="0.34"
-        android:strokeWidth="3.5"
-        android:strokeLineJoin="round" />
+    <!-- Keep the complete mark well inside the adaptive-icon safe zone. -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.78"
+        android:scaleY="0.78">
 
-    <!-- VPN/network mark. -->
-    <path
-        android:pathData="M46,58 L60,44 M48,63 L66,66"
-        android:fillColor="#00000000"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="5.5"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round" />
+        <path
+            android:pathData="M54,23 L77,32 L77,50 C77,68 67,79 54,86 C41,79 31,68 31,50 L31,32 Z"
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeAlpha="0.34"
+            android:strokeWidth="3.5"
+            android:strokeLineJoin="round" />
 
-    <path
-        android:pathData="M64,34 a6,6 0,1 0,0.01 0 z"
-        android:fillColor="#00000000"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="4.5" />
-    <path
-        android:pathData="M42,56 a6,6 0,1 0,0.01 0 z"
-        android:fillColor="#00000000"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="4.5" />
-    <path
-        android:pathData="M72,61 a6,6 0,1 0,0.01 0 z"
-        android:fillColor="#00000000"
-        android:strokeColor="#FFFFFF"
-        android:strokeWidth="4.5" />
+        <path
+            android:pathData="M46,58 L60,44 M48,63 L66,66"
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="5.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+
+        <path
+            android:pathData="M64,34 a6,6 0,1 0,0.01 0 z"
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="4.5" />
+        <path
+            android:pathData="M42,56 a6,6 0,1 0,0.01 0 z"
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="4.5" />
+        <path
+            android:pathData="M72,61 a6,6 0,1 0,0.01 0 z"
+            android:fillColor="#00000000"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="4.5" />
+    </group>
 </vector>
