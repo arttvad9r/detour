@@ -150,14 +150,30 @@ class MainActivity : ComponentActivity() {
                                     initialState.destination.route == Route.HOME &&
                                         targetState.destination.route == Route.SETTINGS
                                 if (rootTransition) {
-                                    fadeIn(tween(Motion.NAV_ENTER_MS, delayMillis = 15)) +
-                                        scaleIn(tween(Motion.NAV_ENTER_MS), initialScale = 0.99f)
+                                    fadeIn(
+                                        tween(
+                                            Motion.NAV_ENTER_MS,
+                                            delayMillis = 20,
+                                            easing = Motion.ENTER_EASING,
+                                        ),
+                                    ) + scaleIn(
+                                        tween(Motion.NAV_ENTER_MS, easing = Motion.ENTER_EASING),
+                                        initialScale = 0.985f,
+                                    )
                                 } else {
-                                    fadeIn(tween(Motion.NAV_ENTER_MS, delayMillis = 20)) +
-                                        slideInHorizontally(
-                                            animationSpec = tween(Motion.NAV_ENTER_MS),
-                                            initialOffsetX = { it / 14 },
-                                        )
+                                    fadeIn(
+                                        tween(
+                                            Motion.NAV_ENTER_MS,
+                                            delayMillis = 24,
+                                            easing = Motion.ENTER_EASING,
+                                        ),
+                                    ) + slideInHorizontally(
+                                        animationSpec = tween(
+                                            Motion.NAV_ENTER_MS,
+                                            easing = Motion.ENTER_EASING,
+                                        ),
+                                        initialOffsetX = { it / 12 },
+                                    )
                                 }
                             },
                             exitTransition = {
@@ -165,14 +181,22 @@ class MainActivity : ComponentActivity() {
                                     initialState.destination.route == Route.HOME &&
                                         targetState.destination.route == Route.SETTINGS
                                 if (rootTransition) {
-                                    fadeOut(tween(Motion.NAV_EXIT_MS)) +
-                                        scaleOut(tween(Motion.NAV_EXIT_MS), targetScale = 0.995f)
+                                    fadeOut(
+                                        tween(Motion.NAV_EXIT_MS, easing = Motion.EXIT_EASING),
+                                    ) + scaleOut(
+                                        tween(Motion.NAV_EXIT_MS, easing = Motion.EXIT_EASING),
+                                        targetScale = 0.995f,
+                                    )
                                 } else {
-                                    fadeOut(tween(Motion.NAV_EXIT_MS)) +
-                                        slideOutHorizontally(
-                                            animationSpec = tween(Motion.NAV_EXIT_MS),
-                                            targetOffsetX = { -it / 28 },
-                                        )
+                                    fadeOut(
+                                        tween(Motion.NAV_EXIT_MS, easing = Motion.EXIT_EASING),
+                                    ) + slideOutHorizontally(
+                                        animationSpec = tween(
+                                            Motion.NAV_EXIT_MS,
+                                            easing = Motion.EXIT_EASING,
+                                        ),
+                                        targetOffsetX = { -it / 36 },
+                                    )
                                 }
                             },
                             popEnterTransition = {
@@ -180,14 +204,30 @@ class MainActivity : ComponentActivity() {
                                     initialState.destination.route == Route.SETTINGS &&
                                         targetState.destination.route == Route.HOME
                                 if (rootTransition) {
-                                    fadeIn(tween(Motion.NAV_ENTER_MS, delayMillis = 10)) +
-                                        scaleIn(tween(Motion.NAV_ENTER_MS), initialScale = 0.995f)
+                                    fadeIn(
+                                        tween(
+                                            Motion.NAV_ENTER_MS,
+                                            delayMillis = 12,
+                                            easing = Motion.ENTER_EASING,
+                                        ),
+                                    ) + scaleIn(
+                                        tween(Motion.NAV_ENTER_MS, easing = Motion.ENTER_EASING),
+                                        initialScale = 0.992f,
+                                    )
                                 } else {
-                                    fadeIn(tween(Motion.NAV_ENTER_MS, delayMillis = 10)) +
-                                        slideInHorizontally(
-                                            animationSpec = tween(Motion.NAV_ENTER_MS),
-                                            initialOffsetX = { -it / 28 },
-                                        )
+                                    fadeIn(
+                                        tween(
+                                            Motion.NAV_ENTER_MS,
+                                            delayMillis = 16,
+                                            easing = Motion.ENTER_EASING,
+                                        ),
+                                    ) + slideInHorizontally(
+                                        animationSpec = tween(
+                                            Motion.NAV_ENTER_MS,
+                                            easing = Motion.ENTER_EASING,
+                                        ),
+                                        initialOffsetX = { -it / 36 },
+                                    )
                                 }
                             },
                             popExitTransition = {
@@ -195,14 +235,22 @@ class MainActivity : ComponentActivity() {
                                     initialState.destination.route == Route.SETTINGS &&
                                         targetState.destination.route == Route.HOME
                                 if (rootTransition) {
-                                    fadeOut(tween(Motion.NAV_EXIT_MS)) +
-                                        scaleOut(tween(Motion.NAV_EXIT_MS), targetScale = 0.99f)
+                                    fadeOut(
+                                        tween(Motion.NAV_EXIT_MS, easing = Motion.EXIT_EASING),
+                                    ) + scaleOut(
+                                        tween(Motion.NAV_EXIT_MS, easing = Motion.EXIT_EASING),
+                                        targetScale = 0.985f,
+                                    )
                                 } else {
-                                    fadeOut(tween(Motion.NAV_EXIT_MS)) +
-                                        slideOutHorizontally(
-                                            animationSpec = tween(Motion.NAV_EXIT_MS),
-                                            targetOffsetX = { it / 14 },
-                                        )
+                                    fadeOut(
+                                        tween(Motion.NAV_EXIT_MS, easing = Motion.EXIT_EASING),
+                                    ) + slideOutHorizontally(
+                                        animationSpec = tween(
+                                            Motion.NAV_EXIT_MS,
+                                            easing = Motion.EXIT_EASING,
+                                        ),
+                                        targetOffsetX = { it / 12 },
+                                    )
                                 }
                             },
                         ) {
