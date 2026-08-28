@@ -12,14 +12,23 @@ object AppInventory {
         cached ?: query(context.applicationContext).also { cached = it }
     }
 
+    /** Force a fresh PackageManager scan and replace the process-local snapshot. */
+    fun refresh(context: Context): List<AppInfo> = synchronized(this) {
+        query(context.applicationContext).also { cached = it }
+    }
+
+    fun invalidate() {
+        cached = null
+    }
+
     private fun query(context: Context): List<AppInfo> {
         val pm = context.packageManager
         val self = context.packageName
         val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
 
         // Query launcher activities once instead of calling queryIntentActivities()
-        // for every installed package. The previous N+1 PackageManager scan was the
-        // main source of the multi-second delay on first entry to App routes.
+        // for every installed package. The result is process-cached, but callers
+        // refresh that snapshot when Android reports package add/remove/change.
         return pm.queryIntentActivities(launcher, 0)
             .asSequence()
             .mapNotNull { it.activityInfo?.applicationInfo }
@@ -32,6 +41,7 @@ object AppInventory {
                     isSystem = it.flags and ApplicationInfo.FLAG_SYSTEM != 0,
                 )
             }
+            .sortedBy { it.label.lowercase() }
             .toList()
     }
 }
