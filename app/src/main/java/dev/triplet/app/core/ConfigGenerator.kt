@@ -152,10 +152,12 @@ $rules""".trim()
         fields += "  public-key: ${yamlScalar(p.publicKey)}"
         if (p.reserved.isNotEmpty()) fields += "  reserved: [${p.reserved.joinToString(", ")}]"
         fields += "  allowed-ips: ${flowStrings(p.allowedIps)}"
+        p.persistentKeepalive?.let { fields += "  persistent-keepalive: $it" }
         fields += "  udp: ${p.udp}"
         fields += "  mtu: ${p.mtu}"
-        fields += "  remote-dns-resolve: ${p.remoteDnsResolve}"
-        if (p.dns.isNotEmpty()) fields += "  dns: ${flowStrings(p.dns)}"
+        // DNS is a Detour setting. Imported WARP profile DNS must not silently
+        // override the resolver selected in Settings -> DNS.
+        fields += "  remote-dns-resolve: false"
         fields += "  amnezia-wg-option:"
         val a = p.amnezia
         fun int(name: String, value: Int?) { if (value != null) fields += "    $name: $value" }
@@ -179,11 +181,16 @@ $rules""".trim()
 
     private fun renderWarpGroup(count: Int): String = buildString {
         append("- name: $WARP_GROUP\n")
-        append("  type: url-test\n")
-        append("  url: http://speed.cloudflare.com/\n")
+        // Do not continuously chase the lowest latency: changing the WireGuard
+        // endpoint under long-lived UDP/QUIC sessions can stall video streams.
+        // Fallback keeps the current node until it becomes unavailable.
+        append("  type: fallback\n")
+        append("  url: https://cp.cloudflare.com/generate_204\n")
         append("  interval: 300\n")
-        append("  tolerance: 50\n")
-        append("  lazy: true\n")
+        append("  lazy: false\n")
+        append("  timeout: 3000\n")
+        append("  max-failed-times: 2\n")
+        append("  expected-status: 204\n")
         append("  proxies:\n")
         repeat(count) { append("    - WARP_$it\n") }
     }.trimEnd()
