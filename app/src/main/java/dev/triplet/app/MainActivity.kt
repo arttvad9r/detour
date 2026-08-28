@@ -6,11 +6,6 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -45,12 +40,6 @@ import dev.triplet.app.vpn.effectiveRoutes
 
 private enum class Screen { HOME, SETTINGS, ROUTES, VLESS, DPI, THEME, DNS, BACKUP }
 
-private fun Screen.depth(): Int = when (this) {
-    Screen.HOME -> 0
-    Screen.SETTINGS -> 1
-    else -> 2
-}
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,58 +58,58 @@ class MainActivity : ComponentActivity() {
                     Box(Modifier.fillMaxSize().background(theme.colors.background)) {
                         var screen by rememberSaveable { androidx.compose.runtime.mutableStateOf(Screen.HOME) }
                         val ctx = this@MainActivity
-                        LaunchedEffect(settings?.autoConnect, settings?.routes, settings?.vlessUri) {
-                            val effective = settings?.let { s ->
-                                effectiveRoutes(s.routes, s.routes.keys.associateWith { pkg ->
+
+                        // "Подключаться при запуске" is a launch-time policy, not a
+                        // reactive command. Toggling the preference while the app is
+                        // already open must never start the VPN immediately.
+                        LaunchedEffect(Unit) {
+                            val launchSettings = store.snapshot()
+                            val effective = effectiveRoutes(
+                                launchSettings.routes,
+                                launchSettings.routes.keys.associateWith { pkg ->
                                     runCatching { packageManager.getPackageUid(pkg, 0) }.getOrNull()
-                                })
-                            }
-                            val activeValid = settings?.vlessKeys?.active?.uri?.let {
+                                },
+                            )
+                            val activeValid = launchSettings.vlessKeys.active?.uri?.let {
                                 VlessKeyParser.parse(it) is ParseResult.Ok
                             } == true
-                            if (settings != null && effective != null &&
-                                canAutoConnect(settings!!, android.net.VpnService.prepare(ctx) == null, effective, activeValid) &&
-                                VpnController.state.value == VpnState.Idle
+                            if (
+                                canAutoConnect(
+                                    launchSettings,
+                                    android.net.VpnService.prepare(ctx) == null,
+                                    effective,
+                                    activeValid,
+                                ) && VpnController.state.value == VpnState.Idle
                             ) {
                                 VpnController.startNow(ctx)
                             }
                         }
+
                         BackHandler(enabled = screen != Screen.HOME) {
                             screen = if (screen == Screen.SETTINGS) Screen.HOME else Screen.SETTINGS
                         }
-                        AnimatedContent(
-                            targetState = screen,
-                            transitionSpec = {
-                                val forward = targetState.depth() > initialState.depth()
-                                slideInHorizontally(
-                                    animationSpec = tween(durationMillis = 150),
-                                    initialOffsetX = { width -> if (forward) width / 14 else -width / 14 },
-                                ) togetherWith slideOutHorizontally(
-                                    animationSpec = tween(durationMillis = 150),
-                                    targetOffsetX = { width -> if (forward) -width / 14 else width / 14 },
-                                )
-                            },
-                            label = "screen",
-                        ) { s ->
-                            when (s) {
-                                Screen.HOME -> HomeScreen(store, onOpenSettings = { screen = Screen.SETTINGS })
-                                Screen.SETTINGS -> SettingsMenuScreen(
-                                    store,
-                                    onOpenRoutes = { screen = Screen.ROUTES },
-                                    onOpenVless = { screen = Screen.VLESS },
-                                    onOpenDpi = { screen = Screen.DPI },
-                                    onOpenTheme = { screen = Screen.THEME },
-                                    onOpenDns = { screen = Screen.DNS },
-                                    onOpenBackup = { screen = Screen.BACKUP },
-                                    onBack = { screen = Screen.HOME },
-                                )
-                                Screen.ROUTES -> AppsScreen(store, onBack = { screen = Screen.SETTINGS })
-                                Screen.VLESS -> VlessKeyScreen(store, onBack = { screen = Screen.SETTINGS })
-                                Screen.DPI -> DpiScreen(store, onBack = { screen = Screen.SETTINGS })
-                                Screen.THEME -> ThemeScreen(store, onBack = { screen = Screen.SETTINGS })
-                                Screen.DNS -> DnsScreen(store, onBack = { screen = Screen.SETTINGS })
-                                Screen.BACKUP -> BackupScreen(store, onBack = { screen = Screen.SETTINGS })
-                            }
+
+                        // Screen changes are intentionally immediate. The previous
+                        // slide/crossfade made short navigation feel heavier than the
+                        // rest of the interface and could expose intermediate frames.
+                        when (screen) {
+                            Screen.HOME -> HomeScreen(store, onOpenSettings = { screen = Screen.SETTINGS })
+                            Screen.SETTINGS -> SettingsMenuScreen(
+                                store,
+                                onOpenRoutes = { screen = Screen.ROUTES },
+                                onOpenVless = { screen = Screen.VLESS },
+                                onOpenDpi = { screen = Screen.DPI },
+                                onOpenTheme = { screen = Screen.THEME },
+                                onOpenDns = { screen = Screen.DNS },
+                                onOpenBackup = { screen = Screen.BACKUP },
+                                onBack = { screen = Screen.HOME },
+                            )
+                            Screen.ROUTES -> AppsScreen(store, onBack = { screen = Screen.SETTINGS })
+                            Screen.VLESS -> VlessKeyScreen(store, onBack = { screen = Screen.SETTINGS })
+                            Screen.DPI -> DpiScreen(store, onBack = { screen = Screen.SETTINGS })
+                            Screen.THEME -> ThemeScreen(store, onBack = { screen = Screen.SETTINGS })
+                            Screen.DNS -> DnsScreen(store, onBack = { screen = Screen.SETTINGS })
+                            Screen.BACKUP -> BackupScreen(store, onBack = { screen = Screen.SETTINGS })
                         }
                     }
                 }
