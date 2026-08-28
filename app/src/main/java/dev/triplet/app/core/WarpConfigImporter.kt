@@ -10,12 +10,6 @@ sealed interface WarpImportResult {
     data object NoCompatibleProxies : WarpImportResult
 }
 
-/**
- * Imports a WARP/AmneziaWG outbound from either Clash/Mihomo YAML or a native
- * WireGuard/AmneziaWG .conf file. Imported routing rules, proxy groups, DNS policy,
- * listeners and MASQUE entries are intentionally ignored: Detour remains the owner
- * of routing and consumes only compatible outbound credentials.
- */
 object WarpConfigImporter {
     const val MAX_CHARS = 1024 * 1024
     private const val MAX_PROXIES = 128
@@ -42,13 +36,9 @@ object WarpConfigImporter {
             val options = LoaderOptions().apply {
                 setAllowDuplicateKeys(false)
                 setAllowRecursiveKeys(false)
-                // Regular Warp Generator AWG files can reuse one shared anchor
-                // for well over 100 endpoints. Keep the parser bounded, but do
-                // not reject those valid files before we inspect their proxies.
                 setMaxAliasesForCollections(MAX_ALIASES)
                 setNestingDepthLimit(40)
                 setCodePointLimit(MAX_CHARS)
-                // Warp Generator configs rely heavily on `<<: *anchor` inheritance.
                 setMergeOnCompose(true)
             }
             val loaded: Any? = Yaml(SafeConstructor(options)).load(raw)
@@ -87,22 +77,22 @@ object WarpConfigImporter {
         val ipv6 = addresses.firstOrNull { it.contains(':') }
         val dns = csv(iface["dns"])
         val mtu = iface["mtu"]?.toIntOrNull() ?: 1280
-        val reserved = csv(iface["reserved"]).mapNotNull(String::toIntOrNull)
+        val reserved = csv(iface["reserved"]).mapNotNull { it.toIntOrNull() }
         val amnezia = AmneziaWgOptions(
-            jc = iface.int("jc"),
-            jmin = iface.int("jmin"),
-            jmax = iface.int("jmax"),
-            s1 = iface.int("s1"),
-            s2 = iface.int("s2"),
-            h1 = iface.int("h1"),
-            h2 = iface.int("h2"),
-            h3 = iface.int("h3"),
-            h4 = iface.int("h4"),
-            i1 = iface.value("i1"),
-            i2 = iface.value("i2"),
-            i3 = iface.value("i3"),
-            i4 = iface.value("i4"),
-            i5 = iface.value("i5"),
+            jc = iface.iniInt("jc"),
+            jmin = iface.iniInt("jmin"),
+            jmax = iface.iniInt("jmax"),
+            s1 = iface.iniInt("s1"),
+            s2 = iface.iniInt("s2"),
+            h1 = iface.iniInt("h1"),
+            h2 = iface.iniInt("h2"),
+            h3 = iface.iniInt("h3"),
+            h4 = iface.iniInt("h4"),
+            i1 = iface.iniValue("i1"),
+            i2 = iface.iniValue("i2"),
+            i3 = iface.iniValue("i3"),
+            i4 = iface.iniValue("i4"),
+            i5 = iface.iniValue("i5"),
         )
 
         val proxies = peers.asSequence().mapNotNull { section ->
@@ -225,8 +215,8 @@ object WarpConfigImporter {
 
     private fun withoutCidr(value: String): String = value.substringBefore('/').trim()
 
-    private fun Map<String, String>.int(key: String): Int? = this[key]?.toIntOrNull()
-    private fun Map<String, String>.value(key: String): String? = this[key]?.takeIf { it.isNotBlank() }
+    private fun Map<String, String>.iniInt(key: String): Int? = this[key]?.toIntOrNull()
+    private fun Map<String, String>.iniValue(key: String): String? = this[key]?.takeIf { it.isNotBlank() }
 
     private fun Map<*, *>.string(key: String): String? =
         this[key]?.toString()?.trim()?.takeIf { it.isNotEmpty() }
