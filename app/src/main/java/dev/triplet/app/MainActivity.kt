@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.VlessKeyParser
+import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.ui.AppShapes
 import dev.triplet.app.ui.AppTheme
 import dev.triplet.app.ui.AppTypography
@@ -70,15 +71,18 @@ class MainActivity : ComponentActivity() {
                                     runCatching { packageManager.getPackageUid(pkg, 0) }.getOrNull()
                                 },
                             )
-                            val activeValid = launchSettings.vlessKeys.active?.uri?.let {
-                                VlessKeyParser.parse(it) is ParseResult.Ok
-                            } == true
+                            val activeVpnValid = when (launchSettings.activeVpn) {
+                                VpnProfileKind.VLESS -> launchSettings.vlessKeys.active?.uri?.let {
+                                    VlessKeyParser.parse(it) is ParseResult.Ok
+                                } == true
+                                VpnProfileKind.WARP -> launchSettings.warpProfile != null
+                            }
                             if (
                                 canAutoConnect(
                                     launchSettings,
                                     android.net.VpnService.prepare(ctx) == null,
                                     effective,
-                                    activeValid,
+                                    activeVpnValid,
                                 ) && VpnController.state.value == VpnState.Idle
                             ) {
                                 VpnController.startNow(ctx)
