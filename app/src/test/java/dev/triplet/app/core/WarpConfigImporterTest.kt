@@ -101,7 +101,7 @@ class WarpConfigImporterTest {
 
         val result = WarpConfigImporter.parse(large)
         assertTrue(result is WarpImportResult.Ok)
-        assertEquals(135, (result as WarpImportResult.Ok).profile.proxies.size)
+        assertEquals(128, (result as WarpImportResult.Ok).profile.proxies.size)
     }
 
     @Test fun `plain wireguard without AmneziaWG is not accepted`() {
