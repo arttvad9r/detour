@@ -3,9 +3,13 @@ package dev.triplet.app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,11 +18,12 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.core.VpnProfileKind
@@ -39,7 +44,19 @@ import dev.triplet.app.vpn.VpnState
 import dev.triplet.app.vpn.canAutoConnect
 import dev.triplet.app.vpn.effectiveRoutes
 
-private enum class Screen { HOME, SETTINGS, ROUTES, VLESS, DPI, THEME, DNS, BACKUP }
+private object Route {
+    const val HOME = "home"
+    const val SETTINGS = "settings"
+    const val ROUTES = "routes"
+    const val VLESS = "vless"
+    const val DPI = "dpi"
+    const val THEME = "theme"
+    const val DNS = "dns"
+    const val BACKUP = "backup"
+}
+
+private const val NAV_ENTER_MS = 210
+private const val NAV_EXIT_MS = 145
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -57,8 +74,8 @@ class MainActivity : ComponentActivity() {
             CompositionLocalProvider(LocalDetourTheme provides theme) {
                 MaterialTheme(colorScheme = theme.scheme, typography = AppTypography, shapes = AppShapes) {
                     Box(Modifier.fillMaxSize().background(theme.colors.background)) {
-                        var screen by rememberSaveable { androidx.compose.runtime.mutableStateOf(Screen.HOME) }
                         val ctx = this@MainActivity
+                        val navController = rememberNavController()
 
                         // "Подключаться при запуске" is a launch-time policy, not a
                         // reactive command. Toggling the preference while the app is
@@ -89,31 +106,77 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        BackHandler(enabled = screen != Screen.HOME) {
-                            screen = if (screen == Screen.SETTINGS) Screen.HOME else Screen.SETTINGS
-                        }
-
-                        // Screen changes are intentionally immediate. The previous
-                        // slide/crossfade made short navigation feel heavier than the
-                        // rest of the interface and could expose intermediate frames.
-                        when (screen) {
-                            Screen.HOME -> HomeScreen(store, onOpenSettings = { screen = Screen.SETTINGS })
-                            Screen.SETTINGS -> SettingsMenuScreen(
-                                store,
-                                onOpenRoutes = { screen = Screen.ROUTES },
-                                onOpenVless = { screen = Screen.VLESS },
-                                onOpenDpi = { screen = Screen.DPI },
-                                onOpenTheme = { screen = Screen.THEME },
-                                onOpenDns = { screen = Screen.DNS },
-                                onOpenBackup = { screen = Screen.BACKUP },
-                                onBack = { screen = Screen.HOME },
-                            )
-                            Screen.ROUTES -> AppsScreen(store, onBack = { screen = Screen.SETTINGS })
-                            Screen.VLESS -> VlessKeyScreen(store, onBack = { screen = Screen.SETTINGS })
-                            Screen.DPI -> DpiScreen(store, onBack = { screen = Screen.SETTINGS })
-                            Screen.THEME -> ThemeScreen(store, onBack = { screen = Screen.SETTINGS })
-                            Screen.DNS -> DnsScreen(store, onBack = { screen = Screen.SETTINGS })
-                            Screen.BACKUP -> BackupScreen(store, onBack = { screen = Screen.SETTINGS })
+                        // Small-distance shared-axis motion: enough to communicate
+                        // hierarchy without making compact settings navigation feel slow.
+                        NavHost(
+                            navController = navController,
+                            startDestination = Route.HOME,
+                            modifier = Modifier.fillMaxSize(),
+                            enterTransition = {
+                                fadeIn(tween(NAV_ENTER_MS, delayMillis = 20)) +
+                                    slideInHorizontally(
+                                        animationSpec = tween(NAV_ENTER_MS),
+                                        initialOffsetX = { it / 14 },
+                                    )
+                            },
+                            exitTransition = {
+                                fadeOut(tween(NAV_EXIT_MS)) +
+                                    slideOutHorizontally(
+                                        animationSpec = tween(NAV_EXIT_MS),
+                                        targetOffsetX = { -it / 28 },
+                                    )
+                            },
+                            popEnterTransition = {
+                                fadeIn(tween(NAV_ENTER_MS, delayMillis = 10)) +
+                                    slideInHorizontally(
+                                        animationSpec = tween(NAV_ENTER_MS),
+                                        initialOffsetX = { -it / 28 },
+                                    )
+                            },
+                            popExitTransition = {
+                                fadeOut(tween(NAV_EXIT_MS)) +
+                                    slideOutHorizontally(
+                                        animationSpec = tween(NAV_EXIT_MS),
+                                        targetOffsetX = { it / 14 },
+                                    )
+                            },
+                        ) {
+                            composable(Route.HOME) {
+                                HomeScreen(
+                                    store,
+                                    onOpenSettings = { navController.navigate(Route.SETTINGS) },
+                                )
+                            }
+                            composable(Route.SETTINGS) {
+                                SettingsMenuScreen(
+                                    store,
+                                    onOpenRoutes = { navController.navigate(Route.ROUTES) },
+                                    onOpenVless = { navController.navigate(Route.VLESS) },
+                                    onOpenDpi = { navController.navigate(Route.DPI) },
+                                    onOpenTheme = { navController.navigate(Route.THEME) },
+                                    onOpenDns = { navController.navigate(Route.DNS) },
+                                    onOpenBackup = { navController.navigate(Route.BACKUP) },
+                                    onBack = { navController.popBackStack() },
+                                )
+                            }
+                            composable(Route.ROUTES) {
+                                AppsScreen(store, onBack = { navController.popBackStack() })
+                            }
+                            composable(Route.VLESS) {
+                                VlessKeyScreen(store, onBack = { navController.popBackStack() })
+                            }
+                            composable(Route.DPI) {
+                                DpiScreen(store, onBack = { navController.popBackStack() })
+                            }
+                            composable(Route.THEME) {
+                                ThemeScreen(store, onBack = { navController.popBackStack() })
+                            }
+                            composable(Route.DNS) {
+                                DnsScreen(store, onBack = { navController.popBackStack() })
+                            }
+                            composable(Route.BACKUP) {
+                                BackupScreen(store, onBack = { navController.popBackStack() })
+                            }
                         }
                     }
                 }
