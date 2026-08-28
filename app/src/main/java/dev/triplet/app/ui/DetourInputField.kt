@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -69,39 +70,36 @@ fun DetourInputField(
             modifier = Modifier.padding(start = Spacing.space4, bottom = Spacing.space8),
         )
 
-        Box(
-            Modifier
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = minHeight)
+                .onFocusChanged { focused = it.isFocused }
                 .background(c.surface, AppShapes.small)
                 .border(1.dp, borderColor, AppShapes.small)
                 .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
-            contentAlignment = if (singleLine) Alignment.CenterStart else Alignment.TopStart,
-        ) {
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .onFocusChanged { focused = it.isFocused },
-                singleLine = singleLine,
-                maxLines = maxLines,
-                textStyle = textStyle,
-                cursorBrush = SolidColor(c.accent),
-                decorationBox = { innerTextField ->
-                    Box(Modifier.fillMaxWidth()) {
-                        if (value.isEmpty()) {
-                            Text(
-                                text = placeholder,
-                                style = textStyle,
-                                color = c.textMuted,
-                            )
-                        }
-                        innerTextField()
+            singleLine = singleLine,
+            maxLines = maxLines,
+            textStyle = textStyle,
+            cursorBrush = SolidColor(c.accent),
+            decorationBox = { innerTextField ->
+                Box(
+                    Modifier.fillMaxSize(),
+                    contentAlignment = if (singleLine) Alignment.CenterStart else Alignment.TopStart,
+                ) {
+                    if (value.isEmpty()) {
+                        Text(
+                            text = placeholder,
+                            style = textStyle,
+                            color = c.textMuted,
+                        )
                     }
-                },
-            )
-        }
+                    innerTextField()
+                }
+            },
+        )
 
         val supporting = error ?: success ?: helper
         if (supporting != null) {
