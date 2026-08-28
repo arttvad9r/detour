@@ -27,7 +27,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -91,8 +90,6 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
     val c = detourColors
     val settings by store.settings.collectAsState()
 
-    // Do not render a state that only lives for a few frames. If the engine is
-    // still starting after the readability threshold, then reveal it.
     var showStarting by remember { mutableStateOf(false) }
     var lastSettledState by remember {
         mutableStateOf<VpnState>(if (st == VpnState.Starting) VpnState.Idle else st)
@@ -109,7 +106,6 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
     }
     val visualState = if (st == VpnState.Starting && !showStarting) lastSettledState else st
 
-    // Haptics follow real engine completion, not the optimistic button tap.
     var previousEngineState by remember { mutableStateOf<VpnState?>(null) }
     LaunchedEffect(st) {
         val previous = previousEngineState
@@ -183,7 +179,7 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
                     color = c.textPrimary,
                     modifier = Modifier.weight(1f),
                 )
-                IconButton(onClick = onOpenSettings) {
+                DetourIconButton(onClick = onOpenSettings) {
                     Icon(
                         painter = painterResource(R.drawable.ic_gear),
                         contentDescription = stringResource(R.string.cd_settings),
