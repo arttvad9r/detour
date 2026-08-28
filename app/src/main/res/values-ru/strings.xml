@@ -75,6 +75,8 @@
     <string name="key_input_hint">Вставьте ссылку целиком — сервер и параметры определятся автоматически.</string>
     <string name="key_placeholder">vless://uuid@server:443?security=reality&amp;…</string>
     <string name="key_detected_server">Ссылка распознана · %1$s:%2$d</string>
+    <string name="vless_add_title">Добавить VLESS-профиль</string>
+    <string name="vless_edit_title">Изменить VLESS-профиль</string>
     <string name="profile_empty">Пока нет VPN-профилей. Нажмите +, чтобы добавить.</string>
     <string name="profile_add_title">Добавить VPN-профиль</string>
     <string name="profile_add_vless">VLESS</string>
@@ -85,7 +87,7 @@
     <string name="warp_section_title">WARP / AmneziaWG</string>
     <string name="warp_empty">WARP-конфиг не импортирован</string>
     <string name="warp_import">Импортировать YAML / CONF</string>
-    <string name="warp_replace">Заменить конфиг</string>
+    <string name="warp_replace">Заменить WARP-конфиг</string>
     <string name="warp_delete">Удалить WARP-профиль</string>
     <string name="warp_subtitle">%1$d точек подключения</string>
     <string name="warp_imported">WARP импортирован · точек подключения: %1$d</string>
