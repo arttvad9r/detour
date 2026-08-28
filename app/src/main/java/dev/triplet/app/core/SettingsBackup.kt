@@ -8,14 +8,18 @@ object SettingsBackup {
     const val VERSION = 3
     const val MAX_BYTES = 1024 * 1024
     private const val APP = "detour"
-    private val themes = setOf("midnight", "ocean", "graphite", "lavenda")
+    private val themes = setOf(
+        "catppuccin_latte", "catppuccin_mocha", "gruvbox_dark", "dracula",
+        // Legacy ids remain accepted so old Detour backups continue to import.
+        "midnight", "ocean", "graphite", "lavenda",
+    )
 
     data class Backup(
         val vlessUri: String = "", // v1 source compatibility
         val presetId: String = "recommended",
         val dpiCustomArgs: String = "",
         val autoConnect: Boolean = false,
-        val themeId: String = "lavenda",
+        val themeId: String = "catppuccin_latte",
         val dnsId: String = "google",
         val dnsCustom: String = "",
         val routes: Map<String, String> = emptyMap(),
@@ -132,7 +136,7 @@ object SettingsBackup {
             presetId = o.optString("preset", "recommended"),
             dpiCustomArgs = o.optString("customArgs"),
             autoConnect = o.optBoolean("autoConnect", false),
-            themeId = o.optString("theme").takeIf { it.isNotBlank() } ?: "lavenda",
+            themeId = o.optString("theme").takeIf { it.isNotBlank() } ?: "catppuccin_latte",
             dnsId = o.optString("dns").takeIf { it.isNotBlank() } ?: "google",
             dnsCustom = o.optString("dnsCustom"),
             routes = routes,
