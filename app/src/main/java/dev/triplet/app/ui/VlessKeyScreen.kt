@@ -21,7 +21,6 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -41,7 +40,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.triplet.app.R
@@ -120,46 +118,24 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                 Spacer(Modifier.height(Spacing.space8))
             } else {
                 Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.space16)) {
-                    OutlinedTextField(
+                    DetourInputField(
                         value = field,
                         onValueChange = { field = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text(stringResource(R.string.key_uri)) },
-                        placeholder = {
-                            Text(
-                                stringResource(R.string.key_placeholder),
-                                color = c.textMuted,
+                        label = stringResource(R.string.key_uri),
+                        placeholder = stringResource(R.string.key_placeholder),
+                        helper = stringResource(R.string.key_input_hint),
+                        error = if (parse is ParseResult.Err) stringResource(R.string.key_invalid) else null,
+                        success = (parse as? ParseResult.Ok)?.let { result ->
+                            stringResource(
+                                R.string.key_detected_server,
+                                result.profile.server,
+                                result.profile.port,
                             )
                         },
-                        minLines = 4,
-                        maxLines = 7,
-                        textStyle = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace,
-                            color = c.textPrimary,
-                        ),
-                        isError = parse is ParseResult.Err,
-                        supportingText = {
-                            when (val result = parse) {
-                                is ParseResult.Err -> Text(
-                                    stringResource(R.string.key_invalid),
-                                    color = c.error,
-                                )
-                                is ParseResult.Ok -> Text(
-                                    stringResource(
-                                        R.string.key_detected_server,
-                                        result.profile.server,
-                                        result.profile.port,
-                                    ),
-                                    color = c.textSecondary,
-                                )
-                                null -> Text(
-                                    stringResource(R.string.key_input_hint),
-                                    color = c.textMuted,
-                                )
-                            }
-                        },
-                        colors = fieldColors(),
-                        shape = AppShapes.small,
+                        singleLine = false,
+                        minHeight = 112.dp,
+                        maxLines = 6,
+                        monospace = true,
                     )
 
                     val clipboard = LocalClipboard.current
