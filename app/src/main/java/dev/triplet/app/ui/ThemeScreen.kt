@@ -33,8 +33,6 @@ fun ThemeScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mod
     val scope = rememberCoroutineScope()
     val c = detourColors
     val settings by store.settings.collectAsState()
-    // Normalize legacy ids too, so a user coming from the old palette set sees
-    // the migrated replacement selected instead of an apparently empty state.
     val current = AppTheme.byId(settings?.themeId ?: "").id
 
     Column(
@@ -74,7 +72,8 @@ fun ThemeScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mod
 @Composable
 private fun ThemeSwatches(t: AppTheme) {
     Row(Modifier.padding(end = Spacing.space12)) {
-        listOf(t.colors.background, t.colors.accent, t.colors.active).forEach { color ->
+        // Preview the colors the UI actually uses most: base, accent and text.
+        listOf(t.colors.background, t.colors.accent, t.colors.textPrimary).forEach { color ->
             Box(
                 Modifier
                     .padding(start = Spacing.space4)
