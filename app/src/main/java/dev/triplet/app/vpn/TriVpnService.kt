@@ -106,6 +106,7 @@ class TriVpnService : VpnService() {
         destroyed.set(true)
         validationGeneration.incrementAndGet()
         unregisterNetworkMonitor()
+        lastNetwork = null
         stopQueued.set(true)
         healthExecutor.shutdownNow()
         executor.shutdownNow()
@@ -282,7 +283,6 @@ class TriVpnService : VpnService() {
         // ДО передачи (иначе между Engine.stop() -> close(fd) и нашим
         // detachFd() освободившийся номер мог занять RenderThread под fence
         // — fdsan абортнул весь процесс, см. креш 22:05 на OnePlus).
-            lastNetwork = null
             if (VpnController.state.value !is VpnState.Failed) VpnController.setState(VpnState.Idle)
             stopForeground(STOP_FOREGROUND_REMOVE)
             if (stopSelf) stopSelf()
@@ -354,18 +354,25 @@ class TriVpnService : VpnService() {
 
     private fun registerNetworkMonitor() {
         val cm = getSystemService(ConnectivityManager::class.java)
+
+        // Seed the currently active underlying network before registering the
+        // callback. The first onAvailable() is an initial snapshot, not a network
+        // change, and must never restart a tunnel that just became Active.
+        lastNetwork = cm.activeNetwork?.takeIf { network ->
+            cm.getNetworkCapabilities(network)?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) != true
+        }
+
         val cb = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
-                // VPN establishment/validation re-fires onAvailable for the
-                // same or the VPN network itself; restarting on that caused an
-                // infinite stop/start storm. Restart only when the underlying
-                // default network actually changes (Wi-Fi <-> LTE).
                 val caps = cm.getNetworkCapabilities(network) ?: return
                 if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) return
-                if (network == lastNetwork) return
+
+                val previous = lastNetwork
                 lastNetwork = network
+                if (previous == null || network == previous) return
                 if (VpnController.state.value != VpnState.Active) return
-                ServiceLog.i("network changed, restarting tunnel")
+
+                ServiceLog.i("underlying network changed, restarting tunnel")
                 if (!stopQueued.get() && restartQueued.compareAndSet(false, true)) executor.execute {
                     restartQueued.set(false)
                     if (!stopQueued.get()) { stopSequence(stopSelf = false); startSequence() }
