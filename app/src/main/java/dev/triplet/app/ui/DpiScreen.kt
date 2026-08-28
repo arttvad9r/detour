@@ -81,8 +81,9 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
                 helper = stringResource(R.string.dpi_custom_hint),
                 error = if (customInvalid) stringResource(R.string.dpi_custom_invalid) else null,
                 singleLine = false,
-                minHeight = 80.dp,
-                maxLines = 4,
+                minHeight = 64.dp,
+                maxHeight = 80.dp,
+                maxLines = 3,
                 monospace = true,
                 modifier = Modifier.padding(horizontal = Spacing.space16),
             )
