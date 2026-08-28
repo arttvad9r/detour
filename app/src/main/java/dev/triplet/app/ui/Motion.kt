@@ -7,14 +7,16 @@ package dev.triplet.app.ui
  * stay small so motion communicates hierarchy without slowing a utility app down.
  */
 object Motion {
-    const val PRESS_TONE_MS = 70
-    const val COLOR_MS = 140
-    const val STATE_MS = 160
-    const val CONTENT_IN_MS = 150
-    const val CONTENT_OUT_MS = 90
-    const val NAV_ENTER_MS = 210
-    const val NAV_EXIT_MS = 145
-    const val THEME_MS = 220
+    // Keep press feedback responsive, but let visible state transitions breathe a
+    // little longer than the first pass. The app should feel fluid, not twitchy.
+    const val PRESS_TONE_MS = 80
+    const val COLOR_MS = 170
+    const val STATE_MS = 200
+    const val CONTENT_IN_MS = 190
+    const val CONTENT_OUT_MS = 120
+    const val NAV_ENTER_MS = 260
+    const val NAV_EXIT_MS = 180
+    const val THEME_MS = 280
 
     /** Fast VPN starts should never flash a transient "Connecting" state. */
     const val DEFERRED_BUSY_MS = 350L
@@ -25,7 +27,9 @@ object Motion {
     const val PRESS_FAB = 0.965f
     const val PRESS_ICON = 0.94f
 
-    const val SPRING_DAMPING = 0.78f
-    const val SPRING_STIFFNESS = 800f
-    const val SPRING_STIFFNESS_SOFT = 650f
+    // Slightly softer than the initial pass so switches/capsules settle naturally
+    // instead of snapping to their destination.
+    const val SPRING_DAMPING = 0.82f
+    const val SPRING_STIFFNESS = 700f
+    const val SPRING_STIFFNESS_SOFT = 500f
 }
