@@ -48,16 +48,21 @@ object WarpConfigImporter {
         } ?: return WarpImportResult.Invalid
 
         val entries = root["proxies"] as? List<*> ?: return WarpImportResult.NoCompatibleProxies
-        val proxies = entries.asSequence()
+        val parsed = entries.asSequence()
             .mapNotNull { it as? Map<*, *> }
             .filter { it.string("type").equals("wireguard", ignoreCase = true) }
             .filter { it["amnezia-wg-option"] is Map<*, *> }
             .mapNotNull(::parseYamlProxy)
             .distinctBy { listOf(it.server, it.port, it.privateKey, it.amnezia.i1).joinToString("|") }
-            .take(MAX_PROXIES)
             .toList()
 
-        if (proxies.isEmpty()) return WarpImportResult.NoCompatibleProxies
+        if (parsed.isEmpty()) return WarpImportResult.NoCompatibleProxies
+
+        // Warp Generator marks its direct/recommended Cloudflare endpoints with ⭐.
+        // Prefer that subset when it exists instead of mixing it with geo relay nodes.
+        // For generic Clash/AWG files without this convention, preserve all entries.
+        val recommended = parsed.filter { it.name.contains("⭐") }
+        val proxies = (recommended.ifEmpty { parsed }).take(MAX_PROXIES)
         return WarpImportResult.Ok(WarpProfile.create(proxies = proxies))
     }
 
@@ -113,6 +118,8 @@ object WarpConfigImporter {
                     allowedIps = allowedIps,
                     udp = true,
                     mtu = mtu,
+                    persistentKeepalive = peer["persistentkeepalive"]?.toIntOrNull()
+                        ?: iface["persistentkeepalive"]?.toIntOrNull(),
                     remoteDnsResolve = true,
                     dns = dns,
                     amnezia = amnezia,
@@ -141,6 +148,7 @@ object WarpConfigImporter {
             allowedIps = map.stringList("allowed-ips").ifEmpty { listOf("0.0.0.0/0") },
             udp = map.bool("udp") ?: true,
             mtu = map.int("mtu") ?: 1280,
+            persistentKeepalive = map.int("persistent-keepalive"),
             remoteDnsResolve = map.bool("remote-dns-resolve") ?: true,
             dns = map.stringList("dns"),
             amnezia = AmneziaWgOptions(
