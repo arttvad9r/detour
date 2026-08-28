@@ -120,7 +120,9 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                 Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.space16)) {
                     DetourInputField(
                         value = field,
-                        onValueChange = { field = it },
+                        onValueChange = { value ->
+                            field = value.replace("\r", "").replace("\n", "")
+                        },
                         label = stringResource(R.string.key_uri),
                         placeholder = stringResource(R.string.key_placeholder),
                         helper = stringResource(R.string.key_input_hint),
@@ -134,9 +136,8 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                         },
                         singleLine = false,
                         minHeight = 56.dp,
-                        maxHeight = 120.dp,
-                        maxLines = 5,
-                        monospace = true,
+                        maxHeight = 176.dp,
+                        maxLines = 6,
                     )
 
                     val clipboard = LocalClipboard.current
@@ -144,7 +145,7 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                         onClick = {
                             scope.launch {
                                 clipboard.getClipEntry()?.clipData?.getItemAt(0)?.text?.toString()?.let {
-                                    field = it.trim()
+                                    field = it.trim().replace("\r", "").replace("\n", "")
                                 }
                             }
                         },
