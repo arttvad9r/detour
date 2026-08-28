@@ -26,6 +26,9 @@
     <string name="nav_routes_sub">в туннеле: %1$d</string>
     <string name="nav_key">VPN-профили</string>
     <string name="nav_key_sub">VLESS + WARP</string>
+    <string name="nav_key_sub_none">не настроено</string>
+    <string name="nav_key_sub_vless">VLESS</string>
+    <string name="nav_key_sub_warp">WARP / AmneziaWG</string>
     <string name="nav_theme">Оформление</string>
     <string name="theme_title">Оформление</string>
     <string name="theme_hint">Тема применяется сразу ко всему приложению</string>
@@ -64,7 +67,7 @@
     <string name="key_edit">Изменить</string>
     <string name="key_cancel">Отмена</string>
     <string name="key_paste">Вставить из буфера</string>
-    <string name="key_list_title">VLESS</string>
+    <string name="key_list_title">Профили</string>
     <string name="key_empty">Нет добавленных VLESS-ключей</string>
     <string name="key_add">Добавить</string>
     <string name="key_delete">Удалить</string>
@@ -72,6 +75,13 @@
     <string name="key_input_hint">Вставьте ссылку целиком — сервер и параметры определятся автоматически.</string>
     <string name="key_placeholder">vless://uuid@server:443?security=reality&amp;…</string>
     <string name="key_detected_server">Ссылка распознана · %1$s:%2$d</string>
+    <string name="profile_empty">Нет добавленных VPN-профилей</string>
+    <string name="profile_add_title">Добавить VPN-профиль</string>
+    <string name="profile_add_vless">VLESS</string>
+    <string name="profile_add_vless_sub">Добавить VLESS-ссылку</string>
+    <string name="profile_add_warp">WARP / AmneziaWG</string>
+    <string name="profile_add_warp_sub">Импортировать YAML-конфиг</string>
+    <string name="profile_replace_warp_sub">Импортировать новый YAML вместо текущего</string>
     <string name="warp_section_title">WARP / AmneziaWG</string>
     <string name="warp_empty">WARP-конфиг не импортирован</string>
     <string name="warp_import">Импортировать YAML</string>
