@@ -6,8 +6,9 @@ import androidx.compose.animation.core.Easing
 /**
  * One restrained motion language for the whole app.
  *
- * Spatial movement uses springs; opacity/color changes use short tweens. Distances
- * stay small so motion communicates hierarchy without slowing a utility app down.
+ * Spatial movement uses springs; opacity/color changes use short tweens. Compose
+ * applies the platform animator-duration scale to these specs, so Android's reduced
+ * animation / disabled animation setting is respected without a parallel app toggle.
  */
 object Motion {
     // Keep press feedback responsive, but let visible state transitions breathe.
