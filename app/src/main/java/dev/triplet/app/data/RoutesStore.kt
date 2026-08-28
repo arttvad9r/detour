@@ -174,7 +174,8 @@ class RoutesStore(context: Context) {
         editVless { current -> current.delete(id) }
     }
     suspend fun setWarpProfile(profile: WarpProfile) = store.edit { prefs ->
-        profile.proxies.forEach(dev.triplet.app.core::validateWarpProxy)
+        // WarpProfile validates every outbound in its initializer; storing only a
+        // constructed profile keeps DataStore free of partially-valid configs.
         prefs[RoutesMapping.warpProfileKey()] = profile.toJson()
         prefs[RoutesMapping.vpnKindKey()] = VpnProfileKind.WARP.name
     }
