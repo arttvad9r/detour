@@ -25,6 +25,7 @@ class WarpConfigImporterTest {
           public-key: public
           reserved: [15, 229, 28]
           allowed-ips: ['0.0.0.0/0', '::/0']
+          persistent-keepalive: 25
           udp: true
           mtu: 1280
           remote-dns-resolve: true
@@ -60,9 +61,49 @@ class WarpConfigImporterTest {
         assertEquals("172.16.0.2", proxy.ip)
         assertEquals(listOf(15, 229, 28), proxy.reserved)
         assertEquals(listOf("0.0.0.0/0", "::/0"), proxy.allowedIps)
+        assertEquals(25, proxy.persistentKeepalive)
         assertEquals(4, proxy.amnezia.jc)
         assertEquals(40, proxy.amnezia.jmin)
         assertEquals("<b 0x1234>", proxy.amnezia.i1)
+    }
+
+    @Test fun `prefers Warp Generator starred direct endpoints over geo relays`() {
+        val config = """
+            common: &common
+              type: wireguard
+              ip: 172.16.0.2
+              private-key: private
+              public-key: public
+              allowed-ips: ['0.0.0.0/0']
+              amnezia-wg-option:
+                jc: 4
+                jmin: 40
+                jmax: 70
+                s1: 0
+                s2: 0
+                h1: 1
+                h2: 2
+                h3: 3
+                h4: 4
+                i1: '<b 0x1234>'
+            proxies:
+              - name: "[🌍] geo relay"
+                <<: *common
+                server: relay.example.net
+                port: 4500
+              - name: "[⭐] direct one"
+                <<: *common
+                server: 162.159.195.1
+                port: 500
+              - name: "[⭐] direct two"
+                <<: *common
+                server: engage.cloudflareclient.com
+                port: 2408
+        """.trimIndent()
+
+        val profile = (WarpConfigImporter.parse(config) as WarpImportResult.Ok).profile
+        assertEquals(2, profile.proxies.size)
+        assertTrue(profile.proxies.all { it.name.contains("⭐") })
     }
 
     @Test fun `imports native AmneziaWG conf`() {
@@ -87,6 +128,7 @@ class WarpConfigImporterTest {
             PublicKey = public
             AllowedIPs = 0.0.0.0/0, ::/0
             Endpoint = 162.159.195.1:500
+            PersistentKeepalive = 25
         """.trimIndent()
 
         val result = WarpConfigImporter.parse(conf)
@@ -100,6 +142,7 @@ class WarpConfigImporterTest {
         assertEquals(listOf("0.0.0.0/0", "::/0"), proxy.allowedIps)
         assertEquals(listOf("1.1.1.1", "1.0.0.1"), proxy.dns)
         assertEquals(1280, proxy.mtu)
+        assertEquals(25, proxy.persistentKeepalive)
         assertEquals(4, proxy.amnezia.jc)
         assertEquals("<b 0x1234>", proxy.amnezia.i1)
     }
