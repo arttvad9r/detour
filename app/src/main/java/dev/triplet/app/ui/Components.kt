@@ -189,13 +189,22 @@ fun SettingRow(
                 color = c.textPrimary,
             )
             if (subtitle != null) {
-                Text(
-                    subtitle, style = MaterialTheme.typography.bodySmall,
-                    color = c.textSecondary,
-                    maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 1.dp),
-                )
+                AnimatedContent(
+                    targetState = subtitle,
+                    transitionSpec = {
+                        fadeIn(tween(Motion.CONTENT_IN_MS, delayMillis = 20)) togetherWith
+                            fadeOut(tween(Motion.CONTENT_OUT_MS))
+                    },
+                    label = "settingSubtitle",
+                ) { value ->
+                    Text(
+                        value, style = MaterialTheme.typography.bodySmall,
+                        color = c.textSecondary,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 1.dp),
+                    )
+                }
             }
         }
         trailing?.invoke() ?: Chevron()
@@ -373,11 +382,17 @@ fun RadioRow(
     trailing: @Composable (() -> Unit)? = null,
 ) {
     val c = detourColors
+    val haptics = LocalHapticFeedback.current
     Row(
         modifier
             .fillMaxWidth()
             .detourClickable(
-                onClick = onClick,
+                onClick = {
+                    if (!selected) {
+                        haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                        onClick()
+                    }
+                },
                 role = Role.RadioButton,
                 idleColor = if (selected) c.accentSoft else Color.Transparent,
                 pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
@@ -394,13 +409,22 @@ fun RadioRow(
                 color = c.textPrimary,
             )
             if (subtitle != null) {
-                Text(
-                    subtitle, style = MaterialTheme.typography.bodyMedium,
-                    color = c.textSecondary,
-                    maxLines = 2,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 1.dp),
-                )
+                AnimatedContent(
+                    targetState = subtitle,
+                    transitionSpec = {
+                        fadeIn(tween(Motion.CONTENT_IN_MS, delayMillis = 20)) togetherWith
+                            fadeOut(tween(Motion.CONTENT_OUT_MS))
+                    },
+                    label = "radioSubtitle",
+                ) { value ->
+                    Text(
+                        value, style = MaterialTheme.typography.bodyMedium,
+                        color = c.textSecondary,
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 1.dp),
+                    )
+                }
             }
         }
         trailing?.invoke()
