@@ -16,6 +16,7 @@ object ConfigGenerator {
 
     private val ROUTE_ADDRESS = listOf("0.0.0.0/1", "128.0.0.0/1", "::/0")
     private const val WARP_GROUP = "WARP"
+    private const val MAX_WARP_PROXIES = 128
 
     fun build(input: RoutingInput): String {
         require(input.vpnUids.keys.containsAll(input.vpnApps + input.dpiApps)) {
@@ -26,6 +27,10 @@ object ConfigGenerator {
             is VpnOutbound.Warp -> WARP_GROUP
             null -> null
         }
+        val warpProxies = (input.vpn as? VpnOutbound.Warp)?.profile?.proxies?.let { all ->
+            val recommended = all.filter { it.name.contains("⭐") }
+            recommended.ifEmpty { all }.take(MAX_WARP_PROXIES)
+        }.orEmpty()
 
         // Приложения атрибутируются по UID (резолвится host-side через VpnService).
         val attr = { pkg: String -> "UID,${input.vpnUids[pkg]}" }
@@ -47,7 +52,7 @@ object ConfigGenerator {
         val proxies = buildList {
             when (val vpn = input.vpn) {
                 is VpnOutbound.Vless -> add(renderVless(vpn.profile))
-                is VpnOutbound.Warp -> vpn.profile.proxies.forEachIndexed { index, proxy ->
+                is VpnOutbound.Warp -> warpProxies.forEachIndexed { index, proxy ->
                     add(renderWarp(proxy, index))
                 }
                 null -> Unit
@@ -63,9 +68,9 @@ object ConfigGenerator {
             )
         }.joinToString("\n")
 
-        val proxyGroups = (input.vpn as? VpnOutbound.Warp)?.profile?.let { profile ->
-            "\nproxy-groups:\n" + renderWarpGroup(profile.proxies.size)
-        }.orEmpty()
+        val proxyGroups = if (input.vpn is VpnOutbound.Warp) {
+            "\nproxy-groups:\n" + renderWarpGroup(warpProxies.size)
+        } else ""
 
         val probes = buildList {
             if (input.vpnApps.isNotEmpty() && input.vpn != null) {
@@ -180,6 +185,7 @@ $rules""".trim()
     }
 
     private fun renderWarpGroup(count: Int): String = buildString {
+        require(count > 0)
         append("- name: $WARP_GROUP\n")
         // Do not continuously chase the lowest latency: changing the WireGuard
         // endpoint under long-lived UDP/QUIC sessions can stall video streams.
