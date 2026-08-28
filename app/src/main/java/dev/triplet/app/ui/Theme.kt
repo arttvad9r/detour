@@ -190,9 +190,13 @@ enum class AppTheme(
         ) else light
     }
 
-    /** Стиль статусной карточки и главной кнопки под состояние туннеля. */
+    /**
+     * Active is deliberately expressed with the palette accent rather than a
+     * success-green fill. A connected tunnel should still look like the same
+     * application, not like a full-screen success banner.
+     */
     fun statusFor(state: dev.triplet.app.vpn.VpnState): StatusStyle = when (state) {
-        dev.triplet.app.vpn.VpnState.Active -> StatusStyle(colors.activeSoft, colors.activeStrong, colors.activeBorder)
+        dev.triplet.app.vpn.VpnState.Active -> StatusStyle(colors.surfaceSelected, colors.accent, colors.accentBorder)
         dev.triplet.app.vpn.VpnState.Starting -> StatusStyle(colors.accentSoft, colors.accent, colors.accentBorder)
         is dev.triplet.app.vpn.VpnState.Failed -> StatusStyle(colors.errorSoft, colors.error, colors.error.copy(alpha = .35f))
         dev.triplet.app.vpn.VpnState.Idle -> StatusStyle(colors.surface, colors.textPrimary, colors.border)
