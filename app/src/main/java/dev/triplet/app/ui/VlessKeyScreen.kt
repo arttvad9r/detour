@@ -13,6 +13,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -112,6 +114,14 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
         field = key?.uri ?: ""
     }
 
+    fun dismissAddSheet(after: (() -> Unit)? = null) {
+        scope.launch {
+            runCatching { sheetState.hide() }
+            showAddSheet = false
+            after?.invoke()
+        }
+    }
+
     val warpLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
@@ -154,8 +164,41 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
             AnimatedContent(
                 targetState = editing,
                 transitionSpec = {
-                    fadeIn(tween(Motion.CONTENT_IN_MS, delayMillis = 25)) togetherWith
-                        fadeOut(tween(Motion.CONTENT_OUT_MS))
+                    if (targetState) {
+                        (fadeIn(
+                            tween(
+                                Motion.CONTENT_IN_MS,
+                                delayMillis = 20,
+                                easing = Motion.ENTER_EASING,
+                            ),
+                        ) + slideInHorizontally(
+                            tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
+                            initialOffsetX = { it / 14 },
+                        )) togetherWith
+                            (fadeOut(
+                                tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
+                            ) + slideOutHorizontally(
+                                tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
+                                targetOffsetX = { -it / 32 },
+                            ))
+                    } else {
+                        (fadeIn(
+                            tween(
+                                Motion.CONTENT_IN_MS,
+                                delayMillis = 14,
+                                easing = Motion.ENTER_EASING,
+                            ),
+                        ) + slideInHorizontally(
+                            tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
+                            initialOffsetX = { -it / 32 },
+                        )) togetherWith
+                            (fadeOut(
+                                tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
+                            ) + slideOutHorizontally(
+                                tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
+                                targetOffsetX = { it / 14 },
+                            ))
+                    }
                 },
                 label = "profileEditor",
             ) { isEditing ->
@@ -173,8 +216,15 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                         AnimatedContent(
                             targetState = snapshot,
                             transitionSpec = {
-                                fadeIn(tween(Motion.CONTENT_IN_MS, delayMillis = 25)) togetherWith
-                                    fadeOut(tween(Motion.CONTENT_OUT_MS))
+                                fadeIn(
+                                    tween(
+                                        Motion.CONTENT_IN_MS,
+                                        delayMillis = 20,
+                                        easing = Motion.ENTER_EASING,
+                                    ),
+                                ) togetherWith fadeOut(
+                                    tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
+                                )
                             },
                             label = "profileList",
                         ) { shown ->
@@ -250,8 +300,8 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
 
                         AnimatedVisibility(
                             visible = warpStatus != 0,
-                            enter = fadeIn(tween(Motion.CONTENT_IN_MS)),
-                            exit = fadeOut(tween(Motion.CONTENT_OUT_MS)),
+                            enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)),
+                            exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)),
                         ) {
                             Column {
                                 Spacer(Modifier.height(Spacing.space8))
@@ -343,15 +393,18 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
         }
 
         AnimatedVisibility(
-            visible = !editing,
+            visible = !editing && !showAddSheet,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 88.dp),
-            enter = fadeIn(tween(Motion.CONTENT_IN_MS)) + scaleIn(
-                animationSpec = spring(dampingRatio = 0.72f, stiffness = Motion.SPRING_STIFFNESS),
-                initialScale = 0.88f,
+            enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)) + scaleIn(
+                animationSpec = spring(
+                    dampingRatio = Motion.SPRING_DAMPING,
+                    stiffness = Motion.SPRING_STIFFNESS_SOFT,
+                ),
+                initialScale = 0.90f,
             ),
-            exit = fadeOut(tween(Motion.CONTENT_OUT_MS)) + scaleOut(
-                animationSpec = tween(Motion.CONTENT_OUT_MS),
-                targetScale = 0.88f,
+            exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)) + scaleOut(
+                animationSpec = tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
+                targetScale = 0.90f,
             ),
         ) {
             val fabInteraction = remember { MutableInteractionSource() }
@@ -401,8 +454,7 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                 title = stringResource(R.string.profile_add_vless),
                 subtitle = stringResource(R.string.profile_add_vless_sub),
             ) {
-                showAddSheet = false
-                beginEdit(null)
+                dismissAddSheet { beginEdit(null) }
             }
             GroupDivider(startInset = 20)
             ProfileTypeRow(
@@ -412,13 +464,14 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                     else R.string.profile_replace_warp_sub,
                 ),
             ) {
-                showAddSheet = false
-                warpStatus = 0
-                warpLauncher.launch(arrayOf("*/*"))
+                dismissAddSheet {
+                    warpStatus = 0
+                    warpLauncher.launch(arrayOf("*/*"))
+                }
             }
             Spacer(Modifier.height(Spacing.space8))
             TextButton(
-                onClick = { showAddSheet = false },
+                onClick = { dismissAddSheet() },
                 modifier = Modifier.align(Alignment.End).padding(end = Spacing.space12),
             ) {
                 Text(stringResource(R.string.key_cancel))
