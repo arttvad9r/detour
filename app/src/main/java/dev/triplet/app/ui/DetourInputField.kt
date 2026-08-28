@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -25,8 +24,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * Shared Detour input treatment. Labels stay outside the border so short fields,
- * multiline technical values and focused fields keep the same geometry.
+ * Shared Detour input treatment. Every field starts at the same compact one-line
+ * height and multiline fields grow only when their content actually wraps.
  */
 @Composable
 fun DetourInputField(
@@ -39,7 +38,7 @@ fun DetourInputField(
     error: String? = null,
     success: String? = null,
     singleLine: Boolean = true,
-    minHeight: Dp = if (singleLine) 56.dp else 112.dp,
+    minHeight: Dp = 56.dp,
     maxHeight: Dp = if (singleLine) 56.dp else 160.dp,
     maxLines: Int = if (singleLine) 1 else 6,
     monospace: Boolean = false,
@@ -56,7 +55,7 @@ fun DetourInputField(
         focused -> c.accent
         else -> c.textSecondary
     }
-    val baseTextStyle = if (monospace) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyLarge
+    val baseTextStyle = MaterialTheme.typography.bodyLarge
     val textStyle = if (monospace) {
         baseTextStyle.copy(color = c.textPrimary, fontFamily = FontFamily.Monospace)
     } else {
@@ -87,14 +86,15 @@ fun DetourInputField(
             cursorBrush = SolidColor(c.accent),
             decorationBox = { innerTextField ->
                 Box(
-                    Modifier.fillMaxSize(),
-                    contentAlignment = if (singleLine) Alignment.CenterStart else Alignment.TopStart,
+                    Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.CenterStart,
                 ) {
                     if (value.isEmpty()) {
                         Text(
                             text = placeholder,
                             style = textStyle,
                             color = c.textMuted,
+                            maxLines = 1,
                         )
                     }
                     innerTextField()
