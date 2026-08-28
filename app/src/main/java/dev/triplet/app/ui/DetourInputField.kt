@@ -54,11 +54,12 @@ fun DetourInputField(
         focused -> c.accent
         else -> c.textSecondary
     }
-    val textStyle = (if (monospace) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyLarge)
-        .copy(
-            color = c.textPrimary,
-            fontFamily = if (monospace) FontFamily.Monospace else MaterialTheme.typography.bodyLarge.fontFamily,
-        )
+    val baseTextStyle = if (monospace) MaterialTheme.typography.bodySmall else MaterialTheme.typography.bodyLarge
+    val textStyle = if (monospace) {
+        baseTextStyle.copy(color = c.textPrimary, fontFamily = FontFamily.Monospace)
+    } else {
+        baseTextStyle.copy(color = c.textPrimary)
+    }
 
     Column(modifier.fillMaxWidth()) {
         Text(
