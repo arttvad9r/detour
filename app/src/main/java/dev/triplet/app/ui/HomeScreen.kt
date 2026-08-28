@@ -3,9 +3,13 @@ package dev.triplet.app.ui
 import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -28,21 +32,22 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import dev.triplet.app.R
 import dev.triplet.app.core.AppRoute
@@ -55,6 +60,8 @@ import dev.triplet.app.vpn.VpnState
 import kotlinx.coroutines.delay
 
 enum class HomeProtocol { VLESS_DPI, DPI, VLESS, NONE }
+private enum class VisualVpnState { IDLE, STARTING, ACTIVE, FAILED }
+private const val STARTING_VISIBILITY_DELAY_MS = 350L
 
 fun homeProtocol(routes: Map<String, AppRoute>): HomeProtocol {
     val dpi = routes.values.any { it == AppRoute.DPI }
@@ -67,6 +74,13 @@ fun homeProtocol(routes: Map<String, AppRoute>): HomeProtocol {
     }
 }
 
+private fun visualKey(state: VpnState): VisualVpnState = when (state) {
+    VpnState.Idle -> VisualVpnState.IDLE
+    VpnState.Starting -> VisualVpnState.STARTING
+    VpnState.Active -> VisualVpnState.ACTIVE
+    is VpnState.Failed -> VisualVpnState.FAILED
+}
+
 @Composable
 fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
     val state by VpnController.state.collectAsState()
@@ -76,11 +90,31 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
     val theme = LocalDetourTheme.current
 
     val settings by store.settings.collectAsState()
-    val status = theme.statusFor(st)
+
+    // The engine normally connects in well under a second. Do not flash an
+    // intermediate UI state for work that finishes before the user can read it.
+    // Starting only becomes visible when the operation is genuinely taking time.
+    var showStarting by remember { mutableStateOf(false) }
+    var lastSettledState by remember {
+        mutableStateOf<VpnState>(if (st == VpnState.Starting) VpnState.Idle else st)
+    }
+    LaunchedEffect(st) {
+        if (st == VpnState.Starting) {
+            showStarting = false
+            delay(STARTING_VISIBILITY_DELAY_MS)
+            if (VpnController.state.value == VpnState.Starting) showStarting = true
+        } else {
+            showStarting = false
+            lastSettledState = st
+        }
+    }
+    val visualState = if (st == VpnState.Starting && !showStarting) lastSettledState else st
+
+    val status = theme.statusFor(visualState)
     val style = StatusStyle(
-        container = animateColorAsState(status.container, tween(110), label = "cardBg").value,
-        content = animateColorAsState(status.content, tween(110), label = "cardFg").value,
-        border = animateColorAsState(status.border, tween(110), label = "cardBorder").value,
+        container = animateColorAsState(status.container, tween(160), label = "cardBg").value,
+        content = animateColorAsState(status.content, tween(140), label = "cardFg").value,
+        border = animateColorAsState(status.border, tween(160), label = "cardBorder").value,
     )
 
     var elapsed by rememberSaveable { mutableIntStateOf(0) }
@@ -110,7 +144,7 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
     }
     val onMainAction: () -> Unit = {
         if (st == VpnState.Active) VpnController.stop(ctx)
-        else VpnController.start(ctx, consentLauncher::launch)
+        else if (st != VpnState.Starting) VpnController.start(ctx, consentLauncher::launch)
     }
 
     val activeVpn = settings?.activeVpn ?: VpnProfileKind.VLESS
@@ -145,7 +179,7 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
 
             Spacer(Modifier.weight(1f))
             StatusCard(
-                state = st,
+                state = visualState,
                 style = style,
                 timerText = timerText,
                 serverHost = serverHost,
@@ -161,7 +195,8 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
 
             Box(Modifier.fillMaxWidth().navigationBarsPadding()) {
                 MainButton(
-                    state = st,
+                    state = visualState,
+                    busy = st == VpnState.Starting,
                     onClick = onMainAction,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -175,6 +210,7 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
 @Composable
 private fun MainButton(
     state: VpnState,
+    busy: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -182,13 +218,11 @@ private fun MainButton(
     val activeMain = state == VpnState.Active
     val container by animateColorAsState(
         when {
-            // Disconnect is an action, not a success badge. Keep it in the palette's
-            // accent family so an active tunnel does not turn the entire screen green.
             activeMain -> c.surfaceSelected
-            state == VpnState.Starting -> c.accentSoft
+            state == VpnState.Starting -> c.surface
             else -> c.accent
         },
-        tween(110), label = "btnBg",
+        tween(150), label = "btnBg",
     )
     val content by animateColorAsState(
         when {
@@ -196,7 +230,7 @@ private fun MainButton(
             state == VpnState.Starting -> c.accent
             else -> c.onAccent
         },
-        tween(110), label = "btnFg",
+        tween(130), label = "btnFg",
     )
     val borderColor by animateColorAsState(
         when {
@@ -204,7 +238,7 @@ private fun MainButton(
             state == VpnState.Starting -> c.accentBorder
             else -> Color.Transparent
         },
-        tween(110), label = "btnBorder",
+        tween(150), label = "btnBorder",
     )
     val text = when (state) {
         VpnState.Active -> stringResource(R.string.btn_disconnect)
@@ -216,7 +250,7 @@ private fun MainButton(
         text = text,
         onClick = onClick,
         modifier = modifier,
-        enabled = state != VpnState.Starting,
+        enabled = !busy,
         container = container,
         contentColor = content,
         disabledContainer = container,
@@ -236,70 +270,88 @@ private fun StatusCard(
     modifier: Modifier = Modifier,
 ) {
     val c = detourColors
-    val titleRes = when (state) {
-        VpnState.Active -> R.string.status_active
-        VpnState.Starting -> R.string.status_starting
-        is VpnState.Failed -> R.string.status_failed
-        VpnState.Idle -> R.string.status_idle
-    }
+    val key = visualKey(state)
     Column(
         modifier
-            .animateContentSize(tween(110))
+            .animateContentSize(tween(170))
             .clip(AppShapes.medium)
             .background(style.container.copy(alpha = 0.96f))
             .border(1.dp, style.border, AppShapes.medium)
             .padding(Spacing.space20),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Row(
-            Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            Text(
-                stringResource(titleRes),
-                style = MaterialTheme.typography.titleMedium,
-                color = style.content,
-            )
-            if (state == VpnState.Starting) {
-                Spacer(Modifier.size(10.dp))
-                CircularProgressIndicator(
-                    modifier = Modifier.size(14.dp),
-                    strokeWidth = 1.5.dp,
+        AnimatedContent(
+            targetState = key,
+            transitionSpec = {
+                fadeIn(tween(150, delayMillis = 35)) togetherWith fadeOut(tween(90))
+            },
+            label = "statusTitle",
+        ) { target ->
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                val titleRes = when (target) {
+                    VisualVpnState.ACTIVE -> R.string.status_active
+                    VisualVpnState.STARTING -> R.string.status_starting
+                    VisualVpnState.FAILED -> R.string.status_failed
+                    VisualVpnState.IDLE -> R.string.status_idle
+                }
+                Text(
+                    stringResource(titleRes),
+                    style = MaterialTheme.typography.titleMedium,
                     color = style.content,
                 )
+                if (target == VisualVpnState.STARTING) {
+                    Spacer(Modifier.size(10.dp))
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(14.dp),
+                        strokeWidth = 1.5.dp,
+                        color = style.content,
+                    )
+                }
             }
         }
-        when (state) {
-            is VpnState.Failed -> Text(
-                state.reason,
-                style = MaterialTheme.typography.bodyMedium,
-                color = style.content.copy(alpha = 0.9f),
-                modifier = Modifier.padding(top = Spacing.space4),
-            )
-            VpnState.Idle -> Text(
-                stringResource(R.string.state_sub_idle),
-                style = MaterialTheme.typography.bodyMedium,
-                color = c.textSecondary,
-                modifier = Modifier.padding(top = Spacing.space4),
-            )
-            VpnState.Starting -> Text(
-                stringResource(R.string.btn_connecting),
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-                ),
-                color = style.content,
-                modifier = Modifier.padding(top = Spacing.space4),
-            )
-            VpnState.Active -> Text(
-                timerText,
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-                    fontFeatureSettings = "tnum",
-                ),
-                color = style.content,
-                modifier = Modifier.padding(top = Spacing.space4),
-            )
+
+        AnimatedContent(
+            targetState = key,
+            transitionSpec = {
+                fadeIn(tween(150, delayMillis = 25)) togetherWith fadeOut(tween(80))
+            },
+            label = "statusSubtitle",
+        ) { target ->
+            when (target) {
+                VisualVpnState.FAILED -> Text(
+                    (state as? VpnState.Failed)?.reason ?: "",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = style.content.copy(alpha = 0.9f),
+                    modifier = Modifier.padding(top = Spacing.space4),
+                )
+                VisualVpnState.IDLE -> Text(
+                    stringResource(R.string.state_sub_idle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = c.textSecondary,
+                    modifier = Modifier.padding(top = Spacing.space4),
+                )
+                VisualVpnState.STARTING -> Text(
+                    stringResource(R.string.btn_connecting),
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                    ),
+                    color = style.content,
+                    modifier = Modifier.padding(top = Spacing.space4),
+                )
+                VisualVpnState.ACTIVE -> Text(
+                    timerText,
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                        fontFeatureSettings = "tnum",
+                    ),
+                    color = style.content,
+                    modifier = Modifier.padding(top = Spacing.space4),
+                )
+            }
         }
 
         Spacer(Modifier.height(12.dp))
