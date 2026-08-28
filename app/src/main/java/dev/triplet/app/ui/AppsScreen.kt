@@ -105,7 +105,7 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
             }
     }
 
-    fun setShowSystem(value: Boolean) {
+    fun setShowSystemFromRow(value: Boolean) {
         haptics.performHapticFeedback(
             if (value) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff,
         )
@@ -167,7 +167,7 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
             Modifier.fillMaxWidth()
                 .padding(horizontal = Spacing.space16, vertical = Spacing.space8)
                 .detourClickable(
-                    onClick = { setShowSystem(!showSystem) },
+                    onClick = { setShowSystemFromRow(!showSystem) },
                     pressedColor = c.surfaceSelected.copy(alpha = 0.32f),
                     pressScale = Motion.PRESS_ROW,
                 ),
@@ -180,7 +180,11 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
                 color = c.textPrimary,
                 modifier = Modifier.weight(1f),
             )
-            DetourSwitch(checked = showSystem, onCheckedChange = { value -> scope.launch { store.setShowSystemApps(value) } })
+            // Direct switch taps get their haptic from DetourSwitch itself.
+            DetourSwitch(
+                checked = showSystem,
+                onCheckedChange = { value -> scope.launch { store.setShowSystemApps(value) } },
+            )
         }
 
         DetourCard(Modifier.weight(1f).padding(horizontal = Spacing.space16)) {
