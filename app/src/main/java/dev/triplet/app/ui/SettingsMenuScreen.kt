@@ -83,7 +83,7 @@ fun SettingsMenuScreen(
             MenuItem(R.string.nav_dpi, { stringResource(R.string.nav_dpi_sub) }, R.drawable.ic_dpi) to onOpenDpi,
             MenuItem(R.string.nav_dns, { stringResource(R.string.nav_dns_sub) }, R.drawable.ic_globe) to onOpenDns,
             MenuItem(R.string.nav_backup, { stringResource(R.string.nav_backup_sub) }, R.drawable.ic_export) to onOpenBackup,
-            MenuItem(R.string.nav_theme, { stringResource(themeLabel(theme)) }, R.drawable.ic_theme) to onOpenTheme,
+            MenuItem(R.string.nav_theme, { theme.label }, R.drawable.ic_theme) to onOpenTheme,
         )
         DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
             items.forEachIndexed { i, (item, onClick) ->
