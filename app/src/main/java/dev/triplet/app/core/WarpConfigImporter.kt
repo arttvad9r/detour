@@ -17,7 +17,7 @@ sealed interface WarpImportResult {
  */
 object WarpConfigImporter {
     const val MAX_CHARS = 1024 * 1024
-    private const val MAX_PROXIES = 256
+    private const val MAX_PROXIES = 128
     private const val MAX_ALIASES = 512
 
     fun parse(raw: String): WarpImportResult {
