@@ -43,6 +43,7 @@ data class WarpProxy(
     val allowedIps: List<String>,
     val udp: Boolean = true,
     val mtu: Int = 1280,
+    val persistentKeepalive: Int? = null,
     val remoteDnsResolve: Boolean = true,
     val dns: List<String> = emptyList(),
     val amnezia: AmneziaWgOptions,
@@ -105,6 +106,7 @@ private fun WarpProxy.toJson() = JSONObject().apply {
     put("allowedIps", JSONArray(allowedIps))
     put("udp", udp)
     put("mtu", mtu)
+    persistentKeepalive?.let { put("persistentKeepalive", it) }
     put("remoteDnsResolve", remoteDnsResolve)
     put("dns", JSONArray(dns))
     put("amnezia", JSONObject().apply {
@@ -149,6 +151,7 @@ private fun warpProxyFromJson(obj: JSONObject): WarpProxy {
         allowedIps = allowed,
         udp = obj.optBoolean("udp", true),
         mtu = obj.optInt("mtu", 1280),
+        persistentKeepalive = obj.optIntOrNull("persistentKeepalive"),
         remoteDnsResolve = obj.optBoolean("remoteDnsResolve", true),
         dns = dns,
         amnezia = AmneziaWgOptions(
@@ -185,5 +188,6 @@ fun validateWarpProxy(proxy: WarpProxy) {
     require(proxy.reserved.all { it in 0..255 })
     require(proxy.allowedIps.isNotEmpty() && proxy.allowedIps.all { it.isNotBlank() })
     require(proxy.mtu in 576..9000)
+    require(proxy.persistentKeepalive == null || proxy.persistentKeepalive in 0..65535)
     require(proxy.dns.all { it.isNotBlank() })
 }
