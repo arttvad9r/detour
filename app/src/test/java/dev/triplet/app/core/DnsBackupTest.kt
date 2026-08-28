@@ -83,7 +83,7 @@ class SettingsBackupTest {
     @Test fun `missing fields get defaults`() {
         val b = SettingsBackup.fromJson("""{"app":"detour","vless":""}""")!!
         assertEquals("recommended", b.presetId)
-        assertEquals("lavenda", b.themeId)
+        assertEquals("catppuccin_latte", b.themeId)
         assertTrue(b.routes.isEmpty())
     }
 
@@ -111,7 +111,7 @@ class SettingsBackupTest {
     @Test fun `v2 remains importable and defaults to VLESS`() {
         val json = """{"v":2,"app":"detour","vlessKeys":{"activeId":null,"items":[]},"preset":"recommended","customArgs":"","autoConnect":false,"theme":"","dns":"","dnsCustom":"","routes":{}}"""
         val restored = SettingsBackup.fromJson(json)!!
-        assertEquals("lavenda", restored.themeId)
+        assertEquals("catppuccin_latte", restored.themeId)
         assertEquals("google", restored.dnsId)
         assertEquals(VpnProfileKind.VLESS, restored.activeVpn)
         assertNull(restored.warpProfile)
