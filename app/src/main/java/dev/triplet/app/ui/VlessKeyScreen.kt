@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FloatingActionButton
@@ -46,6 +47,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import dev.triplet.app.R
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.VlessKey
@@ -133,12 +135,12 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                 if (vlessItems.isEmpty() && warpProfile == null) {
                     Text(
                         stringResource(R.string.profile_empty),
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = c.textMuted,
                         modifier = Modifier.padding(
                             start = Spacing.space20,
                             end = Spacing.space20,
-                            top = Spacing.space4,
+                            top = Spacing.space2,
                             bottom = Spacing.space12,
                         ),
                     )
@@ -287,8 +289,13 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
     }
 
     if (showAddDialog) {
-        Dialog(onDismissRequest = { showAddDialog = false }) {
-            DetourCard {
+        Dialog(
+            onDismissRequest = { showAddDialog = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            DetourCard(
+                Modifier.padding(horizontal = Spacing.space24).widthIn(max = 420.dp),
+            ) {
                 Text(
                     stringResource(R.string.profile_add_title),
                     style = MaterialTheme.typography.titleMedium,
@@ -297,7 +304,7 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                         start = Spacing.space20,
                         end = Spacing.space20,
                         top = Spacing.space16,
-                        bottom = Spacing.space12,
+                        bottom = 10.dp,
                     ),
                 )
                 GroupDivider(startInset = 20)
@@ -324,7 +331,7 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                     Modifier.fillMaxWidth().padding(
                         start = Spacing.space12,
                         end = Spacing.space12,
-                        bottom = Spacing.space4,
+                        bottom = Spacing.space8,
                     ),
                     horizontalArrangement = Arrangement.End,
                 ) {
@@ -343,7 +350,7 @@ private fun ProfileTypeRow(title: String, subtitle: String, onClick: () -> Unit)
     Row(
         Modifier.fillMaxWidth()
             .detourClickable(onClick = onClick, role = Role.Button)
-            .padding(horizontal = Spacing.space20, vertical = Spacing.space12),
+            .padding(horizontal = Spacing.space20, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
@@ -377,10 +384,10 @@ private fun KeyRow(
             .detourClickable(
                 onClick = onClick,
                 role = Role.RadioButton,
-                idleColor = if (selected) c.accentSoft else Color.Transparent,
-                pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
+                idleColor = if (selected) c.surfaceSelected else Color.Transparent,
+                pressedColor = if (selected) c.surfaceSelected else c.accentSoft,
             )
-            .padding(start = Spacing.space16, top = Spacing.space12, bottom = Spacing.space12),
+            .padding(start = Spacing.space16, top = 10.dp, bottom = 10.dp, end = Spacing.space8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RadioDot(selected)
@@ -400,19 +407,21 @@ private fun KeyRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Row(Modifier.width(80.dp), horizontalArrangement = Arrangement.End) {
-            IconButton(modifier = Modifier.size(40.dp), onClick = onEdit) {
+        Row(Modifier.width(72.dp), horizontalArrangement = Arrangement.End) {
+            IconButton(modifier = Modifier.size(36.dp), onClick = onEdit) {
                 Icon(
                     painterResource(R.drawable.ic_edit),
                     contentDescription = stringResource(R.string.key_edit),
                     tint = c.textSecondary,
+                    modifier = Modifier.size(18.dp),
                 )
             }
-            IconButton(modifier = Modifier.size(40.dp), onClick = onDelete) {
+            IconButton(modifier = Modifier.size(36.dp), onClick = onDelete) {
                 Icon(
                     painterResource(R.drawable.ic_delete),
                     contentDescription = stringResource(R.string.key_delete),
                     tint = c.error,
+                    modifier = Modifier.size(18.dp),
                 )
             }
         }
@@ -427,10 +436,10 @@ private fun WarpRow(profile: WarpProfile, selected: Boolean, onDelete: () -> Uni
             .detourClickable(
                 onClick = onClick,
                 role = Role.RadioButton,
-                idleColor = if (selected) c.accentSoft else Color.Transparent,
-                pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
+                idleColor = if (selected) c.surfaceSelected else Color.Transparent,
+                pressedColor = if (selected) c.surfaceSelected else c.accentSoft,
             )
-            .padding(start = Spacing.space16, top = Spacing.space12, bottom = Spacing.space12),
+            .padding(start = Spacing.space16, top = 10.dp, bottom = 10.dp, end = Spacing.space8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RadioDot(selected)
@@ -450,11 +459,12 @@ private fun WarpRow(profile: WarpProfile, selected: Boolean, onDelete: () -> Uni
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        IconButton(modifier = Modifier.size(40.dp), onClick = onDelete) {
+        IconButton(modifier = Modifier.size(36.dp), onClick = onDelete) {
             Icon(
                 painterResource(R.drawable.ic_delete),
                 contentDescription = stringResource(R.string.warp_delete),
                 tint = c.error,
+                modifier = Modifier.size(18.dp),
             )
         }
     }
