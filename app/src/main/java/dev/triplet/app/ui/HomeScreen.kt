@@ -12,9 +12,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -44,7 +44,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -61,7 +63,6 @@ import kotlinx.coroutines.delay
 
 enum class HomeProtocol { VLESS_DPI, DPI, VLESS, NONE }
 private enum class VisualVpnState { IDLE, STARTING, ACTIVE, FAILED }
-private const val STARTING_VISIBILITY_DELAY_MS = 350L
 
 fun homeProtocol(routes: Map<String, AppRoute>): HomeProtocol {
     val dpi = routes.values.any { it == AppRoute.DPI }
@@ -85,15 +86,13 @@ private fun visualKey(state: VpnState): VisualVpnState = when (state) {
 fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
     val state by VpnController.state.collectAsState()
     val ctx = LocalContext.current
+    val haptics = LocalHapticFeedback.current
     val st = state
     val c = detourColors
-    val theme = LocalDetourTheme.current
-
     val settings by store.settings.collectAsState()
 
-    // The engine normally connects in well under a second. Do not flash an
-    // intermediate UI state for work that finishes before the user can read it.
-    // Starting only becomes visible when the operation is genuinely taking time.
+    // Do not render a state that only lives for a few frames. If the engine is
+    // still starting after the readability threshold, then reveal it.
     var showStarting by remember { mutableStateOf(false) }
     var lastSettledState by remember {
         mutableStateOf<VpnState>(if (st == VpnState.Starting) VpnState.Idle else st)
@@ -101,7 +100,7 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
     LaunchedEffect(st) {
         if (st == VpnState.Starting) {
             showStarting = false
-            delay(STARTING_VISIBILITY_DELAY_MS)
+            delay(Motion.DEFERRED_BUSY_MS)
             if (VpnController.state.value == VpnState.Starting) showStarting = true
         } else {
             showStarting = false
@@ -110,11 +109,26 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
     }
     val visualState = if (st == VpnState.Starting && !showStarting) lastSettledState else st
 
-    val status = theme.statusFor(visualState)
+    // Haptics follow real engine completion, not the optimistic button tap.
+    var previousEngineState by remember { mutableStateOf<VpnState?>(null) }
+    LaunchedEffect(st) {
+        val previous = previousEngineState
+        if (previous != null) {
+            when {
+                st == VpnState.Active && previous != VpnState.Active ->
+                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                st is VpnState.Failed && previous !is VpnState.Failed ->
+                    haptics.performHapticFeedback(HapticFeedbackType.Reject)
+            }
+        }
+        previousEngineState = st
+    }
+
+    val status = statusStyleFor(c, visualState)
     val style = StatusStyle(
-        container = animateColorAsState(status.container, tween(160), label = "cardBg").value,
-        content = animateColorAsState(status.content, tween(140), label = "cardFg").value,
-        border = animateColorAsState(status.border, tween(160), label = "cardBorder").value,
+        container = animateColorAsState(status.container, tween(Motion.STATE_MS), label = "cardBg").value,
+        content = animateColorAsState(status.content, tween(Motion.COLOR_MS), label = "cardFg").value,
+        border = animateColorAsState(status.border, tween(Motion.STATE_MS), label = "cardBorder").value,
     )
 
     var elapsed by rememberSaveable { mutableIntStateOf(0) }
@@ -128,7 +142,9 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
         } else elapsed = 0
     }
     val timerText = remember(elapsed) {
-        val h = elapsed / 3600; val m = (elapsed % 3600) / 60; val sec = elapsed % 60
+        val h = elapsed / 3600
+        val m = (elapsed % 3600) / 60
+        val sec = elapsed % 60
         "%02d:%02d:%02d".format(h, m, sec)
     }
     val serverHost = remember(settings?.vlessUri, settings?.warpProfile, settings?.activeVpn) {
@@ -222,7 +238,7 @@ private fun MainButton(
             state == VpnState.Starting -> c.surface
             else -> c.accent
         },
-        tween(150), label = "btnBg",
+        tween(Motion.STATE_MS), label = "btnBg",
     )
     val content by animateColorAsState(
         when {
@@ -230,7 +246,7 @@ private fun MainButton(
             state == VpnState.Starting -> c.accent
             else -> c.onAccent
         },
-        tween(130), label = "btnFg",
+        tween(Motion.COLOR_MS), label = "btnFg",
     )
     val borderColor by animateColorAsState(
         when {
@@ -238,7 +254,7 @@ private fun MainButton(
             state == VpnState.Starting -> c.accentBorder
             else -> Color.Transparent
         },
-        tween(150), label = "btnBorder",
+        tween(Motion.STATE_MS), label = "btnBorder",
     )
     val text = when (state) {
         VpnState.Active -> stringResource(R.string.btn_disconnect)
@@ -273,7 +289,7 @@ private fun StatusCard(
     val key = visualKey(state)
     Column(
         modifier
-            .animateContentSize(tween(170))
+            .animateContentSize(tween(Motion.STATE_MS))
             .clip(AppShapes.medium)
             .background(style.container.copy(alpha = 0.96f))
             .border(1.dp, style.border, AppShapes.medium)
@@ -283,7 +299,8 @@ private fun StatusCard(
         AnimatedContent(
             targetState = key,
             transitionSpec = {
-                fadeIn(tween(150, delayMillis = 35)) togetherWith fadeOut(tween(90))
+                fadeIn(tween(Motion.CONTENT_IN_MS, delayMillis = 35)) togetherWith
+                    fadeOut(tween(Motion.CONTENT_OUT_MS))
             },
             label = "statusTitle",
         ) { target ->
@@ -317,7 +334,8 @@ private fun StatusCard(
         AnimatedContent(
             targetState = key,
             transitionSpec = {
-                fadeIn(tween(150, delayMillis = 25)) togetherWith fadeOut(tween(80))
+                fadeIn(tween(Motion.CONTENT_IN_MS, delayMillis = 25)) togetherWith
+                    fadeOut(tween(Motion.CONTENT_OUT_MS))
             },
             label = "statusSubtitle",
         ) { target ->
