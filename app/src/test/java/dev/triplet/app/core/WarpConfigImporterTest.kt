@@ -65,6 +65,45 @@ class WarpConfigImporterTest {
         assertEquals("<b 0x1234>", proxy.amnezia.i1)
     }
 
+    @Test fun `regular generator config with more than fifty aliases is accepted`() {
+        val proxies = (1..135).joinToString("\n") { n ->
+            """
+              - name: endpoint-$n
+                <<: *warp-common
+                server: 162.159.192.${(n % 20) + 1}
+                port: ${listOf(2408, 1701, 4500, 500)[n % 4]}
+            """.trimIndent()
+        }
+        val large = """
+            warp-common: &warp-common
+              type: wireguard
+              ip: 172.16.0.2
+              private-key: private
+              public-key: public
+              reserved: [109, 84, 209]
+              allowed-ips: ['0.0.0.0/0']
+              udp: true
+              mtu: 1280
+              amnezia-wg-option:
+                jc: 4
+                jmin: 40
+                jmax: 70
+                s1: 0
+                s2: 0
+                h1: 1
+                h2: 2
+                h3: 4
+                h4: 3
+                i1: '<b 0x1234>'
+            proxies:
+            $proxies
+        """.trimIndent()
+
+        val result = WarpConfigImporter.parse(large)
+        assertTrue(result is WarpImportResult.Ok)
+        assertEquals(80, (result as WarpImportResult.Ok).profile.proxies.size)
+    }
+
     @Test fun `plain wireguard without AmneziaWG is not accepted`() {
         val result = WarpConfigImporter.parse(
             """
