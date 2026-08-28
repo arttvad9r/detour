@@ -72,6 +72,8 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
                     dnsCustom = s.dnsCustom,
                     routes = s.routes.mapValues { it.value.name },
                     vlessKeys = s.vlessKeys,
+                    warpProfile = s.warpProfile,
+                    activeVpn = s.activeVpn,
                     showSystemApps = s.showSystemApps,
                 ),
             )
