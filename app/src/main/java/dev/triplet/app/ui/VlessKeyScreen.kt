@@ -85,6 +85,8 @@ private data class ProfileSnapshot(
     val warp: WarpProfile?,
 )
 
+private enum class ProfileSheetMode { PICKER, VLESS_EDITOR }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modifier) {
@@ -101,23 +103,24 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
     val vlessTitle = stringResource(R.string.profile_add_vless)
 
     var editingId by rememberSaveable { androidx.compose.runtime.mutableStateOf<String?>(null) }
-    var editing by rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
-    var showAddSheet by rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    var showSheet by rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
+    var sheetMode by remember { androidx.compose.runtime.mutableStateOf(ProfileSheetMode.PICKER) }
     var field by rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
     var warpStatus by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
     val parse = field.trim().takeIf { it.isNotBlank() }?.let(VlessKeyParser::parse)
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    fun beginEdit(key: VlessKey?) {
-        editing = true
+    fun beginVlessEdit(key: VlessKey?) {
         editingId = key?.id
         field = key?.uri ?: ""
+        sheetMode = ProfileSheetMode.VLESS_EDITOR
+        showSheet = true
     }
 
-    fun dismissAddSheet(after: (() -> Unit)? = null) {
+    fun dismissSheet(after: (() -> Unit)? = null) {
         scope.launch {
             runCatching { sheetState.hide() }
-            showAddSheet = false
+            showSheet = false
             after?.invoke()
         }
     }
@@ -155,245 +158,131 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
             Modifier.fillMaxSize()
                 .statusBarsPadding()
                 .navigationBarsPadding()
-                .imePadding()
                 .verticalScroll(rememberScrollState()),
         ) {
             ScreenHeader(stringResource(R.string.key_title), onBack)
             Spacer(Modifier.height(Spacing.space8))
 
+            Text(
+                stringResource(R.string.key_list_title),
+                style = MaterialTheme.typography.titleSmall,
+                color = c.textPrimary,
+                modifier = Modifier.padding(horizontal = Spacing.space16),
+            )
+            Spacer(Modifier.height(Spacing.space8))
+
+            val snapshot = ProfileSnapshot(vlessItems, warpProfile)
             AnimatedContent(
-                targetState = editing,
+                targetState = snapshot,
                 transitionSpec = {
-                    if (targetState) {
-                        (fadeIn(
-                            tween(
-                                Motion.CONTENT_IN_MS,
-                                delayMillis = 20,
-                                easing = Motion.ENTER_EASING,
-                            ),
-                        ) + slideInHorizontally(
-                            tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
-                            initialOffsetX = { it / 14 },
-                        )) togetherWith
-                            (fadeOut(
-                                tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
-                            ) + slideOutHorizontally(
-                                tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
-                                targetOffsetX = { -it / 32 },
-                            ))
-                    } else {
-                        (fadeIn(
-                            tween(
-                                Motion.CONTENT_IN_MS,
-                                delayMillis = 14,
-                                easing = Motion.ENTER_EASING,
-                            ),
-                        ) + slideInHorizontally(
-                            tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
-                            initialOffsetX = { -it / 32 },
-                        )) togetherWith
-                            (fadeOut(
-                                tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
-                            ) + slideOutHorizontally(
-                                tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
-                                targetOffsetX = { it / 14 },
-                            ))
-                    }
+                    fadeIn(
+                        tween(
+                            Motion.CONTENT_IN_MS,
+                            delayMillis = 20,
+                            easing = Motion.ENTER_EASING,
+                        ),
+                    ) togetherWith fadeOut(
+                        tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
+                    )
                 },
-                label = "profileEditor",
-            ) { isEditing ->
-                if (!isEditing) {
-                    Column {
-                        Text(
-                            stringResource(R.string.key_list_title),
-                            style = MaterialTheme.typography.titleSmall,
-                            color = c.textPrimary,
-                            modifier = Modifier.padding(horizontal = Spacing.space16),
-                        )
-                        Spacer(Modifier.height(Spacing.space8))
-
-                        val snapshot = ProfileSnapshot(vlessItems, warpProfile)
-                        AnimatedContent(
-                            targetState = snapshot,
-                            transitionSpec = {
-                                fadeIn(
-                                    tween(
-                                        Motion.CONTENT_IN_MS,
-                                        delayMillis = 20,
-                                        easing = Motion.ENTER_EASING,
-                                    ),
-                                ) togetherWith fadeOut(
-                                    tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
-                                )
-                            },
-                            label = "profileList",
-                        ) { shown ->
-                            if (shown.vless.isEmpty() && shown.warp == null) {
-                                Text(
-                                    stringResource(R.string.profile_empty),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = c.textMuted,
-                                    modifier = Modifier.padding(
-                                        start = Spacing.space20,
-                                        end = Spacing.space20,
-                                        top = Spacing.space2,
-                                        bottom = Spacing.space12,
-                                    ),
-                                )
-                            } else {
-                                DetourCard(
-                                    Modifier
-                                        .padding(horizontal = Spacing.space16)
-                                        .animateContentSize(
-                                            spring(
-                                                dampingRatio = Motion.SPRING_DAMPING,
-                                                stiffness = Motion.SPRING_STIFFNESS_SOFT,
-                                            ),
-                                        ),
-                                ) {
-                                    shown.vless.forEachIndexed { index, key ->
-                                        val selected = activeVpn == VpnProfileKind.VLESS && key.id == keys?.activeId
-                                        KeyRow(
-                                            key = key,
-                                            selected = selected,
-                                            onEdit = { beginEdit(key) },
-                                            onDelete = {
-                                                scope.launch {
-                                                    store.deleteVlessKey(key.id)
-                                                    VpnController.restartIfActive(ctx)
-                                                }
-                                            },
-                                        ) {
-                                            if (!selected) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                                            scope.launch {
-                                                store.setActiveVlessKey(key.id)
-                                                VpnController.restartIfActive(ctx)
-                                            }
-                                        }
-                                        if (index < shown.vless.lastIndex || shown.warp != null) {
-                                            GroupDivider(startInset = 16)
-                                        }
-                                    }
-                                    shown.warp?.let { profile ->
-                                        val selected = activeVpn == VpnProfileKind.WARP
-                                        WarpRow(
-                                            profile = profile,
-                                            selected = selected,
-                                            onDelete = {
-                                                scope.launch {
-                                                    store.deleteWarpProfile()
-                                                    VpnController.restartIfActive(ctx)
-                                                }
-                                            },
-                                            onClick = {
-                                                if (!selected) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                                                scope.launch {
-                                                    store.setActiveVpn(VpnProfileKind.WARP)
-                                                    VpnController.restartIfActive(ctx)
-                                                }
-                                            },
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        AnimatedVisibility(
-                            visible = warpStatus != 0,
-                            enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)),
-                            exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)),
-                        ) {
-                            Column {
-                                Spacer(Modifier.height(Spacing.space8))
-                                Text(
-                                    text = stringResource(
-                                        if (warpStatus == 2) R.string.warp_invalid else R.string.warp_import_error,
-                                    ),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = c.error,
-                                    modifier = Modifier.padding(horizontal = Spacing.space20),
-                                )
-                            }
-                        }
-                        Spacer(Modifier.height(Spacing.space8))
-                    }
+                label = "profileList",
+            ) { shown ->
+                if (shown.vless.isEmpty() && shown.warp == null) {
+                    Text(
+                        stringResource(R.string.profile_empty),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = c.textMuted,
+                        modifier = Modifier.padding(
+                            start = Spacing.space20,
+                            end = Spacing.space20,
+                            top = Spacing.space2,
+                            bottom = Spacing.space12,
+                        ),
+                    )
                 } else {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.space16)) {
-                        DetourInputField(
-                            value = field,
-                            onValueChange = { value ->
-                                field = value.replace("\r", "").replace("\n", "")
-                            },
-                            label = stringResource(R.string.key_uri),
-                            placeholder = stringResource(R.string.key_placeholder),
-                            helper = stringResource(R.string.key_input_hint),
-                            error = if (parse is ParseResult.Err) stringResource(R.string.key_invalid) else null,
-                            success = (parse as? ParseResult.Ok)?.let { result ->
-                                stringResource(
-                                    R.string.key_detected_server,
-                                    result.profile.server,
-                                    result.profile.port,
-                                )
-                            },
-                            singleLine = false,
-                            minHeight = 56.dp,
-                            maxHeight = 176.dp,
-                            maxLines = 6,
-                        )
-
-                        val clipboard = LocalClipboard.current
-                        TextButton(
-                            onClick = {
-                                scope.launch {
-                                    clipboard.getClipEntry()?.clipData?.getItemAt(0)?.text?.toString()?.let {
-                                        field = it.trim().replace("\r", "").replace("\n", "")
-                                    }
-                                }
-                            },
-                            modifier = Modifier.align(Alignment.End),
-                        ) {
-                            Text(stringResource(R.string.key_paste))
-                        }
-
-                        Spacer(Modifier.height(Spacing.space4))
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.space12),
-                        ) {
-                            DetourButton(
-                                text = stringResource(R.string.key_cancel),
-                                onClick = { editing = false },
-                                style = ButtonStyle.SECONDARY,
-                                modifier = Modifier.weight(1f),
-                            )
-                            DetourButton(
-                                text = stringResource(R.string.btn_save),
-                                enabled = parse is ParseResult.Ok,
-                                onClick = {
-                                    val value = field.trim()
-                                    val key = VlessKey(
-                                        editingId ?: UUID.randomUUID().toString(),
-                                        keyName(value, vlessTitle),
-                                        value,
-                                    )
+                    DetourCard(
+                        Modifier
+                            .padding(horizontal = Spacing.space16)
+                            .animateContentSize(
+                                spring(
+                                    dampingRatio = Motion.SPRING_DAMPING,
+                                    stiffness = Motion.SPRING_STIFFNESS_SOFT,
+                                ),
+                            ),
+                    ) {
+                        shown.vless.forEachIndexed { index, key ->
+                            val selected = activeVpn == VpnProfileKind.VLESS && key.id == keys?.activeId
+                            KeyRow(
+                                key = key,
+                                selected = selected,
+                                onEdit = { beginVlessEdit(key) },
+                                onDelete = {
                                     scope.launch {
-                                        if (editingId == null) store.addVlessKey(key) else store.updateVlessKey(key)
+                                        store.deleteVlessKey(key.id)
                                         VpnController.restartIfActive(ctx)
-                                        editing = false
-                                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                                     }
                                 },
-                                modifier = Modifier.weight(1f),
+                            ) {
+                                if (!selected) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                scope.launch {
+                                    store.setActiveVlessKey(key.id)
+                                    VpnController.restartIfActive(ctx)
+                                }
+                            }
+                            if (index < shown.vless.lastIndex || shown.warp != null) {
+                                GroupDivider(startInset = 16)
+                            }
+                        }
+                        shown.warp?.let { profile ->
+                            val selected = activeVpn == VpnProfileKind.WARP
+                            WarpRow(
+                                profile = profile,
+                                selected = selected,
+                                onEdit = {
+                                    warpStatus = 0
+                                    warpLauncher.launch(arrayOf("*/*"))
+                                },
+                                onDelete = {
+                                    scope.launch {
+                                        store.deleteWarpProfile()
+                                        VpnController.restartIfActive(ctx)
+                                    }
+                                },
+                                onClick = {
+                                    if (!selected) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                    scope.launch {
+                                        store.setActiveVpn(VpnProfileKind.WARP)
+                                        VpnController.restartIfActive(ctx)
+                                    }
+                                },
                             )
                         }
                     }
+                }
+            }
+
+            AnimatedVisibility(
+                visible = warpStatus != 0,
+                enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)),
+                exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)),
+            ) {
+                Column {
+                    Spacer(Modifier.height(Spacing.space8))
+                    Text(
+                        text = stringResource(
+                            if (warpStatus == 2) R.string.warp_invalid else R.string.warp_import_error,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = c.error,
+                        modifier = Modifier.padding(horizontal = Spacing.space20),
+                    )
                 }
             }
             Spacer(Modifier.height(Spacing.space24))
         }
 
         AnimatedVisibility(
-            visible = !editing && !showAddSheet,
+            visible = !showSheet,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 88.dp),
             enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)) + scaleIn(
                 animationSpec = spring(
@@ -418,7 +307,12 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                 label = "profileFabPress",
             )
             FloatingActionButton(
-                onClick = { showAddSheet = true },
+                onClick = {
+                    editingId = null
+                    field = ""
+                    sheetMode = ProfileSheetMode.PICKER
+                    showSheet = true
+                },
                 interactionSource = fabInteraction,
                 modifier = Modifier
                     .graphicsLayer {
@@ -436,47 +330,196 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
         }
     }
 
-    if (showAddSheet) {
+    if (showSheet) {
         ModalBottomSheet(
-            onDismissRequest = { showAddSheet = false },
+            onDismissRequest = { showSheet = false },
             sheetState = sheetState,
             containerColor = c.surface,
             contentColor = c.textPrimary,
         ) {
-            Text(
-                stringResource(R.string.profile_add_title),
-                style = MaterialTheme.typography.titleMedium,
-                color = c.textPrimary,
-                modifier = Modifier.padding(horizontal = Spacing.space20, vertical = Spacing.space8),
-            )
-            GroupDivider(startInset = 20)
-            ProfileTypeRow(
-                title = stringResource(R.string.profile_add_vless),
-                subtitle = stringResource(R.string.profile_add_vless_sub),
-            ) {
-                dismissAddSheet { beginEdit(null) }
-            }
-            GroupDivider(startInset = 20)
-            ProfileTypeRow(
-                title = stringResource(R.string.profile_add_warp),
-                subtitle = stringResource(
-                    if (warpProfile == null) R.string.profile_add_warp_sub
-                    else R.string.profile_replace_warp_sub,
-                ),
-            ) {
-                dismissAddSheet {
-                    warpStatus = 0
-                    warpLauncher.launch(arrayOf("*/*"))
+            AnimatedContent(
+                targetState = sheetMode,
+                transitionSpec = {
+                    if (targetState == ProfileSheetMode.VLESS_EDITOR) {
+                        (fadeIn(
+                            tween(
+                                Motion.CONTENT_IN_MS,
+                                delayMillis = 20,
+                                easing = Motion.ENTER_EASING,
+                            ),
+                        ) + slideInHorizontally(
+                            tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
+                            initialOffsetX = { it / 10 },
+                        )) togetherWith
+                            (fadeOut(
+                                tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
+                            ) + slideOutHorizontally(
+                                tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
+                                targetOffsetX = { -it / 32 },
+                            ))
+                    } else {
+                        (fadeIn(
+                            tween(
+                                Motion.CONTENT_IN_MS,
+                                delayMillis = 14,
+                                easing = Motion.ENTER_EASING,
+                            ),
+                        ) + slideInHorizontally(
+                            tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
+                            initialOffsetX = { -it / 32 },
+                        )) togetherWith
+                            (fadeOut(
+                                tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
+                            ) + slideOutHorizontally(
+                                tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
+                                targetOffsetX = { it / 10 },
+                            ))
+                    }
+                },
+                label = "profileSheetContent",
+            ) { mode ->
+                when (mode) {
+                    ProfileSheetMode.PICKER -> {
+                        Column {
+                            Text(
+                                stringResource(R.string.profile_add_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = c.textPrimary,
+                                modifier = Modifier.padding(
+                                    start = Spacing.space20,
+                                    end = Spacing.space20,
+                                    top = Spacing.space8,
+                                    bottom = Spacing.space12,
+                                ),
+                            )
+                            GroupDivider(startInset = 20)
+                            ProfileTypeRow(
+                                title = stringResource(R.string.profile_add_vless),
+                                subtitle = stringResource(R.string.profile_add_vless_sub),
+                            ) {
+                                editingId = null
+                                field = ""
+                                sheetMode = ProfileSheetMode.VLESS_EDITOR
+                            }
+                            GroupDivider(startInset = 20)
+                            ProfileTypeRow(
+                                title = stringResource(R.string.profile_add_warp),
+                                subtitle = stringResource(
+                                    if (warpProfile == null) R.string.profile_add_warp_sub
+                                    else R.string.profile_replace_warp_sub,
+                                ),
+                            ) {
+                                dismissSheet {
+                                    warpStatus = 0
+                                    warpLauncher.launch(arrayOf("*/*"))
+                                }
+                            }
+                            Spacer(Modifier.height(Spacing.space8))
+                            TextButton(
+                                onClick = { dismissSheet() },
+                                modifier = Modifier.align(Alignment.End).padding(end = Spacing.space12),
+                            ) {
+                                Text(stringResource(R.string.key_cancel))
+                            }
+                            Spacer(Modifier.navigationBarsPadding().height(Spacing.space8))
+                        }
+                    }
+
+                    ProfileSheetMode.VLESS_EDITOR -> {
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .imePadding()
+                                .padding(horizontal = Spacing.space20),
+                        ) {
+                            Text(
+                                stringResource(
+                                    if (editingId == null) R.string.vless_add_title else R.string.vless_edit_title,
+                                ),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = c.textPrimary,
+                                modifier = Modifier.padding(top = Spacing.space8, bottom = Spacing.space16),
+                            )
+                            DetourInputField(
+                                value = field,
+                                onValueChange = { value ->
+                                    field = value.replace("\r", "").replace("\n", "")
+                                },
+                                label = stringResource(R.string.key_uri),
+                                placeholder = stringResource(R.string.key_placeholder),
+                                helper = stringResource(R.string.key_input_hint),
+                                error = if (parse is ParseResult.Err) stringResource(R.string.key_invalid) else null,
+                                success = (parse as? ParseResult.Ok)?.let { result ->
+                                    stringResource(
+                                        R.string.key_detected_server,
+                                        result.profile.server,
+                                        result.profile.port,
+                                    )
+                                },
+                                singleLine = false,
+                                minHeight = 56.dp,
+                                maxHeight = 144.dp,
+                                maxLines = 5,
+                            )
+
+                            val clipboard = LocalClipboard.current
+                            TextButton(
+                                onClick = {
+                                    scope.launch {
+                                        clipboard.getClipEntry()?.clipData?.getItemAt(0)?.text?.toString()?.let {
+                                            field = it.trim().replace("\r", "").replace("\n", "")
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.align(Alignment.End),
+                            ) {
+                                Text(stringResource(R.string.key_paste))
+                            }
+
+                            Spacer(Modifier.height(Spacing.space8))
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.space12),
+                            ) {
+                                DetourButton(
+                                    text = stringResource(R.string.key_cancel),
+                                    onClick = {
+                                        if (editingId == null) {
+                                            field = ""
+                                            sheetMode = ProfileSheetMode.PICKER
+                                        } else {
+                                            dismissSheet()
+                                        }
+                                    },
+                                    style = ButtonStyle.SECONDARY,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                DetourButton(
+                                    text = stringResource(R.string.btn_save),
+                                    enabled = parse is ParseResult.Ok,
+                                    onClick = {
+                                        val value = field.trim()
+                                        val key = VlessKey(
+                                            editingId ?: UUID.randomUUID().toString(),
+                                            keyName(value, vlessTitle),
+                                            value,
+                                        )
+                                        scope.launch {
+                                            if (editingId == null) store.addVlessKey(key) else store.updateVlessKey(key)
+                                            VpnController.restartIfActive(ctx)
+                                            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+                                            runCatching { sheetState.hide() }
+                                            showSheet = false
+                                        }
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                            Spacer(Modifier.navigationBarsPadding().height(Spacing.space16))
+                        }
+                    }
                 }
             }
-            Spacer(Modifier.height(Spacing.space8))
-            TextButton(
-                onClick = { dismissAddSheet() },
-                modifier = Modifier.align(Alignment.End).padding(end = Spacing.space12),
-            ) {
-                Text(stringResource(R.string.key_cancel))
-            }
-            Spacer(Modifier.navigationBarsPadding().height(Spacing.space8))
         }
     }
 }
@@ -572,7 +615,13 @@ private fun KeyRow(
 }
 
 @Composable
-private fun WarpRow(profile: WarpProfile, selected: Boolean, onDelete: () -> Unit, onClick: () -> Unit) {
+private fun WarpRow(
+    profile: WarpProfile,
+    selected: Boolean,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onClick: () -> Unit,
+) {
     val c = detourColors
     Row(
         Modifier.fillMaxWidth()
@@ -603,13 +652,23 @@ private fun WarpRow(profile: WarpProfile, selected: Boolean, onDelete: () -> Uni
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        DetourIconButton(onClick = onDelete, size = 36) {
-            Icon(
-                painterResource(R.drawable.ic_delete),
-                contentDescription = stringResource(R.string.warp_delete),
-                tint = c.error,
-                modifier = Modifier.size(18.dp),
-            )
+        Row(horizontalArrangement = Arrangement.End) {
+            DetourIconButton(onClick = onEdit, size = 36) {
+                Icon(
+                    painterResource(R.drawable.ic_edit),
+                    contentDescription = stringResource(R.string.warp_replace),
+                    tint = c.textSecondary,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            DetourIconButton(onClick = onDelete, size = 36) {
+                Icon(
+                    painterResource(R.drawable.ic_delete),
+                    contentDescription = stringResource(R.string.warp_delete),
+                    tint = c.error,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
     }
 }
