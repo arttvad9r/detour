@@ -79,6 +79,8 @@
     <string name="key_input_hint">Paste the complete link — server and parameters are detected automatically.</string>
     <string name="key_placeholder">vless://uuid@server:443?security=reality&amp;…</string>
     <string name="key_detected_server">Link recognized · %1$s:%2$d</string>
+    <string name="vless_add_title">Add VLESS profile</string>
+    <string name="vless_edit_title">Edit VLESS profile</string>
     <string name="profile_empty">No VPN profiles yet. Tap + to add one.</string>
     <string name="profile_add_title">Add VPN profile</string>
     <string name="profile_add_vless">VLESS</string>
@@ -89,7 +91,7 @@
     <string name="warp_section_title">WARP / AmneziaWG</string>
     <string name="warp_empty">No WARP config imported</string>
     <string name="warp_import">Import YAML / CONF</string>
-    <string name="warp_replace">Replace config</string>
+    <string name="warp_replace">Replace WARP config</string>
     <string name="warp_delete">Delete WARP profile</string>
     <string name="warp_subtitle">%1$d endpoints</string>
     <string name="warp_imported">WARP imported · %1$d endpoints</string>
