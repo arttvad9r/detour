@@ -101,28 +101,28 @@ fun SettingRow(
     Row(
         Modifier.fillMaxWidth()
             .detourClickable(onClick = onClick, role = Role.Button)
-            .heightIn(min = 56.dp)
-            .padding(horizontal = Spacing.space16, vertical = 10.dp),
+            .heightIn(min = 58.dp)
+            .padding(horizontal = Spacing.space16, vertical = Spacing.space8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
-            Modifier.size(36.dp).background(c.accentSoft, AppShapes.extraSmall),
+            Modifier.size(34.dp).background(c.accentSoft, AppShapes.extraSmall),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 painterResource(iconRes), null,
                 tint = c.accent,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(17.dp),
             )
         }
-        Column(Modifier.padding(start = Spacing.space12).weight(1f)) {
+        Column(Modifier.padding(start = 10.dp).weight(1f)) {
             Text(
                 title, style = MaterialTheme.typography.titleSmall,
                 color = c.textPrimary,
             )
             if (subtitle != null) {
                 Text(
-                    subtitle, style = MaterialTheme.typography.bodyMedium,
+                    subtitle, style = MaterialTheme.typography.bodySmall,
                     color = c.textSecondary,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -139,13 +139,13 @@ fun Chevron() {
     Text(
         "›", style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Normal,
-        color = detourColors.textMuted,
-        modifier = Modifier.padding(start = Spacing.space8),
+        color = detourColors.textMuted.copy(alpha = .9f),
+        modifier = Modifier.padding(start = Spacing.space4),
     )
 }
 
 @Composable
-fun GroupDivider(startInset: Int = 64) {
+fun GroupDivider(startInset: Int = 60) {
     Box(
         Modifier.fillMaxWidth()
             .padding(start = startInset.dp, end = Spacing.space16)
