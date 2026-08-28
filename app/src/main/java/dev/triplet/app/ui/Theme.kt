@@ -9,41 +9,31 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontVariation
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.triplet.app.R
 
-/**
- * Семантические токены оформления. Экраны ссылаются только на эти поля —
- * смена палитры обновляет всё приложение системно. Базовые цвета тем живут
- * только здесь.
- */
+/** Semantic colors consumed by screens and shared components. */
 data class DetourColors(
-    // Уровень 1: фон приложения
     val background: Color,
-    // Уровень 2: функциональные поверхности
     val surface: Color,
     val surfaceSoft: Color,
     val surfaceSelected: Color,
-    // Текст
     val textPrimary: Color,
     val textSecondary: Color,
     val textMuted: Color,
-    // Акцент выбранной палитры: выбор, primary action, фокус
     val accent: Color,
     val onAccent: Color,
     val accentSoft: Color,
     val accentBorder: Color,
-    // Разделители и границы
     val divider: Color,
     val border: Color,
-    // Семантические success / error
     val active: Color,
     val activeStrong: Color,
     val activeSoft: Color,
@@ -52,13 +42,8 @@ data class DetourColors(
     val errorSoft: Color,
 )
 
-/** Цвета статусной карточки/кнопки под состояние туннеля. */
 data class StatusStyle(val container: Color, val content: Color, val border: Color)
 
-/**
- * Узнаваемые community-палитры. Catppuccin Latte остаётся светлой темой и
- * используется как безопасный default; остальные варианты тёмные.
- */
 enum class AppTheme(
     val id: String,
     val label: String,
@@ -166,46 +151,12 @@ enum class AppTheme(
         dark = true,
     );
 
-    val scheme: ColorScheme by lazy {
-        val c = colors
-        val light = lightColorScheme(
-            primary = c.accent, onPrimary = c.onAccent,
-            primaryContainer = c.accentSoft, onPrimaryContainer = c.accent,
-            secondaryContainer = c.surfaceSelected, onSecondaryContainer = c.textPrimary,
-            background = c.background, onBackground = c.textPrimary,
-            surface = c.surface, onSurface = c.textPrimary,
-            surfaceVariant = c.surfaceSoft, onSurfaceVariant = c.textSecondary,
-            outline = c.border, outlineVariant = c.divider,
-            error = c.error,
-        )
-        if (dark) darkColorScheme(
-            primary = c.accent, onPrimary = c.onAccent,
-            primaryContainer = c.accentSoft, onPrimaryContainer = c.accent,
-            secondaryContainer = c.surfaceSelected, onSecondaryContainer = c.textPrimary,
-            background = c.background, onBackground = c.textPrimary,
-            surface = c.surface, onSurface = c.textPrimary,
-            surfaceVariant = c.surfaceSoft, onSurfaceVariant = c.textSecondary,
-            outline = c.border, outlineVariant = c.divider,
-            error = c.error,
-        ) else light
-    }
+    val scheme: ColorScheme by lazy { colorSchemeFor(colors, dark) }
 
-    /**
-     * Card fills stay neutral while state changes. State is communicated through
-     * accent text/borders so connecting never flashes the whole card.
-     */
-    fun statusFor(state: dev.triplet.app.vpn.VpnState): StatusStyle = when (state) {
-        dev.triplet.app.vpn.VpnState.Active -> StatusStyle(colors.surfaceSelected, colors.accent, colors.accentBorder)
-        dev.triplet.app.vpn.VpnState.Starting -> StatusStyle(colors.surface, colors.accent, colors.accentBorder)
-        is dev.triplet.app.vpn.VpnState.Failed -> StatusStyle(colors.errorSoft, colors.error, colors.error.copy(alpha = .35f))
-        dev.triplet.app.vpn.VpnState.Idle -> StatusStyle(colors.surface, colors.textPrimary, colors.border)
-    }
+    fun statusFor(state: dev.triplet.app.vpn.VpnState): StatusStyle = statusStyleFor(colors, state)
 
     companion object {
-        /**
-         * Старые themeId остаются валидными для DataStore и экспортированных
-         * резервных копий после замены набора палитр.
-         */
+        /** Preserve settings and exported backups from the original palette set. */
         fun byId(id: String): AppTheme = entries.firstOrNull { it.id == id } ?: when (id) {
             "lavenda", "ocean" -> CATPPUCCIN_LATTE
             "midnight" -> CATPPUCCIN_MOCHA
@@ -215,6 +166,37 @@ enum class AppTheme(
     }
 }
 
+fun colorSchemeFor(c: DetourColors, dark: Boolean): ColorScheme {
+    val light = lightColorScheme(
+        primary = c.accent, onPrimary = c.onAccent,
+        primaryContainer = c.accentSoft, onPrimaryContainer = c.accent,
+        secondaryContainer = c.surfaceSelected, onSecondaryContainer = c.textPrimary,
+        background = c.background, onBackground = c.textPrimary,
+        surface = c.surface, onSurface = c.textPrimary,
+        surfaceVariant = c.surfaceSoft, onSurfaceVariant = c.textSecondary,
+        outline = c.border, outlineVariant = c.divider,
+        error = c.error,
+    )
+    return if (dark) darkColorScheme(
+        primary = c.accent, onPrimary = c.onAccent,
+        primaryContainer = c.accentSoft, onPrimaryContainer = c.accent,
+        secondaryContainer = c.surfaceSelected, onSecondaryContainer = c.textPrimary,
+        background = c.background, onBackground = c.textPrimary,
+        surface = c.surface, onSurface = c.textPrimary,
+        surfaceVariant = c.surfaceSoft, onSurfaceVariant = c.textSecondary,
+        outline = c.border, outlineVariant = c.divider,
+        error = c.error,
+    ) else light
+}
+
+/** Keep card fills neutral; state is communicated through accent/error details. */
+fun statusStyleFor(colors: DetourColors, state: dev.triplet.app.vpn.VpnState): StatusStyle = when (state) {
+    dev.triplet.app.vpn.VpnState.Active -> StatusStyle(colors.surfaceSelected, colors.accent, colors.accentBorder)
+    dev.triplet.app.vpn.VpnState.Starting -> StatusStyle(colors.surface, colors.accent, colors.accentBorder)
+    is dev.triplet.app.vpn.VpnState.Failed -> StatusStyle(colors.errorSoft, colors.error, colors.error.copy(alpha = .35f))
+    dev.triplet.app.vpn.VpnState.Idle -> StatusStyle(colors.surface, colors.textPrimary, colors.border)
+}
+
 fun themeLabel(theme: AppTheme): Int = when (theme) {
     AppTheme.CATPPUCCIN_LATTE -> R.string.theme_catppuccin_latte
     AppTheme.CATPPUCCIN_MOCHA -> R.string.theme_catppuccin_mocha
@@ -222,10 +204,14 @@ fun themeLabel(theme: AppTheme): Int = when (theme) {
     AppTheme.DRACULA -> R.string.theme_dracula
 }
 
-/** Активная тема приложения (провайдится в MainActivity). */
+/** Target theme metadata (id/name/dark). */
 val LocalDetourTheme = androidx.compose.runtime.staticCompositionLocalOf<AppTheme> { AppTheme.CATPPUCCIN_LATTE }
 
-/** Единая шкала отступов — никаких случайных 13dp/17dp/27dp. */
+/** Animated semantic colors used by the rendered UI. */
+val LocalDetourColors = androidx.compose.runtime.staticCompositionLocalOf<DetourColors> {
+    AppTheme.CATPPUCCIN_LATTE.colors
+}
+
 object Spacing {
     val space2 = 2.dp
     val space4 = 4.dp
@@ -239,7 +225,6 @@ object Spacing {
     val space48 = 48.dp
 }
 
-/** Скругления: сдержанные, без «огромных таблеток». */
 val AppShapes = Shapes(
     extraSmall = RoundedCornerShape(10.dp),
     small = RoundedCornerShape(14.dp),
@@ -255,33 +240,21 @@ private fun inter(weight: FontWeight, w: Int) = Font(
     variationSettings = FontVariation.Settings(FontVariation.weight(w)),
 )
 
-/** Inter (variable) — уже в проекте, полная кириллица. */
 val AppFontFamily = FontFamily(
     inter(FontWeight.Normal, 400),
     inter(FontWeight.Medium, 500),
     inter(FontWeight.SemiBold, 600),
 )
 
-/** Роли текста. Экраны не задают sp вручную — только эти стили. */
 val AppTypography: Typography = Typography(
-    // «Detour» на главном экране
     headlineSmall = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.SemiBold, lineHeight = 30.sp, fontFamily = AppFontFamily),
-    // Заголовки внутренних экранов
     titleLarge = TextStyle(fontSize = 22.sp, fontWeight = FontWeight.SemiBold, lineHeight = 28.sp, fontFamily = AppFontFamily),
-    // Заголовок статусной карточки
     titleMedium = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.SemiBold, lineHeight = 24.sp, letterSpacing = 0.2.sp, fontFamily = AppFontFamily),
-    // Заголовок строки настройки
     titleSmall = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.Medium, lineHeight = 20.sp, fontFamily = AppFontFamily),
-    // Основной текст и значения
     bodyLarge = TextStyle(fontSize = 14.5.sp, fontWeight = FontWeight.Normal, lineHeight = 20.sp, fontFamily = AppFontFamily),
-    // Вторичный текст, подписи
     bodyMedium = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Normal, lineHeight = 18.sp, fontFamily = AppFontFamily),
-    // Примечания
     bodySmall = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.Normal, lineHeight = 16.sp, fontFamily = AppFontFamily),
-    // Кнопки
     labelLarge = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold, fontFamily = AppFontFamily),
-    // Технические значения, сегменты
     labelMedium = TextStyle(fontSize = 12.5.sp, fontWeight = FontWeight.Medium, lineHeight = 16.sp, fontFamily = AppFontFamily),
-    // Имена пакетов
     labelSmall = TextStyle(fontSize = 11.5.sp, fontWeight = FontWeight.Normal, lineHeight = 15.sp, fontFamily = AppFontFamily),
 )
