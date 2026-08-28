@@ -20,6 +20,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.triplet.app.R
@@ -48,6 +50,7 @@ fun SettingsMenuScreen(
 ) {
     val settings by store.settings.collectAsState()
     val scope = rememberCoroutineScope()
+    val haptics = LocalHapticFeedback.current
     val c = detourColors
     val routed = settings?.routes?.countValues { it != AppRoute.DIRECT } ?: 0
     val theme = LocalDetourTheme.current
@@ -104,6 +107,9 @@ fun SettingsMenuScreen(
                     .detourClickable(
                         onClick = {
                             val next = settings?.autoConnect != true
+                            haptics.performHapticFeedback(
+                                if (next) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff,
+                            )
                             scope.launch { store.setAutoConnect(next) }
                         },
                         pressedColor = c.surfaceSelected.copy(alpha = 0.34f),
