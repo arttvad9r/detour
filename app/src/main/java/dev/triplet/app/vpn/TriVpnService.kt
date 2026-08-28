@@ -31,6 +31,7 @@ import java.io.File
 import java.net.InetAddress
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 class TriVpnService : VpnService() {
 
@@ -44,6 +45,8 @@ class TriVpnService : VpnService() {
     }
 
     private val executor = Executors.newSingleThreadExecutor()
+    private val healthExecutor = Executors.newSingleThreadExecutor()
+    private val validationGeneration = AtomicInteger(0)
     private val restartQueued = AtomicBoolean(false)
     private val stopQueued = AtomicBoolean(false)
     private val destroyed = AtomicBoolean(false)
@@ -101,8 +104,10 @@ class TriVpnService : VpnService() {
 
     override fun onDestroy() {
         destroyed.set(true)
+        validationGeneration.incrementAndGet()
         unregisterNetworkMonitor()
         stopQueued.set(true)
+        healthExecutor.shutdownNow()
         executor.shutdownNow()
         stopSequence(stopSelf = false)
         super.onDestroy()
@@ -215,29 +220,9 @@ class TriVpnService : VpnService() {
             Engine.start(yaml, logPath)
             engineAdopted = true
             check(Engine.ready()) { "engine TUN is not ready" }
-
-            // At this point Android has an established TUN and the engine says it
-            // is ready. Reflect that immediately in the UI; end-to-end probes are
-            // validation of the live tunnel, not part of the visual start latency.
-            VpnController.setState(VpnState.Active)
-            runBlocking { store.setSessionStartedAt(System.currentTimeMillis()) }
-            goForeground(getString(R.string.notif_active))
-            ServiceLog.i("active; validating routes")
-
-            // Dedicated mihomo listeners pin the probe to the configured outbound.
-            val cancelled = { stopQueued.get() || destroyed.get() }
-            val vpnHealthy = effVpn.isEmpty() || HealthCheck.generate204(10810, cancelled = cancelled)
-            val dpiHealthy = effDpi.isEmpty() ||
-                (dpi.isAlive() && HealthCheck.generate204(10811, cancelled = cancelled))
-            ServiceLog.i("probe results: vless=$vpnHealthy dpi=$dpiHealthy")
-            check(!cancelled()) { "startup cancelled" }
-            check(vpnHealthy && dpiHealthy) { getString(R.string.err_no_connect) }
         } catch (e: Exception) {
             ServiceLog.e("engine: ${e.message}")
-            VpnController.setState(VpnState.Failed(
-                if (e.message == getString(R.string.err_no_connect)) e.message!!
-                else getString(R.string.err_engine),
-            ))
+            VpnController.setState(VpnState.Failed(getString(R.string.err_engine)))
             if (engineAdopted) runCatching { Engine.stop() }
             else fd?.let { closeDetachedFd(it) }
             dpi.stop()
@@ -245,11 +230,51 @@ class TriVpnService : VpnService() {
             return
         }
 
-        ServiceLog.i("route validation complete")
+        // Android TUN and the engine are established now. This is the state the
+        // user and the OS perceive as connected; route probes validate it after
+        // activation and must not keep the UI or lifecycle executor in Starting.
+        VpnController.setState(VpnState.Active)
+        runBlocking { store.setSessionStartedAt(System.currentTimeMillis()) }
+        goForeground(getString(R.string.notif_active))
+        ServiceLog.i("active; validating routes")
+        validateRoutesAsync(effVpn, effDpi)
+    }
+
+    private fun validateRoutesAsync(effVpn: Set<String>, effDpi: Set<String>) {
+        val generation = validationGeneration.incrementAndGet()
+        runCatching {
+            healthExecutor.execute {
+                val cancelled = {
+                    destroyed.get() || stopQueued.get() ||
+                        validationGeneration.get() != generation ||
+                        VpnController.state.value != VpnState.Active
+                }
+                val vpnHealthy = effVpn.isEmpty() || HealthCheck.generate204(10810, cancelled = cancelled)
+                val dpiHealthy = effDpi.isEmpty() ||
+                    (dpi.isAlive() && HealthCheck.generate204(10811, cancelled = cancelled))
+                ServiceLog.i("probe results: vless=$vpnHealthy dpi=$dpiHealthy")
+                if (cancelled() || (vpnHealthy && dpiHealthy)) return@execute
+
+                runCatching {
+                    executor.execute {
+                        if (
+                            validationGeneration.get() == generation &&
+                            !destroyed.get() && !stopQueued.get() &&
+                            VpnController.state.value == VpnState.Active
+                        ) {
+                            ServiceLog.e("route validation failed")
+                            VpnController.setState(VpnState.Failed(getString(R.string.err_no_connect)))
+                            stopSequence(stopSelf = true)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private fun stopSequence(stopSelf: Boolean) {
         synchronized(lifecycleLock) {
+            validationGeneration.incrementAndGet()
             runCatching { runBlocking { store.setSessionStartedAt(null) } }
             runCatching { Engine.stop() }
             dpi.stop()
