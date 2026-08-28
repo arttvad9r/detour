@@ -8,6 +8,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
@@ -113,9 +115,6 @@ class MainActivity : ComponentActivity() {
                         val ctx = this@MainActivity
                         val navController = rememberNavController()
 
-                        // "Подключаться при запуске" is a launch-time policy, not a
-                        // reactive command. Toggling the preference while the app is
-                        // already open must never start the VPN immediately.
                         LaunchedEffect(Unit) {
                             val launchSettings = store.snapshot()
                             val effective = effectiveRoutes(
@@ -147,32 +146,64 @@ class MainActivity : ComponentActivity() {
                             startDestination = Route.HOME,
                             modifier = Modifier.fillMaxSize(),
                             enterTransition = {
-                                fadeIn(tween(Motion.NAV_ENTER_MS, delayMillis = 20)) +
-                                    slideInHorizontally(
-                                        animationSpec = tween(Motion.NAV_ENTER_MS),
-                                        initialOffsetX = { it / 14 },
-                                    )
+                                val rootTransition =
+                                    initialState.destination.route == Route.HOME &&
+                                        targetState.destination.route == Route.SETTINGS
+                                if (rootTransition) {
+                                    fadeIn(tween(Motion.NAV_ENTER_MS, delayMillis = 15)) +
+                                        scaleIn(tween(Motion.NAV_ENTER_MS), initialScale = 0.99f)
+                                } else {
+                                    fadeIn(tween(Motion.NAV_ENTER_MS, delayMillis = 20)) +
+                                        slideInHorizontally(
+                                            animationSpec = tween(Motion.NAV_ENTER_MS),
+                                            initialOffsetX = { it / 14 },
+                                        )
+                                }
                             },
                             exitTransition = {
-                                fadeOut(tween(Motion.NAV_EXIT_MS)) +
-                                    slideOutHorizontally(
-                                        animationSpec = tween(Motion.NAV_EXIT_MS),
-                                        targetOffsetX = { -it / 28 },
-                                    )
+                                val rootTransition =
+                                    initialState.destination.route == Route.HOME &&
+                                        targetState.destination.route == Route.SETTINGS
+                                if (rootTransition) {
+                                    fadeOut(tween(Motion.NAV_EXIT_MS)) +
+                                        scaleOut(tween(Motion.NAV_EXIT_MS), targetScale = 0.995f)
+                                } else {
+                                    fadeOut(tween(Motion.NAV_EXIT_MS)) +
+                                        slideOutHorizontally(
+                                            animationSpec = tween(Motion.NAV_EXIT_MS),
+                                            targetOffsetX = { -it / 28 },
+                                        )
+                                }
                             },
                             popEnterTransition = {
-                                fadeIn(tween(Motion.NAV_ENTER_MS, delayMillis = 10)) +
-                                    slideInHorizontally(
-                                        animationSpec = tween(Motion.NAV_ENTER_MS),
-                                        initialOffsetX = { -it / 28 },
-                                    )
+                                val rootTransition =
+                                    initialState.destination.route == Route.SETTINGS &&
+                                        targetState.destination.route == Route.HOME
+                                if (rootTransition) {
+                                    fadeIn(tween(Motion.NAV_ENTER_MS, delayMillis = 10)) +
+                                        scaleIn(tween(Motion.NAV_ENTER_MS), initialScale = 0.995f)
+                                } else {
+                                    fadeIn(tween(Motion.NAV_ENTER_MS, delayMillis = 10)) +
+                                        slideInHorizontally(
+                                            animationSpec = tween(Motion.NAV_ENTER_MS),
+                                            initialOffsetX = { -it / 28 },
+                                        )
+                                }
                             },
                             popExitTransition = {
-                                fadeOut(tween(Motion.NAV_EXIT_MS)) +
-                                    slideOutHorizontally(
-                                        animationSpec = tween(Motion.NAV_EXIT_MS),
-                                        targetOffsetX = { it / 14 },
-                                    )
+                                val rootTransition =
+                                    initialState.destination.route == Route.SETTINGS &&
+                                        targetState.destination.route == Route.HOME
+                                if (rootTransition) {
+                                    fadeOut(tween(Motion.NAV_EXIT_MS)) +
+                                        scaleOut(tween(Motion.NAV_EXIT_MS), targetScale = 0.99f)
+                                } else {
+                                    fadeOut(tween(Motion.NAV_EXIT_MS)) +
+                                        slideOutHorizontally(
+                                            animationSpec = tween(Motion.NAV_EXIT_MS),
+                                            targetOffsetX = { it / 14 },
+                                        )
+                                }
                             },
                         ) {
                             composable(Route.HOME) {
