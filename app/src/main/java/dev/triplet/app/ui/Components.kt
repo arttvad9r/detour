@@ -15,6 +15,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -34,7 +35,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonElevation
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -101,6 +101,39 @@ fun Modifier.detourClickable(
             role = role,
             onClick = onClick,
         )
+}
+
+/** Small controls respond by yielding under the finger rather than flashing a ripple. */
+@Composable
+fun DetourIconButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    size: Int = 48,
+    content: @Composable BoxScope.() -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) Motion.PRESS_ICON else 1f,
+        animationSpec = spring(dampingRatio = 0.70f, stiffness = Motion.SPRING_STIFFNESS),
+        label = "iconPress",
+    )
+    Box(
+        modifier
+            .size(size.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                role = Role.Button,
+                onClick = onClick,
+            ),
+        contentAlignment = Alignment.Center,
+        content = content,
+    )
 }
 
 @Composable
@@ -479,7 +512,7 @@ fun ScreenHeader(title: String, onBack: () -> Unit, modifier: Modifier = Modifie
         modifier.fillMaxWidth().height(56.dp).padding(start = Spacing.space4, end = Spacing.space20),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onBack) {
+        DetourIconButton(onClick = onBack) {
             Icon(
                 painterResource(R.drawable.ic_back), stringResource(R.string.cd_back),
                 tint = c.textPrimary,
