@@ -84,17 +84,17 @@
     <string name="profile_add_vless">VLESS</string>
     <string name="profile_add_vless_sub">Add a VLESS link</string>
     <string name="profile_add_warp">WARP / AmneziaWG</string>
-    <string name="profile_add_warp_sub">Import a YAML configuration</string>
-    <string name="profile_replace_warp_sub">Import a new YAML and replace the current one</string>
+    <string name="profile_add_warp_sub">Import YAML or CONF</string>
+    <string name="profile_replace_warp_sub">Import a new YAML or CONF and replace the current one</string>
     <string name="warp_section_title">WARP / AmneziaWG</string>
     <string name="warp_empty">No WARP config imported</string>
-    <string name="warp_import">Import YAML</string>
-    <string name="warp_replace">Replace YAML</string>
+    <string name="warp_import">Import YAML / CONF</string>
+    <string name="warp_replace">Replace config</string>
     <string name="warp_delete">Delete WARP profile</string>
     <string name="warp_subtitle">%1$d endpoints · automatic selection</string>
     <string name="warp_imported">WARP imported · %1$d endpoints</string>
     <string name="warp_invalid">No compatible WARP / AmneziaWG proxies found in this file</string>
-    <string name="warp_import_error">Could not read this YAML</string>
+    <string name="warp_import_error">Could not read this config</string>
 
     <string name="dns_invalid">Check the address: enter an IP or an http:// / https:// URL.</string>
 
