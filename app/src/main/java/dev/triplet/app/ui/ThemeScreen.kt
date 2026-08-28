@@ -33,7 +33,9 @@ fun ThemeScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mod
     val scope = rememberCoroutineScope()
     val c = detourColors
     val settings by store.settings.collectAsState()
-    val current = settings?.themeId?.ifBlank { null } ?: AppTheme.LAVENDA.id
+    // Normalize legacy ids too, so a user coming from the old palette set sees
+    // the migrated replacement selected instead of an apparently empty state.
+    val current = AppTheme.byId(settings?.themeId ?: "").id
 
     Column(
         modifier.fillMaxSize()
