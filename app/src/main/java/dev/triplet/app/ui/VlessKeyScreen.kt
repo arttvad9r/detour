@@ -349,13 +349,13 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                             ),
                         ) + slideInHorizontally(
                             tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
-                            initialOffsetX = { it / 10 },
+                            initialOffsetX = { it / 12 },
                         )) togetherWith
                             (fadeOut(
                                 tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
                             ) + slideOutHorizontally(
                                 tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
-                                targetOffsetX = { -it / 32 },
+                                targetOffsetX = { -it / 36 },
                             ))
                     } else {
                         (fadeIn(
@@ -366,13 +366,13 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                             ),
                         ) + slideInHorizontally(
                             tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
-                            initialOffsetX = { -it / 32 },
+                            initialOffsetX = { -it / 36 },
                         )) togetherWith
                             (fadeOut(
                                 tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
                             ) + slideOutHorizontally(
                                 tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
-                                targetOffsetX = { it / 10 },
+                                targetOffsetX = { it / 12 },
                             ))
                     }
                 },
