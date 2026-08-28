@@ -27,8 +27,8 @@ object AppInventory {
         val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
 
         // Query launcher activities once instead of calling queryIntentActivities()
-        // for every installed package. The result is process-cached, but callers
-        // refresh that snapshot when Android reports package add/remove/change.
+        // for every installed package. The result can stay cached for other callers,
+        // while the route screen explicitly refreshes it on foreground resume.
         return pm.queryIntentActivities(launcher, 0)
             .asSequence()
             .mapNotNull { it.activityInfo?.applicationInfo }
@@ -41,7 +41,6 @@ object AppInventory {
                     isSystem = it.flags and ApplicationInfo.FLAG_SYSTEM != 0,
                 )
             }
-            .sortedBy { it.label.lowercase() }
             .toList()
     }
 }
