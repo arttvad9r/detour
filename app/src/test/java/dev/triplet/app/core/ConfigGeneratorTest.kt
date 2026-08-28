@@ -27,6 +27,7 @@ class ConfigGeneratorTest {
                 publicKey = "public-key",
                 reserved = listOf(1, 2, 3),
                 allowedIps = listOf("0.0.0.0/0", "::/0"),
+                persistentKeepalive = 25,
                 dns = listOf("1.1.1.1"),
                 amnezia = AmneziaWgOptions(
                     jc = 4, jmin = 40, jmax = 70,
@@ -68,7 +69,7 @@ class ConfigGeneratorTest {
         assertFalse(yaml.contains("PROCESS-NAME"))
     }
 
-    @Test fun `warp emits amnezia wireguard group and routes vpn apps`() {
+    @Test fun `warp emits stable amnezia wireguard fallback and routes vpn apps`() {
         val yaml = ConfigGenerator.build(input(vpn = VpnOutbound.Warp(warp)))
         assertTrue(yaml.contains("- name: WARP_0"))
         assertTrue(yaml.contains("type: wireguard"))
@@ -76,14 +77,26 @@ class ConfigGeneratorTest {
         assertTrue(yaml.contains("port: 4500"))
         assertTrue(yaml.contains("reserved: [1, 2, 3]"))
         assertTrue(yaml.contains("allowed-ips: [\"0.0.0.0/0\", \"::/0\"]"))
+        assertTrue(yaml.contains("persistent-keepalive: 25"))
         assertTrue(yaml.contains("amnezia-wg-option:"))
         assertTrue(yaml.contains("jc: 4"))
         assertTrue(yaml.contains("i1: \"<b 0x1234>\""))
-        assertTrue(yaml.contains("- name: WARP\n  type: url-test"))
+        assertTrue(yaml.contains("- name: WARP\n  type: fallback"))
+        assertTrue(yaml.contains("lazy: false"))
+        assertTrue(yaml.contains("expected-status: 204"))
+        assertFalse(yaml.contains("type: url-test"))
         assertTrue(yaml.contains("- UID,10101,WARP"))
         assertTrue(yaml.contains("name: PROBE_WARP"))
         assertTrue(yaml.contains("proxy: WARP"))
         assertFalse(yaml.contains("type: vless"))
+    }
+
+    @Test fun `warp uses Detour dns instead of imported proxy dns`() {
+        val yaml = ConfigGenerator.build(input(vpn = VpnOutbound.Warp(warp)))
+        val warpBlock = yaml.substringAfter("- name: WARP_0").substringBefore("- name: DPI")
+        assertTrue(warpBlock.contains("remote-dns-resolve: false"))
+        assertFalse(warpBlock.contains("dns:"))
+        assertTrue(yaml.contains("nameserver:\n    - 8.8.8.8"))
     }
 
     @Test fun `native awg without reserved does not emit empty reserved field`() {
@@ -101,7 +114,7 @@ class ConfigGeneratorTest {
         val quicIdx = yaml.indexOf("- AND,((UID,10102),(NETWORK,UDP),(DST-PORT,443)),REJECT")
         val dpiIdx = yaml.indexOf("- UID,10102,DPI")
         assertTrue(quicIdx >= 0)
-        assertTrue(dpiIdx > quicIdx) // QUIC-block строго раньше общего правила DPI
+        assertTrue(dpiIdx > quicIdx)
     }
 
     @Test fun `dpi socks outbound targets loopback port`() {
