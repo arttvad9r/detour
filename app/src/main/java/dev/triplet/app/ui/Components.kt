@@ -1,10 +1,14 @@
 package dev.triplet.app.ui
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -42,6 +46,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -51,7 +57,7 @@ import androidx.compose.ui.unit.dp
 import dev.triplet.app.R
 
 val detourColors: DetourColors
-    @Composable get() = LocalDetourTheme.current.colors
+    @Composable get() = LocalDetourColors.current
 
 val hairline: Color
     @Composable get() = detourColors.border
@@ -72,12 +78,15 @@ fun Modifier.detourClickable(
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed) pressScale else 1f,
-        animationSpec = spring(dampingRatio = 0.78f, stiffness = 900f),
+        animationSpec = spring(
+            dampingRatio = Motion.SPRING_DAMPING,
+            stiffness = Motion.SPRING_STIFFNESS,
+        ),
         label = "pressScale",
     )
     val background by animateColorAsState(
         targetValue = if (pressed && pressedColor != null) pressedColor else idleColor,
-        animationSpec = tween(70),
+        animationSpec = tween(Motion.PRESS_TONE_MS),
         label = "pressTone",
     )
     return this
@@ -125,7 +134,7 @@ fun SettingRow(
                 onClick = onClick,
                 role = Role.Button,
                 pressedColor = c.surfaceSelected.copy(alpha = 0.38f),
-                pressScale = 0.994f,
+                pressScale = Motion.PRESS_ROW,
             )
             .heightIn(min = 58.dp)
             .padding(horizontal = Spacing.space16, vertical = Spacing.space8),
@@ -188,6 +197,7 @@ fun DetourSwitch(
     compact: Boolean = false,
 ) {
     val c = detourColors
+    val haptics = LocalHapticFeedback.current
     val trackWidth = if (compact) 40.dp else 44.dp
     val trackHeight = if (compact) 24.dp else 26.dp
     val thumbSize = if (compact) 18.dp else 20.dp
@@ -195,21 +205,24 @@ fun DetourSwitch(
     val targetOffset = if (checked) trackWidth - thumbSize - thumbMargin else thumbMargin
     val animatedOffset by animateDpAsState(
         targetValue = targetOffset,
-        animationSpec = spring(dampingRatio = 0.78f, stiffness = 650f),
+        animationSpec = spring(
+            dampingRatio = Motion.SPRING_DAMPING,
+            stiffness = Motion.SPRING_STIFFNESS_SOFT,
+        ),
         label = "switchThumb",
     )
     val thumbOffset = if (animate) animatedOffset else targetOffset
     val trackColor by animateColorAsState(
         if (checked) c.accent else c.border.copy(alpha = .85f),
-        tween(120), label = "switchTrack",
+        tween(Motion.COLOR_MS), label = "switchTrack",
     )
     val trackBorder by animateColorAsState(
         if (checked) c.accent else c.textMuted.copy(alpha = .25f),
-        tween(120), label = "switchBorder",
+        tween(Motion.COLOR_MS), label = "switchBorder",
     )
     val thumbBorder by animateColorAsState(
         if (checked) Color.Transparent else c.textMuted.copy(alpha = .25f),
-        tween(120), label = "switchThumbBorder",
+        tween(Motion.COLOR_MS), label = "switchThumbBorder",
     )
     val interactionSource = remember { MutableInteractionSource() }
 
@@ -219,7 +232,12 @@ fun DetourSwitch(
             interactionSource = interactionSource,
             indication = null,
             role = Role.Switch,
-            onValueChange = onCheckedChange,
+            onValueChange = { value ->
+                haptics.performHapticFeedback(
+                    if (value) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff,
+                )
+                onCheckedChange(value)
+            },
         ),
         contentAlignment = Alignment.Center,
     ) {
@@ -271,8 +289,11 @@ fun DetourButton(
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
-        targetValue = if (pressed && enabled) 0.985f else 1f,
-        animationSpec = spring(dampingRatio = 0.72f, stiffness = 850f),
+        targetValue = if (pressed && enabled) Motion.PRESS_BUTTON else 1f,
+        animationSpec = spring(
+            dampingRatio = 0.72f,
+            stiffness = Motion.SPRING_STIFFNESS,
+        ),
         label = "buttonPress",
     )
     Button(
@@ -296,7 +317,16 @@ fun DetourButton(
                 scaleY = scale
             },
     ) {
-        Text(text, style = MaterialTheme.typography.labelLarge)
+        AnimatedContent(
+            targetState = text,
+            transitionSpec = {
+                fadeIn(tween(Motion.CONTENT_IN_MS, delayMillis = 25)) togetherWith
+                    fadeOut(tween(Motion.CONTENT_OUT_MS))
+            },
+            label = "buttonText",
+        ) { label ->
+            Text(label, style = MaterialTheme.typography.labelLarge)
+        }
     }
 }
 
@@ -318,7 +348,7 @@ fun RadioRow(
                 role = Role.RadioButton,
                 idleColor = if (selected) c.accentSoft else Color.Transparent,
                 pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
-                pressScale = 0.996f,
+                pressScale = Motion.PRESS_RADIO,
             )
             .heightIn(min = 52.dp)
             .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
@@ -349,11 +379,11 @@ fun RadioDot(selected: Boolean) {
     val c = detourColors
     val ringColor by animateColorAsState(
         if (selected) c.accent else c.textMuted.copy(alpha = 0.55f),
-        tween(110), label = "radioRing",
+        tween(Motion.COLOR_MS), label = "radioRing",
     )
     val dotSize by animateDpAsState(
         if (selected) 8.dp else 0.dp,
-        spring(dampingRatio = 0.72f, stiffness = 800f),
+        spring(dampingRatio = 0.72f, stiffness = Motion.SPRING_STIFFNESS),
         label = "radioDot",
     )
     Box(
@@ -376,6 +406,7 @@ fun SegmentedControl(
     modifier: Modifier = Modifier,
 ) {
     val c = detourColors
+    val haptics = LocalHapticFeedback.current
     if (options.isEmpty()) return
     BoxWithConstraints(
         modifier
@@ -388,7 +419,10 @@ fun SegmentedControl(
         val segmentWidth = maxWidth / options.size
         val selectedOffset by animateDpAsState(
             targetValue = segmentWidth * selected.coerceIn(0, options.lastIndex),
-            animationSpec = spring(dampingRatio = 0.82f, stiffness = 700f),
+            animationSpec = spring(
+                dampingRatio = 0.82f,
+                stiffness = Motion.SPRING_STIFFNESS_SOFT,
+            ),
             label = "segmentOffset",
         )
         Box(
@@ -405,16 +439,21 @@ fun SegmentedControl(
                 val on = i == selected
                 val fg by animateColorAsState(
                     if (on) c.accent else c.textSecondary,
-                    tween(110), label = "segFg",
+                    tween(Motion.COLOR_MS), label = "segFg",
                 )
                 Row(
                     Modifier
                         .weight(1f)
                         .fillMaxSize()
                         .detourClickable(
-                            onClick = { onSelect(i) },
+                            onClick = {
+                                if (i != selected) {
+                                    haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                    onSelect(i)
+                                }
+                            },
                             role = Role.RadioButton,
-                            pressScale = 0.985f,
+                            pressScale = Motion.PRESS_BUTTON,
                         ),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
