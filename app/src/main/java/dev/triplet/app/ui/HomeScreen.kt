@@ -404,13 +404,22 @@ private fun InfoRow(label: String, value: String) {
             color = c.textSecondary,
             modifier = Modifier.widthIn(min = 88.dp),
         )
-        Text(
-            value,
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-            color = c.textPrimary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        AnimatedContent(
+            targetState = value,
+            transitionSpec = {
+                fadeIn(tween(Motion.CONTENT_IN_MS, delayMillis = 20)) togetherWith
+                    fadeOut(tween(Motion.CONTENT_OUT_MS))
+            },
+            label = "infoValue",
+        ) { shown ->
+            Text(
+                shown,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+                color = c.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
