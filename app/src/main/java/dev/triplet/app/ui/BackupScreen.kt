@@ -3,6 +3,10 @@ package dev.triplet.app.ui
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,7 +32,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -44,6 +50,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
+    val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val c = detourColors
     val settings by store.settings.collectAsState(initial = null)
@@ -54,6 +61,12 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
 
     var status by remember { mutableStateOf("") }
     var statusIsError by remember { mutableStateOf(false) }
+
+    fun showStatus(message: String, error: Boolean) {
+        status = message
+        statusIsError = error
+        haptics.performHapticFeedback(if (error) HapticFeedbackType.Reject else HapticFeedbackType.Confirm)
+    }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
@@ -82,8 +95,8 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
                     val output = requireNotNull(ctx.contentResolver.openOutputStream(uri))
                     output.use { it.write(json.toByteArray()) }
                 }
-                status = exportedText; statusIsError = false
-            }.onFailure { status = genericErrorText; statusIsError = true }
+                showStatus(exportedText, false)
+            }.onFailure { showStatus(genericErrorText, true) }
         }
     }
 
@@ -98,16 +111,16 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
                     input.use { readLimited(it, SettingsBackup.MAX_BYTES) }
                 }
                 if (text.toByteArray(Charsets.UTF_8).size > SettingsBackup.MAX_BYTES) {
-                    status = badFileText; statusIsError = true
+                    showStatus(badFileText, true)
                     return@runCatching
                 }
                 val b = SettingsBackup.fromJson(text) ?: run {
-                    status = badFileText; statusIsError = true
+                    showStatus(badFileText, true)
                     return@runCatching
                 }
                 store.restoreBackup(b)
-                status = importedText; statusIsError = false
-            }.onFailure { status = genericErrorText; statusIsError = true }
+                showStatus(importedText, false)
+            }.onFailure { showStatus(genericErrorText, true) }
         }
     }
 
@@ -146,14 +159,20 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
             }
         }
 
-        if (status.isNotEmpty()) {
-            Spacer(Modifier.height(Spacing.space12))
-            Text(
-                status,
-                style = MaterialTheme.typography.bodySmall,
-                color = if (statusIsError) c.error else c.active,
-                modifier = Modifier.padding(horizontal = Spacing.space16),
-            )
+        AnimatedVisibility(
+            visible = status.isNotEmpty(),
+            enter = fadeIn(tween(Motion.CONTENT_IN_MS)),
+            exit = fadeOut(tween(Motion.CONTENT_OUT_MS)),
+        ) {
+            Column {
+                Spacer(Modifier.height(Spacing.space12))
+                Text(
+                    status,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (statusIsError) c.error else c.accent,
+                    modifier = Modifier.padding(horizontal = Spacing.space16),
+                )
+            }
         }
         Spacer(Modifier.height(Spacing.space24))
     }
@@ -180,7 +199,12 @@ private fun ActionRow(label: String, iconRes: Int, accent: Boolean, onClick: () 
     Row(
         Modifier.fillMaxWidth()
             .height(56.dp)
-            .detourClickable(onClick = onClick, role = Role.Button)
+            .detourClickable(
+                onClick = onClick,
+                role = Role.Button,
+                pressedColor = c.surfaceSelected.copy(alpha = 0.38f),
+                pressScale = Motion.PRESS_ROW,
+            )
             .padding(horizontal = Spacing.space16),
         verticalAlignment = Alignment.CenterVertically,
     ) {
