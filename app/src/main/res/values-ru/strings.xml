@@ -65,6 +65,9 @@
     <string name="key_add">Добавить</string>
     <string name="key_delete">Удалить</string>
     <string name="key_uri">VLESS URL</string>
+    <string name="key_input_hint">Вставьте полную VLESS-ссылку. Перед сохранением она проверяется локально.</string>
+    <string name="key_placeholder">vless://…</string>
+    <string name="key_detected_server">Сервер: %1$s:%2$d</string>
     <string name="dns_invalid">Введите корректный IP-адрес или URL с http:// или https://</string>
     <string name="backup_warning">Конфигурация содержит секретные данные — храни файл в безопасном месте.</string>
     <string name="dpi_title">Обход DPI</string>
