@@ -16,9 +16,15 @@ import dev.triplet.app.core.VlessKeys
 import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.SettingsBackup
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 
 data class TriSettings(
     val vlessKeys: VlessKeys,
@@ -106,11 +112,19 @@ class RoutesStore(context: Context) {
         }),
     )
 
-    val settings: Flow<TriSettings> = store.data.map { prefs ->
-        RoutesMapping.toSettings(prefs.asMap().mapKeys { (k, _) -> k.name })
-    }
+    private val settingsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    suspend fun snapshot(): TriSettings = settings.first()
+    /**
+     * Shared cached settings snapshot. New screens receive the latest DataStore value
+     * immediately instead of rendering a temporary null/default state for one frame.
+     */
+    val settings: StateFlow<TriSettings?> = store.data
+        .map<Preferences, TriSettings?> { prefs ->
+            RoutesMapping.toSettings(prefs.asMap().mapKeys { (k, _) -> k.name })
+        }
+        .stateIn(settingsScope, SharingStarted.Eagerly, null)
+
+    suspend fun snapshot(): TriSettings = settings.filterNotNull().first()
 
     suspend fun setVlessUri(uri: String) = store.edit { it[RoutesMapping.uriKey()] = uri }
     suspend fun setSessionStartedAt(value: Long?) = store.edit {

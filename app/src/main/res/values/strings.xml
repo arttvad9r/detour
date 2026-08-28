@@ -21,7 +21,6 @@
     <string name="protocol_vless">VLESS</string>
     <string name="protocol_none">—</string>
 
-    <!-- Настройки: меню -->
     <string name="settings_title">Settings</string>
     <string name="nav_routes">App routes</string>
     <string name="nav_routes_sub">in tunnel: %1$d</string>
@@ -38,7 +37,9 @@
     <string name="dns_google">Google DNS</string>
     <string name="dns_cloudflare">Cloudflare</string>
     <string name="dns_adguard">AdGuard</string>
-    <string name="dns_placeholder">https://…</string>
+    <string name="dns_custom_label">DNS address</string>
+    <string name="dns_placeholder">1.1.1.1 or https://dns.example/dns-query</string>
+    <string name="dns_custom_hint">Enter an IP address or a URL beginning with http:// or https://.</string>
     <string name="nav_backup">Export / import</string>
     <string name="nav_backup_sub">move settings to another device</string>
     <string name="backup_title">Export / import</string>
@@ -52,7 +53,6 @@
     <string name="nav_dpi">DPI bypass</string>
     <string name="nav_dpi_sub">strategy for bypassing blocks</string>
 
-    <!-- Маршруты приложений -->
     <string name="routes_title">App routes</string>
     <string name="search_hint">Search apps…</string>
     <string name="show_system">System apps</string>
@@ -60,9 +60,8 @@
     <string name="route_vpn">VPN</string>
     <string name="route_dpi">DPI</string>
 
-    <!-- Ключ VLESS -->
     <string name="key_title">VLESS key</string>
-    <string name="key_invalid">Invalid key</string>
+    <string name="key_invalid">Could not parse the link. Check that it starts with vless:// and was pasted in full.</string>
     <string name="btn_save">Save</string>
     <string name="key_edit">Edit</string>
     <string name="key_cancel">Cancel</string>
@@ -71,21 +70,24 @@
     <string name="key_empty">No keys added</string>
     <string name="key_add">Add</string>
     <string name="key_delete">Delete</string>
-    <string name="key_uri">VLESS URL</string>
+    <string name="key_uri">VLESS link</string>
+    <string name="key_input_hint">Paste the complete link — server and parameters are detected automatically.</string>
+    <string name="key_placeholder">vless://uuid@server:443?security=reality&amp;…</string>
+    <string name="key_detected_server">Link recognized · %1$s:%2$d</string>
 
-    <!-- DNS -->
-    <string name="dns_invalid">Enter a valid IP address or an http:// or https:// URL</string>
+    <string name="dns_invalid">Check the address: enter an IP or an http:// / https:// URL.</string>
 
-    <!-- Резервная копия -->
     <string name="backup_warning">The configuration contains secrets. Store the file securely.</string>
 
-    <!-- Обход DPI -->
     <string name="dpi_title">DPI bypass</string>
     <string name="preset_recommended">Recommended</string>
     <string name="preset_custom">Custom strategy</string>
+    <string name="dpi_custom_label">Strategy arguments</string>
+    <string name="dpi_custom_placeholder">-d 1 -s 1+s --timeout 3</string>
+    <string name="dpi_custom_hint">Allowed options: -d, -s, -a and --timeout. Put each option and value in separate tokens.</string>
+    <string name="dpi_custom_invalid">Check the arguments: only -d, -s, -a and --timeout with values are allowed.</string>
     <string name="autorestart_note">Changes apply automatically. The active tunnel restarts</string>
 
-    <!-- Прочее -->
     <string name="err_dpi_failed">Could not start DPI bypass</string>
     <string name="err_no_connect">Could not connect</string>
     <string name="err_vpn_permission">VPN permission was not granted</string>

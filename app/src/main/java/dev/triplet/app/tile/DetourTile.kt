@@ -29,7 +29,7 @@ class DetourTile : TileService() {
             scope.launch { VpnController.state.collect { update(it) } },
             scope.launch {
                 store.settings.collect { s ->
-                    routed = s.routes.count { it.value != AppRoute.DIRECT }
+                    routed = s?.routes?.count { it.value != AppRoute.DIRECT } ?: 0
                     update(VpnController.state.value)
                 }
             },

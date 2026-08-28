@@ -2,17 +2,16 @@ package dev.triplet.app
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
-import androidx.compose.runtime.LaunchedEffect
 import androidx.activity.SystemBarStyle
-import androidx.activity.enableEdgeToEdge
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.compose.animation.Crossfade
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -20,6 +19,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import dev.triplet.app.core.ParseResult
+import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.ui.AppShapes
 import dev.triplet.app.ui.AppTheme
 import dev.triplet.app.ui.AppTypography
@@ -36,8 +37,6 @@ import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
 import dev.triplet.app.vpn.canAutoConnect
 import dev.triplet.app.vpn.effectiveRoutes
-import dev.triplet.app.core.ParseResult
-import dev.triplet.app.core.VlessKeyParser
 
 private enum class Screen { HOME, SETTINGS, ROUTES, VLESS, DPI, THEME, DNS, BACKUP }
 
@@ -47,9 +46,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val store = (application as TripletApp).routesStore
         setContent {
-            val settings by store.settings.collectAsState(initial = null)
+            val settings by store.settings.collectAsState()
             val theme = AppTheme.byId(settings?.themeId ?: "")
-            // Фон продолжается под системные бары; иконки — тёмные на светлых темах.
             LaunchedEffect(theme) {
                 val style = if (theme.dark) SystemBarStyle.dark(Color.Transparent.toArgb())
                 else SystemBarStyle.light(Color.Transparent.toArgb(), Color.Transparent.toArgb())
@@ -58,49 +56,60 @@ class MainActivity : ComponentActivity() {
             CompositionLocalProvider(LocalDetourTheme provides theme) {
                 MaterialTheme(colorScheme = theme.scheme, typography = AppTypography, shapes = AppShapes) {
                     Box(Modifier.fillMaxSize().background(theme.colors.background)) {
-                         var screen by rememberSaveable { androidx.compose.runtime.mutableStateOf(Screen.HOME) }
-                        // Автоподключение при старте (настройка, по умолчанию выключена).
+                        var screen by rememberSaveable { androidx.compose.runtime.mutableStateOf(Screen.HOME) }
                         val ctx = this@MainActivity
-                         LaunchedEffect(settings?.autoConnect, settings?.routes, settings?.vlessUri) {
-                             val effective = settings?.let { s ->
-                                 effectiveRoutes(s.routes, s.routes.keys.associateWith { pkg ->
-                                     runCatching { packageManager.getPackageUid(pkg, 0) }.getOrNull()
-                                 })
-                             }
-                             val activeValid = settings?.vlessKeys?.active?.uri?.let {
-                                 VlessKeyParser.parse(it) is ParseResult.Ok
-                             } == true
-                             if (settings != null && effective != null &&
-                                 canAutoConnect(settings!!, android.net.VpnService.prepare(ctx) == null, effective, activeValid) &&
-                                 VpnController.state.value == VpnState.Idle
-                             ) {
-                                 VpnController.startNow(ctx)
+
+                        // "Подключаться при запуске" is a launch-time policy, not a
+                        // reactive command. Toggling the preference while the app is
+                        // already open must never start the VPN immediately.
+                        LaunchedEffect(Unit) {
+                            val launchSettings = store.snapshot()
+                            val effective = effectiveRoutes(
+                                launchSettings.routes,
+                                launchSettings.routes.keys.associateWith { pkg ->
+                                    runCatching { packageManager.getPackageUid(pkg, 0) }.getOrNull()
+                                },
+                            )
+                            val activeValid = launchSettings.vlessKeys.active?.uri?.let {
+                                VlessKeyParser.parse(it) is ParseResult.Ok
+                            } == true
+                            if (
+                                canAutoConnect(
+                                    launchSettings,
+                                    android.net.VpnService.prepare(ctx) == null,
+                                    effective,
+                                    activeValid,
+                                ) && VpnController.state.value == VpnState.Idle
+                            ) {
+                                VpnController.startNow(ctx)
                             }
                         }
-                        // Назад: с подстраниц — в меню настроек, из настроек — на главную.
+
                         BackHandler(enabled = screen != Screen.HOME) {
                             screen = if (screen == Screen.SETTINGS) Screen.HOME else Screen.SETTINGS
                         }
-                        Crossfade(targetState = screen, label = "screen") { s ->
-                            when (s) {
-                                Screen.HOME -> HomeScreen(store, onOpenSettings = { screen = Screen.SETTINGS })
-                                Screen.SETTINGS -> SettingsMenuScreen(
-                                    store,
-                                    onOpenRoutes = { screen = Screen.ROUTES },
-                                    onOpenVless = { screen = Screen.VLESS },
-                                    onOpenDpi = { screen = Screen.DPI },
-                                    onOpenTheme = { screen = Screen.THEME },
-                                    onOpenDns = { screen = Screen.DNS },
-                                    onOpenBackup = { screen = Screen.BACKUP },
-                                    onBack = { screen = Screen.HOME },
-                                )
-                                Screen.ROUTES -> AppsScreen(store, onBack = { screen = Screen.SETTINGS })
-                                Screen.VLESS -> VlessKeyScreen(store, onBack = { screen = Screen.SETTINGS })
-                                Screen.DPI -> DpiScreen(store, onBack = { screen = Screen.SETTINGS })
-                                Screen.THEME -> ThemeScreen(store, onBack = { screen = Screen.SETTINGS })
-                                Screen.DNS -> DnsScreen(store, onBack = { screen = Screen.SETTINGS })
-                                Screen.BACKUP -> BackupScreen(store, onBack = { screen = Screen.SETTINGS })
-                            }
+
+                        // Screen changes are intentionally immediate. The previous
+                        // slide/crossfade made short navigation feel heavier than the
+                        // rest of the interface and could expose intermediate frames.
+                        when (screen) {
+                            Screen.HOME -> HomeScreen(store, onOpenSettings = { screen = Screen.SETTINGS })
+                            Screen.SETTINGS -> SettingsMenuScreen(
+                                store,
+                                onOpenRoutes = { screen = Screen.ROUTES },
+                                onOpenVless = { screen = Screen.VLESS },
+                                onOpenDpi = { screen = Screen.DPI },
+                                onOpenTheme = { screen = Screen.THEME },
+                                onOpenDns = { screen = Screen.DNS },
+                                onOpenBackup = { screen = Screen.BACKUP },
+                                onBack = { screen = Screen.HOME },
+                            )
+                            Screen.ROUTES -> AppsScreen(store, onBack = { screen = Screen.SETTINGS })
+                            Screen.VLESS -> VlessKeyScreen(store, onBack = { screen = Screen.SETTINGS })
+                            Screen.DPI -> DpiScreen(store, onBack = { screen = Screen.SETTINGS })
+                            Screen.THEME -> ThemeScreen(store, onBack = { screen = Screen.SETTINGS })
+                            Screen.DNS -> DnsScreen(store, onBack = { screen = Screen.SETTINGS })
+                            Screen.BACKUP -> BackupScreen(store, onBack = { screen = Screen.SETTINGS })
                         }
                     }
                 }

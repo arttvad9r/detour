@@ -14,9 +14,11 @@ object HealthCheck {
         "https://cp.cloudflare.com/generate_204",
     )
 
-    fun generate204(proxyPort: Int, timeoutMs: Int = 5000, cancelled: () -> Boolean = { false }): Boolean {
+    fun generate204(proxyPort: Int, timeoutMs: Int = 2500, cancelled: () -> Boolean = { false }): Boolean {
         val proxy = Proxy(Proxy.Type.HTTP, InetSocketAddress("127.0.0.1", proxyPort))
-        return retry(endpoints, attempts = 2, cancelled = cancelled) { endpoint ->
+        // One attempt per independent endpoint is enough here. A second full
+        // pass made the UI sit in "Starting" for tens of seconds on a bad path.
+        return retry(endpoints, attempts = 1, cancelled = cancelled) { endpoint ->
             try {
                 val conn = URL(endpoint).openConnection(proxy) as HttpsURLConnection
                 conn.connectTimeout = timeoutMs
@@ -32,7 +34,7 @@ object HealthCheck {
                 if (!cancelled()) ServiceLog.i("probe :$proxyPort $endpoint -> ${e.javaClass.simpleName}: ${e.message}")
                 false
             }
-                }
+        }
     }
 
     internal fun retry(

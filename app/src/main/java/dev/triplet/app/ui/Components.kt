@@ -6,6 +6,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -15,11 +16,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonElevation
@@ -37,24 +38,41 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.semantics.Role
 import dev.triplet.app.R
 
-/** Токены активной темы в композиции. */
 val detourColors: DetourColors
     @Composable get() = LocalDetourTheme.current.colors
 
-/** Волосная граница поверхностей. */
 val hairline: Color
     @Composable get() = detourColors.border
 
 /**
- * Сгруппированная поверхность: почти белый фон, radius 20, граница 1dp,
- * без тени. Внутри — строки и разделители; контент клипуется по форме.
+ * Click semantics for flat custom surfaces without a transient overlay.
+ * Selected/idle color is stable; interaction feedback is carried by the
+ * control's actual state change rather than a flash-like press tint.
  */
+@Composable
+fun Modifier.detourClickable(
+    onClick: () -> Unit,
+    role: Role? = null,
+    idleColor: Color = Color.Transparent,
+    pressedColor: Color? = null,
+): Modifier {
+    val interactionSource = remember { MutableInteractionSource() }
+    return this
+        .background(idleColor)
+        .clickable(
+            interactionSource = interactionSource,
+            indication = null,
+            role = role,
+            onClick = onClick,
+        )
+}
+
 @Composable
 fun DetourCard(
     modifier: Modifier = Modifier,
@@ -71,10 +89,6 @@ fun DetourCard(
     )
 }
 
-/**
- * Строка настройки: line-иконка 18dp на мягком лавандовом квадрате 36dp,
- * заголовок 15sp Medium, подпись 13sp, тонкий шеврон. Высота ~64dp.
- */
 @Composable
 fun SettingRow(
     title: String,
@@ -86,8 +100,9 @@ fun SettingRow(
     val c = detourColors
     Row(
         Modifier.fillMaxWidth()
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(horizontal = Spacing.space16, vertical = 11.dp),
+            .detourClickable(onClick = onClick, role = Role.Button)
+            .heightIn(min = 56.dp)
+            .padding(horizontal = Spacing.space16, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -100,7 +115,7 @@ fun SettingRow(
                 modifier = Modifier.size(18.dp),
             )
         }
-        Column(Modifier.padding(start = 12.dp).weight(1f)) {
+        Column(Modifier.padding(start = Spacing.space12).weight(1f)) {
             Text(
                 title, style = MaterialTheme.typography.titleSmall,
                 color = c.textPrimary,
@@ -119,18 +134,16 @@ fun SettingRow(
     }
 }
 
-/** Тонкий шеврон «›» для строк-ссылок. */
 @Composable
 fun Chevron() {
     Text(
         "›", style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Normal,
         color = detourColors.textMuted,
-        modifier = Modifier.padding(start = 8.dp),
+        modifier = Modifier.padding(start = Spacing.space8),
     )
 }
 
-/** Разделитель внутри группы с отступом от иконки. */
 @Composable
 fun GroupDivider(startInset: Int = 64) {
     Box(
@@ -141,48 +154,69 @@ fun GroupDivider(startInset: Int = 64) {
     )
 }
 
-/** Общий компактный switch: 44x26dp visual, 48x48dp touch target. */
 @Composable
-fun DetourSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, animate: Boolean = true, compact: Boolean = false) {
+fun DetourSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    animate: Boolean = true,
+    compact: Boolean = false,
+) {
     val c = detourColors
     val trackWidth = if (compact) 40.dp else 44.dp
     val trackHeight = if (compact) 24.dp else 26.dp
     val thumbSize = if (compact) 18.dp else 20.dp
-    val thumbStart = if (compact) 4.dp else 3.dp
-    val targetOffset = if (checked) trackWidth - thumbSize - thumbStart else thumbStart
-    val animatedOffset by animateDpAsState(targetOffset, tween(180), label = "switchThumb")
+    val thumbMargin = 3.dp
+    val targetOffset = if (checked) trackWidth - thumbSize - thumbMargin else thumbMargin
+    val animatedOffset by animateDpAsState(
+        targetValue = targetOffset,
+        animationSpec = tween(100),
+        label = "switchThumb",
+    )
     val thumbOffset = if (animate) animatedOffset else targetOffset
+    val trackColor by animateColorAsState(
+        if (checked) c.accent else c.border.copy(alpha = .85f),
+        tween(100), label = "switchTrack",
+    )
+    val trackBorder by animateColorAsState(
+        if (checked) c.accent else c.textMuted.copy(alpha = .25f),
+        tween(100), label = "switchBorder",
+    )
+    val thumbBorder by animateColorAsState(
+        if (checked) Color.Transparent else c.textMuted.copy(alpha = .25f),
+        tween(100), label = "switchThumbBorder",
+    )
+    val interactionSource = remember { MutableInteractionSource() }
+
     Box(
         Modifier.size(48.dp).toggleable(
             value = checked,
+            interactionSource = interactionSource,
+            indication = null,
             role = Role.Switch,
             onValueChange = onCheckedChange,
-            interactionSource = remember { MutableInteractionSource() },
-            indication = null,
         ),
-        contentAlignment = Alignment.CenterStart,
+        contentAlignment = Alignment.Center,
     ) {
         Box(
-            Modifier.padding(start = if (compact) 4.dp else 2.dp).size(trackWidth, trackHeight)
-                .background(if (checked) c.accent else c.border.copy(alpha = .85f), androidx.compose.foundation.shape.CircleShape)
-                .border(1.dp, if (checked) c.accent else c.textMuted.copy(alpha = .25f), androidx.compose.foundation.shape.CircleShape),
+            Modifier
+                .size(trackWidth, trackHeight)
+                .background(trackColor, androidx.compose.foundation.shape.CircleShape)
+                .border(1.dp, trackBorder, androidx.compose.foundation.shape.CircleShape),
+            contentAlignment = Alignment.CenterStart,
         ) {
             Box(
-                Modifier.padding(start = thumbOffset - thumbStart, top = 3.dp).size(thumbSize)
+                Modifier
+                    .offset(x = thumbOffset)
+                    .size(thumbSize)
                     .background(Color.White, androidx.compose.foundation.shape.CircleShape)
-                    .border(1.dp, if (checked) Color.Transparent else c.textMuted.copy(alpha = .25f), androidx.compose.foundation.shape.CircleShape),
+                    .border(1.dp, thumbBorder, androidx.compose.foundation.shape.CircleShape),
             )
         }
     }
 }
 
-/** Кнопочные стили. */
 enum class ButtonStyle { PRIMARY, SECONDARY }
 
-/**
- * Кнопка действия. PRIMARY — лавандовая заливка; SECONDARY — поверхность
- * с тонкой границей. Высота по умолчанию 52dp (главное действие).
- */
 @Composable
 fun DetourButton(
     text: String,
@@ -195,6 +229,7 @@ fun DetourButton(
     contentColor: Color? = null,
     disabledContainer: Color? = null,
     disabledContent: Color? = null,
+    borderColor: Color? = null,
     elevation: ButtonElevation? = null,
 ) {
     val c = detourColors
@@ -202,6 +237,11 @@ fun DetourButton(
     val fg = contentColor ?: if (style == ButtonStyle.PRIMARY) c.onAccent else c.textPrimary
     val disBg = disabledContainer ?: if (style == ButtonStyle.PRIMARY) c.accentSoft else c.surfaceSoft
     val disFg = disabledContent ?: if (style == ButtonStyle.PRIMARY) c.accent else c.textMuted
+    val border = when {
+        borderColor != null -> androidx.compose.foundation.BorderStroke(1.dp, borderColor)
+        style == ButtonStyle.SECONDARY -> androidx.compose.foundation.BorderStroke(1.dp, c.border)
+        else -> null
+    }
     Button(
         onClick = onClick,
         enabled = enabled,
@@ -213,18 +253,13 @@ fun DetourButton(
             disabledContentColor = disFg,
         ),
         elevation = elevation,
-        border = if (style == ButtonStyle.SECONDARY) androidx.compose.foundation.BorderStroke(1.dp, c.border) else null,
+        border = border,
         modifier = modifier.fillMaxWidth().height(height.dp),
     ) {
         Text(text, style = MaterialTheme.typography.labelLarge)
     }
 }
 
-/**
- * Строка-опция с радио-индикатором 18dp (touch target — вся строка 48dp+).
- * Выбранная — мягкий лавандовый фон без толстой границы. Для группировки
- * кладётся внутрь DetourCard на всю ширину.
- */
 @Composable
 fun RadioRow(
     title: String,
@@ -235,20 +270,21 @@ fun RadioRow(
     trailing: @Composable (() -> Unit)? = null,
 ) {
     val c = detourColors
-    val bg by animateColorAsState(
-        if (selected) c.accentSoft else Color.Transparent, tween(200), label = "radioBg",
-    )
     Row(
         modifier
             .fillMaxWidth()
-            .background(bg)
-            .clickable(role = Role.RadioButton, onClick = onClick)
-            .heightIn(min = 48.dp)
-            .padding(horizontal = Spacing.space16, vertical = 12.dp),
+            .detourClickable(
+                onClick = onClick,
+                role = Role.RadioButton,
+                idleColor = if (selected) c.accentSoft else Color.Transparent,
+                pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
+            )
+            .heightIn(min = 52.dp)
+            .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RadioDot(selected)
-        Column(Modifier.padding(start = 12.dp).weight(1f)) {
+        Column(Modifier.padding(start = Spacing.space12).weight(1f)) {
             Text(
                 title, style = MaterialTheme.typography.titleSmall,
                 color = c.textPrimary,
@@ -267,28 +303,29 @@ fun RadioRow(
     }
 }
 
-/** Радио-индикатор: визуал 18dp, точка 8dp. */
 @Composable
 fun RadioDot(selected: Boolean) {
     val c = detourColors
+    val ringColor by animateColorAsState(
+        if (selected) c.accent else c.textMuted.copy(alpha = 0.55f),
+        tween(90), label = "radioRing",
+    )
+    val dotSize by animateDpAsState(
+        if (selected) 8.dp else 0.dp,
+        tween(90), label = "radioDot",
+    )
     Box(
         Modifier.size(18.dp).border(
             width = 1.5.dp,
-            color = if (selected) c.accent else c.textMuted.copy(alpha = 0.55f),
+            color = ringColor,
             shape = androidx.compose.foundation.shape.CircleShape,
         ),
         contentAlignment = Alignment.Center,
     ) {
-        if (selected) {
-            Box(Modifier.size(8.dp).background(c.accent, androidx.compose.foundation.shape.CircleShape))
-        }
+        Box(Modifier.size(dotSize).background(c.accent, androidx.compose.foundation.shape.CircleShape))
     }
 }
 
-/**
- * Компактный сегментный переключатель (32dp): выбран — accentSoft/accent,
- * не выбран — поверхность/textSecondary, граница 1dp.
- */
 @Composable
 fun SegmentedControl(
     options: List<String>,
@@ -307,13 +344,20 @@ fun SegmentedControl(
     ) {
         options.forEachIndexed { i, label ->
             val on = i == selected
-            val bg by animateColorAsState(if (on) c.accentSoft else Color.Transparent, tween(160), label = "seg")
+            val fg by animateColorAsState(
+                if (on) c.accent else c.textSecondary,
+                tween(90), label = "segFg",
+            )
             Row(
                 Modifier
                     .weight(1f)
                     .fillMaxSize()
-                    .background(bg)
-                    .clickable(role = Role.RadioButton) { onSelect(i) },
+                    .detourClickable(
+                        onClick = { onSelect(i) },
+                        role = Role.RadioButton,
+                        idleColor = if (on) c.accentSoft else Color.Transparent,
+                        pressedColor = if (on) c.accentSoft else c.surfaceSelected,
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
             ) {
@@ -321,7 +365,7 @@ fun SegmentedControl(
                     label,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
-                    color = if (on) c.accent else c.textSecondary,
+                    color = fg,
                     textAlign = TextAlign.Center,
                     maxLines = 1,
                 )
@@ -330,12 +374,11 @@ fun SegmentedControl(
     }
 }
 
-/** Заголовок внутреннего экрана: назад + название, высота 56dp. */
 @Composable
 fun ScreenHeader(title: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val c = detourColors
     Row(
-        modifier.fillMaxWidth().height(56.dp).padding(start = 4.dp, end = Spacing.space20),
+        modifier.fillMaxWidth().height(56.dp).padding(start = Spacing.space4, end = Spacing.space20),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(onClick = onBack) {
@@ -345,19 +388,21 @@ fun ScreenHeader(title: String, onBack: () -> Unit, modifier: Modifier = Modifie
                 modifier = Modifier.size(22.dp),
             )
         }
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(Spacing.space4))
         Text(title, style = MaterialTheme.typography.titleLarge, color = c.textPrimary)
     }
 }
 
-/** Общие цвета полей ввода: поверхность, волосная граница, лавандовый фокус. */
 @Composable
 fun fieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedContainerColor = Color.Transparent,
-    unfocusedContainerColor = Color.Transparent,
+    focusedContainerColor = detourColors.surface,
+    unfocusedContainerColor = detourColors.surface,
+    disabledContainerColor = detourColors.surfaceSoft,
     focusedBorderColor = detourColors.accent,
     unfocusedBorderColor = detourColors.border,
+    disabledBorderColor = detourColors.border,
     cursorColor = detourColors.accent,
     focusedTextColor = detourColors.textPrimary,
     unfocusedTextColor = detourColors.textPrimary,
+    disabledTextColor = detourColors.textMuted,
 )

@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -12,8 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -36,10 +33,11 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val c = detourColors
-    val settings by store.settings.collectAsState(initial = null)
+    val settings by store.settings.collectAsState()
     var customField by rememberSaveable(settings?.dpiCustomArgs) {
         androidx.compose.runtime.mutableStateOf(settings?.dpiCustomArgs ?: "")
     }
+    val customInvalid = customField.isNotBlank() && !DpiArgs.isValid(customField)
 
     Column(
         modifier.fillMaxSize()
@@ -59,7 +57,6 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
             }
         }
 
-        // Один сгруппированный селектор стратегий.
         DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
             RadioRow(
                 title = stringResource(R.string.preset_recommended),
@@ -74,28 +71,33 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
             )
         }
 
-        // Редактор своей стратегии — отдельный раскрывающийся блок, не subtitle.
         if (settings?.preset == DpiPreset.CUSTOM) {
-            Spacer(Modifier.height(Spacing.space12))
-            OutlinedTextField(
+            Spacer(Modifier.height(Spacing.space16))
+            DetourInputField(
                 value = customField,
-                onValueChange = { customField = it },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.space16),
-                shape = AppShapes.small,
-                textStyle = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
-                colors = fieldColors(),
+                onValueChange = { value ->
+                    customField = value.replace("\r", " ").replace("\n", " ")
+                },
+                label = stringResource(R.string.dpi_custom_label),
+                placeholder = stringResource(R.string.dpi_custom_placeholder),
+                helper = stringResource(R.string.dpi_custom_hint),
+                error = if (customInvalid) stringResource(R.string.dpi_custom_invalid) else null,
+                singleLine = false,
+                minHeight = 56.dp,
+                maxHeight = 104.dp,
+                maxLines = 3,
+                modifier = Modifier.padding(horizontal = Spacing.space16),
             )
-            Spacer(Modifier.height(Spacing.space12))
+            Spacer(Modifier.height(Spacing.space16))
             DetourButton(
                 text = stringResource(R.string.btn_save),
                 onClick = {
                     scope.launch {
-                        store.setCustomArgs(customField)
+                        store.setCustomArgs(customField.trim())
                         VpnController.restartIfActive(ctx)
                     }
                 },
-                 enabled = DpiArgs.isValid(customField),
-                height = 48,
+                enabled = customField.isNotBlank() && !customInvalid,
                 modifier = Modifier.padding(horizontal = Spacing.space16),
             )
         }

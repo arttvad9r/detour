@@ -1,8 +1,9 @@
 package dev.triplet.app.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -19,10 +20,8 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -37,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
@@ -45,7 +45,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
@@ -53,11 +52,11 @@ import dev.triplet.app.R
 import dev.triplet.app.core.AppRoute
 import dev.triplet.app.data.AppInfo
 import dev.triplet.app.data.AppInventory
-import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.data.AppRouteOrdering
+import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.vpn.VpnController
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -65,14 +64,18 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val c = detourColors
-    val settings by store.settings.collectAsState(initial = null)
+    val settings by store.settings.collectAsState()
     val currentSettings = settings ?: return
     val pm = ctx.packageManager
     val searchHint = stringResource(R.string.search_hint)
 
     var query by rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
+    var searchFocused by remember { androidx.compose.runtime.mutableStateOf(false) }
+    val searchBorder by animateColorAsState(
+        if (searchFocused) c.accent else c.border,
+        tween(140), label = "searchBorder",
+    )
     val showSystem = currentSettings.showSystemApps
-    // PackageManager queries are slow on the main thread; let the screen open first.
     val allApps by produceState<List<AppInfo>?>(initialValue = null, ctx) {
         value = withContext(Dispatchers.IO) { AppInventory.load(ctx) }
     }
@@ -101,20 +104,19 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
         ScreenHeader(stringResource(R.string.routes_title), onBack)
         Spacer(Modifier.height(Spacing.space4))
 
-        // Компактный поиск: 48dp, radius 14.
         Row(
             Modifier.fillMaxWidth()
                 .padding(horizontal = Spacing.space16)
-                .height(48.dp)
+                .height(56.dp)
                 .clip(AppShapes.small)
                 .background(c.surface)
-                .border(1.dp, c.border, AppShapes.small)
+                .border(1.dp, searchBorder, AppShapes.small)
                 .padding(horizontal = Spacing.space12),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
                 painterResource(R.drawable.ic_search), null,
-                tint = c.textMuted,
+                tint = if (searchFocused) c.accent else c.textMuted,
                 modifier = Modifier.size(18.dp),
             )
             Spacer(Modifier.width(8.dp))
@@ -132,18 +134,18 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
                     singleLine = true,
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = c.textPrimary),
                     cursorBrush = SolidColor(c.accent),
-                    modifier = Modifier.fillMaxWidth().semantics {
-                        contentDescription = searchHint
-                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onFocusChanged { searchFocused = it.isFocused }
+                        .semantics { contentDescription = searchHint },
                 )
             }
         }
 
-        // Системные приложения — компактная строка с переключателем.
         Row(
             Modifier.fillMaxWidth()
-                .padding(horizontal = Spacing.space20, vertical = Spacing.space8)
-                .clickable { scope.launch { store.setShowSystemApps(!showSystem) } },
+                .padding(horizontal = Spacing.space16, vertical = Spacing.space8)
+                .detourClickable(onClick = { scope.launch { store.setShowSystemApps(!showSystem) } }),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -156,43 +158,41 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
             DetourSwitch(checked = showSystem, onCheckedChange = { value -> scope.launch { store.setShowSystemApps(value) } })
         }
 
-        // Единая поверхность-список: общая рамка и скругления как у остальных карточек.
         DetourCard(Modifier.weight(1f).padding(horizontal = Spacing.space16)) {
-          LazyColumn(Modifier.fillMaxWidth()) {
-            itemsIndexed(apps, key = { _, app -> app.packageName }) { i, app ->
-                val current = routes[app.packageName] ?: AppRoute.DIRECT
-                val shape = when {
-                    apps.size == 1 -> AppShapes.small
-                    i == 0 -> RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp)
-                    i == apps.lastIndex -> RoundedCornerShape(bottomStart = 14.dp, bottomEnd = 14.dp)
-                    else -> RoundedCornerShape(0.dp)
-                }
-                Column(
-                    Modifier.fillMaxWidth().clip(shape),
-                ) {
-                    AppRow(app, current, pm) { route ->
-                        scope.launch {
-                            store.setRoute(app.packageName, route)
-                            VpnController.restartIfActive(ctx)
+            LazyColumn(Modifier.fillMaxWidth()) {
+                itemsIndexed(apps, key = { _, app -> app.packageName }) { i, app ->
+                    val current = routes[app.packageName] ?: AppRoute.DIRECT
+                    val shape = when {
+                        apps.size == 1 -> AppShapes.small
+                        i == 0 -> RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp)
+                        i == apps.lastIndex -> RoundedCornerShape(bottomStart = 14.dp, bottomEnd = 14.dp)
+                        else -> RoundedCornerShape(0.dp)
+                    }
+                    Column(
+                        Modifier.fillMaxWidth().clip(shape),
+                    ) {
+                        AppRow(app, current, pm) { route ->
+                            scope.launch {
+                                store.setRoute(app.packageName, route)
+                                VpnController.restartIfActive(ctx)
+                            }
+                        }
+                        if (i < apps.lastIndex) {
+                            Box(
+                                Modifier.fillMaxWidth()
+                                    .padding(start = 52.dp)
+                                    .height(1.dp)
+                                    .background(c.divider),
+                            )
                         }
                     }
-                    if (i < apps.lastIndex) {
-                        Box(
-                            Modifier.fillMaxWidth()
-                                .padding(start = 52.dp) // 16 + иконка 26 + зазор 10
-                                .height(1.dp)
-                                .background(c.divider),
-                        )
-                    }
                 }
+                item { Spacer(Modifier.height(Spacing.space24)) }
             }
-            item { Spacer(Modifier.height(Spacing.space24)) }
-          }
         }
     }
 }
 
-/** Строка приложения: иконка, имя, пакет, сегменты маршрута. */
 @Composable
 private fun AppRow(
     app: AppInfo,
