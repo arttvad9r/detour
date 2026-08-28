@@ -26,10 +26,10 @@ proxies:
   public-key: "QH+99BoTQpVd+x+SpMwAQGm47sGJ7JqTap2hEXXxfMI="
   reserved: [1, 2, 3]
   allowed-ips: ["0.0.0.0/0"]
+  persistent-keepalive: 25
   udp: true
   mtu: 1280
-  remote-dns-resolve: true
-  dns: [1.1.1.1]
+  remote-dns-resolve: false
   amnezia-wg-option:
     jc: 4
     jmin: 40
@@ -43,11 +43,13 @@ proxies:
     i1: "<b 0x1234>"
 proxy-groups:
 - name: WARP
-  type: url-test
-  url: http://speed.cloudflare.com/
+  type: fallback
+  url: https://cp.cloudflare.com/generate_204
   interval: 300
-  tolerance: 50
-  lazy: true
+  lazy: false
+  timeout: 3000
+  max-failed-times: 2
+  expected-status: 204
   proxies:
     - WARP_0
 rules:
@@ -74,8 +76,7 @@ proxies:
   allowed-ips: ["0.0.0.0/0", "::/0"]
   udp: true
   mtu: 1280
-  remote-dns-resolve: true
-  dns: [1.1.1.1, 1.0.0.1]
+  remote-dns-resolve: false
   amnezia-wg-option:
     jc: 4
     jmin: 40
