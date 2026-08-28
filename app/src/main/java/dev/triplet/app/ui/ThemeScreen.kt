@@ -51,7 +51,7 @@ fun ThemeScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mod
             AppTheme.entries.forEachIndexed { i, t ->
                 val selected = current == t.id
                 RadioRow(
-                    title = stringResource(themeLabel(t)),
+                    title = t.label,
                     selected = selected,
                     onClick = { scope.launch { store.setTheme(t.id) } },
                     trailing = { ThemeSwatches(t) },
