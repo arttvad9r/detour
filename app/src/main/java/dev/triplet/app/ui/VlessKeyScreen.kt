@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -46,6 +45,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import dev.triplet.app.R
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.VlessKey
@@ -79,7 +79,6 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
     var showAddDialog by rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     var field by rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
     var warpStatus by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
-    var warpImportedCount by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
     val parse = field.trim().takeIf { it.isNotBlank() }?.let(VlessKeyParser::parse)
 
     fun beginEdit(key: VlessKey?) {
@@ -101,8 +100,9 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                 is WarpImportResult.Ok -> {
                     store.setWarpProfile(result.profile)
                     VpnController.restartIfActive(ctx)
-                    warpImportedCount = result.profile.proxies.size
-                    warpStatus = 1
+                    // The new row is sufficient success feedback; keep the area
+                    // below the list reserved for actionable import errors only.
+                    warpStatus = 0
                 }
                 WarpImportResult.NoCompatibleProxies -> warpStatus = 2
                 WarpImportResult.Invalid -> warpStatus = 3
@@ -129,15 +129,21 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                     modifier = Modifier.padding(horizontal = Spacing.space16),
                 )
                 Spacer(Modifier.height(Spacing.space8))
-                DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-                    if (vlessItems.isEmpty() && warpProfile == null) {
-                        Text(
-                            stringResource(R.string.profile_empty),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = c.textMuted,
-                            modifier = Modifier.padding(Spacing.space16),
-                        )
-                    } else {
+
+                if (vlessItems.isEmpty() && warpProfile == null) {
+                    Text(
+                        stringResource(R.string.profile_empty),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = c.textMuted,
+                        modifier = Modifier.padding(
+                            start = Spacing.space20,
+                            end = Spacing.space20,
+                            top = Spacing.space4,
+                            bottom = Spacing.space12,
+                        ),
+                    )
+                } else {
+                    DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
                         vlessItems.forEachIndexed { index, key ->
                             KeyRow(
                                 key = key,
@@ -183,13 +189,11 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                 if (warpStatus != 0) {
                     Spacer(Modifier.height(Spacing.space8))
                     Text(
-                        text = when (warpStatus) {
-                            1 -> stringResource(R.string.warp_imported, warpImportedCount)
-                            2 -> stringResource(R.string.warp_invalid)
-                            else -> stringResource(R.string.warp_import_error)
-                        },
+                        text = stringResource(
+                            if (warpStatus == 2) R.string.warp_invalid else R.string.warp_import_error,
+                        ),
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (warpStatus == 1) c.active else c.error,
+                        color = c.error,
                         modifier = Modifier.padding(horizontal = Spacing.space20),
                     )
                 }
@@ -283,49 +287,66 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
     }
 
     if (showAddDialog) {
-        AlertDialog(
-            onDismissRequest = { showAddDialog = false },
-            title = { Text(stringResource(R.string.profile_add_title)) },
-            text = {
-                Column {
-                    ProfileTypeButton(
-                        title = stringResource(R.string.profile_add_vless),
-                        subtitle = stringResource(R.string.profile_add_vless_sub),
-                    ) {
-                        showAddDialog = false
-                        beginEdit(null)
-                    }
-                    ProfileTypeButton(
-                        title = stringResource(R.string.profile_add_warp),
-                        subtitle = stringResource(
-                            if (warpProfile == null) R.string.profile_add_warp_sub
-                            else R.string.profile_replace_warp_sub,
-                        ),
-                    ) {
-                        showAddDialog = false
-                        warpStatus = 0
-                        warpLauncher.launch(arrayOf("*/*"))
+        Dialog(onDismissRequest = { showAddDialog = false }) {
+            DetourCard {
+                Text(
+                    stringResource(R.string.profile_add_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = c.textPrimary,
+                    modifier = Modifier.padding(
+                        start = Spacing.space20,
+                        end = Spacing.space20,
+                        top = Spacing.space16,
+                        bottom = Spacing.space12,
+                    ),
+                )
+                GroupDivider(startInset = 20)
+                ProfileTypeRow(
+                    title = stringResource(R.string.profile_add_vless),
+                    subtitle = stringResource(R.string.profile_add_vless_sub),
+                ) {
+                    showAddDialog = false
+                    beginEdit(null)
+                }
+                GroupDivider(startInset = 20)
+                ProfileTypeRow(
+                    title = stringResource(R.string.profile_add_warp),
+                    subtitle = stringResource(
+                        if (warpProfile == null) R.string.profile_add_warp_sub
+                        else R.string.profile_replace_warp_sub,
+                    ),
+                ) {
+                    showAddDialog = false
+                    warpStatus = 0
+                    warpLauncher.launch(arrayOf("*/*"))
+                }
+                Row(
+                    Modifier.fillMaxWidth().padding(
+                        start = Spacing.space12,
+                        end = Spacing.space12,
+                        bottom = Spacing.space4,
+                    ),
+                    horizontalArrangement = Arrangement.End,
+                ) {
+                    TextButton(onClick = { showAddDialog = false }) {
+                        Text(stringResource(R.string.key_cancel))
                     }
                 }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showAddDialog = false }) {
-                    Text(stringResource(R.string.key_cancel))
-                }
-            },
-        )
+            }
+        }
     }
 }
 
 @Composable
-private fun ProfileTypeButton(title: String, subtitle: String, onClick: () -> Unit) {
+private fun ProfileTypeRow(title: String, subtitle: String, onClick: () -> Unit) {
     val c = detourColors
-    TextButton(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+    Row(
+        Modifier.fillMaxWidth()
+            .detourClickable(onClick = onClick, role = Role.Button)
+            .padding(horizontal = Spacing.space20, vertical = Spacing.space12),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.fillMaxWidth().padding(vertical = Spacing.space4)) {
+        Column(Modifier.weight(1f)) {
             Text(
                 title,
                 style = MaterialTheme.typography.titleSmall,
@@ -335,13 +356,21 @@ private fun ProfileTypeButton(title: String, subtitle: String, onClick: () -> Un
                 subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = c.textSecondary,
+                modifier = Modifier.padding(top = 2.dp),
             )
         }
+        Chevron()
     }
 }
 
 @Composable
-private fun KeyRow(key: VlessKey, selected: Boolean, onEdit: () -> Unit, onDelete: () -> Unit, onClick: () -> Unit) {
+private fun KeyRow(
+    key: VlessKey,
+    selected: Boolean,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onClick: () -> Unit,
+) {
     val c = detourColors
     Row(
         Modifier.fillMaxWidth()
