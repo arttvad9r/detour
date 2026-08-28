@@ -11,17 +11,33 @@ sealed interface WarpImportResult {
 }
 
 /**
- * Imports only compatible WARP/AmneziaWG WireGuard proxies from a Clash/Mihomo YAML.
- * Routing rules, proxy groups, DNS policy, listeners and MASQUE entries are intentionally
- * ignored: Detour remains the owner of routing and only consumes the outbound credentials.
+ * Imports a WARP/AmneziaWG outbound from either Clash/Mihomo YAML or a native
+ * WireGuard/AmneziaWG .conf file. Imported routing rules, proxy groups, DNS policy,
+ * listeners and MASQUE entries are intentionally ignored: Detour remains the owner
+ * of routing and consumes only compatible outbound credentials.
  */
 object WarpConfigImporter {
     const val MAX_CHARS = 1024 * 1024
     private const val MAX_PROXIES = 128
     private const val MAX_ALIASES = 512
 
+    private val nativeInterfaceHeader = Regex("""(?im)^\s*\[Interface]\s*$""")
+    private val amneziaKeys = setOf(
+        "jc", "jmin", "jmax", "s1", "s2", "h1", "h2", "h3", "h4",
+        "i1", "i2", "i3", "i4", "i5",
+    )
+
     fun parse(raw: String): WarpImportResult {
         if (raw.isBlank() || raw.length > MAX_CHARS) return WarpImportResult.Invalid
+        val normalized = raw.removePrefix("\uFEFF")
+        return if (nativeInterfaceHeader.containsMatchIn(normalized)) {
+            parseNativeConf(normalized)
+        } else {
+            parseMihomoYaml(normalized)
+        }
+    }
+
+    private fun parseMihomoYaml(raw: String): WarpImportResult {
         val root = try {
             val options = LoaderOptions().apply {
                 setAllowDuplicateKeys(false)
@@ -46,7 +62,7 @@ object WarpConfigImporter {
             .mapNotNull { it as? Map<*, *> }
             .filter { it.string("type").equals("wireguard", ignoreCase = true) }
             .filter { it["amnezia-wg-option"] is Map<*, *> }
-            .mapNotNull(::parseProxy)
+            .mapNotNull(::parseYamlProxy)
             .distinctBy { listOf(it.server, it.port, it.privateKey, it.amnezia.i1).joinToString("|") }
             .take(MAX_PROXIES)
             .toList()
@@ -55,7 +71,73 @@ object WarpConfigImporter {
         return WarpImportResult.Ok(WarpProfile.create(proxies = proxies))
     }
 
-    private fun parseProxy(map: Map<*, *>): WarpProxy? = runCatching {
+    private fun parseNativeConf(raw: String): WarpImportResult {
+        val sections = parseIni(raw)
+        val iface = sections.firstOrNull { it.name.equals("Interface", ignoreCase = true) }?.values
+            ?: return WarpImportResult.NoCompatibleProxies
+        val peers = sections.filter { it.name.equals("Peer", ignoreCase = true) }
+        if (peers.isEmpty()) return WarpImportResult.NoCompatibleProxies
+        if (iface.keys.none { it in amneziaKeys }) return WarpImportResult.NoCompatibleProxies
+
+        val privateKey = iface["privatekey"]?.takeIf { it.isNotBlank() }
+            ?: return WarpImportResult.NoCompatibleProxies
+        val addresses = csv(iface["address"]).map(::withoutCidr)
+        val ip = addresses.firstOrNull { it.isNotBlank() && !it.contains(':') }
+            ?: return WarpImportResult.NoCompatibleProxies
+        val ipv6 = addresses.firstOrNull { it.contains(':') }
+        val dns = csv(iface["dns"])
+        val mtu = iface["mtu"]?.toIntOrNull() ?: 1280
+        val reserved = csv(iface["reserved"]).mapNotNull(String::toIntOrNull)
+        val amnezia = AmneziaWgOptions(
+            jc = iface.int("jc"),
+            jmin = iface.int("jmin"),
+            jmax = iface.int("jmax"),
+            s1 = iface.int("s1"),
+            s2 = iface.int("s2"),
+            h1 = iface.int("h1"),
+            h2 = iface.int("h2"),
+            h3 = iface.int("h3"),
+            h4 = iface.int("h4"),
+            i1 = iface.value("i1"),
+            i2 = iface.value("i2"),
+            i3 = iface.value("i3"),
+            i4 = iface.value("i4"),
+            i5 = iface.value("i5"),
+        )
+
+        val proxies = peers.asSequence().mapNotNull { section ->
+            runCatching {
+                val peer = section.values
+                val publicKey = requireNotNull(peer["publickey"]?.takeIf { it.isNotBlank() })
+                val endpoint = requireNotNull(parseEndpoint(peer["endpoint"] ?: ""))
+                val allowedIps = csv(peer["allowedips"]).ifEmpty { listOf("0.0.0.0/0") }
+                WarpProxy(
+                    name = "WARP ${endpoint.first}:${endpoint.second}",
+                    server = endpoint.first,
+                    port = endpoint.second,
+                    ip = ip,
+                    ipv6 = ipv6,
+                    privateKey = privateKey,
+                    publicKey = publicKey,
+                    reserved = reserved,
+                    allowedIps = allowedIps,
+                    udp = true,
+                    mtu = mtu,
+                    remoteDnsResolve = true,
+                    dns = dns,
+                    amnezia = amnezia,
+                ).also(::validateWarpProxy)
+            }.getOrNull()
+        }
+            .distinctBy { listOf(it.server, it.port, it.privateKey, it.amnezia.i1).joinToString("|") }
+            .take(MAX_PROXIES)
+            .toList()
+
+        if (proxies.isEmpty()) return WarpImportResult.NoCompatibleProxies
+        return WarpImportResult.Ok(WarpProfile.create(name = "WARP / AmneziaWG", proxies = proxies))
+    }
+
+    private fun parseYamlProxy(map: Map<*, *>): WarpProxy? = runCatching {
         val amz = map["amnezia-wg-option"] as Map<*, *>
         WarpProxy(
             name = map.string("name")?.takeIf { it.isNotBlank() } ?: "WARP",
@@ -89,6 +171,62 @@ object WarpConfigImporter {
             ),
         ).also(::validateWarpProxy)
     }.getOrNull()
+
+    private data class IniSection(val name: String, val values: Map<String, String>)
+
+    private fun parseIni(raw: String): List<IniSection> {
+        val result = mutableListOf<IniSection>()
+        var name: String? = null
+        var values = linkedMapOf<String, String>()
+
+        fun flush() {
+            val current = name ?: return
+            result += IniSection(current, values.toMap())
+        }
+
+        raw.lineSequence().forEach { rawLine ->
+            val line = rawLine.trim()
+            if (line.isEmpty() || line.startsWith("#") || line.startsWith(";")) return@forEach
+            if (line.startsWith("[") && line.endsWith("]") && line.length > 2) {
+                flush()
+                name = line.substring(1, line.length - 1).trim()
+                values = linkedMapOf()
+                return@forEach
+            }
+            if (name == null) return@forEach
+            val eq = line.indexOf('=')
+            if (eq <= 0) return@forEach
+            val key = line.substring(0, eq).trim().lowercase()
+            val value = line.substring(eq + 1).trim()
+            if (key.isNotEmpty()) values[key] = value
+        }
+        flush()
+        return result
+    }
+
+    private fun parseEndpoint(raw: String): Pair<String, Int>? {
+        val value = raw.trim()
+        if (value.startsWith("[")) {
+            val close = value.indexOf(']')
+            if (close <= 1 || close + 1 >= value.length || value[close + 1] != ':') return null
+            val server = value.substring(1, close).trim()
+            val port = value.substring(close + 2).trim().toIntOrNull() ?: return null
+            return if (server.isNotEmpty() && port in 1..65535) server to port else null
+        }
+        val colon = value.lastIndexOf(':')
+        if (colon <= 0) return null
+        val server = value.substring(0, colon).trim()
+        val port = value.substring(colon + 1).trim().toIntOrNull() ?: return null
+        return if (server.isNotEmpty() && port in 1..65535) server to port else null
+    }
+
+    private fun csv(value: String?): List<String> =
+        value?.split(',')?.mapNotNull { it.trim().takeIf(String::isNotEmpty) }.orEmpty()
+
+    private fun withoutCidr(value: String): String = value.substringBefore('/').trim()
+
+    private fun Map<String, String>.int(key: String): Int? = this[key]?.toIntOrNull()
+    private fun Map<String, String>.value(key: String): String? = this[key]?.takeIf { it.isNotBlank() }
 
     private fun Map<*, *>.string(key: String): String? =
         this[key]?.toString()?.trim()?.takeIf { it.isNotEmpty() }
