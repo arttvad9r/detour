@@ -133,8 +133,9 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                             )
                         },
                         singleLine = false,
-                        minHeight = 112.dp,
-                        maxLines = 6,
+                        minHeight = 88.dp,
+                        maxHeight = 104.dp,
+                        maxLines = 4,
                         monospace = true,
                     )
 
