@@ -57,6 +57,7 @@ data class WarpProfile(
         require(id.isNotBlank())
         require(name.isNotBlank())
         require(proxies.isNotEmpty())
+        proxies.forEach(::validateWarpProxy)
     }
 
     fun toJson(): String = JSONObject().apply {
@@ -80,14 +81,14 @@ data class WarpProfile(
             val root = try { JSONObject(json) } catch (e: Exception) {
                 throw IllegalArgumentException("invalid WARP profile JSON", e)
             }
-            val id = root.getString("id")
-            val name = root.getString("name")
             val array = root.getJSONArray("proxies")
-            val proxies = (0 until array.length()).map { i ->
-                WarpProxy.fromJson(array.getJSONObject(i))
-            }
-            require(id.isNotBlank() && name.isNotBlank() && proxies.isNotEmpty())
-            return WarpProfile(id, name, proxies)
+            return WarpProfile(
+                id = root.getString("id"),
+                name = root.getString("name"),
+                proxies = (0 until array.length()).map { i ->
+                    warpProxyFromJson(array.getJSONObject(i))
+                },
+            )
         }
     }
 }
@@ -125,56 +126,48 @@ private fun WarpProxy.toJson() = JSONObject().apply {
     })
 }
 
-private fun WarpProxy.Companion_fromJsonPlaceholder() = Unit
-
-private fun WarpProxy.Companion.fromJson(obj: JSONObject): WarpProxy = error("unreachable")
-
-private object WarpProxyJson {
-    fun fromJson(obj: JSONObject): WarpProxy {
-        val amz = obj.getJSONObject("amnezia")
-        val reserved = obj.getJSONArray("reserved").let { a ->
-            (0 until a.length()).map { a.getInt(it) }
-        }
-        val allowed = obj.getJSONArray("allowedIps").let { a ->
-            (0 until a.length()).map { a.getString(it) }
-        }
-        val dns = obj.optJSONArray("dns")?.let { a ->
-            (0 until a.length()).map { a.getString(it) }
-        } ?: emptyList()
-        val proxy = WarpProxy(
-            name = obj.getString("name"),
-            server = obj.getString("server"),
-            port = obj.getInt("port"),
-            ip = obj.getString("ip"),
-            ipv6 = obj.optString("ipv6").takeIf { it.isNotBlank() && it != "null" },
-            privateKey = obj.getString("privateKey"),
-            publicKey = obj.getString("publicKey"),
-            reserved = reserved,
-            allowedIps = allowed,
-            udp = obj.optBoolean("udp", true),
-            mtu = obj.optInt("mtu", 1280),
-            remoteDnsResolve = obj.optBoolean("remoteDnsResolve", true),
-            dns = dns,
-            amnezia = AmneziaWgOptions(
-                jc = amz.optIntOrNull("jc"),
-                jmin = amz.optIntOrNull("jmin"),
-                jmax = amz.optIntOrNull("jmax"),
-                s1 = amz.optIntOrNull("s1"),
-                s2 = amz.optIntOrNull("s2"),
-                h1 = amz.optIntOrNull("h1"),
-                h2 = amz.optIntOrNull("h2"),
-                h3 = amz.optIntOrNull("h3"),
-                h4 = amz.optIntOrNull("h4"),
-                i1 = amz.optStringOrNull("i1"),
-                i2 = amz.optStringOrNull("i2"),
-                i3 = amz.optStringOrNull("i3"),
-                i4 = amz.optStringOrNull("i4"),
-                i5 = amz.optStringOrNull("i5"),
-            ),
-        )
-        validateWarpProxy(proxy)
-        return proxy
+private fun warpProxyFromJson(obj: JSONObject): WarpProxy {
+    val amz = obj.getJSONObject("amnezia")
+    val reserved = obj.getJSONArray("reserved").let { a ->
+        (0 until a.length()).map { a.getInt(it) }
     }
+    val allowed = obj.getJSONArray("allowedIps").let { a ->
+        (0 until a.length()).map { a.getString(it) }
+    }
+    val dns = obj.optJSONArray("dns")?.let { a ->
+        (0 until a.length()).map { a.getString(it) }
+    } ?: emptyList()
+    return WarpProxy(
+        name = obj.getString("name"),
+        server = obj.getString("server"),
+        port = obj.getInt("port"),
+        ip = obj.getString("ip"),
+        ipv6 = if (obj.has("ipv6") && !obj.isNull("ipv6")) obj.getString("ipv6") else null,
+        privateKey = obj.getString("privateKey"),
+        publicKey = obj.getString("publicKey"),
+        reserved = reserved,
+        allowedIps = allowed,
+        udp = obj.optBoolean("udp", true),
+        mtu = obj.optInt("mtu", 1280),
+        remoteDnsResolve = obj.optBoolean("remoteDnsResolve", true),
+        dns = dns,
+        amnezia = AmneziaWgOptions(
+            jc = amz.optIntOrNull("jc"),
+            jmin = amz.optIntOrNull("jmin"),
+            jmax = amz.optIntOrNull("jmax"),
+            s1 = amz.optIntOrNull("s1"),
+            s2 = amz.optIntOrNull("s2"),
+            h1 = amz.optIntOrNull("h1"),
+            h2 = amz.optIntOrNull("h2"),
+            h3 = amz.optIntOrNull("h3"),
+            h4 = amz.optIntOrNull("h4"),
+            i1 = amz.optStringOrNull("i1"),
+            i2 = amz.optStringOrNull("i2"),
+            i3 = amz.optStringOrNull("i3"),
+            i4 = amz.optStringOrNull("i4"),
+            i5 = amz.optStringOrNull("i5"),
+        ),
+    )
 }
 
 private fun JSONObject.optIntOrNull(key: String): Int? =
@@ -194,5 +187,3 @@ fun validateWarpProxy(proxy: WarpProxy) {
     require(proxy.mtu in 576..9000)
     require(proxy.dns.all { it.isNotBlank() })
 }
-
-private fun WarpProxy.Companion.fromJsonCompat(obj: JSONObject): WarpProxy = WarpProxyJson.fromJson(obj)
