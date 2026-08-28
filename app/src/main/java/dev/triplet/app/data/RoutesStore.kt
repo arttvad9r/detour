@@ -16,6 +16,8 @@ import dev.triplet.app.core.VlessKeys
 import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.SettingsBackup
+import dev.triplet.app.core.VpnProfileKind
+import dev.triplet.app.core.WarpProfile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -28,6 +30,8 @@ import kotlinx.coroutines.flow.stateIn
 
 data class TriSettings(
     val vlessKeys: VlessKeys,
+    val warpProfile: WarpProfile?,
+    val activeVpn: VpnProfileKind,
     val preset: DpiPreset,
     val dpiCustomArgs: String,
     val autoConnect: Boolean,
@@ -39,11 +43,17 @@ data class TriSettings(
     val sessionStartedAt: Long?,
 ) {
     val vlessUri: String get() = vlessKeys.active?.uri ?: ""
+    val activeVpnConfigured: Boolean get() = when (activeVpn) {
+        VpnProfileKind.VLESS -> vlessKeys.active != null
+        VpnProfileKind.WARP -> warpProfile?.proxies?.isNotEmpty() == true
+    }
 }
 
 object RoutesMapping {
     private const val KEY_URI = "vless_uri"
     private const val KEY_KEYS = "vless_keys"
+    private const val KEY_WARP_PROFILE = "warp_profile"
+    private const val KEY_VPN_KIND = "vpn_profile_kind"
     private const val KEY_PRESET = "dpi_preset"
     private const val KEY_CUSTOM_ARGS = "dpi_custom_args"
     private const val KEY_AUTO_CONNECT = "auto_connect"
@@ -56,26 +66,41 @@ object RoutesMapping {
     private const val PREFIX_ROUTE = "route:"
 
     /** Pure mapping DataStore-snapshot -> settings. JVM-tested. */
-    fun toSettings(entries: Map<String, Any?>): TriSettings = TriSettings(
-        vlessKeys = VlessKeys.fromStored(entries[KEY_KEYS] as? String ?: "", entries[KEY_URI] as? String ?: ""),
-        preset = DpiPreset.byId(entries[KEY_PRESET] as? String ?: ""),
-        dpiCustomArgs = entries[KEY_CUSTOM_ARGS] as? String ?: "",
-        autoConnect = entries[KEY_AUTO_CONNECT] as? Boolean ?: false,
-        themeId = entries[KEY_THEME] as? String ?: "",
-        dnsId = entries[KEY_DNS] as? String ?: "",
-        dnsCustom = entries[KEY_DNS_CUSTOM] as? String ?: "",
-        routes = entries.mapNotNull { (k, v) ->
-            if (k.startsWith(PREFIX_ROUTE) && v is String && v != AppRoute.DIRECT.name) {
-                AppRoute.entries.firstOrNull { it.name == v }?.let { k.removePrefix(PREFIX_ROUTE) to it }
-            } else null
-        }.toMap(),
-        showSystemApps = entries[KEY_SHOW_SYSTEM] as? Boolean ?: false,
-        sessionStartedAt = entries[KEY_SESSION_STARTED] as? Long,
-    )
+    fun toSettings(entries: Map<String, Any?>): TriSettings {
+        val vlessKeys = VlessKeys.fromStored(
+            entries[KEY_KEYS] as? String ?: "",
+            entries[KEY_URI] as? String ?: "",
+        )
+        val warpProfile = WarpProfile.fromStored(entries[KEY_WARP_PROFILE] as? String ?: "")
+        val requestedVpn = VpnProfileKind.fromStored(entries[KEY_VPN_KIND] as? String)
+        val activeVpn = if (requestedVpn == VpnProfileKind.WARP && warpProfile == null) {
+            VpnProfileKind.VLESS
+        } else requestedVpn
+        return TriSettings(
+            vlessKeys = vlessKeys,
+            warpProfile = warpProfile,
+            activeVpn = activeVpn,
+            preset = DpiPreset.byId(entries[KEY_PRESET] as? String ?: ""),
+            dpiCustomArgs = entries[KEY_CUSTOM_ARGS] as? String ?: "",
+            autoConnect = entries[KEY_AUTO_CONNECT] as? Boolean ?: false,
+            themeId = entries[KEY_THEME] as? String ?: "",
+            dnsId = entries[KEY_DNS] as? String ?: "",
+            dnsCustom = entries[KEY_DNS_CUSTOM] as? String ?: "",
+            routes = entries.mapNotNull { (k, v) ->
+                if (k.startsWith(PREFIX_ROUTE) && v is String && v != AppRoute.DIRECT.name) {
+                    AppRoute.entries.firstOrNull { it.name == v }?.let { k.removePrefix(PREFIX_ROUTE) to it }
+                } else null
+            }.toMap(),
+            showSystemApps = entries[KEY_SHOW_SYSTEM] as? Boolean ?: false,
+            sessionStartedAt = entries[KEY_SESSION_STARTED] as? Long,
+        )
+    }
 
     fun routeKey(pkg: String) = stringPreferencesKey(PREFIX_ROUTE + pkg)
     fun uriKey() = stringPreferencesKey(KEY_URI)
     fun keysKey() = stringPreferencesKey(KEY_KEYS)
+    fun warpProfileKey() = stringPreferencesKey(KEY_WARP_PROFILE)
+    fun vpnKindKey() = stringPreferencesKey(KEY_VPN_KIND)
     fun presetKey() = stringPreferencesKey(KEY_PRESET)
     fun autoConnectKey() = booleanPreferencesKey(KEY_AUTO_CONNECT)
     fun themeKey() = stringPreferencesKey(KEY_THEME)
@@ -137,16 +162,40 @@ class RoutesStore(context: Context) {
         it[RoutesMapping.uriKey()] = keys.active?.uri ?: ""
     }
     suspend fun setActiveVlessKey(id: String) {
-        editVless { current -> current.copy(activeId = id) }
+        editVless(activateVless = true) { current -> current.copy(activeId = id) }
     }
     suspend fun addVlessKey(key: VlessKey) {
-        editVless { current -> VlessKeys(current.items + key, key.id) }
+        editVless(activateVless = true) { current -> VlessKeys(current.items + key, key.id) }
     }
     suspend fun updateVlessKey(key: VlessKey) {
         editVless { current -> VlessKeys(current.items.map { if (it.id == key.id) key else it }, current.activeId) }
     }
     suspend fun deleteVlessKey(id: String) {
         editVless { current -> current.delete(id) }
+    }
+    suspend fun setWarpProfile(profile: WarpProfile) = store.edit { prefs ->
+        profile.proxies.forEach(dev.triplet.app.core::validateWarpProxy)
+        prefs[RoutesMapping.warpProfileKey()] = profile.toJson()
+        prefs[RoutesMapping.vpnKindKey()] = VpnProfileKind.WARP.name
+    }
+    suspend fun deleteWarpProfile() = store.edit { prefs ->
+        prefs.remove(RoutesMapping.warpProfileKey())
+        prefs[RoutesMapping.vpnKindKey()] = VpnProfileKind.VLESS.name
+    }
+    suspend fun setActiveVpn(kind: VpnProfileKind) = store.edit { prefs ->
+        when (kind) {
+            VpnProfileKind.VLESS -> {
+                val keys = VlessKeys.fromStored(
+                    prefs[RoutesMapping.keysKey()] ?: "",
+                    prefs[RoutesMapping.uriKey()] ?: "",
+                )
+                require(keys.active != null) { "VLESS profile is not configured" }
+            }
+            VpnProfileKind.WARP -> require(
+                WarpProfile.fromStored(prefs[RoutesMapping.warpProfileKey()] ?: "") != null,
+            ) { "WARP profile is not configured" }
+        }
+        prefs[RoutesMapping.vpnKindKey()] = kind.name
     }
     suspend fun setPreset(preset: DpiPreset) = store.edit { it[RoutesMapping.presetKey()] = preset.id }
     suspend fun setCustomArgs(raw: String) = store.edit { it[RoutesMapping.customArgsKey()] = raw }
@@ -165,6 +214,9 @@ class RoutesStore(context: Context) {
     suspend fun restoreBackup(b: SettingsBackup.Backup) = store.edit { prefs ->
         prefs[RoutesMapping.keysKey()] = b.vlessKeys.toJson()
         prefs[RoutesMapping.uriKey()] = b.vlessKeys.active?.uri ?: ""
+        if (b.warpProfile == null) prefs.remove(RoutesMapping.warpProfileKey())
+        else prefs[RoutesMapping.warpProfileKey()] = b.warpProfile.toJson()
+        prefs[RoutesMapping.vpnKindKey()] = b.activeVpn.name
         prefs[RoutesMapping.presetKey()] = b.presetId
         prefs[RoutesMapping.customArgsKey()] = b.dpiCustomArgs
         // Imported settings never start a VPN implicitly; the user must opt in
@@ -180,7 +232,10 @@ class RoutesStore(context: Context) {
         }
     }
 
-    private suspend fun editVless(transform: (VlessKeys) -> VlessKeys) = store.edit { prefs ->
+    private suspend fun editVless(
+        activateVless: Boolean = false,
+        transform: (VlessKeys) -> VlessKeys,
+    ) = store.edit { prefs ->
         val current = VlessKeys.fromStored(
             prefs[RoutesMapping.keysKey()] ?: "",
             prefs[RoutesMapping.uriKey()] ?: "",
@@ -189,6 +244,7 @@ class RoutesStore(context: Context) {
         validateVlessKeys(next)
         prefs[RoutesMapping.keysKey()] = next.toJson()
         prefs[RoutesMapping.uriKey()] = next.active?.uri ?: ""
+        if (activateVless) prefs[RoutesMapping.vpnKindKey()] = VpnProfileKind.VLESS.name
     }
 
     private fun validateVlessKeys(keys: VlessKeys) {
