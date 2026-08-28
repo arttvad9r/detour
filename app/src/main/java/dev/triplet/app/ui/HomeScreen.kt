@@ -48,6 +48,7 @@ import dev.triplet.app.R
 import dev.triplet.app.core.AppRoute
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.VlessKeyParser
+import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
@@ -57,11 +58,11 @@ enum class HomeProtocol { VLESS_DPI, DPI, VLESS, NONE }
 
 fun homeProtocol(routes: Map<String, AppRoute>): HomeProtocol {
     val dpi = routes.values.any { it == AppRoute.DPI }
-    val vless = routes.values.any { it == AppRoute.VPN }
+    val vpn = routes.values.any { it == AppRoute.VPN }
     return when {
-        dpi && vless -> HomeProtocol.VLESS_DPI
+        dpi && vpn -> HomeProtocol.VLESS_DPI
         dpi -> HomeProtocol.DPI
-        vless -> HomeProtocol.VLESS
+        vpn -> HomeProtocol.VLESS
         else -> HomeProtocol.NONE
     }
 }
@@ -96,8 +97,12 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
         val h = elapsed / 3600; val m = (elapsed % 3600) / 60; val sec = elapsed % 60
         "%02d:%02d:%02d".format(h, m, sec)
     }
-    val serverHost = remember(settings?.vlessUri) {
-        (VlessKeyParser.parse(settings?.vlessUri ?: "") as? ParseResult.Ok)?.profile?.server
+    val serverHost = remember(settings?.vlessUri, settings?.warpProfile, settings?.activeVpn) {
+        when (settings?.activeVpn ?: VpnProfileKind.VLESS) {
+            VpnProfileKind.VLESS ->
+                (VlessKeyParser.parse(settings?.vlessUri ?: "") as? ParseResult.Ok)?.profile?.server
+            VpnProfileKind.WARP -> settings?.warpProfile?.name
+        }
     }
 
     val consentLauncher = rememberLauncherForActivityResult(StartActivityForResult()) { result ->
@@ -106,6 +111,14 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
     val onMainAction: () -> Unit = {
         if (st == VpnState.Active) VpnController.stop(ctx)
         else VpnController.start(ctx, consentLauncher::launch)
+    }
+
+    val activeVpn = settings?.activeVpn ?: VpnProfileKind.VLESS
+    val protocolRes = when (homeProtocol(settings?.routes ?: emptyMap())) {
+        HomeProtocol.VLESS_DPI -> if (activeVpn == VpnProfileKind.WARP) R.string.protocol_warp_dpi else R.string.protocol_vless_dpi
+        HomeProtocol.DPI -> R.string.protocol_dpi
+        HomeProtocol.VLESS -> if (activeVpn == VpnProfileKind.WARP) R.string.protocol_warp else R.string.protocol_vless
+        HomeProtocol.NONE -> R.string.protocol_none
     }
 
     Box(modifier.fillMaxSize().background(c.background)) {
@@ -136,14 +149,7 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
                 style = style,
                 timerText = timerText,
                 serverHost = serverHost,
-                protocol = stringResource(
-                    when (homeProtocol(settings?.routes ?: emptyMap())) {
-                        HomeProtocol.VLESS_DPI -> R.string.protocol_vless_dpi
-                        HomeProtocol.DPI -> R.string.protocol_dpi
-                        HomeProtocol.VLESS -> R.string.protocol_vless
-                        HomeProtocol.NONE -> R.string.protocol_none
-                    },
-                ),
+                protocol = stringResource(protocolRes),
                 onRetry = onMainAction,
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
