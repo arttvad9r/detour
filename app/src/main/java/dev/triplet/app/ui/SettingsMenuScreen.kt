@@ -101,8 +101,8 @@ fun SettingsMenuScreen(
         DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
             Row(
                 Modifier.fillMaxWidth()
-                    .height(56.dp)
-                    .padding(horizontal = Spacing.space16),
+                    .height(60.dp)
+                    .padding(start = Spacing.space16, end = Spacing.space12),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -114,6 +114,7 @@ fun SettingsMenuScreen(
                 DetourSwitch(
                     checked = settings?.autoConnect == true,
                     onCheckedChange = { v -> scope.launch { store.setAutoConnect(v) } },
+                    compact = true,
                 )
             }
         }
@@ -123,7 +124,7 @@ fun SettingsMenuScreen(
             stringResource(R.string.autorestart_note),
             style = MaterialTheme.typography.bodySmall,
             color = c.textMuted,
-            modifier = Modifier.padding(horizontal = Spacing.space16),
+            modifier = Modifier.padding(horizontal = Spacing.space20),
         )
         Spacer(Modifier.height(Spacing.space24))
     }
