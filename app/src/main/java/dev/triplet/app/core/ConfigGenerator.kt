@@ -150,7 +150,7 @@ $rules""".trim()
         p.ipv6?.let { fields += "  ipv6: ${yamlScalar(it)}" }
         fields += "  private-key: ${yamlScalar(p.privateKey)}"
         fields += "  public-key: ${yamlScalar(p.publicKey)}"
-        fields += "  reserved: [${p.reserved.joinToString(", ")}]"
+        if (p.reserved.isNotEmpty()) fields += "  reserved: [${p.reserved.joinToString(", ")}]"
         fields += "  allowed-ips: ${flowStrings(p.allowedIps)}"
         fields += "  udp: ${p.udp}"
         fields += "  mtu: ${p.mtu}"
