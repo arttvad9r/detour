@@ -11,6 +11,8 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -33,7 +35,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -341,7 +342,18 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
             Spacer(Modifier.height(Spacing.space24))
         }
 
-        if (!editing) {
+        AnimatedVisibility(
+            visible = !editing,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 88.dp),
+            enter = fadeIn(tween(Motion.CONTENT_IN_MS)) + scaleIn(
+                animationSpec = spring(dampingRatio = 0.72f, stiffness = Motion.SPRING_STIFFNESS),
+                initialScale = 0.88f,
+            ),
+            exit = fadeOut(tween(Motion.CONTENT_OUT_MS)) + scaleOut(
+                animationSpec = tween(Motion.CONTENT_OUT_MS),
+                targetScale = 0.88f,
+            ),
+        ) {
             val fabInteraction = remember { MutableInteractionSource() }
             val fabPressed by fabInteraction.collectIsPressedAsState()
             val fabScale by animateFloatAsState(
@@ -356,8 +368,6 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                 onClick = { showAddSheet = true },
                 interactionSource = fabInteraction,
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 88.dp)
                     .graphicsLayer {
                         scaleX = fabScale
                         scaleY = fabScale
@@ -487,8 +497,8 @@ private fun KeyRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Row(Modifier.size(width = 72.dp, height = 36.dp), horizontalArrangement = Arrangement.End) {
-            IconButton(modifier = Modifier.size(36.dp), onClick = onEdit) {
+        Row(horizontalArrangement = Arrangement.End) {
+            DetourIconButton(onClick = onEdit, size = 36) {
                 Icon(
                     painterResource(R.drawable.ic_edit),
                     contentDescription = stringResource(R.string.key_edit),
@@ -496,7 +506,7 @@ private fun KeyRow(
                     modifier = Modifier.size(18.dp),
                 )
             }
-            IconButton(modifier = Modifier.size(36.dp), onClick = onDelete) {
+            DetourIconButton(onClick = onDelete, size = 36) {
                 Icon(
                     painterResource(R.drawable.ic_delete),
                     contentDescription = stringResource(R.string.key_delete),
@@ -540,7 +550,7 @@ private fun WarpRow(profile: WarpProfile, selected: Boolean, onDelete: () -> Uni
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        IconButton(modifier = Modifier.size(36.dp), onClick = onDelete) {
+        DetourIconButton(onClick = onDelete, size = 36) {
             Icon(
                 painterResource(R.drawable.ic_delete),
                 contentDescription = stringResource(R.string.warp_delete),
