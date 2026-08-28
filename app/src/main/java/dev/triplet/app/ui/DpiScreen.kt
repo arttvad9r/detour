@@ -75,7 +75,9 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
             Spacer(Modifier.height(Spacing.space16))
             DetourInputField(
                 value = customField,
-                onValueChange = { customField = it },
+                onValueChange = { value ->
+                    customField = value.replace("\r", " ").replace("\n", " ")
+                },
                 label = stringResource(R.string.dpi_custom_label),
                 placeholder = stringResource(R.string.dpi_custom_placeholder),
                 helper = stringResource(R.string.dpi_custom_hint),
