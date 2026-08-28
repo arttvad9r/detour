@@ -216,6 +216,14 @@ class TriVpnService : VpnService() {
             engineAdopted = true
             check(Engine.ready()) { "engine TUN is not ready" }
 
+            // At this point Android has an established TUN and the engine says it
+            // is ready. Reflect that immediately in the UI; end-to-end probes are
+            // validation of the live tunnel, not part of the visual start latency.
+            VpnController.setState(VpnState.Active)
+            runBlocking { store.setSessionStartedAt(System.currentTimeMillis()) }
+            goForeground(getString(R.string.notif_active))
+            ServiceLog.i("active; validating routes")
+
             // Dedicated mihomo listeners pin the probe to the configured outbound.
             val cancelled = { stopQueued.get() || destroyed.get() }
             val vpnHealthy = effVpn.isEmpty() || HealthCheck.generate204(10810, cancelled = cancelled)
@@ -237,10 +245,7 @@ class TriVpnService : VpnService() {
             return
         }
 
-        VpnController.setState(VpnState.Active)
-        runBlocking { store.setSessionStartedAt(System.currentTimeMillis()) }
-        goForeground(getString(R.string.notif_active))
-        ServiceLog.i("active")
+        ServiceLog.i("route validation complete")
     }
 
     private fun stopSequence(stopSelf: Boolean) {
