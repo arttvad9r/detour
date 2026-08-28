@@ -5,6 +5,7 @@ composeBom = "2026.06.01"
 # ponytail: 1.17.0 = newest core-ktx compilable against SDK 36 (plan pins compileSdk 36); bump to 1.19.x when compileSdk rises to 37
 coreKtx = "1.17.0"
 activityCompose = "1.13.0"
+navigationCompose = "2.9.8"
 datastore = "1.1.1"
 json = "20240303"
 snakeyaml = "2.6"
@@ -18,6 +19,7 @@ androidx-test-runner = { group = "androidx.test", name = "runner", version.ref =
 androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
 androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
 androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
