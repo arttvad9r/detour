@@ -182,7 +182,9 @@ private fun MainButton(
     val activeMain = state == VpnState.Active
     val container by animateColorAsState(
         when {
-            activeMain -> c.activeSoft
+            // Disconnect is an action, not a success badge. Keep it in the palette's
+            // accent family so an active tunnel does not turn the entire screen green.
+            activeMain -> c.surfaceSelected
             state == VpnState.Starting -> c.accentSoft
             else -> c.accent
         },
@@ -190,7 +192,7 @@ private fun MainButton(
     )
     val content by animateColorAsState(
         when {
-            activeMain -> c.activeStrong
+            activeMain -> c.accent
             state == VpnState.Starting -> c.accent
             else -> c.onAccent
         },
@@ -198,7 +200,7 @@ private fun MainButton(
     )
     val borderColor by animateColorAsState(
         when {
-            activeMain -> c.activeBorder
+            activeMain -> c.accentBorder
             state == VpnState.Starting -> c.accentBorder
             else -> Color.Transparent
         },
