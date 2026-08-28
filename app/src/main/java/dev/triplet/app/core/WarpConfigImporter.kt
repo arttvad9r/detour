@@ -17,7 +17,8 @@ sealed interface WarpImportResult {
  */
 object WarpConfigImporter {
     const val MAX_CHARS = 1024 * 1024
-    private const val MAX_PROXIES = 128
+    private const val MAX_PROXIES = 256
+    private const val MAX_ALIASES = 512
 
     fun parse(raw: String): WarpImportResult {
         if (raw.isBlank() || raw.length > MAX_CHARS) return WarpImportResult.Invalid
@@ -25,7 +26,10 @@ object WarpConfigImporter {
             val options = LoaderOptions().apply {
                 setAllowDuplicateKeys(false)
                 setAllowRecursiveKeys(false)
-                setMaxAliasesForCollections(50)
+                // Regular Warp Generator AWG files can reuse one shared anchor
+                // for well over 100 endpoints. Keep the parser bounded, but do
+                // not reject those valid files before we inspect their proxies.
+                setMaxAliasesForCollections(MAX_ALIASES)
                 setNestingDepthLimit(40)
                 setCodePointLimit(MAX_CHARS)
                 // Warp Generator configs rely heavily on `<<: *anchor` inheritance.
