@@ -267,9 +267,10 @@ private fun AppRow(
 
     Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.space16, vertical = Spacing.space12)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (bmp != null) {
+            val icon = bmp
+            if (icon != null) {
                 Image(
-                    bmp!!.asImageBitmap(), null,
+                    icon.asImageBitmap(), null,
                     modifier = Modifier.size(26.dp).clip(AppShapes.extraSmall),
                 )
             } else {
