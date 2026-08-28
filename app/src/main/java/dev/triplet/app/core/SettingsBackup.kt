@@ -5,7 +5,7 @@ import org.json.JSONObject
 
 /** Versioned, validated user-settings export. Runtime session state is excluded. */
 object SettingsBackup {
-    const val VERSION = 2
+    const val VERSION = 3
     const val MAX_BYTES = 1024 * 1024
     private const val APP = "detour"
     private val themes = setOf("midnight", "ocean", "graphite", "lavenda")
@@ -20,6 +20,8 @@ object SettingsBackup {
         val dnsCustom: String = "",
         val routes: Map<String, String> = emptyMap(),
         val vlessKeys: VlessKeys = VlessKeys(emptyList(), null),
+        val warpProfile: WarpProfile? = null,
+        val activeVpn: VpnProfileKind = VpnProfileKind.VLESS,
         val showSystemApps: Boolean = false,
     )
 
@@ -37,6 +39,8 @@ object SettingsBackup {
                     }) }
                 })
             })
+            put("warpProfile", b.warpProfile?.let { JSONObject(it.toJson()) } ?: JSONObject.NULL)
+            put("activeVpn", b.activeVpn.name)
             put("preset", b.presetId)
             put("customArgs", b.dpiCustomArgs)
             put("autoConnect", b.autoConnect)
@@ -54,34 +58,58 @@ object SettingsBackup {
         if (o.optString("app") != APP) return null
         when (o.optInt("v", 1)) {
             1 -> parseV1(o)
-            VERSION -> parseV2(o)
+            2 -> parseV2(o)
+            VERSION -> parseV3(o)
             else -> null
         }
     } catch (_: Exception) { null }
 
     private fun parseV1(o: JSONObject): Backup {
         val b = base(o)
-        require(b.presetId in DpiPreset.entries.map { it.id } || b.presetId == "compatible")
-        require(b.themeId in themes)
-        require(DnsOptions.isSelectionValid(b.dnsId, b.dnsCustom))
-        require(DpiArgs.isValid(b.dpiCustomArgs) || b.dpiCustomArgs.isBlank())
+        validateBase(b)
         val keys = legacyKeys(b.vlessUri)
         validateKeys(keys)
         validateRoutes(b.routes)
-        return b.copy(vlessKeys = keys)
+        return b.copy(vlessKeys = keys, activeVpn = VpnProfileKind.VLESS)
     }
 
     private fun parseV2(o: JSONObject): Backup {
         val b = base(o)
         val keysObject = o.optJSONObject("vlessKeys") ?: throw IllegalArgumentException("missing keys")
         val keys = VlessKeys.fromJson(keysObject.toString())
+        validateBase(b)
+        validateKeys(keys)
+        validateRoutes(b.routes)
+        return b.copy(
+            vlessKeys = keys,
+            vlessUri = keys.active?.uri ?: "",
+            activeVpn = VpnProfileKind.VLESS,
+        )
+    }
+
+    private fun parseV3(o: JSONObject): Backup {
+        val b = base(o)
+        val keysObject = o.optJSONObject("vlessKeys") ?: throw IllegalArgumentException("missing keys")
+        val keys = VlessKeys.fromJson(keysObject.toString())
+        val warp = o.optJSONObject("warpProfile")?.let { WarpProfile.fromJson(it.toString()) }
+        val activeVpn = VpnProfileKind.fromStored(o.optString("activeVpn"))
+        validateBase(b)
+        validateKeys(keys)
+        validateRoutes(b.routes)
+        if (activeVpn == VpnProfileKind.WARP) require(warp != null)
+        return b.copy(
+            vlessKeys = keys,
+            vlessUri = keys.active?.uri ?: "",
+            warpProfile = warp,
+            activeVpn = activeVpn,
+        )
+    }
+
+    private fun validateBase(b: Backup) {
         require(b.presetId in DpiPreset.entries.map { it.id } || b.presetId == "compatible")
         require(b.themeId in themes)
         require(DnsOptions.isSelectionValid(b.dnsId, b.dnsCustom))
         require(DpiArgs.isValid(b.dpiCustomArgs) || b.dpiCustomArgs.isBlank())
-        validateKeys(keys)
-        validateRoutes(b.routes)
-        return b.copy(vlessKeys = keys, vlessUri = keys.active?.uri ?: "")
     }
 
     private fun validateKeys(keys: VlessKeys) {
