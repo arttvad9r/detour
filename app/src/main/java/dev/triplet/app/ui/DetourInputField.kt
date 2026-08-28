@@ -40,6 +40,7 @@ fun DetourInputField(
     success: String? = null,
     singleLine: Boolean = true,
     minHeight: Dp = if (singleLine) 56.dp else 112.dp,
+    maxHeight: Dp = if (singleLine) 56.dp else 160.dp,
     maxLines: Int = if (singleLine) 1 else 6,
     monospace: Boolean = false,
 ) {
@@ -75,7 +76,7 @@ fun DetourInputField(
             onValueChange = onValueChange,
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = minHeight)
+                .heightIn(min = minHeight, max = maxHeight)
                 .onFocusChanged { focused = it.isFocused }
                 .background(c.surface, AppShapes.small)
                 .border(1.dp, borderColor, AppShapes.small)
