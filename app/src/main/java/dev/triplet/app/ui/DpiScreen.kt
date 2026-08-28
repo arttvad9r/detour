@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -22,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import dev.triplet.app.R
 import dev.triplet.app.core.DpiArgs
 import dev.triplet.app.core.DpiPreset
@@ -38,6 +37,7 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
     var customField by rememberSaveable(settings?.dpiCustomArgs) {
         androidx.compose.runtime.mutableStateOf(settings?.dpiCustomArgs ?: "")
     }
+    val customInvalid = customField.isNotBlank() && !DpiArgs.isValid(customField)
 
     Column(
         modifier.fillMaxSize()
@@ -72,25 +72,30 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
         }
 
         if (settings?.preset == DpiPreset.CUSTOM) {
-            Spacer(Modifier.height(Spacing.space12))
-            OutlinedTextField(
+            Spacer(Modifier.height(Spacing.space16))
+            DetourInputField(
                 value = customField,
                 onValueChange = { customField = it },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.space16),
-                shape = AppShapes.small,
-                textStyle = androidx.compose.material3.MaterialTheme.typography.bodyLarge,
-                colors = fieldColors(),
+                label = stringResource(R.string.dpi_custom_label),
+                placeholder = stringResource(R.string.dpi_custom_placeholder),
+                helper = stringResource(R.string.dpi_custom_hint),
+                error = if (customInvalid) stringResource(R.string.dpi_custom_invalid) else null,
+                singleLine = false,
+                minHeight = 80.dp,
+                maxLines = 4,
+                monospace = true,
+                modifier = Modifier.padding(horizontal = Spacing.space16),
             )
-            Spacer(Modifier.height(Spacing.space12))
+            Spacer(Modifier.height(Spacing.space16))
             DetourButton(
                 text = stringResource(R.string.btn_save),
                 onClick = {
                     scope.launch {
-                        store.setCustomArgs(customField)
+                        store.setCustomArgs(customField.trim())
                         VpnController.restartIfActive(ctx)
                     }
                 },
-                enabled = DpiArgs.isValid(customField),
+                enabled = customField.isNotBlank() && !customInvalid,
                 modifier = Modifier.padding(horizontal = Spacing.space16),
             )
         }
