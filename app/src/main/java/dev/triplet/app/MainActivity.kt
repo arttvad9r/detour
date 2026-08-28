@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -32,13 +33,17 @@ import dev.triplet.app.ui.AppTheme
 import dev.triplet.app.ui.AppTypography
 import dev.triplet.app.ui.AppsScreen
 import dev.triplet.app.ui.BackupScreen
+import dev.triplet.app.ui.DetourColors
 import dev.triplet.app.ui.DnsScreen
 import dev.triplet.app.ui.DpiScreen
 import dev.triplet.app.ui.HomeScreen
+import dev.triplet.app.ui.LocalDetourColors
 import dev.triplet.app.ui.LocalDetourTheme
+import dev.triplet.app.ui.Motion
 import dev.triplet.app.ui.SettingsMenuScreen
 import dev.triplet.app.ui.ThemeScreen
 import dev.triplet.app.ui.VlessKeyScreen
+import dev.triplet.app.ui.colorSchemeFor
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
 import dev.triplet.app.vpn.canAutoConnect
@@ -55,9 +60,6 @@ private object Route {
     const val BACKUP = "backup"
 }
 
-private const val NAV_ENTER_MS = 210
-private const val NAV_EXIT_MS = 145
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -66,14 +68,48 @@ class MainActivity : ComponentActivity() {
         setContent {
             val settings by store.settings.collectAsState()
             val theme = AppTheme.byId(settings?.themeId ?: "")
+            val target = theme.colors
+
+            // Theme changes interpolate semantic colors in place instead of flashing
+            // the whole composition or creating a second navigation tree.
+            val animatedColors = DetourColors(
+                background = animateColorAsState(target.background, tween(Motion.THEME_MS), label = "themeBackground").value,
+                surface = animateColorAsState(target.surface, tween(Motion.THEME_MS), label = "themeSurface").value,
+                surfaceSoft = animateColorAsState(target.surfaceSoft, tween(Motion.THEME_MS), label = "themeSurfaceSoft").value,
+                surfaceSelected = animateColorAsState(target.surfaceSelected, tween(Motion.THEME_MS), label = "themeSelected").value,
+                textPrimary = animateColorAsState(target.textPrimary, tween(Motion.THEME_MS), label = "themeTextPrimary").value,
+                textSecondary = animateColorAsState(target.textSecondary, tween(Motion.THEME_MS), label = "themeTextSecondary").value,
+                textMuted = animateColorAsState(target.textMuted, tween(Motion.THEME_MS), label = "themeTextMuted").value,
+                accent = animateColorAsState(target.accent, tween(Motion.THEME_MS), label = "themeAccent").value,
+                onAccent = animateColorAsState(target.onAccent, tween(Motion.THEME_MS), label = "themeOnAccent").value,
+                accentSoft = animateColorAsState(target.accentSoft, tween(Motion.THEME_MS), label = "themeAccentSoft").value,
+                accentBorder = animateColorAsState(target.accentBorder, tween(Motion.THEME_MS), label = "themeAccentBorder").value,
+                divider = animateColorAsState(target.divider, tween(Motion.THEME_MS), label = "themeDivider").value,
+                border = animateColorAsState(target.border, tween(Motion.THEME_MS), label = "themeBorder").value,
+                active = animateColorAsState(target.active, tween(Motion.THEME_MS), label = "themeActive").value,
+                activeStrong = animateColorAsState(target.activeStrong, tween(Motion.THEME_MS), label = "themeActiveStrong").value,
+                activeSoft = animateColorAsState(target.activeSoft, tween(Motion.THEME_MS), label = "themeActiveSoft").value,
+                activeBorder = animateColorAsState(target.activeBorder, tween(Motion.THEME_MS), label = "themeActiveBorder").value,
+                error = animateColorAsState(target.error, tween(Motion.THEME_MS), label = "themeError").value,
+                errorSoft = animateColorAsState(target.errorSoft, tween(Motion.THEME_MS), label = "themeErrorSoft").value,
+            )
+
             LaunchedEffect(theme) {
                 val style = if (theme.dark) SystemBarStyle.dark(Color.Transparent.toArgb())
                 else SystemBarStyle.light(Color.Transparent.toArgb(), Color.Transparent.toArgb())
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
             }
-            CompositionLocalProvider(LocalDetourTheme provides theme) {
-                MaterialTheme(colorScheme = theme.scheme, typography = AppTypography, shapes = AppShapes) {
-                    Box(Modifier.fillMaxSize().background(theme.colors.background)) {
+
+            CompositionLocalProvider(
+                LocalDetourTheme provides theme,
+                LocalDetourColors provides animatedColors,
+            ) {
+                MaterialTheme(
+                    colorScheme = colorSchemeFor(animatedColors, theme.dark),
+                    typography = AppTypography,
+                    shapes = AppShapes,
+                ) {
+                    Box(Modifier.fillMaxSize().background(animatedColors.background)) {
                         val ctx = this@MainActivity
                         val navController = rememberNavController()
 
@@ -106,37 +142,35 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        // Small-distance shared-axis motion: enough to communicate
-                        // hierarchy without making compact settings navigation feel slow.
                         NavHost(
                             navController = navController,
                             startDestination = Route.HOME,
                             modifier = Modifier.fillMaxSize(),
                             enterTransition = {
-                                fadeIn(tween(NAV_ENTER_MS, delayMillis = 20)) +
+                                fadeIn(tween(Motion.NAV_ENTER_MS, delayMillis = 20)) +
                                     slideInHorizontally(
-                                        animationSpec = tween(NAV_ENTER_MS),
+                                        animationSpec = tween(Motion.NAV_ENTER_MS),
                                         initialOffsetX = { it / 14 },
                                     )
                             },
                             exitTransition = {
-                                fadeOut(tween(NAV_EXIT_MS)) +
+                                fadeOut(tween(Motion.NAV_EXIT_MS)) +
                                     slideOutHorizontally(
-                                        animationSpec = tween(NAV_EXIT_MS),
+                                        animationSpec = tween(Motion.NAV_EXIT_MS),
                                         targetOffsetX = { -it / 28 },
                                     )
                             },
                             popEnterTransition = {
-                                fadeIn(tween(NAV_ENTER_MS, delayMillis = 10)) +
+                                fadeIn(tween(Motion.NAV_ENTER_MS, delayMillis = 10)) +
                                     slideInHorizontally(
-                                        animationSpec = tween(NAV_ENTER_MS),
+                                        animationSpec = tween(Motion.NAV_ENTER_MS),
                                         initialOffsetX = { -it / 28 },
                                     )
                             },
                             popExitTransition = {
-                                fadeOut(tween(NAV_EXIT_MS)) +
+                                fadeOut(tween(Motion.NAV_EXIT_MS)) +
                                     slideOutHorizontally(
-                                        animationSpec = tween(NAV_EXIT_MS),
+                                        animationSpec = tween(Motion.NAV_EXIT_MS),
                                         targetOffsetX = { it / 14 },
                                     )
                             },
