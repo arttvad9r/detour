@@ -11,20 +11,27 @@ object ConfigGenerator {
     val LAN_PREFIXES = listOf(
         "0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8",
         "169.254.0.0/16", "172.16.0.0/12", "192.0.0.0/24", "192.0.2.0/24",
-         "192.168.0.0/16", "198.18.0.0/15", "224.0.0.0/3",
+        "192.168.0.0/16", "198.18.0.0/15", "224.0.0.0/3",
     )
 
     private val ROUTE_ADDRESS = listOf("0.0.0.0/1", "128.0.0.0/1", "::/0")
+    private const val WARP_GROUP = "WARP"
 
     fun build(input: RoutingInput): String {
         require(input.vpnUids.keys.containsAll(input.vpnApps + input.dpiApps)) {
             "missing uid resolution for routed packages"
         }
+        val vpnTag = when (input.vpn) {
+            is VpnOutbound.Vless -> "VLESS"
+            is VpnOutbound.Warp -> WARP_GROUP
+            null -> null
+        }
+
         // Приложения атрибутируются по UID (резолвится host-side через VpnService).
         val attr = { pkg: String -> "UID,${input.vpnUids[pkg]}" }
         val rules = buildList {
             add("- IP-CIDR6,::/0,REJECT,no-resolve")
-            input.profile?.let { input.vpnApps.forEach { pkg -> add("- ${attr(pkg)},VLESS") } }
+            vpnTag?.let { tag -> input.vpnApps.forEach { pkg -> add("- ${attr(pkg)},$tag") } }
             input.dpiApps.forEach { pkg ->
                 add("- AND,((${attr(pkg)}),(NETWORK,UDP),(DST-PORT,443)),REJECT")
             }
@@ -36,27 +43,14 @@ object ConfigGenerator {
             add("- MATCH,REJECT")
         }.joinToString("\n")
 
-        // mihomo требует единый список proxies; оба исходящих объявляются в одном блоке.
+        // mihomo требует единый список proxies; VPN и DPI исходящие объявляются здесь.
         val proxies = buildList {
-            input.profile?.let { p ->
-                add(
-                    """
-                    - name: VLESS
-                      type: vless
-                      server: ${yamlScalar(p.server)}
-                      port: ${p.port}
-                      uuid: ${yamlScalar(p.uuid)}
-                      network: tcp
-                      udp: true
-                      tls: true
-                      flow: ${yamlScalar(p.flow)}
-                      client-fingerprint: ${yamlScalar(p.fingerprint)}
-                      servername: ${yamlScalar(p.sni)}
-                      reality-opts:
-                        public-key: ${yamlScalar(p.publicKey)}
-                        short-id: ${yamlScalar(p.shortId)}
-                    """.trimIndent()
-                )
+            when (val vpn = input.vpn) {
+                is VpnOutbound.Vless -> add(renderVless(vpn.profile))
+                is VpnOutbound.Warp -> vpn.profile.proxies.forEachIndexed { index, proxy ->
+                    add(renderWarp(proxy, index))
+                }
+                null -> Unit
             }
             add(
                 """
@@ -68,13 +62,19 @@ object ConfigGenerator {
                 """.trimIndent()
             )
         }.joinToString("\n")
+
+        val proxyGroups = (input.vpn as? VpnOutbound.Warp)?.profile?.let { profile ->
+            "\nproxy-groups:\n" + renderWarpGroup(profile.proxies.size)
+        }.orEmpty()
+
         val probes = buildList {
-            if (input.vpnApps.isNotEmpty() && input.profile != null) {
-                add("""- name: PROBE_VLESS
+            if (input.vpnApps.isNotEmpty() && input.vpn != null) {
+                val name = if (input.vpn is VpnOutbound.Vless) "PROBE_VLESS" else "PROBE_WARP"
+                add("""- name: $name
   type: mixed
   listen: 127.0.0.1
   port: 10810
-  proxy: VLESS""")
+  proxy: $vpnTag""")
             }
             if (input.dpiApps.isNotEmpty()) {
                 add("""- name: PROBE_DPI
@@ -114,16 +114,86 @@ dns:
   nameserver:
     - ${yamlScalar(input.nameserver)}
 proxies:
-$proxies
+$proxies$proxyGroups
 listeners:
 $probes
 rules:
 $rules""".trim()
     }
 
+    private fun renderVless(p: VlessProfile): String =
+        """
+        - name: VLESS
+          type: vless
+          server: ${yamlScalar(p.server)}
+          port: ${p.port}
+          uuid: ${yamlScalar(p.uuid)}
+          network: tcp
+          udp: true
+          tls: true
+          flow: ${yamlScalar(p.flow)}
+          client-fingerprint: ${yamlScalar(p.fingerprint)}
+          servername: ${yamlScalar(p.sni)}
+          reality-opts:
+            public-key: ${yamlScalar(p.publicKey)}
+            short-id: ${yamlScalar(p.shortId)}
+        """.trimIndent()
+
+    private fun renderWarp(p: WarpProxy, index: Int): String {
+        val fields = mutableListOf(
+            "- name: WARP_$index",
+            "  type: wireguard",
+            "  server: ${yamlScalar(p.server)}",
+            "  port: ${p.port}",
+            "  ip: ${yamlScalar(p.ip)}",
+        )
+        p.ipv6?.let { fields += "  ipv6: ${yamlScalar(it)}" }
+        fields += "  private-key: ${yamlScalar(p.privateKey)}"
+        fields += "  public-key: ${yamlScalar(p.publicKey)}"
+        fields += "  reserved: [${p.reserved.joinToString(", ")}]"
+        fields += "  allowed-ips: ${flowStrings(p.allowedIps)}"
+        fields += "  udp: ${p.udp}"
+        fields += "  mtu: ${p.mtu}"
+        fields += "  remote-dns-resolve: ${p.remoteDnsResolve}"
+        if (p.dns.isNotEmpty()) fields += "  dns: ${flowStrings(p.dns)}"
+        fields += "  amnezia-wg-option:"
+        val a = p.amnezia
+        fun int(name: String, value: Int?) { if (value != null) fields += "    $name: $value" }
+        fun str(name: String, value: String?) { if (!value.isNullOrBlank()) fields += "    $name: ${yamlScalar(value)}" }
+        int("jc", a.jc)
+        int("jmin", a.jmin)
+        int("jmax", a.jmax)
+        int("s1", a.s1)
+        int("s2", a.s2)
+        int("h1", a.h1)
+        int("h2", a.h2)
+        int("h3", a.h3)
+        int("h4", a.h4)
+        str("i1", a.i1)
+        str("i2", a.i2)
+        str("i3", a.i3)
+        str("i4", a.i4)
+        str("i5", a.i5)
+        return fields.joinToString("\n")
+    }
+
+    private fun renderWarpGroup(count: Int): String = buildString {
+        append("- name: $WARP_GROUP\n")
+        append("  type: url-test\n")
+        append("  url: http://speed.cloudflare.com/\n")
+        append("  interval: 300\n")
+        append("  tolerance: 50\n")
+        append("  lazy: true\n")
+        append("  proxies:\n")
+        repeat(count) { append("    - WARP_$it\n") }
+    }.trimEnd()
+
     // Элементы последовательности под ключом с отступом 2: элементы на 4 пробела.
     private fun items(items: List<String>) =
         "\n" + items.joinToString("\n") { "    - $it" }
+
+    private fun flowStrings(values: List<String>) =
+        "[" + values.joinToString(", ") { yamlScalar(it) } + "]"
 
     private fun yamlScalar(value: String): String {
         require(value.none { it.code < 0x20 || it.code == 0x7f }) { "control character in YAML value" }
