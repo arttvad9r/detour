@@ -65,6 +65,63 @@ class WarpConfigImporterTest {
         assertEquals("<b 0x1234>", proxy.amnezia.i1)
     }
 
+    @Test fun `imports native AmneziaWG conf`() {
+        val conf = """
+            [Interface]
+            PrivateKey = private
+            Address = 172.16.0.2, 2606:4700:110::2
+            DNS = 1.1.1.1, 1.0.0.1
+            MTU = 1280
+            S1 = 0
+            S2 = 0
+            Jc = 4
+            Jmin = 40
+            Jmax = 70
+            H1 = 1
+            H2 = 2
+            H3 = 3
+            H4 = 4
+            I1 = <b 0x1234>
+
+            [Peer]
+            PublicKey = public
+            AllowedIPs = 0.0.0.0/0, ::/0
+            Endpoint = 162.159.195.1:500
+        """.trimIndent()
+
+        val result = WarpConfigImporter.parse(conf)
+        assertTrue(result is WarpImportResult.Ok)
+        val proxy = (result as WarpImportResult.Ok).profile.proxies.single()
+        assertEquals("162.159.195.1", proxy.server)
+        assertEquals(500, proxy.port)
+        assertEquals("172.16.0.2", proxy.ip)
+        assertEquals("2606:4700:110::2", proxy.ipv6)
+        assertEquals(emptyList<Int>(), proxy.reserved)
+        assertEquals(listOf("0.0.0.0/0", "::/0"), proxy.allowedIps)
+        assertEquals(listOf("1.1.1.1", "1.0.0.1"), proxy.dns)
+        assertEquals(1280, proxy.mtu)
+        assertEquals(4, proxy.amnezia.jc)
+        assertEquals("<b 0x1234>", proxy.amnezia.i1)
+    }
+
+    @Test fun `native conf supports bracketed ipv6 endpoint`() {
+        val conf = """
+            [Interface]
+            PrivateKey = private
+            Address = 172.16.0.2
+            Jc = 1
+
+            [Peer]
+            PublicKey = public
+            AllowedIPs = 0.0.0.0/0
+            Endpoint = [2606:4700:d0::a29f:c001]:2408
+        """.trimIndent()
+
+        val proxy = ((WarpConfigImporter.parse(conf) as WarpImportResult.Ok).profile.proxies.single())
+        assertEquals("2606:4700:d0::a29f:c001", proxy.server)
+        assertEquals(2408, proxy.port)
+    }
+
     @Test fun `regular generator config with more than fifty aliases is accepted`() {
         val proxies = (1..135).joinToString("\n") { n ->
             """
@@ -117,7 +174,7 @@ class WarpConfigImporterTest {
         assertEquals(WarpImportResult.NoCompatibleProxies, result)
     }
 
-    @Test fun `invalid and oversized yaml is rejected`() {
+    @Test fun `invalid and oversized config is rejected`() {
         assertEquals(WarpImportResult.Invalid, WarpConfigImporter.parse("[broken"))
         assertEquals(
             WarpImportResult.Invalid,
