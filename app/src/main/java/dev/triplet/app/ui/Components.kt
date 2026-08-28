@@ -2,13 +2,11 @@ package dev.triplet.app.ui
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -18,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -37,7 +36,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -157,34 +155,38 @@ fun GroupDivider(startInset: Int = 64) {
 }
 
 @Composable
-fun DetourSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, animate: Boolean = true, compact: Boolean = false) {
+fun DetourSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    animate: Boolean = true,
+    compact: Boolean = false,
+) {
     val c = detourColors
     val trackWidth = if (compact) 40.dp else 44.dp
     val trackHeight = if (compact) 24.dp else 26.dp
     val thumbSize = if (compact) 18.dp else 20.dp
-    val thumbStart = if (compact) 4.dp else 3.dp
-    val targetOffset = if (checked) trackWidth - thumbSize - thumbStart else thumbStart
-    val animatedOffset by animateDpAsState(targetOffset, tween(160), label = "switchThumb")
+    val thumbMargin = 3.dp
+    val targetOffset = if (checked) trackWidth - thumbSize - thumbMargin else thumbMargin
+    val animatedOffset by animateDpAsState(
+        targetValue = targetOffset,
+        animationSpec = tween(100),
+        label = "switchThumb",
+    )
     val thumbOffset = if (animate) animatedOffset else targetOffset
     val trackColor by animateColorAsState(
         if (checked) c.accent else c.border.copy(alpha = .85f),
-        tween(160), label = "switchTrack",
+        tween(100), label = "switchTrack",
     )
     val trackBorder by animateColorAsState(
         if (checked) c.accent else c.textMuted.copy(alpha = .25f),
-        tween(160), label = "switchBorder",
+        tween(100), label = "switchBorder",
     )
     val thumbBorder by animateColorAsState(
         if (checked) Color.Transparent else c.textMuted.copy(alpha = .25f),
-        tween(160), label = "switchThumbBorder",
+        tween(100), label = "switchThumbBorder",
     )
     val interactionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
-    val pressScale by animateFloatAsState(
-        targetValue = if (animate && pressed) 0.97f else 1f,
-        animationSpec = tween(if (pressed) 70 else 100),
-        label = "switchPress",
-    )
+
     Box(
         Modifier.size(48.dp).toggleable(
             value = checked,
@@ -193,20 +195,19 @@ fun DetourSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, animate: 
             role = Role.Switch,
             onValueChange = onCheckedChange,
         ),
-        contentAlignment = Alignment.CenterStart,
+        contentAlignment = Alignment.Center,
     ) {
         Box(
-            Modifier.padding(start = if (compact) 4.dp else 2.dp)
+            Modifier
                 .size(trackWidth, trackHeight)
-                .graphicsLayer {
-                    scaleX = pressScale
-                    scaleY = pressScale
-                }
                 .background(trackColor, androidx.compose.foundation.shape.CircleShape)
                 .border(1.dp, trackBorder, androidx.compose.foundation.shape.CircleShape),
+            contentAlignment = Alignment.CenterStart,
         ) {
             Box(
-                Modifier.padding(start = thumbOffset - thumbStart, top = 3.dp).size(thumbSize)
+                Modifier
+                    .offset(x = thumbOffset)
+                    .size(thumbSize)
                     .background(Color.White, androidx.compose.foundation.shape.CircleShape)
                     .border(1.dp, thumbBorder, androidx.compose.foundation.shape.CircleShape),
             )
@@ -307,11 +308,11 @@ fun RadioDot(selected: Boolean) {
     val c = detourColors
     val ringColor by animateColorAsState(
         if (selected) c.accent else c.textMuted.copy(alpha = 0.55f),
-        tween(140), label = "radioRing",
+        tween(90), label = "radioRing",
     )
     val dotSize by animateDpAsState(
         if (selected) 8.dp else 0.dp,
-        tween(140), label = "radioDot",
+        tween(90), label = "radioDot",
     )
     Box(
         Modifier.size(18.dp).border(
@@ -343,7 +344,10 @@ fun SegmentedControl(
     ) {
         options.forEachIndexed { i, label ->
             val on = i == selected
-            val fg by animateColorAsState(if (on) c.accent else c.textSecondary, tween(140), label = "segFg")
+            val fg by animateColorAsState(
+                if (on) c.accent else c.textSecondary,
+                tween(90), label = "segFg",
+            )
             Row(
                 Modifier
                     .weight(1f)
