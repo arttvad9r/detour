@@ -22,6 +22,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.triplet.app.R
@@ -31,6 +33,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ThemeScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
+    val haptics = LocalHapticFeedback.current
     val c = detourColors
     val settings by store.settings.collectAsState()
     val current = AppTheme.byId(settings?.themeId ?: "").id
@@ -51,7 +54,12 @@ fun ThemeScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mod
                 RadioRow(
                     title = t.label,
                     selected = selected,
-                    onClick = { scope.launch { store.setTheme(t.id) } },
+                    onClick = {
+                        if (!selected) {
+                            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                            scope.launch { store.setTheme(t.id) }
+                        }
+                    },
                     trailing = { ThemeSwatches(t) },
                 )
                 if (i < AppTheme.entries.lastIndex) GroupDivider(startInset = 46)
@@ -72,7 +80,6 @@ fun ThemeScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mod
 @Composable
 private fun ThemeSwatches(t: AppTheme) {
     Row(Modifier.padding(end = Spacing.space12)) {
-        // Preview the colors the UI actually uses most: base, accent and text.
         listOf(t.colors.background, t.colors.accent, t.colors.textPrimary).forEach { color ->
             Box(
                 Modifier
