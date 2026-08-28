@@ -2,16 +2,21 @@ package dev.triplet.app.ui
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -36,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -51,9 +57,8 @@ val hairline: Color
     @Composable get() = detourColors.border
 
 /**
- * Click semantics for flat custom surfaces without a transient overlay.
- * Selected/idle color is stable; interaction feedback is carried by the
- * control's actual state change rather than a flash-like press tint.
+ * Flat interaction feedback without a ripple flash. Large surfaces barely
+ * yield under the finger; callers may also opt into a very soft tonal layer.
  */
 @Composable
 fun Modifier.detourClickable(
@@ -61,10 +66,26 @@ fun Modifier.detourClickable(
     role: Role? = null,
     idleColor: Color = Color.Transparent,
     pressedColor: Color? = null,
+    pressScale: Float = 1f,
 ): Modifier {
     val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) pressScale else 1f,
+        animationSpec = spring(dampingRatio = 0.78f, stiffness = 900f),
+        label = "pressScale",
+    )
+    val background by animateColorAsState(
+        targetValue = if (pressed && pressedColor != null) pressedColor else idleColor,
+        animationSpec = tween(70),
+        label = "pressTone",
+    )
     return this
-        .background(idleColor)
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }
+        .background(background)
         .clickable(
             interactionSource = interactionSource,
             indication = null,
@@ -100,7 +121,12 @@ fun SettingRow(
     val c = detourColors
     Row(
         Modifier.fillMaxWidth()
-            .detourClickable(onClick = onClick, role = Role.Button)
+            .detourClickable(
+                onClick = onClick,
+                role = Role.Button,
+                pressedColor = c.surfaceSelected.copy(alpha = 0.38f),
+                pressScale = 0.994f,
+            )
             .heightIn(min = 58.dp)
             .padding(horizontal = Spacing.space16, vertical = Spacing.space8),
         verticalAlignment = Alignment.CenterVertically,
@@ -169,21 +195,21 @@ fun DetourSwitch(
     val targetOffset = if (checked) trackWidth - thumbSize - thumbMargin else thumbMargin
     val animatedOffset by animateDpAsState(
         targetValue = targetOffset,
-        animationSpec = tween(100),
+        animationSpec = spring(dampingRatio = 0.78f, stiffness = 650f),
         label = "switchThumb",
     )
     val thumbOffset = if (animate) animatedOffset else targetOffset
     val trackColor by animateColorAsState(
         if (checked) c.accent else c.border.copy(alpha = .85f),
-        tween(100), label = "switchTrack",
+        tween(120), label = "switchTrack",
     )
     val trackBorder by animateColorAsState(
         if (checked) c.accent else c.textMuted.copy(alpha = .25f),
-        tween(100), label = "switchBorder",
+        tween(120), label = "switchBorder",
     )
     val thumbBorder by animateColorAsState(
         if (checked) Color.Transparent else c.textMuted.copy(alpha = .25f),
-        tween(100), label = "switchThumbBorder",
+        tween(120), label = "switchThumbBorder",
     )
     val interactionSource = remember { MutableInteractionSource() }
 
@@ -242,6 +268,13 @@ fun DetourButton(
         style == ButtonStyle.SECONDARY -> androidx.compose.foundation.BorderStroke(1.dp, c.border)
         else -> null
     }
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed && enabled) 0.985f else 1f,
+        animationSpec = spring(dampingRatio = 0.72f, stiffness = 850f),
+        label = "buttonPress",
+    )
     Button(
         onClick = onClick,
         enabled = enabled,
@@ -254,7 +287,14 @@ fun DetourButton(
         ),
         elevation = elevation,
         border = border,
-        modifier = modifier.fillMaxWidth().height(height.dp),
+        interactionSource = interactionSource,
+        modifier = modifier
+            .fillMaxWidth()
+            .height(height.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            },
     ) {
         Text(text, style = MaterialTheme.typography.labelLarge)
     }
@@ -278,6 +318,7 @@ fun RadioRow(
                 role = Role.RadioButton,
                 idleColor = if (selected) c.accentSoft else Color.Transparent,
                 pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
+                pressScale = 0.996f,
             )
             .heightIn(min = 52.dp)
             .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
@@ -308,11 +349,12 @@ fun RadioDot(selected: Boolean) {
     val c = detourColors
     val ringColor by animateColorAsState(
         if (selected) c.accent else c.textMuted.copy(alpha = 0.55f),
-        tween(90), label = "radioRing",
+        tween(110), label = "radioRing",
     )
     val dotSize by animateDpAsState(
         if (selected) 8.dp else 0.dp,
-        tween(90), label = "radioDot",
+        spring(dampingRatio = 0.72f, stiffness = 800f),
+        label = "radioDot",
     )
     Box(
         Modifier.size(18.dp).border(
@@ -334,7 +376,8 @@ fun SegmentedControl(
     modifier: Modifier = Modifier,
 ) {
     val c = detourColors
-    Row(
+    if (options.isEmpty()) return
+    BoxWithConstraints(
         modifier
             .fillMaxWidth()
             .height(32.dp)
@@ -342,33 +385,49 @@ fun SegmentedControl(
             .background(c.surfaceSoft)
             .border(1.dp, c.border, AppShapes.extraSmall),
     ) {
-        options.forEachIndexed { i, label ->
-            val on = i == selected
-            val fg by animateColorAsState(
-                if (on) c.accent else c.textSecondary,
-                tween(90), label = "segFg",
-            )
-            Row(
-                Modifier
-                    .weight(1f)
-                    .fillMaxSize()
-                    .detourClickable(
-                        onClick = { onSelect(i) },
-                        role = Role.RadioButton,
-                        idleColor = if (on) c.accentSoft else Color.Transparent,
-                        pressedColor = if (on) c.accentSoft else c.surfaceSelected,
-                    ),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
-            ) {
-                Text(
-                    label,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
-                    color = fg,
-                    textAlign = TextAlign.Center,
-                    maxLines = 1,
+        val segmentWidth = maxWidth / options.size
+        val selectedOffset by animateDpAsState(
+            targetValue = segmentWidth * selected.coerceIn(0, options.lastIndex),
+            animationSpec = spring(dampingRatio = 0.82f, stiffness = 700f),
+            label = "segmentOffset",
+        )
+        Box(
+            Modifier
+                .offset(x = selectedOffset)
+                .width(segmentWidth)
+                .fillMaxHeight()
+                .padding(1.dp)
+                .clip(AppShapes.extraSmall)
+                .background(c.accentSoft),
+        )
+        Row(Modifier.fillMaxSize()) {
+            options.forEachIndexed { i, label ->
+                val on = i == selected
+                val fg by animateColorAsState(
+                    if (on) c.accent else c.textSecondary,
+                    tween(110), label = "segFg",
                 )
+                Row(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxSize()
+                        .detourClickable(
+                            onClick = { onSelect(i) },
+                            role = Role.RadioButton,
+                            pressScale = 0.985f,
+                        ),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+                ) {
+                    Text(
+                        label,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
+                        color = fg,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                    )
+                }
             }
         }
     }
