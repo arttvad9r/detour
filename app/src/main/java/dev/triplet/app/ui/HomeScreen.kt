@@ -77,9 +77,9 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
     val settings by store.settings.collectAsState()
     val status = theme.statusFor(st)
     val style = StatusStyle(
-        container = animateColorAsState(status.container, tween(220), label = "cardBg").value,
-        content = animateColorAsState(status.content, tween(220), label = "cardFg").value,
-        border = animateColorAsState(status.border, tween(220), label = "cardBorder").value,
+        container = animateColorAsState(status.container, tween(110), label = "cardBg").value,
+        content = animateColorAsState(status.content, tween(110), label = "cardFg").value,
+        border = animateColorAsState(status.border, tween(110), label = "cardBorder").value,
     )
 
     var elapsed by rememberSaveable { mutableIntStateOf(0) }
@@ -180,7 +180,7 @@ private fun MainButton(
             state == VpnState.Starting -> c.accentSoft
             else -> c.accent
         },
-        tween(220), label = "btnBg",
+        tween(110), label = "btnBg",
     )
     val content by animateColorAsState(
         when {
@@ -188,7 +188,7 @@ private fun MainButton(
             state == VpnState.Starting -> c.accent
             else -> c.onAccent
         },
-        tween(220), label = "btnFg",
+        tween(110), label = "btnFg",
     )
     val borderColor by animateColorAsState(
         when {
@@ -196,7 +196,7 @@ private fun MainButton(
             state == VpnState.Starting -> c.accentBorder
             else -> Color.Transparent
         },
-        tween(220), label = "btnBorder",
+        tween(110), label = "btnBorder",
     )
     val text = when (state) {
         VpnState.Active -> stringResource(R.string.btn_disconnect)
@@ -236,7 +236,7 @@ private fun StatusCard(
     }
     Column(
         modifier
-            .animateContentSize(tween(180))
+            .animateContentSize(tween(110))
             .clip(AppShapes.medium)
             .background(style.container.copy(alpha = 0.96f))
             .border(1.dp, style.border, AppShapes.medium)
