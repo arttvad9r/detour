@@ -72,7 +72,7 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
     val warpProfile = settings?.warpProfile
     val activeVpn = settings?.activeVpn ?: VpnProfileKind.VLESS
     val addDescription = stringResource(R.string.profile_add_title)
-    val keyTitle = stringResource(R.string.key_title)
+    val vlessTitle = stringResource(R.string.profile_add_vless)
 
     var editingId by rememberSaveable { androidx.compose.runtime.mutableStateOf<String?>(null) }
     var editing by rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
@@ -250,7 +250,7 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                                 val value = field.trim()
                                 val key = VlessKey(
                                     editingId ?: UUID.randomUUID().toString(),
-                                    keyName(value, keyTitle),
+                                    keyName(value, vlessTitle),
                                     value,
                                 )
                                 scope.launch {
