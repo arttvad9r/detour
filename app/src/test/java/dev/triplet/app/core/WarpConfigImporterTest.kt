@@ -70,7 +70,7 @@ class WarpConfigImporterTest {
             """
               - name: endpoint-$n
                 <<: *warp-common
-                server: 162.159.192.${(n % 20) + 1}
+                server: endpoint-$n.example.net
                 port: ${listOf(2408, 1701, 4500, 500)[n % 4]}
             """.trimIndent()
         }
@@ -101,7 +101,7 @@ class WarpConfigImporterTest {
 
         val result = WarpConfigImporter.parse(large)
         assertTrue(result is WarpImportResult.Ok)
-        assertEquals(80, (result as WarpImportResult.Ok).profile.proxies.size)
+        assertEquals(135, (result as WarpImportResult.Ok).profile.proxies.size)
     }
 
     @Test fun `plain wireguard without AmneziaWG is not accepted`() {
