@@ -86,6 +86,16 @@ class ConfigGeneratorTest {
         assertFalse(yaml.contains("type: vless"))
     }
 
+    @Test fun `native awg without reserved does not emit empty reserved field`() {
+        val native = warp.copy(
+            proxies = listOf(warp.proxies.single().copy(reserved = emptyList())),
+        )
+        val yaml = ConfigGenerator.build(input(vpn = VpnOutbound.Warp(native)))
+        assertFalse(yaml.contains("reserved:"))
+        assertTrue(yaml.contains("amnezia-wg-option:"))
+        assertTrue(yaml.contains("jc: 4"))
+    }
+
     @Test fun `dpi app gets quic reject before socks route`() {
         val yaml = ConfigGenerator.build(input())
         val quicIdx = yaml.indexOf("- AND,((UID,10102),(NETWORK,UDP),(DST-PORT,443)),REJECT")
