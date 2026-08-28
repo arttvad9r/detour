@@ -93,7 +93,7 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
         scope.launch {
             val result = runCatching {
                 withContext(Dispatchers.IO) {
-                    val raw = readWarpYaml(ctx, uri) ?: return@withContext WarpImportResult.Invalid
+                    val raw = readWarpConfig(ctx, uri) ?: return@withContext WarpImportResult.Invalid
                     WarpConfigImporter.parse(raw)
                 }
             }.getOrElse { WarpImportResult.Invalid }
@@ -304,16 +304,7 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                     ) {
                         showAddDialog = false
                         warpStatus = 0
-                        warpLauncher.launch(
-                            arrayOf(
-                                "application/yaml",
-                                "application/x-yaml",
-                                "text/yaml",
-                                "text/x-yaml",
-                                "text/plain",
-                                "application/octet-stream",
-                            ),
-                        )
+                        warpLauncher.launch(arrayOf("*/*"))
                     }
                 }
             },
@@ -440,7 +431,7 @@ private fun WarpRow(profile: WarpProfile, selected: Boolean, onDelete: () -> Uni
     }
 }
 
-private fun readWarpYaml(context: android.content.Context, uri: Uri): String? {
+private fun readWarpConfig(context: android.content.Context, uri: Uri): String? {
     val input = context.contentResolver.openInputStream(uri) ?: return null
     input.use {
         val out = java.io.ByteArrayOutputStream()
