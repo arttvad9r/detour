@@ -12,9 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -81,22 +78,17 @@ fun DnsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
         }
 
         if (settings?.dnsId == DnsOptions.CUSTOM) {
-            Spacer(Modifier.height(Spacing.space12))
-            OutlinedTextField(
+            Spacer(Modifier.height(Spacing.space16))
+            DetourInputField(
                 value = customField,
                 onValueChange = { customField = it },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.space16),
-                singleLine = true,
-                placeholder = { Text(stringResource(R.string.dns_placeholder), style = MaterialTheme.typography.bodyLarge, color = c.textMuted) },
-                supportingText = if (customInvalid) {
-                    { Text(stringResource(R.string.dns_invalid), style = MaterialTheme.typography.bodySmall, color = c.error) }
-                } else null,
-                isError = customInvalid,
-                shape = AppShapes.small,
-                textStyle = MaterialTheme.typography.bodyLarge,
-                colors = fieldColors(),
+                label = stringResource(R.string.dns_custom_label),
+                placeholder = stringResource(R.string.dns_placeholder),
+                helper = stringResource(R.string.dns_custom_hint),
+                error = if (customInvalid) stringResource(R.string.dns_invalid) else null,
+                modifier = Modifier.padding(horizontal = Spacing.space16),
             )
-            Spacer(Modifier.height(Spacing.space12))
+            Spacer(Modifier.height(Spacing.space16))
             DetourButton(
                 text = stringResource(R.string.btn_save),
                 onClick = {
