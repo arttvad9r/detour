@@ -64,7 +64,22 @@ fun SettingsMenuScreen(
 
         val items = listOf(
             MenuItem(R.string.nav_routes, { stringResource(R.string.nav_routes_sub, routed) }, R.drawable.ic_routes) to onOpenRoutes,
-            MenuItem(R.string.nav_key, { stringResource(R.string.nav_key_sub) }, R.drawable.ic_lock) to onOpenVless,
+            MenuItem(
+                R.string.nav_key,
+                { current ->
+                    val hasVless = current?.vlessKeys?.items?.isNotEmpty() == true
+                    val hasWarp = current?.warpProfile != null
+                    stringResource(
+                        when {
+                            hasVless && hasWarp -> R.string.nav_key_sub
+                            hasVless -> R.string.nav_key_sub_vless
+                            hasWarp -> R.string.nav_key_sub_warp
+                            else -> R.string.nav_key_sub_none
+                        },
+                    )
+                },
+                R.drawable.ic_lock,
+            ) to onOpenVless,
             MenuItem(R.string.nav_dpi, { stringResource(R.string.nav_dpi_sub) }, R.drawable.ic_dpi) to onOpenDpi,
             MenuItem(R.string.nav_dns, { stringResource(R.string.nav_dns_sub) }, R.drawable.ic_globe) to onOpenDns,
             MenuItem(R.string.nav_backup, { stringResource(R.string.nav_backup_sub) }, R.drawable.ic_export) to onOpenBackup,
