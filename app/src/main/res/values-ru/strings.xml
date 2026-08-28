@@ -35,7 +35,9 @@
     <string name="dns_google">Google DNS</string>
     <string name="dns_cloudflare">Cloudflare</string>
     <string name="dns_adguard">AdGuard</string>
-    <string name="dns_placeholder">https://…</string>
+    <string name="dns_custom_label">Адрес DNS</string>
+    <string name="dns_placeholder">1.1.1.1 или https://dns.example/dns-query</string>
+    <string name="dns_custom_hint">Можно указать IP-адрес или URL с http:// / https://.</string>
     <string name="nav_backup">Экспорт / импорт</string>
     <string name="nav_backup_sub">перенос настроек на другое устройство</string>
     <string name="backup_title">Экспорт / импорт</string>
@@ -55,7 +57,7 @@
     <string name="route_vpn">VPN</string>
     <string name="route_dpi">DPI</string>
     <string name="key_title">Ключ VLESS</string>
-    <string name="key_invalid">Ключ некорректен</string>
+    <string name="key_invalid">Не удалось распознать ссылку. Проверьте начало vless:// и что ссылка вставлена целиком.</string>
     <string name="btn_save">Сохранить</string>
     <string name="key_edit">Изменить</string>
     <string name="key_cancel">Отмена</string>
@@ -64,15 +66,19 @@
     <string name="key_empty">Нет добавленных ключей</string>
     <string name="key_add">Добавить</string>
     <string name="key_delete">Удалить</string>
-    <string name="key_uri">VLESS URL</string>
-    <string name="key_input_hint">Вставьте полную VLESS-ссылку. Перед сохранением она проверяется локально.</string>
-    <string name="key_placeholder">vless://…</string>
-    <string name="key_detected_server">Сервер: %1$s:%2$d</string>
-    <string name="dns_invalid">Введите корректный IP-адрес или URL с http:// или https://</string>
+    <string name="key_uri">VLESS-ссылка</string>
+    <string name="key_input_hint">Вставьте ссылку целиком — сервер и параметры определятся автоматически.</string>
+    <string name="key_placeholder">vless://uuid@server:443?security=reality&amp;…</string>
+    <string name="key_detected_server">Ссылка распознана · %1$s:%2$d</string>
+    <string name="dns_invalid">Проверьте адрес: нужен IP или URL с http:// / https://.</string>
     <string name="backup_warning">Конфигурация содержит секретные данные — храни файл в безопасном месте.</string>
     <string name="dpi_title">Обход DPI</string>
     <string name="preset_recommended">Рекомендуемая</string>
     <string name="preset_custom">Своя стратегия</string>
+    <string name="dpi_custom_label">Аргументы стратегии</string>
+    <string name="dpi_custom_placeholder">-d 1 -s 1+s --timeout 3</string>
+    <string name="dpi_custom_hint">Разрешены -d, -s, -a и --timeout. Указывайте параметр и значение через пробел.</string>
+    <string name="dpi_custom_invalid">Проверьте аргументы: разрешены только -d, -s, -a и --timeout с их значениями.</string>
     <string name="autorestart_note">Изменения применяются автоматически — активный туннель перезапускается</string>
     <string name="err_dpi_failed">Не удалось запустить обход DPI</string>
     <string name="err_no_connect">Не удалось подключиться</string>
