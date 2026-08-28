@@ -1,5 +1,6 @@
 package dev.triplet.app.ui
 
+import android.graphics.Bitmap
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.spring
@@ -29,8 +30,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -53,6 +56,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.drawable.toBitmap
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import dev.triplet.app.R
 import dev.triplet.app.core.AppRoute
 import dev.triplet.app.data.AppInfo
@@ -77,6 +83,20 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
 
     var query by rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
     var searchFocused by remember { androidx.compose.runtime.mutableStateOf(false) }
+    var inventoryRevision by remember { mutableIntStateOf(0) }
+
+    // Re-query PackageManager whenever Detour comes back to the foreground. This
+    // catches apps installed/removed while Play Store or another installer was on
+    // top, without keeping a process-lifetime stale package snapshot.
+    DisposableEffect(ctx) {
+        val owner = ctx as? LifecycleOwner
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) inventoryRevision++
+        }
+        owner?.lifecycle?.addObserver(observer)
+        onDispose { owner?.lifecycle?.removeObserver(observer) }
+    }
+
     val searchBorder by animateColorAsState(
         if (searchFocused) c.accent else c.border,
         tween(Motion.COLOR_MS), label = "searchBorder",
@@ -86,8 +106,8 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
         tween(Motion.COLOR_MS), label = "searchIcon",
     )
     val showSystem = currentSettings.showSystemApps
-    val allApps by produceState<List<AppInfo>?>(initialValue = null, ctx) {
-        value = withContext(Dispatchers.IO) { AppInventory.load(ctx) }
+    val allApps by produceState<List<AppInfo>?>(initialValue = null, ctx, inventoryRevision) {
+        value = withContext(Dispatchers.IO) { AppInventory.refresh(ctx) }
     }
     val routes = currentSettings.routes
     val loadedApps = allApps.orEmpty()
@@ -140,8 +160,8 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
             Box(Modifier.weight(1f)) {
                 AnimatedVisibility(
                     visible = query.isEmpty(),
-                    enter = fadeIn(tween(Motion.CONTENT_IN_MS)),
-                    exit = fadeOut(tween(Motion.CONTENT_OUT_MS)),
+                    enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)),
+                    exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)),
                 ) {
                     Text(
                         searchHint,
@@ -180,7 +200,6 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
                 color = c.textPrimary,
                 modifier = Modifier.weight(1f),
             )
-            // Direct switch taps get their haptic from DetourSwitch itself.
             DetourSwitch(
                 checked = showSystem,
                 onCheckedChange = { value -> scope.launch { store.setShowSystemApps(value) } },
@@ -200,8 +219,8 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
                     Column(
                         Modifier
                             .animateItem(
-                                fadeInSpec = tween(Motion.CONTENT_IN_MS),
-                                fadeOutSpec = tween(Motion.CONTENT_OUT_MS),
+                                fadeInSpec = tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
+                                fadeOutSpec = tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
                                 placementSpec = spring(
                                     dampingRatio = Motion.SPRING_DAMPING,
                                     stiffness = Motion.SPRING_STIFFNESS_SOFT,
@@ -240,14 +259,17 @@ private fun AppRow(
     onSelect: (AppRoute) -> Unit,
 ) {
     val c = detourColors
+    val bmp by produceState<Bitmap?>(initialValue = null, app.packageName) {
+        value = withContext(Dispatchers.IO) {
+            runCatching { pm.getApplicationIcon(app.packageName).toBitmap(48, 48) }.getOrNull()
+        }
+    }
+
     Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.space16, vertical = Spacing.space12)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            val bmp = remember(app.packageName) {
-                runCatching { pm.getApplicationIcon(app.packageName).toBitmap(48, 48) }.getOrNull()
-            }
             if (bmp != null) {
                 Image(
-                    bmp.asImageBitmap(), null,
+                    bmp!!.asImageBitmap(), null,
                     modifier = Modifier.size(26.dp).clip(AppShapes.extraSmall),
                 )
             } else {
