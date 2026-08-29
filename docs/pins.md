@@ -53,7 +53,8 @@ API 29+), резолвится ДО Engine.start. Пробы (эмулятор A
 - AAR обязан собираться с `-tags with_gvisor` (`stack: gvisor` иначе падает:
   "gVisor is not included in this build"); `stack: system` в embedded-режиме не
   перехватывает TCP (нет [TCP] логов, чёрная дыра) — только ICMP.
-- mihomo v1.19.x игнорирует `tun.inet4-address`: адрес TUN = fake-ip range gateway
-  (/30 от 198.18.0.1); VpnService.Builder обязан добавлять 198.18.0.1/30.
+- При host-supplied TUN fd sing-tun использует `tun.inet4-address` в runtime-настройках,
+  но не конфигурирует уже созданный Android TUN-интерфейс. Device spike подтвердил
+  fake-IP gateway `198.18.0.1/30`, поэтому VpnService.Builder обязан добавить его сам.
 - YAML: generated external scalars are quoted when needed; IPv6 is captured and
   explicitly rejected in the Android TUN policy.
