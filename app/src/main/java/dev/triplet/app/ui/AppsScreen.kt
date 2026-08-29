@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
@@ -30,9 +31,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -66,6 +69,7 @@ import dev.triplet.app.data.AppRouteOrdering
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.vpn.VpnController
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -80,8 +84,8 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
     val pm = ctx.packageManager
     val searchHint = stringResource(R.string.search_hint)
 
-    var query by rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
-    var searchFocused by remember { androidx.compose.runtime.mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var searchFocused by remember { mutableStateOf(false) }
     var inventoryRevision by remember { mutableIntStateOf(0) }
 
     // Re-query PackageManager whenever Detour comes back to the foreground. This
@@ -122,6 +126,14 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
                     it.label.contains(query, ignoreCase = true) ||
                     it.packageName.contains(query, ignoreCase = true)
             }
+    }
+    val appKeys = remember(apps) { apps.map { it.packageName } }
+    val listState = rememberLazyListState()
+    var listMotionActive by remember { mutableStateOf(false) }
+    LaunchedEffect(query, showSystem, appKeys) {
+        listMotionActive = true
+        delay(Motion.LIST_REFRESH_BOOST_MS)
+        listMotionActive = false
     }
 
     fun setShowSystemFromRow(value: Boolean) {
@@ -207,7 +219,12 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
         }
 
         DetourCard(Modifier.weight(1f).padding(horizontal = Spacing.space16)) {
-            LazyColumn(Modifier.fillMaxWidth()) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .detourHighRefresh(listState.isScrollInProgress || listMotionActive),
+            ) {
                 itemsIndexed(apps, key = { _, app -> app.packageName }) { i, app ->
                     val current = routes[app.packageName] ?: AppRoute.DIRECT
                     val shape = when {
