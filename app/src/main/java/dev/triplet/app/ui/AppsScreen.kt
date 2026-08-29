@@ -35,7 +35,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -299,7 +298,7 @@ private fun AppRow(
             options = AppRoute.entries.map { stringResource(routeLabel(it)) },
             selected = AppRoute.entries.indexOf(current),
             onSelect = { idx -> onSelect(AppRoute.entries[idx]) },
-            modifier = Modifier.height(32.dp),
+            modifier = Modifier.height(48.dp),
         )
     }
 }
