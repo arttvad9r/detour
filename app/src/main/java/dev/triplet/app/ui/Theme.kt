@@ -193,7 +193,7 @@ fun colorSchemeFor(c: DetourColors, dark: Boolean): ColorScheme {
 fun statusStyleFor(colors: DetourColors, state: dev.triplet.app.vpn.VpnState): StatusStyle = when (state) {
     dev.triplet.app.vpn.VpnState.Active -> StatusStyle(colors.surfaceSelected, colors.accent, colors.accentBorder)
     dev.triplet.app.vpn.VpnState.Starting -> StatusStyle(colors.surface, colors.accent, colors.accentBorder)
-    is dev.triplet.app.vpn.VpnState.Failed -> StatusStyle(colors.errorSoft, colors.error, colors.error.copy(alpha = .35f))
+    is dev.triplet.app.vpn.VpnState.Failed -> StatusStyle(colors.surface, colors.error, colors.error.copy(alpha = .45f))
     dev.triplet.app.vpn.VpnState.Idle -> StatusStyle(colors.surface, colors.textPrimary, colors.border)
 }
 
