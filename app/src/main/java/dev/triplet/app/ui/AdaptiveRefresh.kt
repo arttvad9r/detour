@@ -26,7 +26,3 @@ internal fun Modifier.detourHighRefresh(active: Boolean): Modifier =
     preferredFrameRate(
         if (active) FrameRateCategory.High else FrameRateCategory.Default,
     )
-
-/** Small continuous animations should not keep a high-refresh panel boosted. */
-internal fun Modifier.detourNormalRefresh(): Modifier =
-    preferredFrameRate(FrameRateCategory.Normal)
