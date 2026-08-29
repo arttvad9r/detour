@@ -25,6 +25,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -55,7 +57,10 @@ import dev.triplet.app.vpn.VpnState
 import dev.triplet.app.vpn.canAutoConnect
 import dev.triplet.app.vpn.resolveEffectiveRoutes
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private object Route {
@@ -83,8 +88,6 @@ class MainActivity : ComponentActivity() {
             val theme = AppTheme.byId(settings?.themeId ?: "")
             val target = theme.colors
             var previousDark by remember { mutableStateOf(theme.dark) }
-            var previousThemeId by remember { mutableStateOf(theme.id) }
-            var themeMotionActive by remember { mutableStateOf(false) }
             val themeAnimation = tween<Color>(themeTransitionDuration(previousDark, theme.dark))
 
             // Interpolate within the same brightness mode. A continuous light↔dark
@@ -113,20 +116,10 @@ class MainActivity : ComponentActivity() {
             )
 
             LaunchedEffect(theme) {
-                val changed = previousThemeId != theme.id
-                val motionMs = if (changed) themeTransitionDuration(previousDark, theme.dark) else 0
-                themeMotionActive = motionMs > 0
-                previousThemeId = theme.id
                 previousDark = theme.dark
-
                 val style = if (theme.dark) SystemBarStyle.dark(Color.Transparent.toArgb())
                 else SystemBarStyle.light(Color.Transparent.toArgb(), Color.Transparent.toArgb())
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
-
-                if (motionMs > 0) {
-                    delay(motionMs.toLong())
-                    themeMotionActive = false
-                }
             }
 
             CompositionLocalProvider(
@@ -138,7 +131,35 @@ class MainActivity : ComponentActivity() {
                     typography = AppTypography,
                     shapes = AppShapes,
                 ) {
-                    Box(Modifier.fillMaxSize().background(animatedColors.background)) {
+                    var touchMotionActive by remember { mutableStateOf(false) }
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(animatedColors.background)
+                            .pointerInput(Unit) {
+                                coroutineScope {
+                                    val releaseScope = this
+                                    var releaseJob: Job? = null
+                                    awaitPointerEventScope {
+                                        while (true) {
+                                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                                            if (event.changes.any { it.pressed }) {
+                                                releaseJob?.cancel()
+                                                releaseJob = null
+                                                touchMotionActive = true
+                                            } else if (touchMotionActive && releaseJob == null) {
+                                                releaseJob = releaseScope.launch {
+                                                    delay(Motion.CONTROL_REFRESH_TAIL_MS)
+                                                    touchMotionActive = false
+                                                    releaseJob = null
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            .detourHighRefresh(touchMotionActive),
+                    ) {
                         val ctx = this@MainActivity
                         val navController = rememberNavController()
                         val currentEntry by navController.currentBackStackEntryAsState()
@@ -184,7 +205,7 @@ class MainActivity : ComponentActivity() {
                             startDestination = Route.HOME,
                             modifier = Modifier
                                 .fillMaxSize()
-                                .detourHighRefresh(navMotionActive || themeMotionActive),
+                                .detourHighRefresh(navMotionActive),
                             enterTransition = {
                                 slideInHorizontally(
                                     animationSpec = tween(
