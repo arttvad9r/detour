@@ -103,9 +103,9 @@ jobs:
           KEYSTORE_PATH="$RUNNER_TEMP/detour-release.keystore"
           printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
           chmod 600 "$KEYSTORE_PATH"
-          echo "DETOUR_RELEASE_KEYSTORE=$KEYSTORE_PATH" >> "$GITHUB_ENV"
       - name: Build signed arm64 release APK
         env:
+          DETOUR_RELEASE_KEYSTORE: ${{ runner.temp }}/detour-release.keystore
           DETOUR_RELEASE_STORE_PASSWORD: ${{ secrets.DETOUR_RELEASE_STORE_PASSWORD }}
           DETOUR_RELEASE_KEY_ALIAS: ${{ secrets.DETOUR_RELEASE_KEY_ALIAS }}
           DETOUR_RELEASE_KEY_PASSWORD: ${{ secrets.DETOUR_RELEASE_KEY_PASSWORD }}
@@ -130,7 +130,9 @@ jobs:
             --max-bytes 31457280 \
             --expected-abi arm64-v8a
 
-          ARTIFACT="$RUNNER_TEMP/$APK_NAME"
+          ARTIFACT_DIR="app/build/release-artifacts"
+          mkdir -p "$ARTIFACT_DIR"
+          ARTIFACT="$ARTIFACT_DIR/$APK_NAME"
           cp "$APK" "$ARTIFACT"
           sha256sum "$ARTIFACT" > "$ARTIFACT.sha256"
           echo "RELEASE_APK=$ARTIFACT" >> "$GITHUB_ENV"
@@ -142,8 +144,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
           path: |
-            ${{ env.RELEASE_APK }}
-            ${{ env.RELEASE_SHA256 }}
+            app/build/release-artifacts/*
             app/build/reports/apk-size-release.json
       - name: Publish GitHub Release
         shell: bash
