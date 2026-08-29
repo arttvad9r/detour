@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -117,49 +118,51 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
             .detourHighRefresh(scrollState.isScrollInProgress),
     ) {
         ScreenHeader(stringResource(R.string.backup_title), onBack)
-        Spacer(Modifier.height(Spacing.space8))
 
-        Text(
-            stringResource(R.string.backup_note),
-            style = MaterialTheme.typography.bodySmall,
-            color = c.textSecondary,
-            modifier = Modifier.padding(horizontal = Spacing.space16),
-        )
-        Spacer(Modifier.height(Spacing.space4))
-        Text(
-            stringResource(R.string.backup_warning),
-            style = MaterialTheme.typography.bodySmall,
-            color = c.textSecondary,
-            modifier = Modifier.padding(horizontal = Spacing.space16, vertical = Spacing.space4),
-        )
+        DetourContentColumn {
+            Spacer(Modifier.height(Spacing.space8))
+            Text(
+                stringResource(R.string.backup_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = c.textSecondary,
+                modifier = Modifier.padding(horizontal = Spacing.space16),
+            )
+            Spacer(Modifier.height(Spacing.space4))
+            Text(
+                stringResource(R.string.backup_warning),
+                style = MaterialTheme.typography.bodySmall,
+                color = c.textSecondary,
+                modifier = Modifier.padding(horizontal = Spacing.space16, vertical = Spacing.space4),
+            )
 
-        Spacer(Modifier.height(Spacing.space12))
-        DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-            ActionRow(stringResource(R.string.backup_export), R.drawable.ic_export, accent = true) {
-                exportLauncher.launch("detour-backup.json")
+            Spacer(Modifier.height(Spacing.space12))
+            DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
+                ActionRow(stringResource(R.string.backup_export), R.drawable.ic_export, accent = true) {
+                    exportLauncher.launch("detour-backup.json")
+                }
+                GroupDivider(startInset = 46)
+                ActionRow(stringResource(R.string.backup_import), R.drawable.ic_export, accent = false) {
+                    importLauncher.launch(arrayOf("application/json", "text/*"))
+                }
             }
-            GroupDivider(startInset = 46)
-            ActionRow(stringResource(R.string.backup_import), R.drawable.ic_export, accent = false) {
-                importLauncher.launch(arrayOf("application/json", "text/*"))
+
+            AnimatedVisibility(
+                visible = statusText.isNotEmpty(),
+                enter = fadeIn(tween(Motion.CONTENT_IN_MS)),
+                exit = fadeOut(tween(Motion.CONTENT_OUT_MS)),
+            ) {
+                Column {
+                    Spacer(Modifier.height(Spacing.space12))
+                    Text(
+                        statusText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (statusIsError) c.error else c.accent,
+                        modifier = Modifier.padding(horizontal = Spacing.space16),
+                    )
+                }
             }
+            Spacer(Modifier.height(Spacing.space24))
         }
-
-        AnimatedVisibility(
-            visible = statusText.isNotEmpty(),
-            enter = fadeIn(tween(Motion.CONTENT_IN_MS)),
-            exit = fadeOut(tween(Motion.CONTENT_OUT_MS)),
-        ) {
-            Column {
-                Spacer(Modifier.height(Spacing.space12))
-                Text(
-                    statusText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (statusIsError) c.error else c.accent,
-                    modifier = Modifier.padding(horizontal = Spacing.space16),
-                )
-            }
-        }
-        Spacer(Modifier.height(Spacing.space24))
     }
 }
 
@@ -183,7 +186,7 @@ private fun ActionRow(label: String, iconRes: Int, accent: Boolean, onClick: () 
     val tint = if (accent) c.accent else c.textSecondary
     Row(
         Modifier.fillMaxWidth()
-            .height(56.dp)
+            .heightIn(min = 56.dp)
             .detourClickable(
                 onClick = onClick,
                 role = Role.Button,
