@@ -36,7 +36,6 @@ import androidx.lifecycle.LifecycleOwner
 import dev.triplet.app.R
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.data.TriSettings
-import dev.triplet.app.vpn.EffectiveRoutes
 import dev.triplet.app.vpn.resolveEffectiveRoutes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -75,20 +74,23 @@ fun SettingsMenuScreen(
         owner?.lifecycle?.addObserver(observer)
         onDispose { owner?.lifecycle?.removeObserver(observer) }
     }
-    val effectiveRoutes by produceState(
-        initialValue = EffectiveRoutes(emptySet(), emptySet()),
+
+    // The persisted count is correct for the first rendered frame in the common
+    // case. Resolve installed packages off-thread and update only if removals made
+    // the effective count differ; never flash "0" while Settings is sliding in.
+    val routed by produceState(
+        initialValue = persistedRoutes.size,
         key1 = persistedRoutes,
         key2 = routeRevision,
     ) {
         value = if (persistedRoutes.isEmpty()) {
-            EffectiveRoutes(emptySet(), emptySet())
+            0
         } else {
             withContext(Dispatchers.IO) {
-                resolveEffectiveRoutes(ctx.packageManager, persistedRoutes)
+                resolveEffectiveRoutes(ctx.packageManager, persistedRoutes).packages.size
             }
         }
     }
-    val routed = effectiveRoutes.packages.size
     val theme = LocalDetourTheme.current
     val autoConnect = settings?.autoConnect == true
     val scrollState = rememberScrollState()
