@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -41,6 +42,7 @@ import dev.triplet.app.ui.DetourColors
 import dev.triplet.app.ui.DnsScreen
 import dev.triplet.app.ui.DpiScreen
 import dev.triplet.app.ui.HomeScreen
+import dev.triplet.app.ui.HomeViewModel
 import dev.triplet.app.ui.LocalDetourColors
 import dev.triplet.app.ui.LocalDetourTheme
 import dev.triplet.app.ui.Motion
@@ -209,8 +211,18 @@ class MainActivity : ComponentActivity() {
                             },
                         ) {
                             composable(Route.HOME) {
+                                val homeViewModel = viewModel<HomeViewModel>(
+                                    factory = HomeViewModel.factory(
+                                        store = store,
+                                        resolveRoutes = { routes ->
+                                            withContext(Dispatchers.IO) {
+                                                resolveEffectiveRoutes(packageManager, routes)
+                                            }
+                                        },
+                                    ),
+                                )
                                 HomeScreen(
-                                    store,
+                                    homeViewModel,
                                     onOpenSettings = { navController.navigate(Route.SETTINGS) },
                                 )
                             }
