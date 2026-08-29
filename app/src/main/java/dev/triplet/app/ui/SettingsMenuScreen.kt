@@ -91,13 +91,15 @@ fun SettingsMenuScreen(
     val routed = effectiveRoutes.packages.size
     val theme = LocalDetourTheme.current
     val autoConnect = settings?.autoConnect == true
+    val scrollState = rememberScrollState()
 
     Column(
         modifier.fillMaxSize()
             .background(c.background)
             .statusBarsPadding()
             .navigationBarsPadding()
-            .verticalScroll(rememberScrollState()),
+            .verticalScroll(scrollState)
+            .detourHighRefresh(scrollState.isScrollInProgress),
     ) {
         ScreenHeader(stringResource(R.string.settings_title), onBack)
         Spacer(Modifier.height(Spacing.space8))
