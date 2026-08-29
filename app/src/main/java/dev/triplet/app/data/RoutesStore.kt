@@ -124,56 +124,42 @@ class RoutesStore(context: Context) {
     private val cipher = SensitiveSettingsCipher()
     private val store = PreferenceDataStoreFactory.create(
         produceFile = { context.preferencesDataStoreFile("triplet_settings") },
-        migrations = listOf(
-            object : DataMigration<Preferences> {
-                override suspend fun shouldMigrate(currentData: Preferences) =
-                    currentData[RoutesMapping.vlessMigratedKey()] != true
-
-                override suspend fun migrate(currentData: Preferences): Preferences =
-                    currentData.toMutablePreferences().apply {
-                        if (get(RoutesMapping.keysKey()).isNullOrBlank()) {
-                            val keys = VlessKeys.fromStored("", get(RoutesMapping.uriKey()) ?: "")
-                            if (keys.items.isNotEmpty()) {
-                                this[RoutesMapping.keysKey()] = keys.toJson()
-                                this[RoutesMapping.uriKey()] = keys.active?.uri ?: ""
-                            }
-                        }
-                        this[RoutesMapping.vlessMigratedKey()] = true
-                    }
-
-                override suspend fun cleanUp() = Unit
-            },
-            object : DataMigration<Preferences> {
-                override suspend fun shouldMigrate(currentData: Preferences) =
+        migrations = listOf(object : DataMigration<Preferences> {
+            override suspend fun shouldMigrate(currentData: Preferences) =
+                currentData[RoutesMapping.vlessMigratedKey()] != true ||
                     currentData[RoutesMapping.sensitiveMigratedKey()] != true
 
-                override suspend fun migrate(currentData: Preferences): Preferences =
-                    currentData.toMutablePreferences().apply {
-                        val keysKey = RoutesMapping.keysKey()
-                        val uriKey = RoutesMapping.uriKey()
-                        val warpKey = RoutesMapping.warpProfileKey()
-                        val storedKeys = get(keysKey)
+            override suspend fun migrate(currentData: Preferences): Preferences =
+                currentData.toMutablePreferences().apply {
+                    val keysKey = RoutesMapping.keysKey()
+                    val uriKey = RoutesMapping.uriKey()
+                    val warpKey = RoutesMapping.warpProfileKey()
+                    val storedKeys = get(keysKey)
 
-                        if (!storedKeys.isNullOrBlank()) {
-                            this[keysKey] = cipher.encryptIfNeeded(keysKey.name, storedKeys)
-                            // Modern VLESS storage is canonical. Do not retain a second
-                            // shadow copy of the active URI after encryption.
-                            remove(uriKey)
-                        } else {
-                            get(uriKey)?.takeIf { it.isNotBlank() }?.let { legacy ->
-                                this[uriKey] = cipher.encryptIfNeeded(uriKey.name, legacy)
-                            }
+                    if (storedKeys.isNullOrBlank()) {
+                        val storedLegacy = get(uriKey)
+                        val legacyUri = storedLegacy?.let { cipher.decrypt(uriKey.name, it) }.orEmpty()
+                        val keys = VlessKeys.fromStored("", legacyUri)
+                        if (keys.items.isNotEmpty()) {
+                            this[keysKey] = cipher.encrypt(keysKey.name, keys.toJson())
                         }
-
-                        get(warpKey)?.takeIf { it.isNotBlank() }?.let { warp ->
-                            this[warpKey] = cipher.encryptIfNeeded(warpKey.name, warp)
-                        }
-                        this[RoutesMapping.sensitiveMigratedKey()] = true
+                        // Canonical modern storage is vless_keys. Never retain a
+                        // second copy of the active credential after migration.
+                        remove(uriKey)
+                    } else {
+                        this[keysKey] = cipher.encryptIfNeeded(keysKey.name, storedKeys)
+                        remove(uriKey)
                     }
 
-                override suspend fun cleanUp() = Unit
-            },
-        ),
+                    get(warpKey)?.takeIf { it.isNotBlank() }?.let { warp ->
+                        this[warpKey] = cipher.encryptIfNeeded(warpKey.name, warp)
+                    }
+                    this[RoutesMapping.vlessMigratedKey()] = true
+                    this[RoutesMapping.sensitiveMigratedKey()] = true
+                }
+
+            override suspend fun cleanUp() = Unit
+        }),
     )
 
     private val settingsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
