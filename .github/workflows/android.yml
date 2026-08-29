@@ -29,7 +29,7 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
         with:
-          packages: 'platform-tools platforms;android-37.0 build-tools;36.0.0 ndk;28.0.13004108'
+          packages: 'platform-tools emulator system-images;android-36;google_apis;x86_64 platforms;android-37.0 build-tools;36.0.0 ndk;28.0.13004108'
       - name: Export Android NDK
         run: |
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.0.13004108" >> "$GITHUB_ENV"
@@ -45,3 +45,62 @@ jobs:
       - name: Report release APK size
         run: python3 tools/apk_size_report.py app/build/outputs/apk/release
       - run: bash engine/vulnscan.sh
+      - name: Run instrumentation tests on Android 16 emulator
+        timeout-minutes: 12
+        shell: bash
+        run: |
+          set -euo pipefail
+          AVD_NAME="detour-ci-api36"
+          SYSTEM_IMAGE="system-images;android-36;google_apis;x86_64"
+
+          if [[ -e /dev/kvm ]]; then
+            sudo chmod 666 /dev/kvm
+          fi
+
+          echo "no" | avdmanager create avd \
+            --force \
+            --name "$AVD_NAME" \
+            --package "$SYSTEM_IMAGE"
+
+          cleanup() {
+            adb emu kill >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          emulator "@$AVD_NAME" \
+            -no-window \
+            -no-audio \
+            -no-boot-anim \
+            -no-snapshot \
+            -gpu swiftshader_indirect \
+            -accel on \
+            > "$RUNNER_TEMP/detour-emulator.log" 2>&1 &
+
+          adb wait-for-device
+          booted=0
+          for _ in $(seq 1 120); do
+            if [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; then
+              booted=1
+              break
+            fi
+            sleep 2
+          done
+
+          if [[ "$booted" != "1" ]]; then
+            echo "Android emulator did not finish booting" >&2
+            tail -n 200 "$RUNNER_TEMP/detour-emulator.log" >&2 || true
+            exit 1
+          fi
+
+          adb shell input keyevent 82 || true
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+
+          if ! ./gradlew :app:connectedDebugAndroidTest; then
+            echo "--- emulator log ---" >&2
+            tail -n 200 "$RUNNER_TEMP/detour-emulator.log" >&2 || true
+            echo "--- device logcat ---" >&2
+            adb logcat -d -t 500 >&2 || true
+            exit 1
+          fi
