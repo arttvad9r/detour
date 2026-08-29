@@ -10,8 +10,15 @@ Every push and pull request runs:
 ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest :app:assembleRelease
 python3 tools/apk_size_report.py app/build/outputs/apk/release
 bash engine/vulnscan.sh
+```
+
+Pull requests and pushes to `master` additionally install the hosted Android 16 emulator image and run:
+
+```bash
 ./gradlew :app:connectedDebugAndroidTest
 ```
+
+Ordinary branch pushes still compile the instrumentation APK but skip the emulator download and runtime test. The pull-request gate therefore validates the exact review revision on a device before merge, and the `master` push validates the integrated revision after merge.
 
 The Android workflow pins:
 
@@ -32,7 +39,7 @@ After release assembly, `tools/apk_size_report.py` records the total APK size, c
 
 ## Instrumented tests
 
-Hosted CI creates a headless hardware-accelerated Android 16 / API 36 emulator after the normal build gate and executes `:app:connectedDebugAndroidTest`. Keeping the runtime test in the same job reuses the already-built Mihomo/ByeDPI artifacts instead of rebuilding the native engine in a second job.
+For pull requests and `master` pushes, hosted CI creates a headless hardware-accelerated Android 16 / API 36 emulator after the normal build gate and executes `:app:connectedDebugAndroidTest`. Keeping the runtime test in the same job reuses the already-built Mihomo/ByeDPI artifacts instead of rebuilding the native engine in a second job.
 
 The hosted runtime suite intentionally stays below the VPN data plane. It currently covers:
 
