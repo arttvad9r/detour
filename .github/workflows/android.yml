@@ -41,5 +41,12 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           export PATH="$(go env GOPATH)/bin:$PATH"
           gomobile init
-      - run: ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease
+      - run: ./gradlew --write-verification-metadata sha256 :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease
+      - name: Upload verification metadata
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: verification-metadata
+          path: gradle/verification-metadata.xml
+          if-no-files-found: error
+          retention-days: 1
       - run: bash engine/vulnscan.sh
