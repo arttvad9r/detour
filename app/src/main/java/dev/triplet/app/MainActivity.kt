@@ -30,9 +30,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import dev.triplet.app.core.ParseResult
-import dev.triplet.app.core.VlessKeyParser
-import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.data.AppInventory
 import dev.triplet.app.ui.AppShapes
 import dev.triplet.app.ui.AppTheme
@@ -58,9 +55,9 @@ import dev.triplet.app.ui.VlessKeyScreen
 import dev.triplet.app.ui.colorSchemeFor
 import dev.triplet.app.ui.configureAdaptiveRefresh
 import dev.triplet.app.ui.detourHighRefresh
+import dev.triplet.app.vpn.AutoConnectCoordinator
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
-import dev.triplet.app.vpn.canAutoConnect
 import dev.triplet.app.vpn.resolveEffectiveRoutes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -154,26 +151,19 @@ class MainActivity : ComponentActivity() {
                         }
 
                         LaunchedEffect(Unit) {
-                            val launchSettings = store.snapshot()
-                            val effective = withContext(Dispatchers.IO) {
-                                resolveEffectiveRoutes(appContext.packageManager, launchSettings.routes)
-                            }
-                            val activeVpnValid = when (launchSettings.activeVpn) {
-                                VpnProfileKind.VLESS -> launchSettings.vlessKeys.active?.uri?.let {
-                                    VlessKeyParser.parse(it) is ParseResult.Ok
-                                } == true
-                                VpnProfileKind.WARP -> launchSettings.warpProfile != null
-                            }
-                            if (
-                                canAutoConnect(
-                                    launchSettings,
-                                    android.net.VpnService.prepare(ctx) == null,
-                                    effective,
-                                    activeVpnValid,
-                                ) && VpnController.state.value == VpnState.Idle
-                            ) {
-                                VpnController.startNow(ctx)
-                            }
+                            AutoConnectCoordinator(
+                                loadSettings = store::snapshot,
+                                resolveRoutes = { routes ->
+                                    withContext(Dispatchers.IO) {
+                                        resolveEffectiveRoutes(appContext.packageManager, routes)
+                                    }
+                                },
+                                vpnPermissionGranted = {
+                                    android.net.VpnService.prepare(ctx) == null
+                                },
+                                currentVpnState = { VpnController.state.value },
+                                startVpn = { VpnController.startNow(ctx) },
+                            ).runOnce()
                         }
 
                         NavHost(
