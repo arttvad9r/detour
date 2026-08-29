@@ -48,16 +48,48 @@ jobs:
       - name: Report universal release APK size
         run: python3 tools/apk_size_report.py app/build/outputs/apk/release
       - run: bash engine/vulnscan.sh
-      - name: Build arm64 release APK
+      - name: Generate disposable CI release keystore
+        shell: bash
+        run: |
+          set -euo pipefail
+          CI_KEYSTORE="$RUNNER_TEMP/detour-ci-release.keystore"
+          keytool -genkeypair \
+            -keystore "$CI_KEYSTORE" \
+            -storepass detour-ci-password \
+            -keypass detour-ci-password \
+            -alias detour-ci \
+            -dname "CN=Detour CI" \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 1 \
+            -noprompt
+          chmod 600 "$CI_KEYSTORE"
+      - name: Build CI-signed arm64 release APK
+        env:
+          DETOUR_RELEASE_KEYSTORE: ${{ runner.temp }}/detour-ci-release.keystore
+          DETOUR_RELEASE_STORE_PASSWORD: detour-ci-password
+          DETOUR_RELEASE_KEY_ALIAS: detour-ci
+          DETOUR_RELEASE_KEY_PASSWORD: detour-ci-password
         run: |
           rm -rf app/build/outputs/apk/release
-          ./gradlew :app:assembleRelease -PdetourReleaseAbi=arm64-v8a
-      - name: Enforce arm64 release APK size
-        run: >-
-          python3 tools/apk_size_report.py app/build/outputs/apk/release
-          --report app/build/reports/apk-size-arm64.json
-          --max-bytes 31457280
-          --expected-abi arm64-v8a
+          ./gradlew :app:assembleRelease \
+            -PdetourReleaseAbi=arm64-v8a \
+            -PdetourVersionName=0.1.0-ci \
+            -PdetourVersionCode=1001
+      - name: Verify CI-signed arm64 release APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit)"
+          if [[ -z "$APK" ]]; then
+            echo "Release APK not found" >&2
+            exit 1
+          fi
+          "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+          python3 tools/apk_size_report.py "$APK" \
+            --report app/build/reports/apk-size-arm64.json \
+            --max-bytes 31457280 \
+            --expected-abi arm64-v8a
       - name: Upload APK size reports
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
