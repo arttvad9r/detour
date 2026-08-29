@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# govulncheck over the engine's real dependency set (pinned mihomo + triplet patches).
+# Engine verification over the real dependency set (pinned mihomo + Triplet patches).
 # Run after :buildMihomoAar so .cache/mihomo-src and engine.aar match the build.
 set -euo pipefail
 
@@ -16,12 +16,18 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 cp "$REPO_ROOT/engine/mihomo/go/go.mod" "$WORK_DIR/"
 cp "$REPO_ROOT/engine/mihomo/go/go.sum" "$WORK_DIR/"
 cp "$REPO_ROOT/engine/mihomo/go/engine.go" "$WORK_DIR/"
+cp "$REPO_ROOT/engine/mihomo/go/engine_test.go" "$WORK_DIR/"
 cd "$WORK_DIR"
 sed -i "s|^replace github.com/metacubex/mihomo => .*|replace github.com/metacubex/mihomo => $CACHE|" go.mod
 grep -q '^replace github.com/metacubex/mihomo' go.mod || \
   echo "replace github.com/metacubex/mihomo => $CACHE" >> go.mod
 
 export GOFLAGS=-mod=mod
+# Exercise the checked-in engine tests against the exact patched source tree and
+# the same gVisor feature set used by the Android AAR.
+echo "go test: with_gvisor"
+go test -tags with_gvisor ./...
+
 # Source mode gives call-graph precision. Match the production feature tag;
 # platform/architecture differences are covered below by scanning the actual
 # Android shared libraries produced by gomobile.
