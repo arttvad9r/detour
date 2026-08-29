@@ -117,6 +117,28 @@ export PATH="$PATH:$(go env GOPATH)/bin"
 export GOFLAGS="-mod=mod -tags=with_gvisor"
 # -libname dropped: gomobile@latest no longer supports it; output defaults to <package>.aar == engine.aar
 gomobile bind -target android/arm64,android/amd64 -androidapi 24 -javapkg=dev.triplet.engine .
+
+# Verify the shipped c-shared libraries were built by the Go toolchain selected
+# by this dev shell. `go version` reads the linker-stamped version from c-shared
+# ELF files; checking every ABI prevents a stale/vulnerable runtime from being
+# packaged even if gomobile itself was built by another Go release.
+expected_go="$(go env GOVERSION)"
+mapfile -t go_libs < <(unzip -Z1 engine.aar | grep -E '^jni/[^/]+/libgojni\.so$')
+if (( ${#go_libs[@]} == 0 )); then
+  echo "FATAL: engine.aar contains no libgojni.so" >&2
+  exit 1
+fi
+for entry in "${go_libs[@]}"; do
+  extracted="$WORK_DIR/$(basename "$(dirname "$entry")")-libgojni.so"
+  unzip -p engine.aar "$entry" > "$extracted"
+  actual_go="$(go version "$extracted" | awk '{print $2}')"
+  if [[ "$actual_go" != "$expected_go" ]]; then
+    echo "FATAL: $entry built with $actual_go, expected $expected_go" >&2
+    exit 1
+  fi
+done
+echo "embedded Go runtime: $expected_go (${#go_libs[@]} ABIs)"
+
 mkdir -p "$(dirname "$OUT")"
 cp engine.aar "$OUT"
 echo "Artifact: $OUT ($(du -h engine.aar | cut -f1))"
