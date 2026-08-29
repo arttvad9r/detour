@@ -72,10 +72,10 @@ object RoutesMapping {
             entries[KEY_URI] as? String ?: "",
         )
         val warpProfile = WarpProfile.fromStored(entries[KEY_WARP_PROFILE] as? String ?: "")
-        val requestedVpn = VpnProfileKind.fromStored(entries[KEY_VPN_KIND] as? String)
-        val activeVpn = if (requestedVpn == VpnProfileKind.WARP && warpProfile == null) {
-            VpnProfileKind.VLESS
-        } else requestedVpn
+        // Preserve the requested kind even when its snapshot is missing/corrupt.
+        // Falling back to another configured profile could silently change the
+        // endpoint used by auto-connect; an unconfigured selection instead fails closed.
+        val activeVpn = VpnProfileKind.fromStored(entries[KEY_VPN_KIND] as? String)
         return TriSettings(
             vlessKeys = vlessKeys,
             warpProfile = warpProfile,
