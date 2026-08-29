@@ -33,10 +33,12 @@ import androidx.navigation.compose.rememberNavController
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.core.VpnProfileKind
+import dev.triplet.app.data.AppInventory
 import dev.triplet.app.ui.AppShapes
 import dev.triplet.app.ui.AppTheme
 import dev.triplet.app.ui.AppTypography
 import dev.triplet.app.ui.AppsScreen
+import dev.triplet.app.ui.AppsViewModel
 import dev.triplet.app.ui.BackupScreen
 import dev.triplet.app.ui.DetourColors
 import dev.triplet.app.ui.DnsScreen
@@ -243,7 +245,24 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                             composable(Route.ROUTES) {
-                                AppsScreen(store, onBack = { navController.popBackStack() })
+                                val appsViewModel = viewModel<AppsViewModel>(
+                                    factory = AppsViewModel.factory(
+                                        store = store,
+                                        initialApps = AppInventory.peek(),
+                                        loadApps = {
+                                            withContext(Dispatchers.IO) {
+                                                AppInventory.load(appContext)
+                                            }
+                                        },
+                                        restartTunnel = {
+                                            VpnController.restartIfActive(appContext)
+                                        },
+                                    ),
+                                )
+                                AppsScreen(
+                                    appsViewModel,
+                                    onBack = { navController.popBackStack() },
+                                )
                             }
                             composable(Route.VLESS) {
                                 val profilesViewModel = viewModel<ProfilesViewModel>(
