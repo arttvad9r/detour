@@ -6,6 +6,7 @@ import androidx.datastore.core.DataMigration
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
@@ -23,10 +24,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import java.io.IOException
 
 data class TriSettings(
     val vlessKeys: VlessKeys,
@@ -144,6 +147,9 @@ class RoutesStore(context: Context) {
      * immediately instead of rendering a temporary null/default state for one frame.
      */
     val settings: StateFlow<TriSettings?> = store.data
+        .catch { exception ->
+            if (exception is IOException) emit(emptyPreferences()) else throw exception
+        }
         .map<Preferences, TriSettings?> { prefs ->
             RoutesMapping.toSettings(prefs.asMap().mapKeys { (k, _) -> k.name })
         }
