@@ -49,6 +49,7 @@ bash engine/vulnscan.sh
 | DpiPresets | 4/4 |
 | RoutesMapping | 8/8 (включая corrupt WARP/VLESS fail-closed) |
 | Theme transition policy | 2/2 (light↔dark snap; same-mode animation retained) |
+| Status theme policy | 1/1 (Failed остаётся на neutral surface во всех темах; error используется только семантически) |
 | Profile tunnel policy | 4/4 (inactive mutation = none; active edit/replace = restart; active delete = stop) |
 
 ## Сквозное доказательство маршрутов
@@ -86,6 +87,8 @@ bash engine/vulnscan.sh
 15. Изменение/удаление невыбранного профиля не рвёт tunnel; active delete делает Stop.
 16. Backup JSON serialization/parsing выполняется вне main thread и покрыта error handling.
 17. Quick Settings tile использует VPN/lock icon и app resource label; stale strings удалены.
+18. Full-screen navigation больше не alpha-crossfade'ит два destination одновременно: incoming screen движется поверх непрозрачного предыдущего, поэтому Settings/Home/Routes/DPI/DNS/Theme не просвечивают друг через друга.
+19. Failed-state Home больше не превращает `errorSoft` в почти непрозрачный red/pink fill; карточка остаётся neutral surface во всех темах, error остаётся в title/border, а дублирующий Retry внутри карточки удалён.
 
 ## Current automated/device limitations
 
@@ -102,3 +105,5 @@ bash engine/vulnscan.sh
 - Удаление active VLESS/WARP должно завершать session через Stop; inactive edit/delete не должны рвать tunnel.
 - Home/Settings/Tile должны пересчитать effective routes после установки/удаления приложения.
 - API 29–32: LAN destinations не должны попадать в VLESS/DPI outbound.
+- Навигация Home ↔ Settings ↔ дочерние экраны не должна показывать два полноэкранных UI одновременно во время transition.
+- Failed-state проверить в Catppuccin Latte/Mocha, Gruvbox Dark и Dracula: neutral card surface, error title/border, без сплошной красной/розовой заливки и без второго Retry внутри карточки.
