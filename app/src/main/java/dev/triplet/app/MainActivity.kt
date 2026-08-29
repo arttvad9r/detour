@@ -8,8 +8,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
@@ -160,28 +158,17 @@ class MainActivity : ComponentActivity() {
                                         targetState.destination.route == Route.SETTINGS
                                 if (rootTransition) {
                                     fadeIn(
-                                        tween(
-                                            Motion.NAV_ENTER_MS,
-                                            delayMillis = 20,
-                                            easing = Motion.ENTER_EASING,
-                                        ),
-                                    ) + scaleIn(
                                         tween(Motion.NAV_ENTER_MS, easing = Motion.ENTER_EASING),
-                                        initialScale = 0.985f,
                                     )
                                 } else {
                                     fadeIn(
-                                        tween(
-                                            Motion.NAV_ENTER_MS,
-                                            delayMillis = 24,
-                                            easing = Motion.ENTER_EASING,
-                                        ),
+                                        tween(Motion.NAV_ENTER_MS, easing = Motion.ENTER_EASING),
                                     ) + slideInHorizontally(
                                         animationSpec = tween(
                                             Motion.NAV_ENTER_MS,
                                             easing = Motion.ENTER_EASING,
                                         ),
-                                        initialOffsetX = { it / 12 },
+                                        initialOffsetX = { it / 24 },
                                     )
                                 }
                             },
@@ -192,9 +179,6 @@ class MainActivity : ComponentActivity() {
                                 if (rootTransition) {
                                     fadeOut(
                                         tween(Motion.NAV_EXIT_MS, easing = Motion.EXIT_EASING),
-                                    ) + scaleOut(
-                                        tween(Motion.NAV_EXIT_MS, easing = Motion.EXIT_EASING),
-                                        targetScale = 0.995f,
                                     )
                                 } else {
                                     fadeOut(
@@ -204,7 +188,7 @@ class MainActivity : ComponentActivity() {
                                             Motion.NAV_EXIT_MS,
                                             easing = Motion.EXIT_EASING,
                                         ),
-                                        targetOffsetX = { -it / 36 },
+                                        targetOffsetX = { -it / 48 },
                                     )
                                 }
                             },
@@ -214,28 +198,17 @@ class MainActivity : ComponentActivity() {
                                         targetState.destination.route == Route.HOME
                                 if (rootTransition) {
                                     fadeIn(
-                                        tween(
-                                            Motion.NAV_ENTER_MS,
-                                            delayMillis = 12,
-                                            easing = Motion.ENTER_EASING,
-                                        ),
-                                    ) + scaleIn(
                                         tween(Motion.NAV_ENTER_MS, easing = Motion.ENTER_EASING),
-                                        initialScale = 0.992f,
                                     )
                                 } else {
                                     fadeIn(
-                                        tween(
-                                            Motion.NAV_ENTER_MS,
-                                            delayMillis = 16,
-                                            easing = Motion.ENTER_EASING,
-                                        ),
+                                        tween(Motion.NAV_ENTER_MS, easing = Motion.ENTER_EASING),
                                     ) + slideInHorizontally(
                                         animationSpec = tween(
                                             Motion.NAV_ENTER_MS,
                                             easing = Motion.ENTER_EASING,
                                         ),
-                                        initialOffsetX = { -it / 36 },
+                                        initialOffsetX = { -it / 24 },
                                     )
                                 }
                             },
@@ -246,9 +219,6 @@ class MainActivity : ComponentActivity() {
                                 if (rootTransition) {
                                     fadeOut(
                                         tween(Motion.NAV_EXIT_MS, easing = Motion.EXIT_EASING),
-                                    ) + scaleOut(
-                                        tween(Motion.NAV_EXIT_MS, easing = Motion.EXIT_EASING),
-                                        targetScale = 0.985f,
                                     )
                                 } else {
                                     fadeOut(
@@ -258,7 +228,7 @@ class MainActivity : ComponentActivity() {
                                             Motion.NAV_EXIT_MS,
                                             easing = Motion.EXIT_EASING,
                                         ),
-                                        targetOffsetX = { it / 12 },
+                                        targetOffsetX = { it / 48 },
                                     )
                                 }
                             },
