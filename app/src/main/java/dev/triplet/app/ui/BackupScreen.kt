@@ -63,6 +63,7 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
 
     var status by remember { mutableStateOf("") }
     var statusIsError by remember { mutableStateOf(false) }
+    val scrollState = rememberScrollState()
 
     fun showStatus(message: String, error: Boolean) {
         status = message
@@ -137,7 +138,8 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
             .background(c.background)
             .statusBarsPadding()
             .navigationBarsPadding()
-            .verticalScroll(rememberScrollState()),
+            .verticalScroll(scrollState)
+            .detourHighRefresh(scrollState.isScrollInProgress),
     ) {
         ScreenHeader(stringResource(R.string.backup_title), onBack)
         Spacer(Modifier.height(Spacing.space8))
