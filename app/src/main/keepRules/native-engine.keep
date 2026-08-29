@@ -1,0 +1,4 @@
+# gomobile-generated Java classes are bound to native symbols by name.
+# Keep both the generated Detour API and gomobile runtime stable under R8.
+-keep class dev.triplet.engine.** { *; }
+-keep class go.** { *; }
