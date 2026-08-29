@@ -70,7 +70,8 @@ class DnsViewModel(
     fun chooseKnown(id: String) {
         require(id in DnsOptions.servers)
         editingOverride.value = false
-        if (uiState.value.selectedDns == id) return
+        val selectedDns = settings.value?.dnsId?.ifBlank { null } ?: "google"
+        if (selectedDns == id) return
         val persistedCustom = settings.value?.dnsCustom.orEmpty()
         viewModelScope.launch {
             setDns(id, persistedCustom)
@@ -79,7 +80,7 @@ class DnsViewModel(
     }
 
     fun saveCustom() {
-        val value = uiState.value.customField.trim()
+        val value = (customDraft.value ?: settings.value?.dnsCustom.orEmpty()).trim()
         if (!DnsOptions.isValid(value)) return
         viewModelScope.launch {
             setDns(DnsOptions.CUSTOM, value)
