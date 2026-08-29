@@ -29,12 +29,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -50,35 +48,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
-import dev.triplet.app.core.ParseResult
-import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.core.VpnProfileKind
-import dev.triplet.app.data.RoutesStore
-import dev.triplet.app.vpn.EffectiveRoutes
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
-import dev.triplet.app.vpn.resolveEffectiveRoutes
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 
-enum class HomeProtocol { VLESS_DPI, DPI, VLESS, NONE }
 private enum class VisualVpnState { IDLE, STARTING, ACTIVE, FAILED }
-
-fun homeProtocol(routes: EffectiveRoutes): HomeProtocol {
-    val dpi = routes.dpiPackages.isNotEmpty()
-    val vpn = routes.vpnPackages.isNotEmpty()
-    return when {
-        dpi && vpn -> HomeProtocol.VLESS_DPI
-        dpi -> HomeProtocol.DPI
-        vpn -> HomeProtocol.VLESS
-        else -> HomeProtocol.NONE
-    }
-}
 
 private fun visualKey(state: VpnState): VisualVpnState = when (state) {
     VpnState.Idle -> VisualVpnState.IDLE
@@ -88,35 +66,15 @@ private fun visualKey(state: VpnState): VisualVpnState = when (state) {
 }
 
 @Composable
-fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
-    val state by VpnController.state.collectAsStateWithLifecycle()
+fun HomeScreen(viewModel: HomeViewModel, onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
     val haptics = LocalHapticFeedback.current
-    val st = state
+    val st = uiState.vpnState
     val c = detourColors
-    val settings by store.settings.collectAsStateWithLifecycle()
-    val persistedRoutes = settings?.routes.orEmpty()
-    var routeRevision by remember { mutableIntStateOf(0) }
-    DisposableEffect(ctx) {
-        val owner = ctx as? LifecycleOwner
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) routeRevision++
-        }
-        owner?.lifecycle?.addObserver(observer)
-        onDispose { owner?.lifecycle?.removeObserver(observer) }
-    }
-    val effectiveRoutes by produceState(
-        initialValue = EffectiveRoutes(emptySet(), emptySet()),
-        key1 = persistedRoutes,
-        key2 = routeRevision,
-    ) {
-        value = if (persistedRoutes.isEmpty()) {
-            EffectiveRoutes(emptySet(), emptySet())
-        } else {
-            withContext(Dispatchers.IO) {
-                resolveEffectiveRoutes(ctx.packageManager, persistedRoutes)
-            }
-        }
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.refreshRoutes()
     }
 
     var showStarting by remember { mutableStateOf(false) }
@@ -127,7 +85,7 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
         if (st == VpnState.Starting) {
             showStarting = false
             delay(Motion.DEFERRED_BUSY_MS)
-            if (VpnController.state.value == VpnState.Starting) showStarting = true
+            if (viewModel.uiState.value.vpnState == VpnState.Starting) showStarting = true
         } else {
             showStarting = false
             lastSettledState = st
@@ -157,9 +115,9 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
     )
 
     var elapsed by rememberSaveable { mutableIntStateOf(0) }
-    LaunchedEffect(st, settings?.sessionStartedAt) {
+    LaunchedEffect(st, uiState.sessionStartedAt) {
         if (st == VpnState.Active) {
-            val started = settings?.sessionStartedAt ?: System.currentTimeMillis()
+            val started = uiState.sessionStartedAt ?: System.currentTimeMillis()
             while (true) {
                 elapsed = ((System.currentTimeMillis() - started) / 1000L).coerceAtLeast(0).toInt()
                 delay(1000)
@@ -172,13 +130,6 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
         val sec = elapsed % 60
         "%02d:%02d:%02d".format(h, m, sec)
     }
-    val serverHost = remember(settings?.vlessUri, settings?.warpProfile, settings?.activeVpn) {
-        when (settings?.activeVpn ?: VpnProfileKind.VLESS) {
-            VpnProfileKind.VLESS ->
-                (VlessKeyParser.parse(settings?.vlessUri ?: "") as? ParseResult.Ok)?.profile?.server
-            VpnProfileKind.WARP -> settings?.warpProfile?.name
-        }
-    }
 
     val consentLauncher = rememberLauncherForActivityResult(StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) VpnController.startNow(ctx)
@@ -188,11 +139,10 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
         else if (st != VpnState.Starting) VpnController.start(ctx, consentLauncher::launch)
     }
 
-    val activeVpn = settings?.activeVpn ?: VpnProfileKind.VLESS
-    val protocolRes = when (homeProtocol(effectiveRoutes)) {
-        HomeProtocol.VLESS_DPI -> if (activeVpn == VpnProfileKind.WARP) R.string.protocol_warp_dpi else R.string.protocol_vless_dpi
+    val protocolRes = when (uiState.protocol) {
+        HomeProtocol.VLESS_DPI -> if (uiState.activeVpn == VpnProfileKind.WARP) R.string.protocol_warp_dpi else R.string.protocol_vless_dpi
         HomeProtocol.DPI -> R.string.protocol_dpi
-        HomeProtocol.VLESS -> if (activeVpn == VpnProfileKind.WARP) R.string.protocol_warp else R.string.protocol_vless
+        HomeProtocol.VLESS -> if (uiState.activeVpn == VpnProfileKind.WARP) R.string.protocol_warp else R.string.protocol_vless
         HomeProtocol.NONE -> R.string.protocol_none
     }
 
@@ -242,7 +192,7 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
                 state = visualState,
                 style = style,
                 timerText = timerText,
-                serverHost = serverHost,
+                serverHost = uiState.serverHost,
                 protocol = stringResource(protocolRes),
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
