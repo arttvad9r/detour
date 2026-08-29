@@ -41,7 +41,7 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           export PATH="$(go env GOPATH)/bin:$PATH"
           gomobile init
-      - run: ./gradlew --write-verification-metadata sha256 :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleRelease
+      - run: ./gradlew --write-verification-metadata sha256 :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest :app:assembleRelease
       - name: Commit verification metadata
         if: github.event_name == 'push' && github.ref == 'refs/heads/chore/sdk37-deps'
         run: |
