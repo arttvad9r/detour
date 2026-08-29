@@ -17,14 +17,22 @@ object Motion {
     const val STATE_MS = 160
     const val CONTENT_IN_MS = 150
     const val CONTENT_OUT_MS = 100
+
+    // Most child destinations stay quick. The two densest entry points need a
+    // longer nominal window because platform animator-duration scale is applied
+    // on top (for example 0.5x turns 320 ms into roughly 160 ms on-device).
     const val NAV_ENTER_MS = 220
     const val NAV_EXIT_MS = 190
+    const val NAV_SETTINGS_ENTER_MS = 300
+    const val NAV_SETTINGS_EXIT_MS = 240
+    const val NAV_ROUTES_ENTER_MS = 320
+    const val NAV_ROUTES_EXIT_MS = 260
     const val THEME_MS = 220
 
     // Refresh-rate votes are deliberately bounded. Touch/release boosting is
     // handled by the platform; these windows only cover motion the app knows is
     // still active after the gesture itself has finished.
-    const val NAV_REFRESH_BOOST_MS = 260L
+    const val NAV_REFRESH_BOOST_MS = 360L
     const val LIST_REFRESH_BOOST_MS = 220L
 
     /** Fast VPN starts should never flash a transient "Connecting" state. */
