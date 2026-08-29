@@ -24,6 +24,14 @@ android {
 
     buildFeatures { compose = true }
 
+    buildTypes {
+        release {
+            optimization {
+                enable = true
+            }
+        }
+    }
+
     // Бинарник ByeDPI должен лежать распакованным файлом в nativeLibraryDir.
     packaging { jniLibs { useLegacyPackaging = true } }
 
@@ -58,6 +66,7 @@ dependencies {
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.kotlinx.coroutines.android)
     implementation(libs.snakeyaml)
     testImplementation(libs.junit)
 
