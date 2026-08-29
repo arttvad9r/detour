@@ -6,7 +6,7 @@
 
 **Architecture:** Preserve the existing small Kotlin/Go design. Make routing fail closed, keep state mutations atomic, put validation at trust boundaries, and make CI build the native artifact it consumes. Prefer focused pure helpers and existing platform APIs over new dependencies.
 
-**Tech Stack:** Kotlin, Android VPN/Compose/DataStore, Go mihomo wrapper, Gradle, Nix, GitHub Actions.
+**Tech Stack:** Kotlin, Android VPN/Compose/DataStore, Go mihomo wrapper, Gradle, Arch Linux development environment, GitHub Actions.
 
 **Spec:** Full audit report delivered 2026-08-26.
 

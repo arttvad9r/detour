@@ -16,8 +16,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
-      # Locked flake environment (flake.lock pins nixpkgs revision).
-      - run: nix develop -c ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
-      # Go dependency vulnerability gate over the patched pinned engine sources.
-      - run: nix develop -c bash engine/vulnscan.sh
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.26.7'
+          cache: true
+          cache-dependency-path: engine/mihomo/go/go.sum
+      - name: Install Android SDK components
+        run: yes | sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.0.13004108"
+      - name: Export Android NDK
+        run: |
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.0.13004108" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/28.0.13004108" >> "$GITHUB_ENV"
+      - name: Install Go tooling
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@latest
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - run: ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+      - run: bash engine/vulnscan.sh

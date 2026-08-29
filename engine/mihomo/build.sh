@@ -11,8 +11,8 @@ CACHE="${MIHOMO_CACHE:-$REPO_ROOT/.cache/mihomo-src}"
 BIND_DIR="$REPO_ROOT/engine/mihomo/go"
 OUT="$REPO_ROOT/engine/libs/engine.aar"
 
-command -v go >/dev/null || { echo "run inside nix develop" >&2; exit 127; }
-command -v gomobile >/dev/null || { echo "gomobile missing" >&2; exit 127; }
+command -v go >/dev/null || { echo "Go is required (release builds use Go 1.26.7)" >&2; exit 127; }
+command -v gomobile >/dev/null || { echo "gomobile missing; install golang.org/x/mobile/cmd/gomobile" >&2; exit 127; }
 
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
@@ -115,13 +115,12 @@ PYEOF
 
 export PATH="$PATH:$(go env GOPATH)/bin"
 export GOFLAGS="-mod=mod -tags=with_gvisor"
-# -libname dropped: gomobile@latest no longer supports it; output defaults to <package>.aar == engine.aar
+# -libname dropped: current gomobile no longer supports it; output defaults to <package>.aar == engine.aar
 gomobile bind -target android/arm64,android/amd64 -androidapi 24 -javapkg=dev.triplet.engine .
 
-# Verify the shipped c-shared libraries were built by the Go toolchain selected
-# by this dev shell. `go version` reads the linker-stamped version from c-shared
-# ELF files; checking every ABI prevents a stale/vulnerable runtime from being
-# packaged even if gomobile itself was built by another Go release.
+# Verify the shipped c-shared libraries were built by the selected Go toolchain.
+# `go version` reads the linker-stamped version from c-shared ELF files; checking
+# every ABI prevents a stale/vulnerable runtime from being packaged.
 expected_go="$(go env GOVERSION)"
 mapfile -t go_libs < <(unzip -Z1 engine.aar | grep -E '^jni/[^/]+/libgojni\.so$')
 if (( ${#go_libs[@]} == 0 )); then

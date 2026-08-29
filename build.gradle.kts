@@ -4,15 +4,14 @@ plugins {
     alias(libs.plugins.kotlin.compose) apply false
 }
 
-val goRoot = providers.exec {
-    commandLine("go", "env", "GOROOT")
+val goVersion = providers.exec {
+    commandLine("go", "version")
 }.standardOutput.asText
 
 tasks.register<Exec>("buildMihomoAar") {
     // Engine output depends on both its sources and the exact Go toolchain.
-    // GOROOT is a Nix store path, so version/patchset changes invalidate stale AARs.
     inputs.files("engine/mihomo/build.sh", "engine/mihomo/go/go.mod", "engine/mihomo/go/go.sum", "engine/mihomo/go/engine.go")
-    inputs.property("goRoot", goRoot)
+    inputs.property("goVersion", goVersion)
     outputs.file("engine/libs/engine.aar")
     commandLine("bash", "engine/mihomo/build.sh")
 }

@@ -6,7 +6,7 @@
 
 **Architecture:** Keep the existing pure Kotlin helpers and DataStore model. Add small pure functions for effective routes, probe selection, validation, backup parsing, auto-connect, and restart reconciliation; make Android service code consume those decisions. Keep IPv4-only TUN fail-closed and use one atomic DataStore edit for restore.
 
-**Tech Stack:** Kotlin/JVM unit tests, Android VpnService, Preferences DataStore, Mihomo YAML, ByeDPI ProcessBuilder, Gradle, GitHub Actions, pinned shell builds.
+**Tech Stack:** Kotlin/JVM unit tests, Android VpnService, Preferences DataStore, Mihomo YAML, ByeDPI ProcessBuilder, Gradle, GitHub Actions, Arch Linux development environment.
 
 **Spec:** User corrective-pass requirements in the conversation.
 
@@ -69,10 +69,10 @@
 
 ### Task 6: Reproducible native builds and CI
 
-**Files:** native build scripts, `shell.nix`/flake files, `.github/workflows/*`, README/docs.
+**Files:** native build scripts, `.github/workflows/*`, README/docs.
 
 - [ ] Pin exact Mihomo and ByeDPI revisions, reset cleanly, and fail hard on patch/layout mismatch.
-- [ ] Pin gomobile in the development environment and document `./gradlew` commands.
+- [ ] Keep Java, Android SDK/NDK, Go and native helper requirements explicit in current development instructions and CI.
 - [ ] Add non-fake push/PR workflow for unit tests, lint, assembleDebug, and a separately cacheable native check.
 
 ### Task 7: Verification

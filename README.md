@@ -2,12 +2,42 @@
 
 Android network client with per-app routing through embedded native components.
 
-## Build
+## Development on Arch Linux
 
-The repository includes a pinned Nix flake (`flake.nix` and `flake.lock`). Use it for the reproducible Java, Android SDK/NDK, Go, and gomobile environment:
+Install the host tools:
 
 ```bash
-nix develop -c ./gradlew :app:assembleDebug
+sudo pacman -S --needed jdk17-openjdk go git python unzip zip curl
+```
+
+Install Android command-line tools, then install the exact SDK components used by the project:
+
+```bash
+sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.0.13004108"
+```
+
+Set the Android/JDK environment for your shell. Adjust `ANDROID_HOME` if your SDK lives elsewhere:
+
+```bash
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk
+export ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/Sdk}"
+export ANDROID_SDK_ROOT="$ANDROID_HOME"
+export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/28.0.13004108"
+export ANDROID_NDK_ROOT="$ANDROID_NDK_HOME"
+export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$(go env GOPATH)/bin:$PATH"
+```
+
+CI builds the native engine with Go 1.26.7. Keep the local Go toolchain on the same release when producing release artifacts. Install the Go-side build and vulnerability tools:
+
+```bash
+go install golang.org/x/mobile/cmd/gomobile@latest
+go install golang.org/x/vuln/cmd/govulncheck@latest
+```
+
+Build the app:
+
+```bash
+./gradlew :app:assembleDebug
 ```
 
 The Gradle build creates the native artifacts it consumes before packaging. Generated artifacts, caches, and machine-specific SDK configuration are kept out of git.
@@ -17,14 +47,14 @@ The Gradle build creates the native artifacts it consumes before packaging. Gene
 Run the same core checks configured in GitHub Actions:
 
 ```bash
-nix develop -c ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
-nix develop -c bash engine/vulnscan.sh
+./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+bash engine/vulnscan.sh
 ```
 
 With an Android emulator or device connected, instrumented tests can be run separately:
 
 ```bash
-nix develop -c ./gradlew :app:connectedDebugAndroidTest
+./gradlew :app:connectedDebugAndroidTest
 ```
 
 The Gradle wrapper verifies its distribution checksum, and dependency verification metadata is committed in `gradle/verification-metadata.xml`. Native source revisions and embedding patches are recorded in `docs/pins.md`.

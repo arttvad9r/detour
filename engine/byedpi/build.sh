@@ -9,7 +9,7 @@ OUT_DIR="$REPO_ROOT/app/src/main/jniLibs"
 BYEDPI_VERSION="v0.17.3"
 BYEDPI_COMMIT="7efde1b1296eaaa187b70e951894dde17527489c"
 
-[[ -n "${ANDROID_NDK_HOME:-}" ]] || { echo "run inside nix-shell (NDK required)" >&2; exit 127; }
+[[ -n "${ANDROID_NDK_HOME:-}" ]] || { echo "ANDROID_NDK_HOME is required (NDK 28.0.13004108)" >&2; exit 127; }
 
 TAG="${BYEDPI_TAG:-$BYEDPI_VERSION}"
 echo "byedpi tag: $TAG"
