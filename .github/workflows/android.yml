@@ -64,9 +64,9 @@ jobs:
             -validity 1 \
             -noprompt
           chmod 600 "$CI_KEYSTORE"
-          echo "DETOUR_RELEASE_KEYSTORE=$CI_KEYSTORE" >> "$GITHUB_ENV"
       - name: Build CI-signed arm64 release APK
         env:
+          DETOUR_RELEASE_KEYSTORE: ${{ runner.temp }}/detour-ci-release.keystore
           DETOUR_RELEASE_STORE_PASSWORD: detour-ci-password
           DETOUR_RELEASE_KEY_ALIAS: detour-ci
           DETOUR_RELEASE_KEY_PASSWORD: detour-ci-password
