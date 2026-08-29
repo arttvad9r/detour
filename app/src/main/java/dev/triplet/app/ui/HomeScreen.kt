@@ -31,7 +31,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -53,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.VlessKeyParser
@@ -89,12 +89,12 @@ private fun visualKey(state: VpnState): VisualVpnState = when (state) {
 
 @Composable
 fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
-    val state by VpnController.state.collectAsState()
+    val state by VpnController.state.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
     val haptics = LocalHapticFeedback.current
     val st = state
     val c = detourColors
-    val settings by store.settings.collectAsState()
+    val settings by store.settings.collectAsStateWithLifecycle()
     val persistedRoutes = settings?.routes.orEmpty()
     var routeRevision by remember { mutableIntStateOf(0) }
     DisposableEffect(ctx) {
