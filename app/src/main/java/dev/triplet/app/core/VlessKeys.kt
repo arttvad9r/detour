@@ -22,7 +22,7 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
     }
 
     fun toJson(): String = JSONObject().apply {
-        put("activeId", activeId)
+        put("activeId", activeId ?: JSONObject.NULL)
         put("items", JSONArray().apply {
             items.forEach { put(JSONObject().apply { put("id", it.id); put("name", it.name); put("uri", it.uri) }) }
         })
@@ -32,9 +32,9 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
         fun fromStored(json: String, legacyUri: String): VlessKeys {
             if (json.isBlank()) return legacyOrEmpty(legacyUri)
             return runCatching { fromJson(json) }.getOrElse {
-                // A damaged key-list snapshot should not discard a still-present
-                // legacy URI. This path is only for storage recovery.
-                legacyOrEmpty(legacyUri)
+                // Legacy fallback is migration-only. A present but damaged modern
+                // snapshot must fail closed instead of resurrecting shadow state.
+                VlessKeys(emptyList(), null)
             }
         }
 

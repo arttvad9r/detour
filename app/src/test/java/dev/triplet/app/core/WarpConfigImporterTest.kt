@@ -250,8 +250,7 @@ class WarpConfigImporterTest {
                 h4: 3
                 i1: '<b 0x1234>'
             proxies:
-            $proxies
-        """.trimIndent()
+        """.trimIndent() + "\n" + proxies.prependIndent("  ")
 
         val result = WarpConfigImporter.parse(large)
         assertTrue(result is WarpImportResult.Ok)

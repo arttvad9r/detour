@@ -66,9 +66,10 @@ class VlessKeysTest {
         assertEquals(keys, VlessKeys.fromJson(keys.toJson()))
     }
 
-    @Test fun `corrupt key json falls back to legacy uri`() {
+    @Test fun `corrupt key json does not resurrect legacy uri`() {
         val keys = VlessKeys.fromStored("{broken", validUri)
-        assertEquals(validUri, keys.active?.uri)
+        assertTrue(keys.items.isEmpty())
+        assertEquals(null, keys.activeId)
     }
 
     @Test fun `delete nonexistent is unchanged`() {

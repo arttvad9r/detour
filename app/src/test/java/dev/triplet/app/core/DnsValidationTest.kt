@@ -27,7 +27,7 @@ class DnsValidationTest {
     @Test fun `config emits bootstrap resolver only when DNS server needs it`() {
         val hostnameDoh = ConfigGenerator.build(input("https://dns.adguard-dns.io/dns-query"))
         assertTrue(hostnameDoh.contains("default-nameserver:\n    - 8.8.8.8"))
-        assertTrue(hostnameDoh.contains("nameserver:\n    - https://dns.adguard-dns.io/dns-query"))
+        assertTrue(hostnameDoh.contains("nameserver:\n    - \"https://dns.adguard-dns.io/dns-query\""))
 
         val ipDoh = ConfigGenerator.build(input("https://1.1.1.1/dns-query"))
         assertFalse(ipDoh.contains("default-nameserver:"))

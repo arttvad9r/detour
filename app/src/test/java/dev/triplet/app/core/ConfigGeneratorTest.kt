@@ -76,7 +76,7 @@ class ConfigGeneratorTest {
         assertTrue(yaml.contains("server: nl.example.net"))
         assertTrue(yaml.contains("port: 4500"))
         assertTrue(yaml.contains("reserved: [1, 2, 3]"))
-        assertTrue(yaml.contains("allowed-ips: [\"0.0.0.0/0\", \"::/0\"]"))
+        assertTrue(yaml.contains("allowed-ips: [0.0.0.0/0, \"::/0\"]"))
         assertTrue(yaml.contains("persistent-keepalive: 25"))
         assertTrue(yaml.contains("amnezia-wg-option:"))
         assertTrue(yaml.contains("jc: 4"))
