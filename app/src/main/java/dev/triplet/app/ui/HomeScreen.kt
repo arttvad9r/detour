@@ -5,7 +5,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -316,7 +315,6 @@ private fun StatusCard(
     val key = visualKey(state)
     Column(
         modifier
-            .animateContentSize(tween(Motion.STATE_MS))
             .clip(AppShapes.medium)
             .background(style.container.copy(alpha = 0.96f))
             .border(1.dp, style.border, AppShapes.medium)
@@ -326,7 +324,7 @@ private fun StatusCard(
         AnimatedContent(
             targetState = key,
             transitionSpec = {
-                fadeIn(tween(Motion.CONTENT_IN_MS, delayMillis = 35)) togetherWith
+                fadeIn(tween(Motion.CONTENT_IN_MS)) togetherWith
                     fadeOut(tween(Motion.CONTENT_OUT_MS))
             },
             label = "statusTitle",
@@ -361,7 +359,7 @@ private fun StatusCard(
         AnimatedContent(
             targetState = key,
             transitionSpec = {
-                fadeIn(tween(Motion.CONTENT_IN_MS, delayMillis = 25)) togetherWith
+                fadeIn(tween(Motion.CONTENT_IN_MS)) togetherWith
                     fadeOut(tween(Motion.CONTENT_OUT_MS))
             },
             label = "statusSubtitle",
@@ -375,7 +373,7 @@ private fun StatusCard(
                 )
                 VisualVpnState.IDLE -> Text(
                     stringResource(R.string.state_sub_idle),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = c.textSecondary,
                     modifier = Modifier.padding(top = Spacing.space4),
                 )
@@ -438,7 +436,7 @@ private fun InfoRow(label: String, value: String) {
         AnimatedContent(
             targetState = value,
             transitionSpec = {
-                fadeIn(tween(Motion.CONTENT_IN_MS, delayMillis = 20)) togetherWith
+                fadeIn(tween(Motion.CONTENT_IN_MS)) togetherWith
                     fadeOut(tween(Motion.CONTENT_OUT_MS))
             },
             label = "infoValue",
