@@ -34,4 +34,11 @@ class SensitiveSettingsCipherInstrumentedTest {
 
         assertNull(cipher.decrypt("warp_profile", tampered))
     }
+
+    @Test fun plaintextIsAcceptedOnlyByMigrationCompatibilityPath() {
+        val legacy = "vless://legacy-marker@example.invalid:443"
+
+        assertNull(cipher.decrypt("vless_keys", legacy))
+        assertEquals(legacy, cipher.decryptLegacyCompatible("vless_keys", legacy))
+    }
 }
