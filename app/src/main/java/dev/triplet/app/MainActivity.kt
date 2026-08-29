@@ -173,13 +173,19 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier
                                 .fillMaxSize()
                                 .detourHighRefresh(navMotionActive),
-                            // Only the top page moves. Keeping the page underneath
-                            // stationary removes the double-motion/parallax effect that
-                            // was especially busy between Settings and app routes.
+                            // Only the top page moves. Settings and app routes are
+                            // visually denser than the other destinations, so give
+                            // their full-width travel a longer nominal window. Compose
+                            // still applies Android's animator-duration scale.
                             enterTransition = {
+                                val duration = when (targetState.destination.route) {
+                                    Route.SETTINGS -> Motion.NAV_SETTINGS_ENTER_MS
+                                    Route.ROUTES -> Motion.NAV_ROUTES_ENTER_MS
+                                    else -> Motion.NAV_ENTER_MS
+                                }
                                 slideInHorizontally(
                                     animationSpec = tween(
-                                        Motion.NAV_ENTER_MS,
+                                        duration,
                                         easing = Motion.STANDARD_EASING,
                                     ),
                                     initialOffsetX = { it },
@@ -188,9 +194,14 @@ class MainActivity : ComponentActivity() {
                             exitTransition = { ExitTransition.None },
                             popEnterTransition = { EnterTransition.None },
                             popExitTransition = {
+                                val duration = when (initialState.destination.route) {
+                                    Route.SETTINGS -> Motion.NAV_SETTINGS_EXIT_MS
+                                    Route.ROUTES -> Motion.NAV_ROUTES_EXIT_MS
+                                    else -> Motion.NAV_EXIT_MS
+                                }
                                 slideOutHorizontally(
                                     animationSpec = tween(
-                                        Motion.NAV_EXIT_MS,
+                                        duration,
                                         easing = Motion.STANDARD_EASING,
                                     ),
                                     targetOffsetX = { it },
