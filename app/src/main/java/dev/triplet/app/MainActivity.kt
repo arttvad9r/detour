@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.VlessKeyParser
@@ -47,11 +48,14 @@ import dev.triplet.app.ui.SettingsMenuScreen
 import dev.triplet.app.ui.ThemeScreen
 import dev.triplet.app.ui.VlessKeyScreen
 import dev.triplet.app.ui.colorSchemeFor
+import dev.triplet.app.ui.configureAdaptiveRefresh
+import dev.triplet.app.ui.detourHighRefresh
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
 import dev.triplet.app.vpn.canAutoConnect
 import dev.triplet.app.vpn.resolveEffectiveRoutes
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 private object Route {
@@ -72,12 +76,15 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        configureAdaptiveRefresh(window)
         val store = (application as TripletApp).routesStore
         setContent {
             val settings by store.settings.collectAsState()
             val theme = AppTheme.byId(settings?.themeId ?: "")
             val target = theme.colors
             var previousDark by remember { mutableStateOf(theme.dark) }
+            var previousThemeId by remember { mutableStateOf(theme.id) }
+            var themeMotionActive by remember { mutableStateOf(false) }
             val themeAnimation = tween<Color>(themeTransitionDuration(previousDark, theme.dark))
 
             // Interpolate within the same brightness mode. A continuous light↔dark
@@ -106,10 +113,20 @@ class MainActivity : ComponentActivity() {
             )
 
             LaunchedEffect(theme) {
+                val changed = previousThemeId != theme.id
+                val motionMs = if (changed) themeTransitionDuration(previousDark, theme.dark) else 0
+                themeMotionActive = motionMs > 0
+                previousThemeId = theme.id
                 previousDark = theme.dark
+
                 val style = if (theme.dark) SystemBarStyle.dark(Color.Transparent.toArgb())
                 else SystemBarStyle.light(Color.Transparent.toArgb(), Color.Transparent.toArgb())
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
+
+                if (motionMs > 0) {
+                    delay(motionMs.toLong())
+                    themeMotionActive = false
+                }
             }
 
             CompositionLocalProvider(
@@ -124,6 +141,20 @@ class MainActivity : ComponentActivity() {
                     Box(Modifier.fillMaxSize().background(animatedColors.background)) {
                         val ctx = this@MainActivity
                         val navController = rememberNavController()
+                        val currentEntry by navController.currentBackStackEntryAsState()
+                        val currentRoute = currentEntry?.destination?.route
+                        var previousRoute by remember { mutableStateOf<String?>(null) }
+                        var navMotionActive by remember { mutableStateOf(false) }
+
+                        LaunchedEffect(currentRoute) {
+                            val changed = previousRoute != null && previousRoute != currentRoute
+                            previousRoute = currentRoute
+                            if (changed) {
+                                navMotionActive = true
+                                delay(Motion.NAV_REFRESH_BOOST_MS)
+                                navMotionActive = false
+                            }
+                        }
 
                         LaunchedEffect(Unit) {
                             val launchSettings = store.snapshot()
@@ -151,7 +182,9 @@ class MainActivity : ComponentActivity() {
                         NavHost(
                             navController = navController,
                             startDestination = Route.HOME,
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .detourHighRefresh(navMotionActive || themeMotionActive),
                             enterTransition = {
                                 slideInHorizontally(
                                     animationSpec = tween(
