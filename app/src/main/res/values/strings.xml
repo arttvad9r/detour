@@ -44,7 +44,6 @@
     <string name="dns_adguard">AdGuard</string>
     <string name="dns_custom_label">DNS address</string>
     <string name="dns_placeholder">1.1.1.1 or https://dns.example/dns-query</string>
-    <string name="dns_custom_hint">Enter an IP address or a URL beginning with http:// or https://.</string>
     <string name="nav_backup">Export / import</string>
     <string name="nav_backup_sub">move settings to another device</string>
     <string name="backup_title">Export / import</string>
@@ -52,7 +51,6 @@
     <string name="backup_export">Export to file</string>
     <string name="backup_import">Import from file</string>
     <string name="backup_exported">Exported</string>
-    <string name="backup_imported">Imported and applied</string>
     <string name="backup_bad_file">This file is not a Detour backup</string>
     <string name="backup_error">Could not process the backup</string>
     <string name="nav_dpi">DPI bypass</string>
@@ -97,8 +95,6 @@
     <string name="warp_imported">WARP imported · %1$d endpoints</string>
     <string name="warp_invalid">No compatible WARP / AmneziaWG proxies found in this file</string>
     <string name="warp_import_error">Could not read this config</string>
-
-    <string name="dns_invalid">Check the address: enter an IP or an http:// / https:// URL.</string>
 
     <string name="backup_warning">The configuration contains secrets. Store the file securely.</string>
 

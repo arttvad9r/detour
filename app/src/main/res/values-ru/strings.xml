@@ -42,7 +42,6 @@
     <string name="dns_adguard">AdGuard</string>
     <string name="dns_custom_label">Адрес DNS</string>
     <string name="dns_placeholder">1.1.1.1 или https://dns.example/dns-query</string>
-    <string name="dns_custom_hint">Можно указать IP-адрес или URL с http:// / https://.</string>
     <string name="nav_backup">Экспорт / импорт</string>
     <string name="nav_backup_sub">перенос настроек на другое устройство</string>
     <string name="backup_title">Экспорт / импорт</string>
@@ -50,7 +49,6 @@
     <string name="backup_export">Экспортировать в файл</string>
     <string name="backup_import">Импортировать из файла</string>
     <string name="backup_exported">Экспортировано</string>
-    <string name="backup_imported">Импортировано и применено</string>
     <string name="backup_bad_file">Файл не похож на резервную копию Detour</string>
     <string name="backup_error">Не удалось обработать резервную копию</string>
     <string name="nav_dpi">Обход DPI</string>
@@ -93,7 +91,6 @@
     <string name="warp_imported">WARP импортирован · точек подключения: %1$d</string>
     <string name="warp_invalid">В файле не найдено совместимых WARP / AmneziaWG подключений</string>
     <string name="warp_import_error">Не удалось прочитать этот конфиг</string>
-    <string name="dns_invalid">Проверьте адрес: нужен IP или URL с http:// / https://.</string>
     <string name="backup_warning">Конфигурация содержит секретные данные — храни файл в безопасном месте.</string>
     <string name="dpi_title">Обход DPI</string>
     <string name="preset_recommended">Рекомендуемая</string>

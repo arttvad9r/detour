@@ -76,26 +76,26 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
         val s = settings ?: return@rememberLauncherForActivityResult
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
-            val json = SettingsBackup.toJson(
-                SettingsBackup.Backup(
-                    vlessUri = s.vlessUri,
-                    presetId = s.preset.id,
-                    dpiCustomArgs = s.dpiCustomArgs,
-                    autoConnect = s.autoConnect,
-                    themeId = s.themeId,
-                    dnsId = s.dnsId,
-                    dnsCustom = s.dnsCustom,
-                    routes = s.routes.mapValues { it.value.name },
-                    vlessKeys = s.vlessKeys,
-                    warpProfile = s.warpProfile,
-                    activeVpn = s.activeVpn,
-                    showSystemApps = s.showSystemApps,
-                ),
-            )
             runCatching {
                 withContext(Dispatchers.IO) {
+                    val json = SettingsBackup.toJson(
+                        SettingsBackup.Backup(
+                            vlessUri = s.vlessUri,
+                            presetId = s.preset.id,
+                            dpiCustomArgs = s.dpiCustomArgs,
+                            autoConnect = s.autoConnect,
+                            themeId = s.themeId,
+                            dnsId = s.dnsId,
+                            dnsCustom = s.dnsCustom,
+                            routes = s.routes.mapValues { it.value.name },
+                            vlessKeys = s.vlessKeys,
+                            warpProfile = s.warpProfile,
+                            activeVpn = s.activeVpn,
+                            showSystemApps = s.showSystemApps,
+                        ),
+                    )
                     val output = requireNotNull(ctx.contentResolver.openOutputStream(uri))
-                    output.use { it.write(json.toByteArray()) }
+                    output.use { it.write(json.toByteArray(Charsets.UTF_8)) }
                 }
                 showStatus(exportedText, false)
             }.onFailure { showStatus(genericErrorText, true) }
@@ -108,15 +108,12 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
             runCatching {
-                val text = withContext(Dispatchers.IO) {
+                val b = withContext(Dispatchers.IO) {
                     val input = requireNotNull(ctx.contentResolver.openInputStream(uri))
                     input.use { readLimited(it, SettingsBackup.MAX_BYTES) }
+                        ?.let(SettingsBackup::fromJson)
                 }
-                if (text.toByteArray(Charsets.UTF_8).size > SettingsBackup.MAX_BYTES) {
-                    showStatus(badFileText, true)
-                    return@runCatching
-                }
-                val b = SettingsBackup.fromJson(text) ?: run {
+                if (b == null) {
                     showStatus(badFileText, true)
                     return@runCatching
                 }
@@ -189,7 +186,7 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
     }
 }
 
-private fun readLimited(input: java.io.InputStream, maxBytes: Int): String {
+private fun readLimited(input: java.io.InputStream, maxBytes: Int): String? {
     val out = java.io.ByteArrayOutputStream()
     val buffer = ByteArray(8192)
     var total = 0
@@ -197,7 +194,7 @@ private fun readLimited(input: java.io.InputStream, maxBytes: Int): String {
         val count = input.read(buffer)
         if (count < 0) break
         total += count
-        if (total > maxBytes) return "\u0000"
+        if (total > maxBytes) return null
         out.write(buffer, 0, count)
     }
     return out.toString(Charsets.UTF_8.name())

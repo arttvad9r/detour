@@ -55,13 +55,19 @@
 
 ## Unit-уровень (накопительно)
 
+Счётчики ниже соответствуют фактическим `@Test` в указанных текущих regression-наборах, а не старому ручному итогу.
+
 | Компонент | Тесты |
 |---|---|
-| VlessKeyParser | 6/6 (reality+vision happy-path, схема/транспорт/security/pbk reject) |
-| ConfigGenerator | 15/15 (golden YAML, VLESS/WARP/AmneziaWG schema, IPv6 reject, QUIC-before-DPI, LAN по API, health probes, fail-closed fallback) |
+| VlessKeyParser + fingerprints | 10/10 (8 parser cases + 2 fingerprint compatibility cases) |
+| VlessKeys storage | 11/11 (legacy migration, strict JSON, explicit reselection after delete, corrupt-storage fail-closed) |
+| ConfigGenerator | 16/16 (15 основных cases + отдельный API 29–32 LAN-before-UID regression) |
 | DnsValidation | 3/3 (IP/HTTPS validation, DoH bootstrap selection, bootstrap emission) |
+| DNS / backup persistence | 16/16 (5 DnsOptions + 11 SettingsBackup cases) |
 | DpiPresets | 4/4 |
-| RoutesMapping | 5/5 |
+| RoutesMapping | 8/8 (включая corrupt WARP/VLESS fail-closed) |
+| Theme transition policy | 2/2 (light↔dark snap; same-mode animation retained) |
+| Profile tunnel policy | 4/4 (inactive mutation = none; active edit/replace = restart; active delete = stop) |
 
 ## Приёмка на OnePlus 13s (Task 11)
 
@@ -115,11 +121,33 @@
     маршруты, включая удалённые приложения/небезопасные shared UID. Отображение
     переведено на тот же `resolveEffectiveRoutes`, что использует service-start,
     с refresh после возврата приложения в foreground.
+11. **Allow-list после install/uninstall**: effective VPN allow-list теперь
+    перестраивается по актуальному inventory; удалённые package/UID не остаются в
+    TUN, а UID reuse не наследует старый routed-доступ.
+12. **LAN на Android API 29–32**: fallback `IP-CIDR ... REJECT` раньше мог стоять
+    после UID→VLESS/DPI и пропускать LAN выбранных приложений в outbound. LAN
+    REJECT теперь идёт до UID-правил и закреплён отдельным regression test.
+13. **Fail-closed VPN profile storage**: повреждённый WARP snapshot не вызывает
+    молчаливый переход на VLESS; удаление активного VLESS очищает selection без
+    выбора следующего, а add/import/delete не меняют transport неявно.
+14. **Light↔dark transition contrast**: смена brightness mode больше не
+    интерполирует foreground/background через низкоконтрастные промежуточные
+    цвета; dark↔dark и light↔light сохраняют обычную анимацию.
+15. **Profile mutation tunnel actions**: изменение или удаление невыбранного
+    VLESS/WARP профиля не рвёт активный tunnel. Изменение выбранного профиля
+    делает restart, а удаление реально выбранного профиля завершает активную
+    сессию через Stop вместо restart в неконфигурированное состояние.
+16. **Backup JSON на main thread**: построение export JSON, запись, чтение и
+    parsing импорта выполняются внутри `Dispatchers.IO`; export serialization
+    также покрыта `runCatching`.
+17. **Quick Settings metadata/resources**: tile использует lock/VPN icon и
+    `@string/app_name`; удалены устаревшие legacy-строки DNS/import, которые уже
+    не соответствовали поддерживаемому HTTPS-only DoH и reconnect semantics.
 
 ### Current automated/device limitations
 
 - GitHub Actions проверяет JVM tests, lint, debug APK assembly, patched-engine Go tests и source/binary vulnerability scans; `connectedDebugAndroidTest` требует отдельный эмулятор/устройство и не входит в текущий CI job.
-- OnePlus/AVD evidence выше историческое. После текущего corrective pass ещё нужен свежий device smoke на текущем head, особенно для TUN `/30`, backup import во время Active и effective-route summaries после изменения installed packages.
+- OnePlus/AVD evidence выше историческое. После текущего corrective pass ещё нужен свежий device smoke на текущем head, особенно для TUN `/30`, backup import во время Active, profile delete/replace во время Active и effective-route summaries после изменения installed packages.
 - Current policy captures IPv6 in the TUN and explicitly rejects it, preventing selected applications from bypassing the VPN over IPv6.
 - DNS accepts only IP literals or HTTPS DoH URLs and is emitted through mihomo DNS hijack for routed applications.
 
@@ -156,5 +184,7 @@ dl.google.com), матрица флакнесса 5 хостов × 6 повто
 
 - Fresh device smoke на текущем head: VPN connect/routing после восстановления
   fake-IP `/30`; импорт backup во время Active должен остановить текущий tunnel
-  без auto-connect; Home/Settings/Tile должны пересчитать effective routes после
-  удаления/установки приложения.
+  без auto-connect; удаление выбранного VPN-профиля во время Active должно
+  завершить tunnel, изменение выбранного — перезапустить его, а изменения
+  невыбранных профилей не должны рвать сессию; Home/Settings/Tile должны
+  пересчитать effective routes после удаления/установки приложения.
