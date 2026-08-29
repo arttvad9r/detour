@@ -1,12 +1,31 @@
+# Gradle / Kotlin
 .gradle/
+.kotlin/
 build/
 app/build/
+*.hprof
+
+# Android SDK / generated native outputs
 local.properties
-.cache/
-.sdk/
 *.aar
 !engine/libs/.gitkeep
 app/src/main/jniLibs/**/*.so
-.kotlin/
-*.hprof
+
+# IDE / editor
+.idea/
+*.iml
+.vscode/
 .opencode/
+
+# Local tooling / caches
+.cache/
+.sdk/
+captures/
+
+# Signing / secrets
+*.jks
+*.keystore
+
+# OS metadata
+.DS_Store
+Thumbs.db
