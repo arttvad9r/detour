@@ -49,7 +49,9 @@ import dev.triplet.app.ui.colorSchemeFor
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
 import dev.triplet.app.vpn.canAutoConnect
-import dev.triplet.app.vpn.effectiveRoutes
+import dev.triplet.app.vpn.resolveEffectiveRoutes
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private object Route {
     const val HOME = "home"
@@ -117,12 +119,9 @@ class MainActivity : ComponentActivity() {
 
                         LaunchedEffect(Unit) {
                             val launchSettings = store.snapshot()
-                            val effective = effectiveRoutes(
-                                launchSettings.routes,
-                                launchSettings.routes.keys.associateWith { pkg ->
-                                    runCatching { packageManager.getPackageUid(pkg, 0) }.getOrNull()
-                                },
-                            )
+                            val effective = withContext(Dispatchers.IO) {
+                                resolveEffectiveRoutes(packageManager, launchSettings.routes)
+                            }
                             val activeVpnValid = when (launchSettings.activeVpn) {
                                 VpnProfileKind.VLESS -> launchSettings.vlessKeys.active?.uri?.let {
                                     VlessKeyParser.parse(it) is ParseResult.Ok

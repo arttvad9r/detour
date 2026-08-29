@@ -43,6 +43,13 @@ class VlessKeysTest {
         VlessKeys.fromJson("""{"items":[{"id":"a","name":"A","uri":"$validUri"},{}]}""")
     }
 
+    @Test(expected = IllegalArgumentException::class)
+    fun `json rejects unknown active id`() {
+        VlessKeys.fromJson(
+            """{"activeId":"missing","items":[{"id":"a","name":"A","uri":"$validUri"}]}""",
+        )
+    }
+
     @Test
     fun `empty storage has no keys`() {
         assertTrue(VlessKeys.fromStored("", "").items.isEmpty())

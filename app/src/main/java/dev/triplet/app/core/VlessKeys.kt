@@ -67,8 +67,11 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
             val activeId = when {
                 !hasActiveId -> parsed.firstOrNull()?.id // compatibility with pre-activeId JSON
                 activeValue == null || activeValue == JSONObject.NULL -> null
-                activeValue is String && parsed.any { it.id == activeValue } -> activeValue
-                else -> null
+                activeValue is String -> {
+                    require(parsed.any { it.id == activeValue }) { "unknown active VLESS key id" }
+                    activeValue
+                }
+                else -> throw IllegalArgumentException("invalid active VLESS key id")
             }
             return VlessKeys(parsed, activeId)
         }
