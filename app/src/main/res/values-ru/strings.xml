@@ -42,6 +42,8 @@
     <string name="dns_adguard">AdGuard</string>
     <string name="dns_custom_label">Адрес DNS</string>
     <string name="dns_placeholder">1.1.1.1 или https://dns.example/dns-query</string>
+    <string name="dns_custom_hint_https">Можно указать IP-адрес или HTTPS DoH URL.</string>
+    <string name="dns_invalid_https">Проверьте адрес: нужен IP или DoH URL с https://.</string>
     <string name="nav_backup">Экспорт / импорт</string>
     <string name="nav_backup_sub">перенос настроек на другое устройство</string>
     <string name="backup_title">Экспорт / импорт</string>
@@ -49,6 +51,7 @@
     <string name="backup_export">Экспортировать в файл</string>
     <string name="backup_import">Импортировать из файла</string>
     <string name="backup_exported">Экспортировано</string>
+    <string name="backup_imported_reconnect">Импортировано. Переподключитесь, чтобы применить изменения.</string>
     <string name="backup_bad_file">Файл не похож на резервную копию Detour</string>
     <string name="backup_error">Не удалось обработать резервную копию</string>
     <string name="nav_dpi">Обход DPI</string>
@@ -111,6 +114,16 @@
     <string name="notif_starting">Подключение…</string>
     <string name="notif_active">Туннель активен</string>
     <string name="notif_stop">Отключить</string>
+    <string name="tile_connected">Подключено</string>
+    <string name="tile_connecting">Подключение…</string>
+    <string name="tile_error">Ошибка подключения</string>
+    <string name="tile_disconnected">Отключено</string>
+    <plurals name="tile_routed">
+        <item quantity="one">%1$d приложение в туннеле</item>
+        <item quantity="few">%1$d приложения в туннеле</item>
+        <item quantity="many">%1$d приложений в туннеле</item>
+        <item quantity="other">%1$d приложения в туннеле</item>
+    </plurals>
     <string name="theme_midnight">Полночь</string>
     <string name="theme_ocean">Океан</string>
     <string name="theme_graphite">Графит и янтарь</string>
