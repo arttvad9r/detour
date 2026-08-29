@@ -25,8 +25,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -57,10 +55,7 @@ import dev.triplet.app.vpn.VpnState
 import dev.triplet.app.vpn.canAutoConnect
 import dev.triplet.app.vpn.resolveEffectiveRoutes
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private object Route {
@@ -131,35 +126,7 @@ class MainActivity : ComponentActivity() {
                     typography = AppTypography,
                     shapes = AppShapes,
                 ) {
-                    var touchMotionActive by remember { mutableStateOf(false) }
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .background(animatedColors.background)
-                            .pointerInput(Unit) {
-                                coroutineScope {
-                                    val releaseScope = this
-                                    var releaseJob: Job? = null
-                                    awaitPointerEventScope {
-                                        while (true) {
-                                            val event = awaitPointerEvent(PointerEventPass.Initial)
-                                            if (event.changes.any { it.pressed }) {
-                                                releaseJob?.cancel()
-                                                releaseJob = null
-                                                touchMotionActive = true
-                                            } else if (touchMotionActive && releaseJob == null) {
-                                                releaseJob = releaseScope.launch {
-                                                    delay(Motion.CONTROL_REFRESH_TAIL_MS)
-                                                    touchMotionActive = false
-                                                    releaseJob = null
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            .detourHighRefresh(touchMotionActive),
-                    ) {
+                    Box(Modifier.fillMaxSize().background(animatedColors.background)) {
                         val ctx = this@MainActivity
                         val navController = rememberNavController()
                         val currentEntry by navController.currentBackStackEntryAsState()
