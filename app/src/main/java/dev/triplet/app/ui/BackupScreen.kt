@@ -24,11 +24,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -42,64 +39,42 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
 import dev.triplet.app.core.SettingsBackup
-import dev.triplet.app.data.RoutesStore
-import dev.triplet.app.vpn.VpnController
-import dev.triplet.app.vpn.VpnState
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
     val haptics = LocalHapticFeedback.current
-    val scope = rememberCoroutineScope()
     val c = detourColors
-    val settings by store.settings.collectAsStateWithLifecycle()
-    val exportedText = stringResource(R.string.backup_exported)
-    val badFileText = stringResource(R.string.backup_bad_file)
-    val importedText = stringResource(R.string.backup_imported_reconnect)
-    val genericErrorText = stringResource(R.string.backup_error)
-
-    var status by remember { mutableStateOf("") }
-    var statusIsError by remember { mutableStateOf(false) }
+    val status by viewModel.status.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
 
-    fun showStatus(message: String, error: Boolean) {
-        status = message
-        statusIsError = error
-        haptics.performHapticFeedback(if (error) HapticFeedbackType.Reject else HapticFeedbackType.Confirm)
+    LaunchedEffect(viewModel) {
+        viewModel.feedback.collect { feedback ->
+            haptics.performHapticFeedback(
+                if (feedback == BackupFeedback.CONFIRM) {
+                    HapticFeedbackType.Confirm
+                } else {
+                    HapticFeedbackType.Reject
+                },
+            )
+        }
     }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
-        val s = settings ?: return@rememberLauncherForActivityResult
         if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            runCatching {
+        val json = viewModel.exportJson() ?: return@rememberLauncherForActivityResult
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            val success = runCatching {
                 withContext(Dispatchers.IO) {
-                    val json = SettingsBackup.toJson(
-                        SettingsBackup.Backup(
-                            vlessUri = s.vlessUri,
-                            presetId = s.preset.id,
-                            dpiCustomArgs = s.dpiCustomArgs,
-                            autoConnect = s.autoConnect,
-                            themeId = s.themeId,
-                            dnsId = s.dnsId,
-                            dnsCustom = s.dnsCustom,
-                            routes = s.routes.mapValues { it.value.name },
-                            vlessKeys = s.vlessKeys,
-                            warpProfile = s.warpProfile,
-                            activeVpn = s.activeVpn,
-                            showSystemApps = s.showSystemApps,
-                        ),
-                    )
                     val output = requireNotNull(ctx.contentResolver.openOutputStream(uri))
                     output.use { it.write(json.toByteArray(Charsets.UTF_8)) }
                 }
-                showStatus(exportedText, false)
-            }.onFailure { showStatus(genericErrorText, true) }
+            }.isSuccess
+            viewModel.reportExport(success)
         }
     }
 
@@ -107,31 +82,28 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            runCatching {
-                val b = withContext(Dispatchers.IO) {
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            val raw = runCatching {
+                withContext(Dispatchers.IO) {
                     val input = requireNotNull(ctx.contentResolver.openInputStream(uri))
                     input.use { readLimited(it, SettingsBackup.MAX_BYTES) }
-                        ?.let(SettingsBackup::fromJson)
                 }
-                if (b == null) {
-                    showStatus(badFileText, true)
-                    return@runCatching
-                }
-                store.restoreBackup(b)
-                // Import intentionally disables auto-connect so a restored endpoint
-                // is never activated without review. If a tunnel is already live,
-                // stop that stale snapshot rather than showing new settings as active.
-                if (
-                    VpnController.state.value == VpnState.Active ||
-                    VpnController.state.value == VpnState.Starting
-                ) {
-                    VpnController.stop(ctx)
-                }
-                showStatus(importedText, false)
-            }.onFailure { showStatus(genericErrorText, true) }
+            }.getOrElse {
+                viewModel.reportError()
+                return@launch
+            }
+            viewModel.importJson(raw)
         }
     }
+
+    val statusText = when (status) {
+        BackupStatus.EXPORTED -> stringResource(R.string.backup_exported)
+        BackupStatus.BAD_FILE -> stringResource(R.string.backup_bad_file)
+        BackupStatus.IMPORTED -> stringResource(R.string.backup_imported_reconnect)
+        BackupStatus.ERROR -> stringResource(R.string.backup_error)
+        null -> ""
+    }
+    val statusIsError = status == BackupStatus.BAD_FILE || status == BackupStatus.ERROR
 
     Column(
         modifier.fillMaxSize()
@@ -170,14 +142,14 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
         }
 
         AnimatedVisibility(
-            visible = status.isNotEmpty(),
+            visible = statusText.isNotEmpty(),
             enter = fadeIn(tween(Motion.CONTENT_IN_MS)),
             exit = fadeOut(tween(Motion.CONTENT_OUT_MS)),
         ) {
             Column {
                 Spacer(Modifier.height(Spacing.space12))
                 Text(
-                    status,
+                    statusText,
                     style = MaterialTheme.typography.bodySmall,
                     color = if (statusIsError) c.error else c.accent,
                     modifier = Modifier.padding(horizontal = Spacing.space16),
