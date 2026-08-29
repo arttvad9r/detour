@@ -1,0 +1,163 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Validate release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="$GITHUB_REF_NAME"
+          if [[ ! "$TAG" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "Release tag must match vMAJOR.MINOR.PATCH: $TAG" >&2
+            exit 1
+          fi
+
+          MAJOR="${BASH_REMATCH[1]}"
+          MINOR="${BASH_REMATCH[2]}"
+          PATCH="${BASH_REMATCH[3]}"
+          if (( 10#$MINOR > 999 || 10#$PATCH > 999 )); then
+            echo "MINOR and PATCH must be <= 999 for Android versionCode mapping" >&2
+            exit 1
+          fi
+
+          VERSION_CODE=$((10#$MAJOR * 1000000 + 10#$MINOR * 1000 + 10#$PATCH))
+          if (( VERSION_CODE < 1 || VERSION_CODE > 2100000000 )); then
+            echo "Computed Android versionCode is out of range: $VERSION_CODE" >&2
+            exit 1
+          fi
+
+          git fetch origin master
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/master; then
+            echo "Release tag must point to a commit contained in master" >&2
+            exit 1
+          fi
+
+          VERSION_NAME="${TAG#v}"
+          echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+          echo "APK_NAME=detour-$VERSION_NAME-arm64.apk" >> "$GITHUB_ENV"
+      - name: Validate signing secrets
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.DETOUR_RELEASE_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.DETOUR_RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.DETOUR_RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.DETOUR_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in KEYSTORE_B64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [[ -z "${!name}" ]]; then
+              echo "Missing required release secret backing $name" >&2
+              missing=1
+            fi
+          done
+          exit "$missing"
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: '1.26.7'
+          cache: true
+          cache-dependency-path: engine/mihomo/go/go.sum
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          packages: 'platform-tools platforms;android-37.0 build-tools;36.0.0 ndk;28.0.13004108'
+      - name: Export Android NDK
+        run: |
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.0.13004108" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/28.0.13004108" >> "$GITHUB_ENV"
+      - name: Install Go tooling
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20260821190718-4776eadac327
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          export PATH="$(go env GOPATH)/bin:$PATH"
+          gomobile init
+      - name: Restore release keystore
+        shell: bash
+        env:
+          KEYSTORE_B64: ${{ secrets.DETOUR_RELEASE_KEYSTORE_B64 }}
+        run: |
+          set -euo pipefail
+          KEYSTORE_PATH="$RUNNER_TEMP/detour-release.keystore"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+          echo "DETOUR_RELEASE_KEYSTORE=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+      - name: Build signed arm64 release APK
+        env:
+          DETOUR_RELEASE_STORE_PASSWORD: ${{ secrets.DETOUR_RELEASE_STORE_PASSWORD }}
+          DETOUR_RELEASE_KEY_ALIAS: ${{ secrets.DETOUR_RELEASE_KEY_ALIAS }}
+          DETOUR_RELEASE_KEY_PASSWORD: ${{ secrets.DETOUR_RELEASE_KEY_PASSWORD }}
+        run: >-
+          ./gradlew :app:assembleRelease
+          -PdetourReleaseAbi=arm64-v8a
+          -PdetourVersionName="$VERSION_NAME"
+          -PdetourVersionCode="$VERSION_CODE"
+      - name: Verify release APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit)"
+          if [[ -z "$APK" ]]; then
+            echo "Release APK not found" >&2
+            exit 1
+          fi
+
+          "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
+          python3 tools/apk_size_report.py "$APK" \
+            --report app/build/reports/apk-size-release.json \
+            --max-bytes 31457280 \
+            --expected-abi arm64-v8a
+
+          ARTIFACT="$RUNNER_TEMP/$APK_NAME"
+          cp "$APK" "$ARTIFACT"
+          sha256sum "$ARTIFACT" > "$ARTIFACT.sha256"
+          echo "RELEASE_APK=$ARTIFACT" >> "$GITHUB_ENV"
+          echo "RELEASE_SHA256=$ARTIFACT.sha256" >> "$GITHUB_ENV"
+      - name: Upload signed release artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: detour-${{ env.VERSION_NAME }}-arm64
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            ${{ env.RELEASE_APK }}
+            ${{ env.RELEASE_SHA256 }}
+            app/build/reports/apk-size-release.json
+      - name: Publish GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "$RELEASE_APK" "$RELEASE_SHA256" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              "$RELEASE_APK" \
+              "$RELEASE_SHA256" \
+              --verify-tag \
+              --generate-notes \
+              --title "Detour $VERSION_NAME"
+          fi
