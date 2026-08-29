@@ -4,7 +4,7 @@
     <string name="status_idle">ОТКЛЮЧЕНО</string>
     <string name="status_starting">ПОДКЛЮЧЕНИЕ</string>
     <string name="status_active">АКТИВНО</string>
-    <string name="status_failed">НЕ УДАЛОСЬ ПОДКЛЮЧИТЬСЯ</string>
+    <string name="status_failed">ОШИБКА ПОДКЛЮЧЕНИЯ</string>
     <string name="btn_connect">Подключить</string>
     <string name="btn_disconnect">Отключить</string>
     <string name="btn_connecting">Подключение…</string>
