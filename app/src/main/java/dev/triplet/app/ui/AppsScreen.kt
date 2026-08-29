@@ -90,7 +90,7 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
 
     // Re-query PackageManager whenever Detour comes back to the foreground. This
     // catches apps installed/removed while Play Store or another installer was on
-    // top, without keeping a process-lifetime stale package snapshot.
+    // top. AppInventory keeps the previous snapshot renderable until refresh ends.
     DisposableEffect(ctx) {
         val owner = ctx as? LifecycleOwner
         val observer = LifecycleEventObserver { _, event ->
@@ -109,8 +109,12 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
         tween(Motion.COLOR_MS), label = "searchIcon",
     )
     val showSystem = currentSettings.showSystemApps
-    val allApps by produceState<List<AppInfo>?>(initialValue = null, ctx, inventoryRevision) {
-        value = withContext(Dispatchers.IO) { AppInventory.refresh(ctx) }
+    val allApps by produceState<List<AppInfo>?>(
+        initialValue = AppInventory.peek(),
+        key1 = ctx,
+        key2 = inventoryRevision,
+    ) {
+        value = withContext(Dispatchers.IO) { AppInventory.load(ctx) }
     }
     val routes = currentSettings.routes
     val loadedApps = allApps.orEmpty()
@@ -236,8 +240,8 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
                     Column(
                         Modifier
                             .animateItem(
-                                fadeInSpec = tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
-                                fadeOutSpec = tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
+                                fadeInSpec = null,
+                                fadeOutSpec = null,
                                 placementSpec = spring(
                                     dampingRatio = Motion.SPRING_DAMPING,
                                     stiffness = Motion.SPRING_STIFFNESS_SOFT,
