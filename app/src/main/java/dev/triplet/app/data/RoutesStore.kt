@@ -1,22 +1,23 @@
 package dev.triplet.app.data
 
 import android.content.Context
-import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.core.DataMigration
+import androidx.datastore.preferences.core.MutablePreferences
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
-import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import dev.triplet.app.core.AppRoute
 import dev.triplet.app.core.DpiPreset
-import dev.triplet.app.core.VlessKey
-import dev.triplet.app.core.VlessKeys
-import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.SettingsBackup
+import dev.triplet.app.core.VlessKey
+import dev.triplet.app.core.VlessKeyParser
+import dev.triplet.app.core.VlessKeys
 import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.core.WarpProfile
 import kotlinx.coroutines.CoroutineScope
@@ -66,6 +67,7 @@ object RoutesMapping {
     private const val KEY_SESSION_STARTED = "session_started_at"
     private const val KEY_SHOW_SYSTEM = "show_system_apps"
     private const val KEY_VLESS_MIGRATED = "vless_legacy_migrated"
+    private const val KEY_SENSITIVE_MIGRATED = "sensitive_storage_v1_migrated"
     private const val PREFIX_ROUTE = "route:"
 
     /** Pure mapping DataStore-snapshot -> settings. JVM-tested. */
@@ -113,31 +115,65 @@ object RoutesMapping {
     fun sessionStartedAtKey() = longPreferencesKey(KEY_SESSION_STARTED)
     fun showSystemKey() = booleanPreferencesKey(KEY_SHOW_SYSTEM)
     fun vlessMigratedKey() = booleanPreferencesKey(KEY_VLESS_MIGRATED)
+    fun sensitiveMigratedKey() = booleanPreferencesKey(KEY_SENSITIVE_MIGRATED)
 }
 
 data class AppInfo(val packageName: String, val label: String, val isSystem: Boolean)
 
 class RoutesStore(context: Context) {
+    private val cipher = SensitiveSettingsCipher()
     private val store = PreferenceDataStoreFactory.create(
         produceFile = { context.preferencesDataStoreFile("triplet_settings") },
-        migrations = listOf(object : DataMigration<Preferences> {
-        override suspend fun shouldMigrate(currentData: Preferences) =
-            currentData[RoutesMapping.vlessMigratedKey()] != true
+        migrations = listOf(
+            object : DataMigration<Preferences> {
+                override suspend fun shouldMigrate(currentData: Preferences) =
+                    currentData[RoutesMapping.vlessMigratedKey()] != true
 
-        override suspend fun migrate(currentData: Preferences): Preferences =
-            currentData.toMutablePreferences().apply {
-                if (get(RoutesMapping.keysKey()).isNullOrBlank()) {
-                    val keys = VlessKeys.fromStored("", get(RoutesMapping.uriKey()) ?: "")
-                    if (keys.items.isNotEmpty()) {
-                        this[RoutesMapping.keysKey()] = keys.toJson()
-                        this[RoutesMapping.uriKey()] = keys.active?.uri ?: ""
+                override suspend fun migrate(currentData: Preferences): Preferences =
+                    currentData.toMutablePreferences().apply {
+                        if (get(RoutesMapping.keysKey()).isNullOrBlank()) {
+                            val keys = VlessKeys.fromStored("", get(RoutesMapping.uriKey()) ?: "")
+                            if (keys.items.isNotEmpty()) {
+                                this[RoutesMapping.keysKey()] = keys.toJson()
+                                this[RoutesMapping.uriKey()] = keys.active?.uri ?: ""
+                            }
+                        }
+                        this[RoutesMapping.vlessMigratedKey()] = true
                     }
-                }
-                this[RoutesMapping.vlessMigratedKey()] = true
-            }
 
-        override suspend fun cleanUp() = Unit
-        }),
+                override suspend fun cleanUp() = Unit
+            },
+            object : DataMigration<Preferences> {
+                override suspend fun shouldMigrate(currentData: Preferences) =
+                    currentData[RoutesMapping.sensitiveMigratedKey()] != true
+
+                override suspend fun migrate(currentData: Preferences): Preferences =
+                    currentData.toMutablePreferences().apply {
+                        val keysKey = RoutesMapping.keysKey()
+                        val uriKey = RoutesMapping.uriKey()
+                        val warpKey = RoutesMapping.warpProfileKey()
+                        val storedKeys = get(keysKey)
+
+                        if (!storedKeys.isNullOrBlank()) {
+                            this[keysKey] = cipher.encryptIfNeeded(keysKey.name, storedKeys)
+                            // Modern VLESS storage is canonical. Do not retain a second
+                            // shadow copy of the active URI after encryption.
+                            remove(uriKey)
+                        } else {
+                            get(uriKey)?.takeIf { it.isNotBlank() }?.let { legacy ->
+                                this[uriKey] = cipher.encryptIfNeeded(uriKey.name, legacy)
+                            }
+                        }
+
+                        get(warpKey)?.takeIf { it.isNotBlank() }?.let { warp ->
+                            this[warpKey] = cipher.encryptIfNeeded(warpKey.name, warp)
+                        }
+                        this[RoutesMapping.sensitiveMigratedKey()] = true
+                    }
+
+                override suspend fun cleanUp() = Unit
+            },
+        ),
     )
 
     private val settingsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -151,21 +187,24 @@ class RoutesStore(context: Context) {
             if (exception is IOException) emit(emptyPreferences()) else throw exception
         }
         .map<Preferences, TriSettings?> { prefs ->
-            RoutesMapping.toSettings(prefs.asMap().mapKeys { (k, _) -> k.name })
+            RoutesMapping.toSettings(decodedEntries(prefs))
         }
         .stateIn(settingsScope, SharingStarted.Eagerly, null)
 
     suspend fun snapshot(): TriSettings = settings.filterNotNull().first()
 
-    suspend fun setVlessUri(uri: String) = store.edit { it[RoutesMapping.uriKey()] = uri }
+    suspend fun setVlessUri(uri: String) = store.edit { prefs ->
+        val key = RoutesMapping.uriKey()
+        if (uri.isBlank()) prefs.remove(key) else prefs[key] = cipher.encrypt(key.name, uri)
+    }
+
     suspend fun setSessionStartedAt(value: Long?) = store.edit {
         if (value == null) it.remove(RoutesMapping.sessionStartedAtKey()) else it[RoutesMapping.sessionStartedAtKey()] = value
     }
     suspend fun setShowSystemApps(value: Boolean) = store.edit { it[RoutesMapping.showSystemKey()] = value }
-    suspend fun setVlessKeys(keys: VlessKeys) = store.edit {
+    suspend fun setVlessKeys(keys: VlessKeys) = store.edit { prefs ->
         validateVlessKeys(keys)
-        it[RoutesMapping.keysKey()] = keys.toJson()
-        it[RoutesMapping.uriKey()] = keys.active?.uri ?: ""
+        writeVlessKeys(prefs, keys)
     }
     suspend fun setActiveVlessKey(id: String) {
         editVless(activateVless = true) { current -> current.copy(activeId = id) }
@@ -184,7 +223,8 @@ class RoutesStore(context: Context) {
         // WarpProfile validates every outbound in its initializer; storing only a
         // constructed profile keeps DataStore free of partially-valid configs.
         // Selection is explicit unless a caller deliberately requests activation.
-        prefs[RoutesMapping.warpProfileKey()] = profile.toJson()
+        val key = RoutesMapping.warpProfileKey()
+        prefs[key] = cipher.encrypt(key.name, profile.toJson())
         if (activate) prefs[RoutesMapping.vpnKindKey()] = VpnProfileKind.WARP.name
     }
     suspend fun deleteWarpProfile() = store.edit { prefs ->
@@ -194,15 +234,11 @@ class RoutesStore(context: Context) {
     }
     suspend fun setActiveVpn(kind: VpnProfileKind) = store.edit { prefs ->
         when (kind) {
-            VpnProfileKind.VLESS -> {
-                val keys = VlessKeys.fromStored(
-                    prefs[RoutesMapping.keysKey()] ?: "",
-                    prefs[RoutesMapping.uriKey()] ?: "",
-                )
-                require(keys.active != null) { "VLESS profile is not configured" }
-            }
+            VpnProfileKind.VLESS -> require(
+                readVlessKeys(prefs).active != null,
+            ) { "VLESS profile is not configured" }
             VpnProfileKind.WARP -> require(
-                WarpProfile.fromStored(prefs[RoutesMapping.warpProfileKey()] ?: "") != null,
+                readWarpProfile(prefs) != null,
             ) { "WARP profile is not configured" }
         }
         prefs[RoutesMapping.vpnKindKey()] = kind.name
@@ -222,10 +258,10 @@ class RoutesStore(context: Context) {
 
     /** Validated backup is committed in one transaction and replaces old routes. */
     suspend fun restoreBackup(b: SettingsBackup.Backup) = store.edit { prefs ->
-        prefs[RoutesMapping.keysKey()] = b.vlessKeys.toJson()
-        prefs[RoutesMapping.uriKey()] = b.vlessKeys.active?.uri ?: ""
-        if (b.warpProfile == null) prefs.remove(RoutesMapping.warpProfileKey())
-        else prefs[RoutesMapping.warpProfileKey()] = b.warpProfile.toJson()
+        writeVlessKeys(prefs, b.vlessKeys)
+        val warpKey = RoutesMapping.warpProfileKey()
+        if (b.warpProfile == null) prefs.remove(warpKey)
+        else prefs[warpKey] = cipher.encrypt(warpKey.name, b.warpProfile.toJson())
         prefs[RoutesMapping.vpnKindKey()] = b.activeVpn.name
         prefs[RoutesMapping.presetKey()] = b.presetId
         prefs[RoutesMapping.customArgsKey()] = b.dpiCustomArgs
@@ -246,15 +282,53 @@ class RoutesStore(context: Context) {
         activateVless: Boolean = false,
         transform: (VlessKeys) -> VlessKeys,
     ) = store.edit { prefs ->
-        val current = VlessKeys.fromStored(
-            prefs[RoutesMapping.keysKey()] ?: "",
-            prefs[RoutesMapping.uriKey()] ?: "",
-        )
-        val next = transform(current)
+        val next = transform(readVlessKeys(prefs))
         validateVlessKeys(next)
-        prefs[RoutesMapping.keysKey()] = next.toJson()
-        prefs[RoutesMapping.uriKey()] = next.active?.uri ?: ""
+        writeVlessKeys(prefs, next)
         if (activateVless) prefs[RoutesMapping.vpnKindKey()] = VpnProfileKind.VLESS.name
+    }
+
+    private fun decodedEntries(prefs: Preferences): Map<String, Any?> {
+        val entries = prefs.asMap().mapKeys { (key, _) -> key.name }.toMutableMap()
+
+        fun decode(key: Preferences.Key<String>, failureValue: String) {
+            val stored = prefs[key] ?: return
+            entries[key.name] = cipher.decrypt(key.name, stored) ?: failureValue
+        }
+
+        // A damaged modern VLESS ciphertext must stay nonblank-but-invalid so
+        // VlessKeys.fromStored() fails closed instead of consulting legacy shadow state.
+        decode(RoutesMapping.keysKey(), "{encrypted-unavailable")
+        decode(RoutesMapping.uriKey(), "")
+        decode(RoutesMapping.warpProfileKey(), "{encrypted-unavailable")
+        return entries
+    }
+
+    private fun readVlessKeys(prefs: Preferences): VlessKeys {
+        val keysKey = RoutesMapping.keysKey()
+        val uriKey = RoutesMapping.uriKey()
+        val storedKeys = prefs[keysKey]
+        val keysJson = if (storedKeys == null) ""
+        else cipher.decrypt(keysKey.name, storedKeys) ?: "{encrypted-unavailable"
+        val storedUri = prefs[uriKey]
+        val legacyUri = if (storedUri == null) ""
+        else cipher.decrypt(uriKey.name, storedUri) ?: ""
+        return VlessKeys.fromStored(keysJson, legacyUri)
+    }
+
+    private fun readWarpProfile(prefs: Preferences): WarpProfile? {
+        val key = RoutesMapping.warpProfileKey()
+        val stored = prefs[key] ?: return null
+        val json = cipher.decrypt(key.name, stored) ?: return null
+        return WarpProfile.fromStored(json)
+    }
+
+    private fun writeVlessKeys(prefs: MutablePreferences, keys: VlessKeys) {
+        val keysKey = RoutesMapping.keysKey()
+        prefs[keysKey] = cipher.encrypt(keysKey.name, keys.toJson())
+        // vless_keys is the sole modern source of truth; keeping vless_uri would
+        // duplicate the selected credential and weaken corruption fail-closed behavior.
+        prefs.remove(RoutesMapping.uriKey())
     }
 
     private fun validateVlessKeys(keys: VlessKeys) {
