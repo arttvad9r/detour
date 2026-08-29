@@ -1,6 +1,7 @@
 package dev.triplet.app.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -21,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -52,6 +54,10 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
         androidx.compose.runtime.mutableStateOf(settings?.preset == DpiPreset.CUSTOM)
     }
     val customInvalid = customField.isNotBlank() && !DpiArgs.isValid(customField)
+    val scrollState = rememberScrollState()
+    val customVisibility = remember { MutableTransitionState(editingCustom) }
+    customVisibility.targetState = editingCustom
+    val spatialMotionActive = scrollState.isScrollInProgress || !customVisibility.isIdle
 
     Column(
         modifier.fillMaxSize()
@@ -59,7 +65,8 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
             .statusBarsPadding()
             .navigationBarsPadding()
             .imePadding()
-            .verticalScroll(rememberScrollState()),
+            .verticalScroll(scrollState)
+            .detourHighRefresh(spatialMotionActive),
     ) {
         ScreenHeader(stringResource(R.string.dpi_title), onBack)
         Spacer(Modifier.height(Spacing.space8))
@@ -95,7 +102,7 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
         }
 
         AnimatedVisibility(
-            visible = editingCustom,
+            visibleState = customVisibility,
             enter = fadeIn(
                 tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
             ) + expandVertically(
