@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -40,12 +41,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
 import dev.triplet.app.core.SettingsBackup
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
 fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
     val haptics = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
     val c = detourColors
     val status by viewModel.status.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
@@ -67,7 +70,7 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         val json = viewModel.exportJson() ?: return@rememberLauncherForActivityResult
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+        scope.launch {
             val success = runCatching {
                 withContext(Dispatchers.IO) {
                     val output = requireNotNull(ctx.contentResolver.openOutputStream(uri))
@@ -82,7 +85,7 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
-        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+        scope.launch {
             val raw = runCatching {
                 withContext(Dispatchers.IO) {
                     val input = requireNotNull(ctx.contentResolver.openInputStream(uri))
