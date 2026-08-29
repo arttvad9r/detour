@@ -16,7 +16,7 @@ import androidx.compose.ui.preferredFrameRate
  */
 internal fun configureAdaptiveRefresh(window: Window) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-        window.isFrameRateBoostOnTouchEnabled = true
+        window.frameRateBoostOnTouchEnabled = true
         window.isFrameRatePowerSavingsBalanced = true
     }
 }
