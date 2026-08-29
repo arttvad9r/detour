@@ -10,6 +10,7 @@ class VlessKeysTest {
         "?type=tcp&security=reality&fp=chrome&sni=example.com" +
         "&pbk=SbVKOEMjK0sIlbwg4akyBg5mL5KZwwB-ed4eEE7YnRc&sid=6ba85179" +
         "&flow=xtls-rprx-vision"
+
     @Test
     fun `legacy uri migrates to one active key`() {
         val keys = VlessKeys.fromStored("", "vless://legacy")
@@ -42,6 +43,13 @@ class VlessKeysTest {
         VlessKeys.fromJson("""{"items":[{"id":"a","name":"A","uri":"$validUri"},{}]}""")
     }
 
+    @Test(expected = IllegalArgumentException::class)
+    fun `json rejects unknown active id`() {
+        VlessKeys.fromJson(
+            """{"activeId":"missing","items":[{"id":"a","name":"A","uri":"$validUri"}]}""",
+        )
+    }
+
     @Test
     fun `empty storage has no keys`() {
         assertTrue(VlessKeys.fromStored("", "").items.isEmpty())
@@ -52,9 +60,32 @@ class VlessKeysTest {
         assertEquals("b", keys.activeId)
     }
 
-    @Test fun `delete active chooses remaining and deleting only clears active`() {
-        assertEquals("b", VlessKeys(listOf(VlessKey("a", "a", validUri), VlessKey("b", "b", validUri)), "a").delete("a").activeId)
-        assertEquals(null, VlessKeys(listOf(VlessKey("a", "a", validUri)), "a").delete("a").activeId)
+    @Test fun `delete active requires explicit reselection`() {
+        val remaining = VlessKeys(
+            listOf(VlessKey("a", "a", validUri), VlessKey("b", "b", validUri)),
+            "a",
+        ).delete("a")
+        assertEquals(null, remaining.activeId)
+        assertEquals(listOf("b"), remaining.items.map { it.id })
+
+        assertEquals(
+            null,
+            VlessKeys(listOf(VlessKey("a", "a", validUri)), "a").delete("a").activeId,
+        )
+    }
+
+    @Test fun `explicit null active id survives json roundtrip`() {
+        val keys = VlessKeys(
+            listOf(VlessKey("a", "a", validUri), VlessKey("b", "b", validUri)),
+            null,
+        )
+        assertEquals(keys, VlessKeys.fromJson(keys.toJson()))
+    }
+
+    @Test fun `corrupt key json does not resurrect legacy uri`() {
+        val keys = VlessKeys.fromStored("{broken", validUri)
+        assertTrue(keys.items.isEmpty())
+        assertEquals(null, keys.activeId)
     }
 
     @Test fun `delete nonexistent is unchanged`() {

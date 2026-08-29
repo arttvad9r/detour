@@ -23,6 +23,8 @@ import dev.triplet.app.core.DpiBackend
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.RoutingInput
 import dev.triplet.app.core.VlessKeyParser
+import dev.triplet.app.core.VpnOutbound
+import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.log.ServiceLog
 import dev.triplet.engine.engine.Engine
@@ -139,21 +141,26 @@ class TriVpnService : VpnService() {
         // Executor-поток, блокировка допустима.
         val settings = runBlocking { store.snapshot() }
 
-        // 1. Ключ: если задан — парсим. Невалидный = Fail без попыток.
-        val profile = if (settings.vlessUri.isBlank()) null
-        else when (val parsed = VlessKeyParser.parse(settings.vlessUri)) {
-            is ParseResult.Ok -> parsed.profile
-            is ParseResult.Err -> {
-                VpnController.setState(VpnState.Failed(getString(R.string.err_invalid_key)))
-                stopSequence(stopSelf = true)
-                return
+        // 1. Разрешаем только выбранный VPN-профиль. VLESS парсится заново перед
+        // запуском, WARP уже был строго проверен при импорте/чтении из DataStore.
+        val vpn = when (settings.activeVpn) {
+            VpnProfileKind.VLESS -> {
+                if (settings.vlessUri.isBlank()) null
+                else when (val parsed = VlessKeyParser.parse(settings.vlessUri)) {
+                    is ParseResult.Ok -> VpnOutbound.Vless(parsed.profile)
+                    is ParseResult.Err -> {
+                        VpnController.setState(VpnState.Failed(getString(R.string.err_invalid_key)))
+                        stopSequence(stopSelf = true)
+                        return
+                    }
+                }
             }
+            VpnProfileKind.WARP -> settings.warpProfile?.let(VpnOutbound::Warp)
         }
-        val installed = settings.routes.keys.associateWith { uidOf(it) }
-        val uidPackages = packageManager.getInstalledApplications(0)
-            .groupBy { it.uid }
-            .mapValues { (_, apps) -> apps.map { it.packageName }.toSet() }
-        val effective = effectiveRoutes(settings.routes, installed, uidPackages)
+
+        val resolvedRoutes = resolveRouteSnapshot(packageManager, settings.routes)
+        val installed = resolvedRoutes.installedUids
+        val effective = resolvedRoutes.effective
         if (effective.sharedUidConflict.isNotEmpty()) {
             VpnController.setState(VpnState.Failed(getString(R.string.err_shared_uid)))
             stopSequence(stopSelf = true)
@@ -165,8 +172,8 @@ class TriVpnService : VpnService() {
             return
         }
         val vpnApps = effective.vpnPackages
-        if (profile == null && vpnApps.isNotEmpty()) {
-            VpnController.setState(VpnState.Failed(getString(R.string.err_key_required)))
+        if (vpn == null && vpnApps.isNotEmpty()) {
+            VpnController.setState(VpnState.Failed(getString(R.string.err_vpn_profile_required)))
             stopSequence(stopSelf = true)
             return
         }
@@ -212,7 +219,7 @@ class TriVpnService : VpnService() {
             val yaml = ConfigGenerator.build(
                 RoutingInput(
                     tunFd = tunFd, apiLevel = Build.VERSION.SDK_INT,
-                    profile = profile, vpnApps = effVpn, vpnUids = vpnUids,
+                    vpn = vpn, vpnApps = effVpn, vpnUids = vpnUids,
                     dpiApps = effDpi,
                     nameserver = DnsOptions.resolve(settings.dnsId, settings.dnsCustom),
                 ),
@@ -238,10 +245,14 @@ class TriVpnService : VpnService() {
         runBlocking { store.setSessionStartedAt(System.currentTimeMillis()) }
         goForeground(getString(R.string.notif_active))
         ServiceLog.i("active; validating routes")
-        validateRoutesAsync(effVpn, effDpi)
+        validateRoutesAsync(effVpn, effDpi, settings.activeVpn)
     }
 
-    private fun validateRoutesAsync(effVpn: Set<String>, effDpi: Set<String>) {
+    private fun validateRoutesAsync(
+        effVpn: Set<String>,
+        effDpi: Set<String>,
+        vpnKind: VpnProfileKind,
+    ) {
         val generation = validationGeneration.incrementAndGet()
         runCatching {
             healthExecutor.execute {
@@ -250,10 +261,14 @@ class TriVpnService : VpnService() {
                         validationGeneration.get() != generation ||
                         VpnController.state.value != VpnState.Active
                 }
-                val vpnHealthy = effVpn.isEmpty() || HealthCheck.generate204(10810, cancelled = cancelled)
+                // WARP may need a little longer on the first connection while the
+                // url-test group resolves/chooses an endpoint.
+                val vpnTimeout = if (vpnKind == VpnProfileKind.WARP) 5000 else 2500
+                val vpnHealthy = effVpn.isEmpty() ||
+                    HealthCheck.generate204(10810, timeoutMs = vpnTimeout, cancelled = cancelled)
                 val dpiHealthy = effDpi.isEmpty() ||
                     (dpi.isAlive() && HealthCheck.generate204(10811, cancelled = cancelled))
-                ServiceLog.i("probe results: vless=$vpnHealthy dpi=$dpiHealthy")
+                ServiceLog.i("probe results: vpn=$vpnHealthy dpi=$dpiHealthy")
                 if (cancelled() || (vpnHealthy && dpiHealthy)) return@execute
 
                 runCatching {
@@ -300,9 +315,9 @@ class TriVpnService : VpnService() {
         builder.addAddress(ConfigGenerator.INET4.substringBefore('/'),
             ConfigGenerator.INET4.substringAfter('/').toInt())
 
-        // fake-ip DNS-адрес движка должен принадлежать TUN-интерфейсу
-        // (mihomo v1.19.x игнорирует tun.inet4-address, см. pins.md).
-        builder.addAddress("198.18.0.1", 16)
+        // Device spike requires mihomo's fake-IP gateway on the host-created TUN.
+        // Keep the validated /30; external-FD mode does not configure the interface.
+        builder.addAddress("198.18.0.1", 30)
 
         builder.addRoute("0.0.0.0", 0)
         // Capture IPv6 too; mihomo explicitly rejects it before the fallback rule.
@@ -343,10 +358,6 @@ class TriVpnService : VpnService() {
         val addr = InetAddress.getByName(cidr.substring(0, slash))
         return android.net.IpPrefix(addr, cidr.substring(slash + 1).toInt())
     }
-
-    private fun uidOf(pkg: String): Int? = runCatching {
-        packageManager.getPackageUid(pkg, 0)
-    }.getOrNull()
 
     // ---- network monitor --------------------------------------------------
 
@@ -409,7 +420,7 @@ class TriVpnService : VpnService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val n: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_warning)
+            .setSmallIcon(R.drawable.ic_lock)
             .setContentTitle("Detour")
             .setContentText(text)
             .setContentIntent(content)

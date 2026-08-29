@@ -1,138 +1,126 @@
-# Testing evidence
+# Testing
 
-## Окружение
+This document defines the current verification contract. Historical screenshots, one-off device investigations and completed remediation plans are intentionally not kept as active project documentation.
 
-- Эмулятор: AVD `triplet`, system-images android-35 google_apis x86_64, API 35, эмулятор NixOS (nixpkgs emulator 37.1.11), headless.
-- Automated commands are `./gradlew` (preferably from `nix-shell`). Current
-  verification status is recorded by the corrective-pass report; device
-  evidence below is historical evidence, not a fresh run.
-- VLESS-сервер: Reality + xtls-rprx-vision + tcp (ключ пользователя; в репозиторий и логи не попадает, ниже маскирован).
-- ByeDPI v0.17.3 (статический ciadpi из jniLibs), пресет RECOMMENDED.
+## CI gate
 
-## Сквозное доказательство маршрутов (Task 10)
+Every push and pull request runs:
 
-Сценарий: Chrome → VPN, YouTube → DPI, остальные приложения вне allow-list TUN.
+```bash
+./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+bash engine/vulnscan.sh
+```
 
-| Проверка | Результат | Доказательство |
-|---|---|---|
-| Парсер реального ключа | PASS | Settings показывает «Valid» (uiautomator dump) |
-| Подключение одной кнопкой | PASS | Home: `Active`; нотификация foreground с Stop |
-| TUN поднят движком | PASS | mihomo.log: `[TUN] Tun adapter listening at: tun1(fd=135)([198.18.0.1/30],[fdfe:…]), stack: gVisor` |
-| Chrome egress = сервер VLESS | PASS | ifconfig.me/ip вернул `95.164.120.220` = gethostbyname(server) хоста; uid Chrome = 10145 |
-| YouTube через DPI-outbound | PASS | mihomo.log: `match Uid(10166) using DPI` ×14 за сессию; uid YouTube = 10166 |
-| VPN-outbound выбор для Chrome | PASS | mihomo.log: `match Uid(10145) using VLESS` |
-| Негатив: нет ключа при VPN-приложении | PASS | Failed «A VLESS key is required for VPN-routed apps»; без реконнект-лупа |
-| Негатив: мусор в поле ключа | PASS | Инлайн-валидация: «Invalid · Invalid link format» до Save |
-| Негатив: невалидный сохранённый ключ | PASS | Failed err_invalid_key (проверено импортом строки-комментария файла ключа) |
-| Авиарежим вкл/выкл | INCONCLUSIVE→OK | На эмуляторе default iface eth0 переживает aviation; туннель продолжил работать (9 свежих VLESS-match после цикла). Честная проверка смены Wi-Fi↔LTE — на OnePlus (Task 11) |
-| Сеть выкл (svc wifi/data) | N/A | eth0 не управляется svc; connectivity не рвалась |
+The Android workflow pins:
 
-Замечания к методике:
+- JDK 17;
+- Android platform/target 36;
+- build-tools 36.0.0;
+- NDK 28.0.13004108;
+- Go 1.26.7;
+- pinned `gomobile` and `govulncheck` versions.
 
-- Импорт ключа автоматизирован через временный debug-hook в MainActivity
-  (`--es import_uri`, force-stop → start). Хук удалён перед коммитом; установленный
-  на эмуляторе APK его содержит, что не влияет на продуктовую логику.
-- `match Match using REJECT` ×4 в логе — неизвестные потоки выбранных приложений
-  не обходят туннель,
-  чей owner-lookup вернул пусто (известная граница getConnectionOwnerUid на
-  уже-закрытых сокетах); на маршруты выбранных приложений это не влияет,
-  unselected-трафик в TUN не попадает вовсе (allow-list).
+`engine/vulnscan.sh` covers the checked-in/patched Go engine source and the produced Android binary artifacts. Native source revisions and embedding patches are documented in `pins.md`.
 
-## Instrumented (эмулятор, Android 15 / API 35)
+## Instrumented tests
 
-`ANDROID_SERIAL=emulator-XXXX nix develop -c ./gradlew :app:connectedDebugAndroidTest`
+With an emulator or device connected:
 
-| Класс | Тесты |
-|---|---|
-| MainActivitySmokeTest | 2/2 (кнопка Connect, вход в настройки) |
-| RoutesStoreInstrumentedTest | 3/3 (add/update/delete, дубликат id отклоняется, импорт не включает auto-connect) |
+```bash
+ANDROID_SERIAL=<serial> ./gradlew :app:connectedDebugAndroidTest
+```
 
-## Unit-уровень (накопительно)
+Instrumented tests are not part of the hosted CI job because they require an Android runtime.
 
-| Компонент | Тесты |
-|---|---|
-| VlessKeyParser | 6/6 (reality+vision happy-path, схема/транспорт/security/pbk reject) |
-| ConfigGenerator | 12/12 (золотой YAML целиком, IPv6 reject before UID, порядок QUIC-before-DPI, LAN по API, без-key профиль) |
-| DpiPresets | 4/4 |
-| RoutesMapping | 5/5 |
+## Unit/regression coverage
 
-## Приёмка на OnePlus 13s (Task 11)
+The JVM suite covers the behavior that must remain deterministic without a device, including:
 
-Окружение: CPH2723, ColorOS (Android 15), сеть провайдера с DPI-блокировками
-(Wi-Fi HUAWEI 5 ГГц + LTE), byedpi v0.17.3, пресет COMPATIBLE.
+- VLESS parsing, fingerprints and profile storage/migration;
+- WARP/AmneziaWG profile parsing/storage and fail-closed selection behavior;
+- generated Mihomo configuration and rule ordering;
+- DNS validation/bootstrap generation;
+- backup serialization/import policy;
+- DPI presets;
+- DataStore settings mapping;
+- auto-connect eligibility;
+- active/inactive profile mutation policy;
+- theme-transition and VPN-status visual policy.
 
-| # | Проверка | Результат | Доказательство |
-|---|---|---|---|
-| 1 | Telegram → VPN | PASS | IP-бот в Telegram показывает адрес VLESS-сервера |
-| 2 | YouTube → DPI | PASS | Видео воспроизводится; в mihomo.log `match Uid(10218) using DPI` |
-| 3 | Браузер без назначения → DIRECT | PASS | ifconfig.me = IP провайдера |
-| 4 | Три маршрута одновременно | PASS | Один VpnService, один TUN |
-| 5 | QUIC | PASS* | UDP/443 быстро REJECT-ится правилом → приложение откатывается на TCP; TCP до GGC-кэшей проходит лестницей COMPATIBLE |
-| 6 | Wi-Fi ↔ LTE | PASS | Автопереподключение монитором сети, маршруты сохранены |
-| 7 | Перезагрузка устройства | PASS | DataStore цел; повторное подключение и YouTube работают |
-| 8 | LAN при туннеле | PASS* | `192.168.0.0/16 throw` в маршрутах VPN: LAN не захватывается туннелем и не проксируется (LNP-инвариант) |
-| 9 | Секреты в логах | PASS | 508 строк mihomo.log: 0 совпадений по uuid/vless:///pbk; ServiceLog без секретов |
+Do not maintain manual test-count totals in this file; the test runner is the source of truth.
 
-\* см. «Найденные отклонения» — поведение QUIC осознанно изменено против исходного плана.
+## Device smoke checklist
 
-### Найденные и исправленные дефекты
+Run this after changes to VPN lifecycle, engine/config generation, routing, package inventory, navigation or display policy.
 
-1. **AppsScreen на узких экранах**: сегментные кнопки в одной строке с названием
-   сжимали колонку имени до вертикального столбика букв (RU-локаль). Кнопки
-   вынесены на отдельную полную строку.
-2. **Согласие VPN не продолжало подключение**: после одобрения системного диалога
-   требовался второй тап. Теперь старт перезапускается через
-   `rememberLauncherForActivityResult` на RESULT_OK.
-3. **Шторм рестартов сетевого монитора**: `onAvailable` от самой VPN-сети и при
-   валидации вызывал бесконечные ACTION_RESTART. Монитор дедуплицирует сеть,
-   игнорирует TRANSPORT_VPN и рестартует только из Active.
-4. **Статический ciadpi**: у статического bionic-бинарника не работает
-   `getaddrinfo` (нет libnetd_client) — сборка переведена на динамическую
-   (`interpreter /system/bin/linker64`).
-5. **IPv6 fail-closed**: IPv6 захватывается в TUN и отклоняется правилом
-   `IP-CIDR6,::/0,REJECT`; выбранные приложения не обходят VPN.
-6. **Заморозка ciadpi на пайпе**: stdout/stderr дочернего процесса никто не
-   читал; после заполнения пайпа (~64KB предупреждений) процесс блокировался на
-   записи. Вывод перенаправлен через `Redirect.INHERIT`.
-7. **Пресет COMPATIBLE** = стратегия, проверенная на сети провайдера
-   (`-d1 -s1+s -d3+s -s6+s -d9+s -s12+s -d15+s -s20+s -d25+s -s30+s -d35+s -a1`,
-   идентична рабочей стратегии ByeByeDPI).
+### VPN lifecycle
 
-### Current automated/device limitations
+- Idle → Connect → Active → Disconnect.
+- Fast connection must not flash a transient `Starting` state unnecessarily.
+- Failure keeps the Home status card on the neutral surface and exposes one retry path through the main action button.
+- Foreground notification and Quick Settings tile reflect the real VPN state.
+- Network changes rebuild the active tunnel without restart storms.
 
-- Current policy captures IPv6 in the TUN and explicitly rejects it, preventing
-  selected applications from bypassing the VPN over IPv6.
-- DNS accepts only IP literals or HTTPS DoH URLs and is emitted through
-  mihomo DNS hijack for routed applications.
+### Profiles and persistence
 
-### Итог
+- Switch VLESS ↔ WARP/AmneziaWG and reconnect successfully.
+- Editing/replacing the active profile restarts the active tunnel.
+- Editing an inactive profile does not interrupt the tunnel.
+- Deleting the active profile stops the session instead of selecting another endpoint silently.
+- Backup import while Active stops the stale tunnel and leaves auto-connect disabled.
+- Reinstall/start behavior respects the persisted auto-connect preference.
 
-The historical device runs above are not a substitute for current automated
-verification commands.
+### Per-app routing
 
-### Подбор стратегии DPI (МТС Вологда, 2026-08-24)
+- Verify at least one app on `VPN`, one on `DPI`, and one `DIRECT`/outside the routed allow-list.
+- Install/remove a routed application and confirm effective routes and the VPN allow-list are rebuilt.
+- Confirm selected IPv6 traffic does not bypass the VPN.
+- On API 29–32, verify LAN destinations are rejected before UID→VPN/DPI rules.
+- Check DNS resolution through the configured IP/DoH policy.
 
-Методика: нативный ciadpi v0.17.3 + перебор 63 кандидатов (курируемый список
-ByeByeDPI `proxytest_strategies.list` + пресеты) с метриками: TLS-рукопожатие
-к 5 реальным `rrX.googlevideo.com`, youtubei API, длинная закачка (143 МБ,
-dl.google.com), матрица флакнесса 5 хостов × 6 повторов на телефоне.
+### App Routes UI
 
-Выводы:
-- Одиночные приёмы (`-s N`, `-d N`, `--fake --ttl`, `-r`) не пробивают
-  SNI-блок МТС вовсе; работают только многочастные лестницы/комбо.
-- Все рабочие стратегии статистически равны (18–24/30 прохождений).
-- Разброс зависит от конкретных GGC-нод: часть нод (напр.
-  `rr4---sn-q4flrnsl`) недоступна даже через обход — это деградация сети,
-  а не стратегии. Отсюда периодические «видео не грузится» с самоисправлением.
-- Длинные потоки стратегии не рвут (143 МБ @ ~20 МБ/с у всех финалистов);
-  ранний капибюз 16 КБ на proof.ovh оказался анти-ботом OVH, а не DPI.
+- First entry into App Routes should render the warmed app list without an empty intermediate layout.
+- App icons should already be present in the first normally visible frame; no mass placeholder → icon swap.
+- Search, Show system apps and route changes should not mass-fade/recreate the list.
+- Scroll/fling should remain smooth while icons are loaded from the process cache/background path.
 
-Действие: в COMPATIBLE добавлен `--timeout 3` (по исходнику действует только
-на фазу установления соединения) — мёртвая нода отваливается за 3 с, YouTube
-перебирает следующую вместо минутного зависания. Запасные стратегии той же
-эффективности (через «Своя стратегия»): `-q 1 -r 25+s`,
-`-o 1 -r -5+se`, `-q 1+s -s 29+s -o 5+s --fake -1 -S`.
+### Navigation and motion
 
-## Осталось до релиза
+Exercise repeatedly:
 
-- (ничего — план закрыт)
+`Home → Settings → App Routes → Back → Back`
+
+Also open VPN profiles, DPI, DNS, Backup and Theme from Settings.
+
+Verify:
+
+- only the top full-screen destination moves;
+- the lower screen remains stationary;
+- no full-screen alpha crossfade/ghosting;
+- no abrupt layer removal at the end of Back;
+- Settings and App Routes remain readable during the transition;
+- system animator-duration scale is respected.
+
+### Adaptive refresh
+
+On a compatible high-refresh Android device, use the system refresh-rate overlay and/or Perfetto FrameTimeline:
+
+- navigation should request high-refresh residency only while moving;
+- active scroll/fling and bounded list/expand motion may request high refresh;
+- static screens should be allowed to return to the system/default adaptive policy;
+- touch boost remains platform-managed;
+- the app must not pin a concrete 120 Hz mode;
+- compare 60 Hz and 120 Hz: physical animation duration should remain time-based while the higher-refresh display renders more intermediate frames.
+
+Frame-rate requests are scheduler hints, not a guarantee of a particular panel mode. Full adaptive-refresh behavior depends on the Android version, device display stack and OEM implementation.
+
+## Release evidence
+
+Before treating a revision as release-ready, record at minimum:
+
+1. green CI for the exact commit;
+2. a fresh Android device/emulator smoke for the areas changed;
+3. for native/routing changes, a successful connect and per-app routing check on the exact produced build.
+
+Do not describe historical device results as validation of a newer commit.

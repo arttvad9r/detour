@@ -1,9 +1,14 @@
 package dev.triplet.app.data
 
+import dev.triplet.app.core.AmneziaWgOptions
 import dev.triplet.app.core.AppRoute
 import dev.triplet.app.core.DpiPreset
+import dev.triplet.app.core.VpnProfileKind
+import dev.triplet.app.core.WarpProfile
+import dev.triplet.app.core.WarpProxy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -33,10 +38,48 @@ class RoutesMappingTest {
         assertFalse(s.routes.containsKey("c"))
     }
 
+    @Test fun `WARP profile and selection are restored`() {
+        val warp = WarpProfile(
+            id = "warp", name = "WARP",
+            proxies = listOf(
+                WarpProxy(
+                    name = "endpoint", server = "warp.example", port = 4500,
+                    ip = "172.16.0.2", privateKey = "private", publicKey = "public",
+                    reserved = listOf(1, 2, 3), allowedIps = listOf("0.0.0.0/0"),
+                    amnezia = AmneziaWgOptions(jc = 4),
+                ),
+            ),
+        )
+        val s = RoutesMapping.toSettings(
+            mapOf(
+                "warp_profile" to warp.toJson(),
+                "vpn_profile_kind" to "WARP",
+            ),
+        )
+        assertEquals(VpnProfileKind.WARP, s.activeVpn)
+        assertEquals(warp, s.warpProfile)
+        assertTrue(s.activeVpnConfigured)
+    }
+
+    @Test fun `missing or corrupt WARP stays selected but unconfigured`() {
+        val missing = RoutesMapping.toSettings(mapOf("vpn_profile_kind" to "WARP"))
+        assertEquals(VpnProfileKind.WARP, missing.activeVpn)
+        assertNull(missing.warpProfile)
+        assertFalse(missing.activeVpnConfigured)
+
+        val corrupt = RoutesMapping.toSettings(
+            mapOf("vpn_profile_kind" to "WARP", "warp_profile" to "{broken"),
+        )
+        assertEquals(VpnProfileKind.WARP, corrupt.activeVpn)
+        assertNull(corrupt.warpProfile)
+        assertFalse(corrupt.activeVpnConfigured)
+    }
+
     @Test fun `defaults when empty`() {
         val s = RoutesMapping.toSettings(emptyMap())
         assertEquals("", s.vlessUri)
         assertEquals(DpiPreset.RECOMMENDED, s.preset)
+        assertEquals(VpnProfileKind.VLESS, s.activeVpn)
         assertTrue(s.routes.isEmpty())
     }
 

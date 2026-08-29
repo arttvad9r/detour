@@ -1,5 +1,11 @@
 package dev.triplet.app.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -23,9 +29,12 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
+private enum class SupportingTone { ERROR, SUCCESS, HELPER }
+private data class SupportingText(val text: String, val tone: SupportingTone)
+
 /**
- * Shared Detour input treatment. Every field starts at the same compact one-line
- * height and multiline fields grow only when their content actually wraps.
+ * Shared input treatment with restrained focus/validation motion. Multiline
+ * fields still grow only with their actual content; no decorative bouncing.
  */
 @Composable
 fun DetourInputField(
@@ -45,16 +54,18 @@ fun DetourInputField(
 ) {
     val c = detourColors
     var focused by remember { mutableStateOf(false) }
-    val borderColor = when {
+    val targetBorder = when {
         error != null -> c.error
         focused -> c.accent
         else -> c.border
     }
-    val labelColor = when {
+    val targetLabel = when {
         error != null -> c.error
         focused -> c.accent
         else -> c.textSecondary
     }
+    val borderColor by animateColorAsState(targetBorder, tween(Motion.COLOR_MS), label = "fieldBorder")
+    val labelColor by animateColorAsState(targetLabel, tween(Motion.COLOR_MS), label = "fieldLabel")
     val baseTextStyle = MaterialTheme.typography.bodyLarge
     val textStyle = if (monospace) {
         baseTextStyle.copy(color = c.textPrimary, fontFamily = FontFamily.Monospace)
@@ -89,35 +100,62 @@ fun DetourInputField(
                     Modifier.fillMaxWidth(),
                     contentAlignment = Alignment.CenterStart,
                 ) {
-                    if (value.isEmpty()) {
-                        Text(
-                            text = placeholder,
-                            style = textStyle,
-                            color = c.textMuted,
-                            maxLines = 1,
-                        )
+                    AnimatedContent(
+                        targetState = value.isEmpty(),
+                        transitionSpec = {
+                            fadeIn(tween(Motion.CONTENT_IN_MS)) togetherWith
+                                fadeOut(tween(Motion.CONTENT_OUT_MS))
+                        },
+                        label = "fieldPlaceholder",
+                    ) { empty ->
+                        if (empty) {
+                            Text(
+                                text = placeholder,
+                                style = textStyle,
+                                color = c.textMuted,
+                                maxLines = 1,
+                            )
+                        } else {
+                            Box(Modifier)
+                        }
                     }
                     innerTextField()
                 }
             },
         )
 
-        val supporting = error ?: success ?: helper
-        if (supporting != null) {
-            Text(
-                text = supporting,
-                style = MaterialTheme.typography.bodySmall,
-                color = when {
-                    error != null -> c.error
-                    success != null -> c.textSecondary
-                    else -> c.textMuted
-                },
-                modifier = Modifier.padding(
-                    start = Spacing.space4,
-                    end = Spacing.space4,
-                    top = Spacing.space8,
-                ),
-            )
+        val supporting = when {
+            error != null -> SupportingText(error, SupportingTone.ERROR)
+            success != null -> SupportingText(success, SupportingTone.SUCCESS)
+            helper != null -> SupportingText(helper, SupportingTone.HELPER)
+            else -> null
+        }
+        AnimatedContent(
+            targetState = supporting,
+            transitionSpec = {
+                fadeIn(tween(Motion.CONTENT_IN_MS, delayMillis = 20)) togetherWith
+                    fadeOut(tween(Motion.CONTENT_OUT_MS))
+            },
+            label = "fieldSupporting",
+        ) { shown ->
+            if (shown != null) {
+                Text(
+                    text = shown.text,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = when (shown.tone) {
+                        SupportingTone.ERROR -> c.error
+                        SupportingTone.SUCCESS -> c.textSecondary
+                        SupportingTone.HELPER -> c.textMuted
+                    },
+                    modifier = Modifier.padding(
+                        start = Spacing.space4,
+                        end = Spacing.space4,
+                        top = Spacing.space8,
+                    ),
+                )
+            } else {
+                Box(Modifier)
+            }
         }
     }
 }

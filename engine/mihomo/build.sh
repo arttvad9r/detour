@@ -5,14 +5,14 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-MIHOMO_VERSION="v1.19.29"
-MIHOMO_COMMIT="e26714a181ac0e2fa803453c0a8e9a9ce94e31cb"
+MIHOMO_VERSION="v1.19.30"
+MIHOMO_COMMIT="ac017cdd246ce8bd547653d927e7bf77d7ee73d5"
 CACHE="${MIHOMO_CACHE:-$REPO_ROOT/.cache/mihomo-src}"
 BIND_DIR="$REPO_ROOT/engine/mihomo/go"
 OUT="$REPO_ROOT/engine/libs/engine.aar"
 
-command -v go >/dev/null || { echo "run inside nix-shell" >&2; exit 127; }
-command -v gomobile >/dev/null || { echo "gomobile missing" >&2; exit 127; }
+command -v go >/dev/null || { echo "Go is required (release builds use Go 1.26.7)" >&2; exit 127; }
+command -v gomobile >/dev/null || { echo "gomobile missing; install golang.org/x/mobile/cmd/gomobile" >&2; exit 127; }
 
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
@@ -115,8 +115,29 @@ PYEOF
 
 export PATH="$PATH:$(go env GOPATH)/bin"
 export GOFLAGS="-mod=mod -tags=with_gvisor"
-# -libname dropped: gomobile@latest no longer supports it; output defaults to <package>.aar == engine.aar
+# -libname dropped: current gomobile no longer supports it; output defaults to <package>.aar == engine.aar
 gomobile bind -target android/arm64,android/amd64 -androidapi 24 -javapkg=dev.triplet.engine .
+
+# Verify the shipped c-shared libraries were built by the selected Go toolchain.
+# `go version` reads the linker-stamped version from c-shared ELF files; checking
+# every ABI prevents a stale/vulnerable runtime from being packaged.
+expected_go="$(go env GOVERSION)"
+mapfile -t go_libs < <(unzip -Z1 engine.aar | grep -E '^jni/[^/]+/libgojni\.so$')
+if (( ${#go_libs[@]} == 0 )); then
+  echo "FATAL: engine.aar contains no libgojni.so" >&2
+  exit 1
+fi
+for entry in "${go_libs[@]}"; do
+  extracted="$WORK_DIR/$(basename "$(dirname "$entry")")-libgojni.so"
+  unzip -p engine.aar "$entry" > "$extracted"
+  actual_go="$(go version "$extracted" | awk '{print $2}')"
+  if [[ "$actual_go" != "$expected_go" ]]; then
+    echo "FATAL: $entry built with $actual_go, expected $expected_go" >&2
+    exit 1
+  fi
+done
+echo "embedded Go runtime: $expected_go (${#go_libs[@]} ABIs)"
+
 mkdir -p "$(dirname "$OUT")"
 cp engine.aar "$OUT"
 echo "Artifact: $OUT ($(du -h engine.aar | cut -f1))"

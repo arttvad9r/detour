@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -33,23 +34,25 @@ fun ThemeScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mod
     val scope = rememberCoroutineScope()
     val c = detourColors
     val settings by store.settings.collectAsState()
-    val current = settings?.themeId?.ifBlank { null } ?: AppTheme.LAVENDA.id
+    val current = AppTheme.byId(settings?.themeId ?: "").id
+    val scrollState = rememberScrollState()
 
     Column(
         modifier.fillMaxSize()
             .background(c.background)
             .statusBarsPadding()
             .navigationBarsPadding()
-            .verticalScroll(rememberScrollState()),
+            .verticalScroll(scrollState)
+            .detourHighRefresh(scrollState.isScrollInProgress),
     ) {
         ScreenHeader(stringResource(R.string.theme_title), onBack)
         Spacer(Modifier.height(Spacing.space8))
 
-        DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
+        DetourCard(Modifier.padding(horizontal = Spacing.space16).selectableGroup()) {
             AppTheme.entries.forEachIndexed { i, t ->
                 val selected = current == t.id
                 RadioRow(
-                    title = stringResource(themeLabel(t)),
+                    title = t.label,
                     selected = selected,
                     onClick = { scope.launch { store.setTheme(t.id) } },
                     trailing = { ThemeSwatches(t) },
@@ -72,7 +75,7 @@ fun ThemeScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mod
 @Composable
 private fun ThemeSwatches(t: AppTheme) {
     Row(Modifier.padding(end = Spacing.space12)) {
-        listOf(t.colors.background, t.colors.accent, t.colors.active).forEach { color ->
+        listOf(t.colors.background, t.colors.accent, t.colors.textPrimary).forEach { color ->
             Box(
                 Modifier
                     .padding(start = Spacing.space4)

@@ -3,9 +3,14 @@ package dev.triplet.app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,102 +19,231 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.VlessKeyParser
+import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.ui.AppShapes
 import dev.triplet.app.ui.AppTheme
 import dev.triplet.app.ui.AppTypography
 import dev.triplet.app.ui.AppsScreen
 import dev.triplet.app.ui.BackupScreen
+import dev.triplet.app.ui.DetourColors
 import dev.triplet.app.ui.DnsScreen
 import dev.triplet.app.ui.DpiScreen
 import dev.triplet.app.ui.HomeScreen
+import dev.triplet.app.ui.LocalDetourColors
 import dev.triplet.app.ui.LocalDetourTheme
+import dev.triplet.app.ui.Motion
 import dev.triplet.app.ui.SettingsMenuScreen
 import dev.triplet.app.ui.ThemeScreen
 import dev.triplet.app.ui.VlessKeyScreen
+import dev.triplet.app.ui.colorSchemeFor
+import dev.triplet.app.ui.configureAdaptiveRefresh
+import dev.triplet.app.ui.detourHighRefresh
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
 import dev.triplet.app.vpn.canAutoConnect
-import dev.triplet.app.vpn.effectiveRoutes
+import dev.triplet.app.vpn.resolveEffectiveRoutes
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
-private enum class Screen { HOME, SETTINGS, ROUTES, VLESS, DPI, THEME, DNS, BACKUP }
+private object Route {
+    const val HOME = "home"
+    const val SETTINGS = "settings"
+    const val ROUTES = "routes"
+    const val VLESS = "vless"
+    const val DPI = "dpi"
+    const val THEME = "theme"
+    const val DNS = "dns"
+    const val BACKUP = "backup"
+}
+
+internal fun themeTransitionDuration(previousDark: Boolean, targetDark: Boolean): Int =
+    if (previousDark == targetDark) Motion.THEME_MS else 0
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        configureAdaptiveRefresh(window)
         val store = (application as TripletApp).routesStore
         setContent {
             val settings by store.settings.collectAsState()
             val theme = AppTheme.byId(settings?.themeId ?: "")
+            val target = theme.colors
+            var previousDark by remember { mutableStateOf(theme.dark) }
+            val themeAnimation = tween<Color>(themeTransitionDuration(previousDark, theme.dark))
+
+            // Interpolate within the same brightness mode. A continuous light↔dark
+            // palette interpolation necessarily crosses a frame where foreground and
+            // background luminance converge, so cross-mode changes snap atomically.
+            val animatedColors = DetourColors(
+                background = animateColorAsState(target.background, themeAnimation, label = "themeBackground").value,
+                surface = animateColorAsState(target.surface, themeAnimation, label = "themeSurface").value,
+                surfaceSoft = animateColorAsState(target.surfaceSoft, themeAnimation, label = "themeSurfaceSoft").value,
+                surfaceSelected = animateColorAsState(target.surfaceSelected, themeAnimation, label = "themeSelected").value,
+                textPrimary = animateColorAsState(target.textPrimary, themeAnimation, label = "themeTextPrimary").value,
+                textSecondary = animateColorAsState(target.textSecondary, themeAnimation, label = "themeTextSecondary").value,
+                textMuted = animateColorAsState(target.textMuted, themeAnimation, label = "themeTextMuted").value,
+                accent = animateColorAsState(target.accent, themeAnimation, label = "themeAccent").value,
+                onAccent = animateColorAsState(target.onAccent, themeAnimation, label = "themeOnAccent").value,
+                accentSoft = animateColorAsState(target.accentSoft, themeAnimation, label = "themeAccentSoft").value,
+                accentBorder = animateColorAsState(target.accentBorder, themeAnimation, label = "themeAccentBorder").value,
+                divider = animateColorAsState(target.divider, themeAnimation, label = "themeDivider").value,
+                border = animateColorAsState(target.border, themeAnimation, label = "themeBorder").value,
+                active = animateColorAsState(target.active, themeAnimation, label = "themeActive").value,
+                activeStrong = animateColorAsState(target.activeStrong, themeAnimation, label = "themeActiveStrong").value,
+                activeSoft = animateColorAsState(target.activeSoft, themeAnimation, label = "themeActiveSoft").value,
+                activeBorder = animateColorAsState(target.activeBorder, themeAnimation, label = "themeActiveBorder").value,
+                error = animateColorAsState(target.error, themeAnimation, label = "themeError").value,
+                errorSoft = animateColorAsState(target.errorSoft, themeAnimation, label = "themeErrorSoft").value,
+            )
+
             LaunchedEffect(theme) {
+                previousDark = theme.dark
                 val style = if (theme.dark) SystemBarStyle.dark(Color.Transparent.toArgb())
                 else SystemBarStyle.light(Color.Transparent.toArgb(), Color.Transparent.toArgb())
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
             }
-            CompositionLocalProvider(LocalDetourTheme provides theme) {
-                MaterialTheme(colorScheme = theme.scheme, typography = AppTypography, shapes = AppShapes) {
-                    Box(Modifier.fillMaxSize().background(theme.colors.background)) {
-                        var screen by rememberSaveable { androidx.compose.runtime.mutableStateOf(Screen.HOME) }
-                        val ctx = this@MainActivity
 
-                        // "Подключаться при запуске" is a launch-time policy, not a
-                        // reactive command. Toggling the preference while the app is
-                        // already open must never start the VPN immediately.
+            CompositionLocalProvider(
+                LocalDetourTheme provides theme,
+                LocalDetourColors provides animatedColors,
+            ) {
+                MaterialTheme(
+                    colorScheme = colorSchemeFor(animatedColors, theme.dark),
+                    typography = AppTypography,
+                    shapes = AppShapes,
+                ) {
+                    Box(Modifier.fillMaxSize().background(animatedColors.background)) {
+                        val ctx = this@MainActivity
+                        val navController = rememberNavController()
+                        val currentEntry by navController.currentBackStackEntryAsState()
+                        val currentRoute = currentEntry?.destination?.route
+                        var previousRoute by remember { mutableStateOf<String?>(null) }
+                        var navMotionActive by remember { mutableStateOf(false) }
+
+                        LaunchedEffect(currentRoute) {
+                            val changed = previousRoute != null && previousRoute != currentRoute
+                            previousRoute = currentRoute
+                            if (changed) {
+                                navMotionActive = true
+                                delay(Motion.NAV_REFRESH_BOOST_MS)
+                                navMotionActive = false
+                            }
+                        }
+
                         LaunchedEffect(Unit) {
                             val launchSettings = store.snapshot()
-                            val effective = effectiveRoutes(
-                                launchSettings.routes,
-                                launchSettings.routes.keys.associateWith { pkg ->
-                                    runCatching { packageManager.getPackageUid(pkg, 0) }.getOrNull()
-                                },
-                            )
-                            val activeValid = launchSettings.vlessKeys.active?.uri?.let {
-                                VlessKeyParser.parse(it) is ParseResult.Ok
-                            } == true
+                            val effective = withContext(Dispatchers.IO) {
+                                resolveEffectiveRoutes(packageManager, launchSettings.routes)
+                            }
+                            val activeVpnValid = when (launchSettings.activeVpn) {
+                                VpnProfileKind.VLESS -> launchSettings.vlessKeys.active?.uri?.let {
+                                    VlessKeyParser.parse(it) is ParseResult.Ok
+                                } == true
+                                VpnProfileKind.WARP -> launchSettings.warpProfile != null
+                            }
                             if (
                                 canAutoConnect(
                                     launchSettings,
                                     android.net.VpnService.prepare(ctx) == null,
                                     effective,
-                                    activeValid,
+                                    activeVpnValid,
                                 ) && VpnController.state.value == VpnState.Idle
                             ) {
                                 VpnController.startNow(ctx)
                             }
                         }
 
-                        BackHandler(enabled = screen != Screen.HOME) {
-                            screen = if (screen == Screen.SETTINGS) Screen.HOME else Screen.SETTINGS
-                        }
-
-                        // Screen changes are intentionally immediate. The previous
-                        // slide/crossfade made short navigation feel heavier than the
-                        // rest of the interface and could expose intermediate frames.
-                        when (screen) {
-                            Screen.HOME -> HomeScreen(store, onOpenSettings = { screen = Screen.SETTINGS })
-                            Screen.SETTINGS -> SettingsMenuScreen(
-                                store,
-                                onOpenRoutes = { screen = Screen.ROUTES },
-                                onOpenVless = { screen = Screen.VLESS },
-                                onOpenDpi = { screen = Screen.DPI },
-                                onOpenTheme = { screen = Screen.THEME },
-                                onOpenDns = { screen = Screen.DNS },
-                                onOpenBackup = { screen = Screen.BACKUP },
-                                onBack = { screen = Screen.HOME },
-                            )
-                            Screen.ROUTES -> AppsScreen(store, onBack = { screen = Screen.SETTINGS })
-                            Screen.VLESS -> VlessKeyScreen(store, onBack = { screen = Screen.SETTINGS })
-                            Screen.DPI -> DpiScreen(store, onBack = { screen = Screen.SETTINGS })
-                            Screen.THEME -> ThemeScreen(store, onBack = { screen = Screen.SETTINGS })
-                            Screen.DNS -> DnsScreen(store, onBack = { screen = Screen.SETTINGS })
-                            Screen.BACKUP -> BackupScreen(store, onBack = { screen = Screen.SETTINGS })
+                        NavHost(
+                            navController = navController,
+                            startDestination = Route.HOME,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .detourHighRefresh(navMotionActive),
+                            // Only the top page moves. Settings and app routes are
+                            // visually denser than the other destinations, so give
+                            // their full-width travel a longer nominal window. Compose
+                            // still applies Android's animator-duration scale.
+                            enterTransition = {
+                                val duration = when (targetState.destination.route) {
+                                    Route.SETTINGS -> Motion.NAV_SETTINGS_ENTER_MS
+                                    Route.ROUTES -> Motion.NAV_ROUTES_ENTER_MS
+                                    else -> Motion.NAV_ENTER_MS
+                                }
+                                slideInHorizontally(
+                                    animationSpec = tween(
+                                        duration,
+                                        easing = Motion.STANDARD_EASING,
+                                    ),
+                                    initialOffsetX = { it },
+                                )
+                            },
+                            exitTransition = { ExitTransition.None },
+                            popEnterTransition = { EnterTransition.None },
+                            popExitTransition = {
+                                val duration = when (initialState.destination.route) {
+                                    Route.SETTINGS -> Motion.NAV_SETTINGS_EXIT_MS
+                                    Route.ROUTES -> Motion.NAV_ROUTES_EXIT_MS
+                                    else -> Motion.NAV_EXIT_MS
+                                }
+                                slideOutHorizontally(
+                                    animationSpec = tween(
+                                        duration,
+                                        easing = Motion.STANDARD_EASING,
+                                    ),
+                                    targetOffsetX = { it },
+                                )
+                            },
+                        ) {
+                            composable(Route.HOME) {
+                                HomeScreen(
+                                    store,
+                                    onOpenSettings = { navController.navigate(Route.SETTINGS) },
+                                )
+                            }
+                            composable(Route.SETTINGS) {
+                                SettingsMenuScreen(
+                                    store,
+                                    onOpenRoutes = { navController.navigate(Route.ROUTES) },
+                                    onOpenVless = { navController.navigate(Route.VLESS) },
+                                    onOpenDpi = { navController.navigate(Route.DPI) },
+                                    onOpenTheme = { navController.navigate(Route.THEME) },
+                                    onOpenDns = { navController.navigate(Route.DNS) },
+                                    onOpenBackup = { navController.navigate(Route.BACKUP) },
+                                    onBack = { navController.popBackStack() },
+                                )
+                            }
+                            composable(Route.ROUTES) {
+                                AppsScreen(store, onBack = { navController.popBackStack() })
+                            }
+                            composable(Route.VLESS) {
+                                VlessKeyScreen(store, onBack = { navController.popBackStack() })
+                            }
+                            composable(Route.DPI) {
+                                DpiScreen(store, onBack = { navController.popBackStack() })
+                            }
+                            composable(Route.THEME) {
+                                ThemeScreen(store, onBack = { navController.popBackStack() })
+                            }
+                            composable(Route.DNS) {
+                                DnsScreen(store, onBack = { navController.popBackStack() })
+                            }
+                            composable(Route.BACKUP) {
+                                BackupScreen(store, onBack = { navController.popBackStack() })
+                            }
                         }
                     }
                 }

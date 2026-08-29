@@ -1,11 +1,14 @@
 package dev.triplet.app.ui
 
+import android.graphics.Bitmap
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,14 +23,19 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -39,7 +47,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -47,7 +57,9 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.graphics.drawable.toBitmap
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import dev.triplet.app.R
 import dev.triplet.app.core.AppRoute
 import dev.triplet.app.data.AppInfo
@@ -56,27 +68,50 @@ import dev.triplet.app.data.AppRouteOrdering
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.vpn.VpnController
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
 fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
+    val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val c = detourColors
     val settings by store.settings.collectAsState()
     val currentSettings = settings ?: return
-    val pm = ctx.packageManager
     val searchHint = stringResource(R.string.search_hint)
 
-    var query by rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
-    var searchFocused by remember { androidx.compose.runtime.mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var searchFocused by remember { mutableStateOf(false) }
+    var inventoryRevision by remember { mutableIntStateOf(0) }
+
+    // Re-query PackageManager whenever Detour comes back to the foreground. This
+    // catches apps installed/removed while Play Store or another installer was on
+    // top. AppInventory keeps the previous snapshot renderable until refresh ends.
+    DisposableEffect(ctx) {
+        val owner = ctx as? LifecycleOwner
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) inventoryRevision++
+        }
+        owner?.lifecycle?.addObserver(observer)
+        onDispose { owner?.lifecycle?.removeObserver(observer) }
+    }
+
     val searchBorder by animateColorAsState(
         if (searchFocused) c.accent else c.border,
-        tween(140), label = "searchBorder",
+        tween(Motion.COLOR_MS), label = "searchBorder",
+    )
+    val searchIcon by animateColorAsState(
+        if (searchFocused) c.accent else c.textMuted,
+        tween(Motion.COLOR_MS), label = "searchIcon",
     )
     val showSystem = currentSettings.showSystemApps
-    val allApps by produceState<List<AppInfo>?>(initialValue = null, ctx) {
+    val allApps by produceState<List<AppInfo>?>(
+        initialValue = AppInventory.peek(),
+        key1 = ctx,
+        key2 = inventoryRevision,
+    ) {
         value = withContext(Dispatchers.IO) { AppInventory.load(ctx) }
     }
     val routes = currentSettings.routes
@@ -93,6 +128,21 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
                     it.label.contains(query, ignoreCase = true) ||
                     it.packageName.contains(query, ignoreCase = true)
             }
+    }
+    val appKeys = remember(apps) { apps.map { it.packageName } }
+    val listState = rememberLazyListState()
+    var listMotionActive by remember { mutableStateOf(false) }
+    LaunchedEffect(query, showSystem, appKeys) {
+        listMotionActive = true
+        delay(Motion.LIST_REFRESH_BOOST_MS)
+        listMotionActive = false
+    }
+
+    fun setShowSystemFromRow(value: Boolean) {
+        haptics.performHapticFeedback(
+            if (value) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff,
+        )
+        scope.launch { store.setShowSystemApps(value) }
     }
 
     Column(
@@ -116,12 +166,16 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
         ) {
             Icon(
                 painterResource(R.drawable.ic_search), null,
-                tint = if (searchFocused) c.accent else c.textMuted,
+                tint = searchIcon,
                 modifier = Modifier.size(18.dp),
             )
             Spacer(Modifier.width(8.dp))
             Box(Modifier.weight(1f)) {
-                if (query.isEmpty()) {
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = query.isEmpty(),
+                    enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)),
+                    exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)),
+                ) {
                     Text(
                         searchHint,
                         style = MaterialTheme.typography.bodyLarge,
@@ -145,7 +199,12 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
         Row(
             Modifier.fillMaxWidth()
                 .padding(horizontal = Spacing.space16, vertical = Spacing.space8)
-                .detourClickable(onClick = { scope.launch { store.setShowSystemApps(!showSystem) } }),
+                .detourToggleable(
+                    value = showSystem,
+                    onValueChange = ::setShowSystemFromRow,
+                    pressedColor = c.surfaceSelected.copy(alpha = 0.32f),
+                    pressScale = Motion.PRESS_ROW,
+                ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -155,11 +214,19 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
                 color = c.textPrimary,
                 modifier = Modifier.weight(1f),
             )
-            DetourSwitch(checked = showSystem, onCheckedChange = { value -> scope.launch { store.setShowSystemApps(value) } })
+            DetourSwitch(
+                checked = showSystem,
+                onCheckedChange = null,
+            )
         }
 
         DetourCard(Modifier.weight(1f).padding(horizontal = Spacing.space16)) {
-            LazyColumn(Modifier.fillMaxWidth()) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .detourHighRefresh(listState.isScrollInProgress || listMotionActive),
+            ) {
                 itemsIndexed(apps, key = { _, app -> app.packageName }) { i, app ->
                     val current = routes[app.packageName] ?: AppRoute.DIRECT
                     val shape = when {
@@ -169,9 +236,19 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
                         else -> RoundedCornerShape(0.dp)
                     }
                     Column(
-                        Modifier.fillMaxWidth().clip(shape),
+                        Modifier
+                            .animateItem(
+                                fadeInSpec = null,
+                                fadeOutSpec = null,
+                                placementSpec = spring(
+                                    dampingRatio = Motion.SPRING_DAMPING,
+                                    stiffness = Motion.SPRING_STIFFNESS_SOFT,
+                                ),
+                            )
+                            .fillMaxWidth()
+                            .clip(shape),
                     ) {
-                        AppRow(app, current, pm) { route ->
+                        AppRow(app, current) { route ->
                             scope.launch {
                                 store.setRoute(app.packageName, route)
                                 VpnController.restartIfActive(ctx)
@@ -197,18 +274,27 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
 private fun AppRow(
     app: AppInfo,
     current: AppRoute,
-    pm: android.content.pm.PackageManager,
     onSelect: (AppRoute) -> Unit,
 ) {
+    val ctx = LocalContext.current
     val c = detourColors
+    val bmp by produceState<Bitmap?>(
+        initialValue = AppInventory.peekIcon(app.packageName),
+        key1 = app.packageName,
+    ) {
+        if (value == null) {
+            value = withContext(Dispatchers.IO) {
+                AppInventory.loadIcon(ctx, app.packageName)
+            }
+        }
+    }
+
     Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.space16, vertical = Spacing.space12)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            val bmp = remember(app.packageName) {
-                runCatching { pm.getApplicationIcon(app.packageName).toBitmap(48, 48) }.getOrNull()
-            }
-            if (bmp != null) {
+            val icon = bmp
+            if (icon != null) {
                 Image(
-                    bmp.asImageBitmap(), null,
+                    icon.asImageBitmap(), null,
                     modifier = Modifier.size(26.dp).clip(AppShapes.extraSmall),
                 )
             } else {
@@ -241,6 +327,7 @@ private fun AppRow(
             options = AppRoute.entries.map { stringResource(routeLabel(it)) },
             selected = AppRoute.entries.indexOf(current),
             onSelect = { idx -> onSelect(AppRoute.entries[idx]) },
+            modifier = Modifier.height(32.dp),
         )
     }
 }

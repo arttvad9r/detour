@@ -13,16 +13,15 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
     fun delete(id: String): VlessKeys {
         if (items.none { it.id == id }) return this
         val remaining = items.filterNot { it.id == id }
-        val next = when {
-            remaining.isEmpty() -> null
-            activeId != id -> activeId
-            else -> remaining.first().id
-        }
+        // Deleting the selected endpoint must not silently activate another one.
+        // Keep inactive deletions stable, but require an explicit new selection
+        // after the active key is removed.
+        val next = if (activeId == id) null else activeId
         return VlessKeys(remaining, next)
     }
 
     fun toJson(): String = JSONObject().apply {
-        put("activeId", activeId)
+        put("activeId", activeId ?: JSONObject.NULL)
         put("items", JSONArray().apply {
             items.forEach { put(JSONObject().apply { put("id", it.id); put("name", it.name); put("uri", it.uri) }) }
         })
@@ -30,12 +29,10 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
 
     companion object {
         fun fromStored(json: String, legacyUri: String): VlessKeys {
-            if (json.isBlank()) {
-                if (legacyUri.isBlank()) return VlessKeys(emptyList(), null)
-                val key = VlessKey(stableLegacyId(legacyUri), "VLESS", legacyUri)
-                return VlessKeys(listOf(key), key.id)
-            }
+            if (json.isBlank()) return legacyOrEmpty(legacyUri)
             return runCatching { fromJson(json) }.getOrElse {
+                // Legacy fallback is migration-only. A present but damaged modern
+                // snapshot must fail closed instead of resurrecting shadow state.
                 VlessKeys(emptyList(), null)
             }
         }
@@ -62,9 +59,26 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
                 }
             }
             require(parsed.map { it.id }.distinct().size == parsed.size) { "duplicate VLESS key id" }
-            val activeId = if (root.has("activeId")) root.get("activeId") else null
-            require(activeId == null || activeId == JSONObject.NULL || activeId is String)
-            return VlessKeys(parsed, (activeId as? String).takeIf { id -> parsed.any { it.id == id } } ?: parsed.firstOrNull()?.id)
+
+            val hasActiveId = root.has("activeId")
+            val activeValue = if (hasActiveId) root.get("activeId") else null
+            require(activeValue == null || activeValue == JSONObject.NULL || activeValue is String)
+            val activeId = when {
+                !hasActiveId -> parsed.firstOrNull()?.id // compatibility with pre-activeId JSON
+                activeValue == null || activeValue == JSONObject.NULL -> null
+                activeValue is String -> {
+                    require(parsed.any { it.id == activeValue }) { "unknown active VLESS key id" }
+                    activeValue
+                }
+                else -> throw IllegalArgumentException("invalid active VLESS key id")
+            }
+            return VlessKeys(parsed, activeId)
+        }
+
+        private fun legacyOrEmpty(legacyUri: String): VlessKeys {
+            if (legacyUri.isBlank()) return VlessKeys(emptyList(), null)
+            val key = VlessKey(stableLegacyId(legacyUri), "VLESS", legacyUri)
+            return VlessKeys(listOf(key), key.id)
         }
 
         private fun stableLegacyId(uri: String): String =

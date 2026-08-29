@@ -6,9 +6,9 @@ fun canAutoConnect(
     settings: TriSettings,
     vpnPermissionGranted: Boolean,
     effective: EffectiveRoutes,
-    activeVlessValid: Boolean = settings.vlessKeys.active != null,
+    activeVpnValid: Boolean = settings.activeVpnConfigured,
 ): Boolean {
     if (!settings.autoConnect || !vpnPermissionGranted) return false
     if (effective.isEmpty) return false
-    return effective.vpnPackages.isEmpty() || activeVlessValid
+    return effective.vpnPackages.isEmpty() || activeVpnValid
 }

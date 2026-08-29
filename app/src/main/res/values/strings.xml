@@ -17,15 +17,20 @@
     <string name="cd_settings">Settings</string>
     <string name="cd_back">Back</string>
     <string name="protocol_vless_dpi">VLESS + DPI</string>
+    <string name="protocol_warp_dpi">WARP + DPI</string>
     <string name="protocol_dpi">DPI</string>
     <string name="protocol_vless">VLESS</string>
+    <string name="protocol_warp">WARP</string>
     <string name="protocol_none">—</string>
 
     <string name="settings_title">Settings</string>
     <string name="nav_routes">App routes</string>
     <string name="nav_routes_sub">in tunnel: %1$d</string>
-    <string name="nav_key">VLESS key</string>
-    <string name="nav_key_sub">Reality + vision</string>
+    <string name="nav_key">VPN profiles</string>
+    <string name="nav_key_sub">VLESS + WARP</string>
+    <string name="nav_key_sub_none">not configured</string>
+    <string name="nav_key_sub_vless">VLESS</string>
+    <string name="nav_key_sub_warp">WARP / AmneziaWG</string>
     <string name="nav_theme">Appearance</string>
     <string name="theme_title">Appearance</string>
     <string name="theme_hint">The theme applies immediately to the whole app</string>
@@ -39,15 +44,16 @@
     <string name="dns_adguard">AdGuard</string>
     <string name="dns_custom_label">DNS address</string>
     <string name="dns_placeholder">1.1.1.1 or https://dns.example/dns-query</string>
-    <string name="dns_custom_hint">Enter an IP address or a URL beginning with http:// or https://.</string>
+    <string name="dns_custom_hint_https">Enter an IP address or an HTTPS DoH URL.</string>
+    <string name="dns_invalid_https">Check the address: enter an IP or an https:// DoH URL.</string>
     <string name="nav_backup">Export / import</string>
     <string name="nav_backup_sub">move settings to another device</string>
     <string name="backup_title">Export / import</string>
-    <string name="backup_note">The file contains your key, app routes, strategy, and theme. The key is secret, so store the file carefully.</string>
+    <string name="backup_note">The file contains VPN profiles, app routes, strategy, and theme. VPN credentials are secret, so store the file carefully.</string>
     <string name="backup_export">Export to file</string>
     <string name="backup_import">Import from file</string>
     <string name="backup_exported">Exported</string>
-    <string name="backup_imported">Imported and applied</string>
+    <string name="backup_imported_reconnect">Imported. Reconnect to apply changes.</string>
     <string name="backup_bad_file">This file is not a Detour backup</string>
     <string name="backup_error">Could not process the backup</string>
     <string name="nav_dpi">DPI bypass</string>
@@ -60,22 +66,38 @@
     <string name="route_vpn">VPN</string>
     <string name="route_dpi">DPI</string>
 
-    <string name="key_title">VLESS key</string>
+    <string name="key_title">VPN profiles</string>
     <string name="key_invalid">Could not parse the link. Check that it starts with vless:// and was pasted in full.</string>
     <string name="btn_save">Save</string>
     <string name="key_edit">Edit</string>
     <string name="key_cancel">Cancel</string>
     <string name="key_paste">Paste from clipboard</string>
-    <string name="key_list_title">Keys</string>
-    <string name="key_empty">No keys added</string>
+    <string name="key_list_title">Profiles</string>
+    <string name="key_empty">No VLESS keys added</string>
     <string name="key_add">Add</string>
     <string name="key_delete">Delete</string>
     <string name="key_uri">VLESS link</string>
     <string name="key_input_hint">Paste the complete link — server and parameters are detected automatically.</string>
     <string name="key_placeholder">vless://uuid@server:443?security=reality&amp;…</string>
     <string name="key_detected_server">Link recognized · %1$s:%2$d</string>
-
-    <string name="dns_invalid">Check the address: enter an IP or an http:// / https:// URL.</string>
+    <string name="vless_add_title">Add VLESS profile</string>
+    <string name="vless_edit_title">Edit VLESS profile</string>
+    <string name="profile_empty">No VPN profiles yet. Tap + to add one.</string>
+    <string name="profile_add_title">Add VPN profile</string>
+    <string name="profile_add_vless">VLESS</string>
+    <string name="profile_add_vless_sub">Add a VLESS link</string>
+    <string name="profile_add_warp">WARP / AmneziaWG</string>
+    <string name="profile_add_warp_sub">Import YAML or CONF</string>
+    <string name="profile_replace_warp_sub">Import a new YAML or CONF and replace the current one</string>
+    <string name="warp_section_title">WARP / AmneziaWG</string>
+    <string name="warp_empty">No WARP config imported</string>
+    <string name="warp_import">Import YAML / CONF</string>
+    <string name="warp_replace">Replace WARP config</string>
+    <string name="warp_delete">Delete WARP profile</string>
+    <string name="warp_subtitle">%1$d endpoints</string>
+    <string name="warp_imported">WARP imported · %1$d endpoints</string>
+    <string name="warp_invalid">No compatible WARP / AmneziaWG proxies found in this file</string>
+    <string name="warp_import_error">Could not read this config</string>
 
     <string name="backup_warning">The configuration contains secrets. Store the file securely.</string>
 
@@ -93,11 +115,20 @@
     <string name="err_vpn_permission">VPN permission was not granted</string>
     <string name="err_invalid_key">Invalid key</string>
     <string name="err_key_required">Set a VLESS key first</string>
+    <string name="err_vpn_profile_required">Select or import a VPN profile first</string>
     <string name="err_engine">Engine error</string>
-    <string name="err_shared_uid">Packages sharing a UID must use one route</string>
+    <string name="err_shared_uid">Apps sharing a UID cannot be routed safely</string>
     <string name="notif_starting">Connecting…</string>
     <string name="notif_active">Tunnel active</string>
     <string name="notif_stop">Disconnect</string>
+    <string name="tile_connected">Connected</string>
+    <string name="tile_connecting">Connecting…</string>
+    <string name="tile_error">Connection error</string>
+    <string name="tile_disconnected">Disconnected</string>
+    <plurals name="tile_routed">
+        <item quantity="one">%1$d app in tunnel</item>
+        <item quantity="other">%1$d apps in tunnel</item>
+    </plurals>
     <string name="theme_midnight">Midnight</string>
     <string name="theme_ocean">Ocean</string>
     <string name="theme_graphite">Graphite and amber</string>

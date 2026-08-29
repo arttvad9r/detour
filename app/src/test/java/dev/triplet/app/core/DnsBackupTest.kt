@@ -48,14 +48,47 @@ class SettingsBackupTest {
         showSystemApps = true,
     )
 
+    private val warp = WarpProfile(
+        id = "warp",
+        name = "Cloudflare WARP",
+        proxies = listOf(
+            WarpProxy(
+                name = "NL", server = "nl.example", port = 4500,
+                ip = "172.16.0.2", privateKey = "private", publicKey = "public",
+                reserved = listOf(1, 2, 3), allowedIps = listOf("0.0.0.0/0"),
+                amnezia = AmneziaWgOptions(jc = 4, i1 = "<b 0x01>"),
+            ),
+        ),
+    )
+
     @Test fun `roundtrip preserves all fields`() {
         val back = SettingsBackup.fromJson(SettingsBackup.toJson(backup))
         assertEquals(backup, back)
     }
 
+    @Test fun `roundtrip preserves WARP profile and selection`() {
+        val source = backup.copy(warpProfile = warp, activeVpn = VpnProfileKind.WARP)
+        assertEquals(source, SettingsBackup.fromJson(SettingsBackup.toJson(source)))
+    }
+
+    @Test fun `roundtrip preserves explicit no active VLESS key`() {
+        val keys = VlessKeys(
+            listOf(
+                VlessKey("a", "A", backup.vlessUri),
+                VlessKey("b", "B", backup.vlessUri),
+            ),
+            null,
+        )
+        val restored = SettingsBackup.fromJson(
+            SettingsBackup.toJson(backup.copy(vlessUri = "", vlessKeys = keys)),
+        )!!
+        assertEquals(keys.items, restored.vlessKeys.items)
+        assertNull(restored.vlessKeys.activeId)
+    }
+
     @Test
     fun `oversized backup is rejected`() {
-        val oversized = """{"app":"detour","v":2,"customArgs":"${"x".repeat(SettingsBackup.MAX_BYTES)}"}"""
+        val oversized = """{"app":"detour","v":3,"customArgs":"${"x".repeat(SettingsBackup.MAX_BYTES)}"}"""
         assertNull(SettingsBackup.fromJson(oversized))
     }
     @Test fun `foreign file rejected`() {
@@ -65,11 +98,11 @@ class SettingsBackupTest {
     @Test fun `missing fields get defaults`() {
         val b = SettingsBackup.fromJson("""{"app":"detour","vless":""}""")!!
         assertEquals("recommended", b.presetId)
-        assertEquals("lavenda", b.themeId)
+        assertEquals("catppuccin_latte", b.themeId)
         assertTrue(b.routes.isEmpty())
     }
 
-    @Test fun `v2 preserves multiple keys and active id`() {
+    @Test fun `current version preserves multiple keys and active id`() {
         val keys = VlessKeys(
             listOf(
                 VlessKey("a", "A", backup.vlessUri),
@@ -78,7 +111,7 @@ class SettingsBackupTest {
             ), "b",
         )
         val restored = SettingsBackup.fromJson(SettingsBackup.toJson(backup.copy(vlessKeys = keys)))!!
-        assertEquals(2, SettingsBackup.VERSION)
+        assertEquals(3, SettingsBackup.VERSION)
         assertEquals(listOf("a", "b", "c"), restored.vlessKeys.items.map { it.id })
         assertEquals("b", restored.vlessKeys.activeId)
     }
@@ -90,10 +123,22 @@ class SettingsBackupTest {
         assertNull(SettingsBackup.fromJson("""{"v":2,"app":"detour","vlessKeys":{},"routes":{"x":"BROKEN"}}"""))
     }
 
-    @Test fun `empty persisted defaults remain importable`() {
+    @Test fun `v2 remains importable and defaults to VLESS`() {
         val json = """{"v":2,"app":"detour","vlessKeys":{"activeId":null,"items":[]},"preset":"recommended","customArgs":"","autoConnect":false,"theme":"","dns":"","dnsCustom":"","routes":{}}"""
         val restored = SettingsBackup.fromJson(json)!!
-        assertEquals("lavenda", restored.themeId)
+        assertEquals("catppuccin_latte", restored.themeId)
         assertEquals("google", restored.dnsId)
+        assertEquals(VpnProfileKind.VLESS, restored.activeVpn)
+        assertNull(restored.warpProfile)
+    }
+
+    @Test fun `v3 rejects WARP selection without profile`() {
+        val json = """{"v":3,"app":"detour","vlessKeys":{"activeId":null,"items":[]},"activeVpn":"WARP","preset":"recommended","theme":"lavenda","dns":"google","routes":{}}"""
+        assertNull(SettingsBackup.fromJson(json))
+    }
+
+    @Test fun `v3 rejects unknown VPN profile kind`() {
+        val json = """{"v":3,"app":"detour","vlessKeys":{"activeId":null,"items":[]},"activeVpn":"BROKEN","preset":"recommended","theme":"lavenda","dns":"google","routes":{}}"""
+        assertNull(SettingsBackup.fromJson(json))
     }
 }
