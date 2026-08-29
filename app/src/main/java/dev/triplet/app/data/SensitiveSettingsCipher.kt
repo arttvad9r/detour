@@ -37,28 +37,35 @@ internal class SensitiveSettingsCipher {
         }
     }
 
-    /**
-     * Returns plaintext for legacy values, decrypted text for v1 ciphertexts,
-     * or null when authenticated decryption fails. Callers must fail closed on
-     * null and must never persist the undecipherable value as plaintext.
-     */
+    /** Decrypts only the current authenticated storage format. */
     fun decrypt(slot: String, stored: String): String? {
         if (stored.isBlank()) return ""
-        if (!stored.startsWith(PREFIX)) return stored
-        return runCatching {
-            val payload = stored.removePrefix(PREFIX)
-            val parts = payload.split(':', limit = 2)
-            require(parts.size == 2)
-            val iv = Base64.decode(parts[0], Base64.NO_WRAP)
-            val ciphertext = Base64.decode(parts[1], Base64.NO_WRAP)
-            require(iv.isNotEmpty() && ciphertext.isNotEmpty())
-
-            val cipher = Cipher.getInstance(TRANSFORMATION)
-            cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(TAG_BITS, iv))
-            cipher.updateAAD(slot.toByteArray(StandardCharsets.UTF_8))
-            String(cipher.doFinal(ciphertext), StandardCharsets.UTF_8)
-        }.getOrNull()
+        if (!stored.startsWith(PREFIX)) return null
+        return decryptV1(slot, stored)
     }
+
+    /**
+     * Migration-only compatibility path for values written before encrypted
+     * storage existed. Runtime reads must use [decrypt] and reject plaintext.
+     */
+    fun decryptLegacyCompatible(slot: String, stored: String): String? {
+        if (stored.isBlank()) return ""
+        return if (stored.startsWith(PREFIX)) decryptV1(slot, stored) else stored
+    }
+
+    private fun decryptV1(slot: String, stored: String): String? = runCatching {
+        val payload = stored.removePrefix(PREFIX)
+        val parts = payload.split(':', limit = 2)
+        require(parts.size == 2)
+        val iv = Base64.decode(parts[0], Base64.NO_WRAP)
+        val ciphertext = Base64.decode(parts[1], Base64.NO_WRAP)
+        require(iv.isNotEmpty() && ciphertext.isNotEmpty())
+
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.DECRYPT_MODE, getOrCreateKey(), GCMParameterSpec(TAG_BITS, iv))
+        cipher.updateAAD(slot.toByteArray(StandardCharsets.UTF_8))
+        String(cipher.doFinal(ciphertext), StandardCharsets.UTF_8)
+    }.getOrNull()
 
     private fun getOrCreateKey(): SecretKey = synchronized(KEY_LOCK) {
         val keyStore = KeyStore.getInstance(KEYSTORE).apply { load(null) }
