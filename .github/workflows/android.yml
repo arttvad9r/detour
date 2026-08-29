@@ -4,8 +4,11 @@ on:
   push:
   pull_request:
 
+# TEMPORARY: write is used only to let Gradle commit the exact verification
+# metadata it generates for the pinned classpath. This is reverted immediately
+# after the metadata refresh commit lands.
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   check:
@@ -13,6 +16,17 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
       - uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+      - name: Refresh dependency verification metadata
+        if: github.event_name == 'push'
+        run: |
+          nix develop -c ./gradlew --write-verification-metadata sha256 help
+          if ! git diff --quiet -- gradle/verification-metadata.xml; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add gradle/verification-metadata.xml
+            git commit -m "Refresh Gradle verification metadata"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
       # Locked flake environment (flake.lock pins nixpkgs revision).
       - run: nix develop -c ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
       # Go dependency vulnerability gate over the patched pinned engine sources.
