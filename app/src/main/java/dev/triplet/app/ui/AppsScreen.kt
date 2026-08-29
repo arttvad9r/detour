@@ -303,6 +303,7 @@ private fun AppRow(
             options = AppRoute.entries.map { stringResource(routeLabel(it)) },
             selected = AppRoute.entries.indexOf(current),
             onSelect = { idx -> onSelect(AppRoute.entries[idx]) },
+            modifier = Modifier.height(32.dp),
         )
     }
 }
