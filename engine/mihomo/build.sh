@@ -11,7 +11,7 @@ CACHE="${MIHOMO_CACHE:-$REPO_ROOT/.cache/mihomo-src}"
 BIND_DIR="$REPO_ROOT/engine/mihomo/go"
 OUT="$REPO_ROOT/engine/libs/engine.aar"
 
-command -v go >/dev/null || { echo "run inside nix-shell" >&2; exit 127; }
+command -v go >/dev/null || { echo "run inside nix develop" >&2; exit 127; }
 command -v gomobile >/dev/null || { echo "gomobile missing" >&2; exit 127; }
 
 WORK_DIR="$(mktemp -d)"
