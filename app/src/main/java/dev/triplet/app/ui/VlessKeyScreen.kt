@@ -42,7 +42,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -64,6 +64,7 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.VlessKey
@@ -72,9 +73,6 @@ import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.core.WarpConfigImporter
 import dev.triplet.app.core.WarpImportResult
 import dev.triplet.app.core.WarpProfile
-import dev.triplet.app.data.RoutesStore
-import dev.triplet.app.vpn.VpnController
-import dev.triplet.app.vpn.VpnState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -87,38 +85,18 @@ private data class ProfileSnapshot(
 
 private enum class ProfileSheetMode { PICKER, VLESS_EDITOR }
 
-internal enum class ProfileTunnelAction { NONE, RESTART, STOP }
-
-internal fun vlessMutationTunnelAction(
-    activeVpn: VpnProfileKind,
-    activeVlessId: String?,
-    keyId: String,
-    deleting: Boolean,
-): ProfileTunnelAction {
-    if (activeVpn != VpnProfileKind.VLESS || activeVlessId != keyId) return ProfileTunnelAction.NONE
-    return if (deleting) ProfileTunnelAction.STOP else ProfileTunnelAction.RESTART
-}
-
-internal fun warpMutationTunnelAction(
-    activeVpn: VpnProfileKind,
-    deleting: Boolean,
-): ProfileTunnelAction {
-    if (activeVpn != VpnProfileKind.WARP) return ProfileTunnelAction.NONE
-    return if (deleting) ProfileTunnelAction.STOP else ProfileTunnelAction.RESTART
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val c = detourColors
-    val settings by store.settings.collectAsState()
-    val keys = settings?.vlessKeys
-    val vlessItems = keys?.items.orEmpty()
-    val warpProfile = settings?.warpProfile
-    val activeVpn = settings?.activeVpn ?: VpnProfileKind.VLESS
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val vlessItems = state.vlessItems
+    val warpProfile = state.warpProfile
+    val activeVpn = state.activeVpn
+    val activeVlessId = state.activeVlessId
     val addDescription = stringResource(R.string.profile_add_title)
     val vlessTitle = stringResource(R.string.profile_add_vless)
 
@@ -131,6 +109,16 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
         field.trim().takeIf { it.isNotBlank() }?.let(VlessKeyParser::parse)
     }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    LaunchedEffect(viewModel, sheetState) {
+        viewModel.profileSaved.collect { kind ->
+            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+            if (kind == ProfileSavedKind.VLESS) {
+                runCatching { sheetState.hide() }
+                showSheet = false
+            }
+        }
+    }
 
     fun beginVlessEdit(key: VlessKey?) {
         editingId = key?.id
@@ -147,19 +135,6 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
         }
     }
 
-    fun applyTunnelAction(action: ProfileTunnelAction) {
-        when (action) {
-            ProfileTunnelAction.NONE -> Unit
-            ProfileTunnelAction.RESTART -> VpnController.restartIfActive(ctx)
-            ProfileTunnelAction.STOP -> if (
-                VpnController.state.value == VpnState.Active ||
-                VpnController.state.value == VpnState.Starting
-            ) {
-                VpnController.stop(ctx)
-            }
-        }
-    }
-
     val warpLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
@@ -171,11 +146,8 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
             }.getOrElse { WarpImportResult.Invalid }
             when (result) {
                 is WarpImportResult.Ok -> {
-                    val tunnelAction = warpMutationTunnelAction(activeVpn, deleting = false)
-                    store.setWarpProfile(result.profile)
-                    applyTunnelAction(tunnelAction)
+                    viewModel.replaceWarp(result.profile)
                     warpStatus = 0
-                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                 }
                 WarpImportResult.NoCompatibleProxies -> {
                     warpStatus = 2
@@ -253,29 +225,15 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                             .selectableGroup(),
                     ) {
                         shown.vless.forEachIndexed { index, key ->
-                            val selected = activeVpn == VpnProfileKind.VLESS && key.id == keys?.activeId
+                            val selected = activeVpn == VpnProfileKind.VLESS && key.id == activeVlessId
                             KeyRow(
                                 key = key,
                                 selected = selected,
                                 onEdit = { beginVlessEdit(key) },
-                                onDelete = {
-                                    val tunnelAction = vlessMutationTunnelAction(
-                                        activeVpn,
-                                        keys?.activeId,
-                                        key.id,
-                                        deleting = true,
-                                    )
-                                    scope.launch {
-                                        store.deleteVlessKey(key.id)
-                                        applyTunnelAction(tunnelAction)
-                                    }
-                                },
+                                onDelete = { viewModel.deleteVless(key.id) },
                             ) {
                                 haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                                scope.launch {
-                                    store.setActiveVlessKey(key.id)
-                                    VpnController.restartIfActive(ctx)
-                                }
+                                viewModel.selectVless(key.id)
                             }
                             if (index < shown.vless.lastIndex || shown.warp != null) {
                                 GroupDivider(startInset = 16)
@@ -290,19 +248,10 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                                     warpStatus = 0
                                     warpLauncher.launch(arrayOf("*/*"))
                                 },
-                                onDelete = {
-                                    val tunnelAction = warpMutationTunnelAction(activeVpn, deleting = true)
-                                    scope.launch {
-                                        store.deleteWarpProfile()
-                                        applyTunnelAction(tunnelAction)
-                                    }
-                                },
+                                onDelete = viewModel::deleteWarp,
                                 onClick = {
                                     haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                                    scope.launch {
-                                        store.setActiveVpn(VpnProfileKind.WARP)
-                                        VpnController.restartIfActive(ctx)
-                                    }
+                                    viewModel.selectWarp()
                                 },
                             )
                         }
@@ -498,19 +447,7 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                                             parsedProfile?.name?.ifBlank { parsedProfile.server } ?: vlessTitle,
                                             value,
                                         )
-                                        val tunnelAction = vlessMutationTunnelAction(
-                                            activeVpn,
-                                            keys?.activeId,
-                                            key.id,
-                                            deleting = false,
-                                        )
-                                        scope.launch {
-                                            if (editingId == null) store.addVlessKey(key) else store.updateVlessKey(key)
-                                            applyTunnelAction(tunnelAction)
-                                            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                                            runCatching { sheetState.hide() }
-                                            showSheet = false
-                                        }
+                                        viewModel.saveVless(key, isNew = editingId == null)
                                     },
                                     modifier = Modifier.weight(1f),
                                 )
