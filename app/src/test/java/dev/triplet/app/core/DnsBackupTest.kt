@@ -121,4 +121,9 @@ class SettingsBackupTest {
         val json = """{"v":3,"app":"detour","vlessKeys":{"activeId":null,"items":[]},"activeVpn":"WARP","preset":"recommended","theme":"lavenda","dns":"google","routes":{}}"""
         assertNull(SettingsBackup.fromJson(json))
     }
+
+    @Test fun `v3 rejects unknown VPN profile kind`() {
+        val json = """{"v":3,"app":"detour","vlessKeys":{"activeId":null,"items":[]},"activeVpn":"BROKEN","preset":"recommended","theme":"lavenda","dns":"google","routes":{}}"""
+        assertNull(SettingsBackup.fromJson(json))
+    }
 }
