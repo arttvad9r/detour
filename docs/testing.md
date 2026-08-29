@@ -8,6 +8,7 @@ Every push and pull request runs:
 
 ```bash
 ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest :app:assembleRelease
+python3 tools/apk_size_report.py app/build/outputs/apk/release
 bash engine/vulnscan.sh
 ```
 
@@ -22,6 +23,8 @@ The Android workflow pins:
 - pinned `gomobile` and `govulncheck` versions.
 
 Dependency verification runs in strict mode against the committed `gradle/verification-metadata.xml` file.
+
+After release assembly, `tools/apk_size_report.py` records the total APK size, component totals, native library sizes per ABI, and the largest ZIP entries in the GitHub Actions job summary. It also writes `app/build/reports/apk-size.json` for machine-readable follow-up. No hard size threshold is enforced yet; this establishes a baseline before changing ABI/distribution packaging.
 
 `engine/vulnscan.sh` covers the checked-in/patched Go engine source and the produced Android binary artifacts. Native source revisions and embedding patches are documented in `pins.md`.
 
