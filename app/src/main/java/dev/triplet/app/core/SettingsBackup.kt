@@ -96,7 +96,10 @@ object SettingsBackup {
         val keysObject = o.optJSONObject("vlessKeys") ?: throw IllegalArgumentException("missing keys")
         val keys = VlessKeys.fromJson(keysObject.toString())
         val warp = o.optJSONObject("warpProfile")?.let { WarpProfile.fromJson(it.toString()) }
-        val activeVpn = VpnProfileKind.fromStored(o.optString("activeVpn"))
+        val activeVpnName = o.optString("activeVpn").takeIf { it.isNotBlank() }
+            ?: VpnProfileKind.VLESS.name
+        val activeVpn = VpnProfileKind.entries.firstOrNull { it.name == activeVpnName }
+            ?: throw IllegalArgumentException("unknown VPN profile kind")
         validateBase(b)
         validateKeys(keys)
         validateRoutes(b.routes)
