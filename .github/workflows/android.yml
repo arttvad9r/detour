@@ -51,6 +51,7 @@ jobs:
         run: |
           set -euo pipefail
           AVD_NAME="detour-ci-api36"
+          EMULATOR="$ANDROID_SDK_ROOT/emulator/emulator"
           EMULATOR_SERIAL="emulator-5554"
           EMULATOR_LOG="$RUNNER_TEMP/detour-emulator.log"
           SYSTEM_IMAGE="system-images;android-36;google_apis;x86_64"
@@ -58,17 +59,21 @@ jobs:
           export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
           mkdir -p "$ANDROID_AVD_HOME"
 
+          if [[ ! -x "$EMULATOR" ]]; then
+            echo "Android Emulator binary not found: $EMULATOR" >&2
+            exit 1
+          fi
           if [[ -e /dev/kvm ]]; then
             sudo chmod 666 /dev/kvm
           fi
-          emulator -accel-check || true
+          "$EMULATOR" -accel-check || true
 
           echo "no" | avdmanager create avd \
             --force \
             --name "$AVD_NAME" \
             --package "$SYSTEM_IMAGE"
 
-          if ! emulator -list-avds | grep -Fxq "$AVD_NAME"; then
+          if ! "$EMULATOR" -list-avds | grep -Fxq "$AVD_NAME"; then
             echo "Created AVD is not visible to Android Emulator" >&2
             find "$ANDROID_USER_HOME" -maxdepth 3 -type f -print >&2 || true
             exit 1
@@ -79,7 +84,7 @@ jobs:
           }
           trap cleanup EXIT
 
-          emulator "@$AVD_NAME" \
+          "$EMULATOR" "@$AVD_NAME" \
             -port 5554 \
             -no-window \
             -no-audio \
