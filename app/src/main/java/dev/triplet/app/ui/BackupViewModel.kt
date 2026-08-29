@@ -6,12 +6,14 @@ import androidx.lifecycle.viewModelScope
 import dev.triplet.app.core.SettingsBackup
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.data.TriSettings
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class BackupStatus { EXPORTED, BAD_FILE, IMPORTED, ERROR }
 enum class BackupFeedback { CONFIRM, REJECT }
@@ -42,8 +44,11 @@ class BackupViewModel(
     private val _feedback = MutableSharedFlow<BackupFeedback>(extraBufferCapacity = 1)
     val feedback: SharedFlow<BackupFeedback> = _feedback
 
-    fun exportJson(): String? = settings.value?.let {
-        SettingsBackup.toJson(backupFromSettings(it))
+    suspend fun exportJson(): String? {
+        val current = settings.value ?: return null
+        return withContext(Dispatchers.Default) {
+            SettingsBackup.toJson(backupFromSettings(current))
+        }
     }
 
     fun reportExport(success: Boolean) {
@@ -55,12 +60,14 @@ class BackupViewModel(
             setStatus(BackupStatus.BAD_FILE)
             return
         }
-        val backup = SettingsBackup.fromJson(raw)
-        if (backup == null) {
-            setStatus(BackupStatus.BAD_FILE)
-            return
-        }
         viewModelScope.launch {
+            val backup = withContext(Dispatchers.Default) {
+                SettingsBackup.fromJson(raw)
+            }
+            if (backup == null) {
+                setStatus(BackupStatus.BAD_FILE)
+                return@launch
+            }
             runCatching {
                 restoreBackup(backup)
                 // Restoring intentionally disables auto-connect. Any live tunnel
