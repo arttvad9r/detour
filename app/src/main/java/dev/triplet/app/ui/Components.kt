@@ -30,6 +30,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -38,6 +40,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -103,6 +106,45 @@ fun Modifier.detourClickable(
         )
 }
 
+/** Radio-style feedback with selected semantics for accessibility services. */
+@Composable
+fun Modifier.detourSelectable(
+    selected: Boolean,
+    onClick: () -> Unit,
+    idleColor: Color = Color.Transparent,
+    pressedColor: Color? = null,
+    pressScale: Float = 1f,
+): Modifier {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) pressScale else 1f,
+        animationSpec = spring(
+            dampingRatio = Motion.SPRING_DAMPING,
+            stiffness = Motion.SPRING_STIFFNESS,
+        ),
+        label = "selectScale",
+    )
+    val background by animateColorAsState(
+        targetValue = if (pressed && pressedColor != null) pressedColor else idleColor,
+        animationSpec = tween(Motion.PRESS_TONE_MS),
+        label = "selectTone",
+    )
+    return this
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }
+        .background(background)
+        .selectable(
+            selected = selected,
+            interactionSource = interactionSource,
+            indication = null,
+            role = Role.RadioButton,
+            onClick = onClick,
+        )
+}
+
 /** Small controls respond by yielding under the finger rather than flashing a ripple. */
 @Composable
 fun DetourIconButton(
@@ -120,6 +162,7 @@ fun DetourIconButton(
     )
     Box(
         modifier
+            .minimumInteractiveComponentSize()
             .size(size.dp)
             .graphicsLayer {
                 scaleX = scale
@@ -386,14 +429,14 @@ fun RadioRow(
     Row(
         modifier
             .fillMaxWidth()
-            .detourClickable(
+            .detourSelectable(
+                selected = selected,
                 onClick = {
                     if (!selected) {
                         haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                         onClick()
                     }
                 },
-                role = Role.RadioButton,
                 idleColor = if (selected) c.accentSoft else Color.Transparent,
                 pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
                 pressScale = Motion.PRESS_RADIO,
@@ -468,7 +511,7 @@ fun SegmentedControl(
     BoxWithConstraints(
         modifier
             .fillMaxWidth()
-            .height(32.dp)
+            .height(48.dp)
             .clip(AppShapes.extraSmall)
             .background(c.surfaceSoft)
             .border(1.dp, c.border, AppShapes.extraSmall),
@@ -491,7 +534,7 @@ fun SegmentedControl(
                 .clip(AppShapes.extraSmall)
                 .background(c.accentSoft),
         )
-        Row(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxSize().selectableGroup()) {
             options.forEachIndexed { i, label ->
                 val on = i == selected
                 val fg by animateColorAsState(
@@ -502,14 +545,14 @@ fun SegmentedControl(
                     Modifier
                         .weight(1f)
                         .fillMaxSize()
-                        .detourClickable(
+                        .detourSelectable(
+                            selected = on,
                             onClick = {
                                 if (i != selected) {
                                     haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                                     onSelect(i)
                                 }
                             },
-                            role = Role.RadioButton,
                             pressScale = Motion.PRESS_BUTTON,
                         ),
                     verticalAlignment = Alignment.CenterVertically,

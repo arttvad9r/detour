@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -22,8 +23,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.triplet.app.R
@@ -33,7 +32,6 @@ import kotlinx.coroutines.launch
 @Composable
 fun ThemeScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
-    val haptics = LocalHapticFeedback.current
     val c = detourColors
     val settings by store.settings.collectAsState()
     val current = AppTheme.byId(settings?.themeId ?: "").id
@@ -48,18 +46,13 @@ fun ThemeScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mod
         ScreenHeader(stringResource(R.string.theme_title), onBack)
         Spacer(Modifier.height(Spacing.space8))
 
-        DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
+        DetourCard(Modifier.padding(horizontal = Spacing.space16).selectableGroup()) {
             AppTheme.entries.forEachIndexed { i, t ->
                 val selected = current == t.id
                 RadioRow(
                     title = t.label,
                     selected = selected,
-                    onClick = {
-                        if (!selected) {
-                            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                            scope.launch { store.setTheme(t.id) }
-                        }
-                    },
+                    onClick = { scope.launch { store.setTheme(t.id) } },
                     trailing = { ThemeSwatches(t) },
                 )
                 if (i < AppTheme.entries.lastIndex) GroupDivider(startInset = 46)

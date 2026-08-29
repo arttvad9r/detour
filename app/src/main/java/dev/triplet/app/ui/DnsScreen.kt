@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -85,7 +86,7 @@ fun DnsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
             editingCustom = true
         }
 
-        DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
+        DetourCard(Modifier.padding(horizontal = Spacing.space16).selectableGroup()) {
             DnsOptions.servers.forEach { (id, _) ->
                 RadioRow(
                     title = stringResource(DNS_LABELS[id] ?: R.string.dns_custom),

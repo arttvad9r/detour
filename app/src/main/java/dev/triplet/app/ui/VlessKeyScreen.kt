@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
@@ -203,6 +204,7 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                     DetourCard(
                         Modifier
                             .padding(horizontal = Spacing.space16)
+                            .selectableGroup()
                             .animateContentSize(
                                 spring(
                                     dampingRatio = Motion.SPRING_DAMPING,
@@ -223,7 +225,7 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                                     }
                                 },
                             ) {
-                                if (!selected) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                                 scope.launch {
                                     store.setActiveVlessKey(key.id)
                                     VpnController.restartIfActive(ctx)
@@ -249,7 +251,7 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                                     }
                                 },
                                 onClick = {
-                                    if (!selected) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                    haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                                     scope.launch {
                                         store.setActiveVpn(VpnProfileKind.WARP)
                                         VpnController.restartIfActive(ctx)
@@ -566,9 +568,9 @@ private fun KeyRow(
     val c = detourColors
     Row(
         Modifier.fillMaxWidth()
-            .detourClickable(
-                onClick = onClick,
-                role = Role.RadioButton,
+            .detourSelectable(
+                selected = selected,
+                onClick = { if (!selected) onClick() },
                 idleColor = if (selected) c.surfaceSelected else Color.Transparent,
                 pressedColor = if (selected) c.surfaceSelected else c.accentSoft,
                 pressScale = Motion.PRESS_RADIO,
@@ -625,9 +627,9 @@ private fun WarpRow(
     val c = detourColors
     Row(
         Modifier.fillMaxWidth()
-            .detourClickable(
-                onClick = onClick,
-                role = Role.RadioButton,
+            .detourSelectable(
+                selected = selected,
+                onClick = { if (!selected) onClick() },
                 idleColor = if (selected) c.surfaceSelected else Color.Transparent,
                 pressedColor = if (selected) c.surfaceSelected else c.accentSoft,
                 pressScale = Motion.PRESS_RADIO,
