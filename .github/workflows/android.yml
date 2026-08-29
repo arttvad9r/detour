@@ -54,6 +54,7 @@ jobs:
           EMULATOR="$ANDROID_SDK_ROOT/emulator/emulator"
           EMULATOR_SERIAL="emulator-5554"
           EMULATOR_LOG="$RUNNER_TEMP/detour-emulator.log"
+          LOGCAT_LOG="$RUNNER_TEMP/detour-logcat.txt"
           SYSTEM_IMAGE="system-images;android-36;google_apis;x86_64"
           export ANDROID_USER_HOME="$RUNNER_TEMP/android-user-home"
           export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
@@ -142,10 +143,23 @@ jobs:
           adb -s "$EMULATOR_SERIAL" shell settings put global transition_animation_scale 0
           adb -s "$EMULATOR_SERIAL" shell settings put global animator_duration_scale 0
 
-          if ! ANDROID_SERIAL="$EMULATOR_SERIAL" ./gradlew :app:connectedDebugAndroidTest; then
+          if ! ANDROID_SERIAL="$EMULATOR_SERIAL" ./gradlew :app:connectedDebugAndroidTest --stacktrace; then
             echo "--- emulator log ---" >&2
             tail -n 200 "$EMULATOR_LOG" >&2 || true
+            adb -s "$EMULATOR_SERIAL" logcat -d -t 1000 > "$LOGCAT_LOG" 2>&1 || true
             echo "--- device logcat ---" >&2
-            adb -s "$EMULATOR_SERIAL" logcat -d -t 500 >&2 || true
+            tail -n 500 "$LOGCAT_LOG" >&2 || true
             exit 1
           fi
+      - name: Upload instrumentation diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: instrumentation-diagnostics
+          if-no-files-found: ignore
+          retention-days: 7
+          path: |
+            app/build/outputs/androidTest-results/**
+            app/build/reports/androidTests/**
+            ${{ runner.temp }}/detour-emulator.log
+            ${{ runner.temp }}/detour-logcat.txt
