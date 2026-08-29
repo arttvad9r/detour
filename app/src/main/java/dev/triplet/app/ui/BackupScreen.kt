@@ -43,6 +43,8 @@ import androidx.compose.ui.unit.dp
 import dev.triplet.app.R
 import dev.triplet.app.core.SettingsBackup
 import dev.triplet.app.data.RoutesStore
+import dev.triplet.app.vpn.VpnController
+import dev.triplet.app.vpn.VpnState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -119,6 +121,15 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
                     return@runCatching
                 }
                 store.restoreBackup(b)
+                // Import intentionally disables auto-connect so a restored endpoint
+                // is never activated without review. If a tunnel is already live,
+                // stop that stale snapshot rather than showing new settings as active.
+                if (
+                    VpnController.state.value == VpnState.Active ||
+                    VpnController.state.value == VpnState.Starting
+                ) {
+                    VpnController.stop(ctx)
+                }
                 showStatus(importedText, false)
             }.onFailure { showStatus(genericErrorText, true) }
         }
