@@ -66,8 +66,8 @@ val hairline: Color
     @Composable get() = detourColors.border
 
 /**
- * Flat interaction feedback without a ripple flash. Large surfaces barely
- * yield under the finger; callers may also opt into a very soft tonal layer.
+ * Flat interaction feedback without a ripple flash. Large surfaces use tonal
+ * feedback only; small controls may opt into a restrained press scale.
  */
 @Composable
 fun Modifier.detourClickable(
@@ -184,7 +184,7 @@ fun Modifier.detourToggleable(
         )
 }
 
-/** Small controls respond by yielding under the finger rather than flashing a ripple. */
+/** Small controls yield slightly under the finger without moving surrounding layout. */
 @Composable
 fun DetourIconButton(
     onClick: () -> Unit,
@@ -196,7 +196,10 @@ fun DetourIconButton(
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed) Motion.PRESS_ICON else 1f,
-        animationSpec = spring(dampingRatio = 0.70f, stiffness = Motion.SPRING_STIFFNESS),
+        animationSpec = spring(
+            dampingRatio = Motion.SPRING_DAMPING,
+            stiffness = Motion.SPRING_STIFFNESS,
+        ),
         label = "iconPress",
     )
     Box(
@@ -274,7 +277,7 @@ fun SettingRow(
                 AnimatedContent(
                     targetState = subtitle,
                     transitionSpec = {
-                        fadeIn(tween(Motion.CONTENT_IN_MS, delayMillis = 20)) togetherWith
+                        fadeIn(tween(Motion.CONTENT_IN_MS)) togetherWith
                             fadeOut(tween(Motion.CONTENT_OUT_MS))
                     },
                     label = "settingSubtitle",
@@ -420,7 +423,7 @@ fun DetourButton(
     val scale by animateFloatAsState(
         targetValue = if (pressed && enabled) Motion.PRESS_BUTTON else 1f,
         animationSpec = spring(
-            dampingRatio = 0.72f,
+            dampingRatio = Motion.SPRING_DAMPING,
             stiffness = Motion.SPRING_STIFFNESS,
         ),
         label = "buttonPress",
@@ -449,7 +452,7 @@ fun DetourButton(
         AnimatedContent(
             targetState = text,
             transitionSpec = {
-                fadeIn(tween(Motion.CONTENT_IN_MS, delayMillis = 25)) togetherWith
+                fadeIn(tween(Motion.CONTENT_IN_MS)) togetherWith
                     fadeOut(tween(Motion.CONTENT_OUT_MS))
             },
             label = "buttonText",
@@ -499,7 +502,7 @@ fun RadioRow(
                 AnimatedContent(
                     targetState = subtitle,
                     transitionSpec = {
-                        fadeIn(tween(Motion.CONTENT_IN_MS, delayMillis = 20)) togetherWith
+                        fadeIn(tween(Motion.CONTENT_IN_MS)) togetherWith
                             fadeOut(tween(Motion.CONTENT_OUT_MS))
                     },
                     label = "radioSubtitle",
@@ -527,7 +530,7 @@ fun RadioDot(selected: Boolean) {
     )
     val dotSize by animateDpAsState(
         if (selected) 8.dp else 0.dp,
-        spring(dampingRatio = 0.72f, stiffness = Motion.SPRING_STIFFNESS),
+        spring(dampingRatio = Motion.SPRING_DAMPING, stiffness = Motion.SPRING_STIFFNESS),
         label = "radioDot",
     )
     Box(
@@ -555,7 +558,7 @@ fun SegmentedControl(
     BoxWithConstraints(
         modifier
             .fillMaxWidth()
-            .height(48.dp)
+            .height(32.dp)
             .clip(AppShapes.extraSmall)
             .background(c.surfaceSoft)
             .border(1.dp, c.border, AppShapes.extraSmall),
@@ -564,7 +567,7 @@ fun SegmentedControl(
         val selectedOffset by animateDpAsState(
             targetValue = segmentWidth * selected.coerceIn(0, options.lastIndex),
             animationSpec = spring(
-                dampingRatio = 0.82f,
+                dampingRatio = Motion.SPRING_DAMPING,
                 stiffness = Motion.SPRING_STIFFNESS_SOFT,
             ),
             label = "segmentOffset",
@@ -597,7 +600,7 @@ fun SegmentedControl(
                                     onSelect(i)
                                 }
                             },
-                            pressScale = Motion.PRESS_BUTTON,
+                            pressScale = Motion.PRESS_RADIO,
                         ),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
