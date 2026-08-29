@@ -29,7 +29,10 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
         with:
-          packages: 'platform-tools emulator system-images;android-36;google_apis;x86_64 platforms;android-37.0 build-tools;36.0.0 ndk;28.0.13004108'
+          packages: 'platform-tools platforms;android-37.0 build-tools;36.0.0 ndk;28.0.13004108'
+      - name: Install Android 16 emulator image
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+        run: sdkmanager 'emulator' 'system-images;android-36;google_apis;x86_64'
       - name: Export Android NDK
         run: |
           echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/28.0.13004108" >> "$GITHUB_ENV"
@@ -46,6 +49,7 @@ jobs:
         run: python3 tools/apk_size_report.py app/build/outputs/apk/release
       - run: bash engine/vulnscan.sh
       - name: Run instrumentation tests on Android 16 emulator
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
         timeout-minutes: 15
         shell: bash
         run: |
@@ -160,7 +164,7 @@ jobs:
             exit "$TEST_EXIT"
           fi
       - name: Upload instrumentation diagnostics
-        if: always()
+        if: ${{ always() && (github.event_name == 'pull_request' || github.ref == 'refs/heads/master') }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: instrumentation-diagnostics
