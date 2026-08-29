@@ -42,8 +42,14 @@ pkgs.mkShell {
   JAVA_HOME = "${pkgs.jdk17}";
 
   shellHook = ''
-    export PATH="$JAVA_HOME/bin:$PATH"
-    export PATH="$(go env GOPATH)/bin:$PATH"
+    # nixpkgs' gomobile wrapper appends its read-only $out to GOPATH so the
+    # packaged golang.org/x/mobile sources stay visible. Put a writable path
+    # first so Go's module/build cache never targets /nix/store.
+    export GOPATH="$PWD/.cache/go"
+    export GOMODCACHE="$GOPATH/pkg/mod"
+    export GOTOOLCHAIN=local
+    mkdir -p "$GOMODCACHE"
+    export PATH="$JAVA_HOME/bin:$GOPATH/bin:$PATH"
     export GRADLE_USER_HOME="$PWD/.gradle"
 
     # sdk.dir -> Nix SDK. local.properties is ignored by git.
