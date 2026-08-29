@@ -158,7 +158,7 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
             )
             Spacer(Modifier.width(8.dp))
             Box(Modifier.weight(1f)) {
-                AnimatedVisibility(
+                androidx.compose.animation.AnimatedVisibility(
                     visible = query.isEmpty(),
                     enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)),
                     exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)),
