@@ -165,7 +165,8 @@ class RoutesStore(context: Context) {
         editVless(activateVless = true) { current -> current.copy(activeId = id) }
     }
     suspend fun addVlessKey(key: VlessKey) {
-        editVless(activateVless = true) { current -> VlessKeys(current.items + key, key.id) }
+        // Adding a profile must not silently change the selected endpoint.
+        editVless { current -> VlessKeys(current.items + key, current.activeId) }
     }
     suspend fun updateVlessKey(key: VlessKey) {
         editVless { current -> VlessKeys(current.items.map { if (it.id == key.id) key else it }, current.activeId) }
@@ -173,9 +174,10 @@ class RoutesStore(context: Context) {
     suspend fun deleteVlessKey(id: String) {
         editVless { current -> current.delete(id) }
     }
-    suspend fun setWarpProfile(profile: WarpProfile, activate: Boolean = true) = store.edit { prefs ->
+    suspend fun setWarpProfile(profile: WarpProfile, activate: Boolean = false) = store.edit { prefs ->
         // WarpProfile validates every outbound in its initializer; storing only a
         // constructed profile keeps DataStore free of partially-valid configs.
+        // Selection is explicit unless a caller deliberately requests activation.
         prefs[RoutesMapping.warpProfileKey()] = profile.toJson()
         if (activate) prefs[RoutesMapping.vpnKindKey()] = VpnProfileKind.WARP.name
     }
