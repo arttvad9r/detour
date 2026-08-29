@@ -16,11 +16,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -63,6 +65,8 @@ import dev.triplet.app.data.AppRouteOrdering
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+
+private val AppsContentMaxWidth = 840.dp
 
 @Composable
 fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
@@ -129,9 +133,12 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
         Spacer(Modifier.height(Spacing.space4))
 
         Row(
-            Modifier.fillMaxWidth()
+            Modifier
+                .align(Alignment.CenterHorizontally)
+                .widthIn(max = AppsContentMaxWidth)
+                .fillMaxWidth()
                 .padding(horizontal = Spacing.space16)
-                .height(56.dp)
+                .heightIn(min = 56.dp)
                 .clip(AppShapes.small)
                 .background(c.surface)
                 .border(1.dp, searchBorder, AppShapes.small)
@@ -171,7 +178,10 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
         }
 
         Row(
-            Modifier.fillMaxWidth()
+            Modifier
+                .align(Alignment.CenterHorizontally)
+                .widthIn(max = AppsContentMaxWidth)
+                .fillMaxWidth()
                 .padding(horizontal = Spacing.space16, vertical = Spacing.space8)
                 .detourToggleable(
                     value = showSystem,
@@ -194,7 +204,14 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
             )
         }
 
-        DetourCard(Modifier.weight(1f).padding(horizontal = Spacing.space16)) {
+        DetourCard(
+            Modifier
+                .align(Alignment.CenterHorizontally)
+                .widthIn(max = AppsContentMaxWidth)
+                .fillMaxWidth()
+                .weight(1f)
+                .padding(horizontal = Spacing.space16),
+        ) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -298,7 +315,6 @@ private fun AppRow(
             options = AppRoute.entries.map { stringResource(routeLabel(it)) },
             selected = AppRoute.entries.indexOf(current),
             onSelect = { idx -> onSelect(AppRoute.entries[idx]) },
-            modifier = Modifier.height(48.dp),
         )
     }
 }
