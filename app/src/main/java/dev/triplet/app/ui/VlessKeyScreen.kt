@@ -5,7 +5,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -212,11 +211,7 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                 targetState = snapshot,
                 transitionSpec = {
                     fadeIn(
-                        tween(
-                            Motion.CONTENT_IN_MS,
-                            delayMillis = 20,
-                            easing = Motion.ENTER_EASING,
-                        ),
+                        tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
                     ) togetherWith fadeOut(
                         tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
                     )
@@ -239,13 +234,7 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                     DetourCard(
                         Modifier
                             .padding(horizontal = Spacing.space16)
-                            .selectableGroup()
-                            .animateContentSize(
-                                spring(
-                                    dampingRatio = Motion.SPRING_DAMPING,
-                                    stiffness = Motion.SPRING_STIFFNESS_SOFT,
-                                ),
-                            ),
+                            .selectableGroup(),
                     ) {
                         shown.vless.forEachIndexed { index, key ->
                             val selected = activeVpn == VpnProfileKind.VLESS && key.id == keys?.activeId
@@ -333,11 +322,11 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                     dampingRatio = Motion.SPRING_DAMPING,
                     stiffness = Motion.SPRING_STIFFNESS_SOFT,
                 ),
-                initialScale = 0.90f,
+                initialScale = 0.96f,
             ),
             exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)) + scaleOut(
                 animationSpec = tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
-                targetScale = 0.90f,
+                targetScale = 0.96f,
             ),
         ) {
             val fabInteraction = remember { MutableInteractionSource() }
@@ -345,7 +334,7 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
             val fabScale by animateFloatAsState(
                 targetValue = if (fabPressed) Motion.PRESS_FAB else 1f,
                 animationSpec = spring(
-                    dampingRatio = 0.72f,
+                    dampingRatio = Motion.SPRING_DAMPING,
                     stiffness = Motion.SPRING_STIFFNESS,
                 ),
                 label = "profileFabPress",
@@ -386,37 +375,29 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                 transitionSpec = {
                     if (targetState == ProfileSheetMode.VLESS_EDITOR) {
                         (fadeIn(
-                            tween(
-                                Motion.CONTENT_IN_MS,
-                                delayMillis = 20,
-                                easing = Motion.ENTER_EASING,
-                            ),
+                            tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
                         ) + slideInHorizontally(
                             tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
-                            initialOffsetX = { it / 12 },
+                            initialOffsetX = { it / 24 },
                         )) togetherWith
                             (fadeOut(
                                 tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
                             ) + slideOutHorizontally(
                                 tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
-                                targetOffsetX = { -it / 36 },
+                                targetOffsetX = { -it / 48 },
                             ))
                     } else {
                         (fadeIn(
-                            tween(
-                                Motion.CONTENT_IN_MS,
-                                delayMillis = 14,
-                                easing = Motion.ENTER_EASING,
-                            ),
+                            tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
                         ) + slideInHorizontally(
                             tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
-                            initialOffsetX = { -it / 36 },
+                            initialOffsetX = { -it / 24 },
                         )) togetherWith
                             (fadeOut(
                                 tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
                             ) + slideOutHorizontally(
                                 tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
-                                targetOffsetX = { it / 12 },
+                                targetOffsetX = { it / 48 },
                             ))
                     }
                 },
