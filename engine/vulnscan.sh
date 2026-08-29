@@ -20,4 +20,6 @@ grep -q '^replace github.com/metacubex/mihomo' go.mod || \
   echo "replace github.com/metacubex/mihomo => $CACHE" >> go.mod
 
 export GOFLAGS=-mod=mod
-exec govulncheck ./...
+# Match the production AAR build configuration. Vulnerability reachability can
+# differ by build tags, so scanning without with_gvisor is not equivalent.
+exec govulncheck -tags with_gvisor ./...
