@@ -158,11 +158,9 @@ class TriVpnService : VpnService() {
             VpnProfileKind.WARP -> settings.warpProfile?.let(VpnOutbound::Warp)
         }
 
-        val installed = settings.routes.keys.associateWith { uidOf(it) }
-        val uidPackages = packageManager.getInstalledApplications(0)
-            .groupBy { it.uid }
-            .mapValues { (_, apps) -> apps.map { it.packageName }.toSet() }
-        val effective = effectiveRoutes(settings.routes, installed, uidPackages)
+        val resolvedRoutes = resolveRouteSnapshot(packageManager, settings.routes)
+        val installed = resolvedRoutes.installedUids
+        val effective = resolvedRoutes.effective
         if (effective.sharedUidConflict.isNotEmpty()) {
             VpnController.setState(VpnState.Failed(getString(R.string.err_shared_uid)))
             stopSequence(stopSelf = true)
@@ -361,10 +359,6 @@ class TriVpnService : VpnService() {
         return android.net.IpPrefix(addr, cidr.substring(slash + 1).toInt())
     }
 
-    private fun uidOf(pkg: String): Int? = runCatching {
-        packageManager.getPackageUid(pkg, 0)
-    }.getOrNull()
-
     // ---- network monitor --------------------------------------------------
 
     private var lastNetwork: Network? = null
@@ -426,7 +420,7 @@ class TriVpnService : VpnService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val n: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_warning)
+            .setSmallIcon(R.drawable.ic_lock)
             .setContentTitle("Detour")
             .setContentText(text)
             .setContentIntent(content)

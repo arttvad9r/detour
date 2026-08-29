@@ -52,4 +52,15 @@ class EffectiveRoutesTest {
         assertEquals(setOf(10001), result.sharedUidConflict)
         assertTrue(result.isEmpty)
     }
+
+    @Test fun `missing uid ownership is rejected when ownership map is supplied`() {
+        val result = effectiveRoutes(
+            mapOf("selected" to AppRoute.VPN),
+            mapOf("selected" to 10001),
+            emptyMap(),
+        )
+
+        assertEquals(setOf(10001), result.sharedUidConflict)
+        assertTrue(result.isEmpty)
+    }
 }
