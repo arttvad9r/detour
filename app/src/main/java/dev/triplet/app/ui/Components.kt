@@ -443,7 +443,7 @@ fun DetourButton(
         interactionSource = interactionSource,
         modifier = modifier
             .fillMaxWidth()
-            .height(height.dp)
+            .heightIn(min = height.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -558,7 +558,7 @@ fun SegmentedControl(
     BoxWithConstraints(
         modifier
             .fillMaxWidth()
-            .height(32.dp)
+            .heightIn(min = 48.dp)
             .clip(AppShapes.extraSmall)
             .background(c.surfaceSoft)
             .border(1.dp, c.border, AppShapes.extraSmall),
@@ -623,7 +623,7 @@ fun SegmentedControl(
 fun ScreenHeader(title: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val c = detourColors
     Row(
-        modifier.fillMaxWidth().height(56.dp).padding(start = Spacing.space4, end = Spacing.space20),
+        modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = Spacing.space4, end = Spacing.space20),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         DetourIconButton(onClick = onBack) {
