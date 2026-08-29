@@ -24,6 +24,7 @@ object Motion {
     // Refresh-rate votes are deliberately bounded. High is requested only long
     // enough to cover the visual motion, then the compositor returns to Default
     // so adaptive/LTPO displays can lower their refresh rate again.
+    const val CONTROL_REFRESH_TAIL_MS = 180L
     const val NAV_REFRESH_BOOST_MS = 240L
     const val LIST_REFRESH_BOOST_MS = 220L
 
