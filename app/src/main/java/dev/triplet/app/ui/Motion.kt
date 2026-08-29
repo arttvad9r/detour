@@ -17,14 +17,18 @@ object Motion {
     const val STATE_MS = 160
     const val CONTENT_IN_MS = 150
     const val CONTENT_OUT_MS = 100
-    const val NAV_ENTER_MS = 210
-    const val NAV_EXIT_MS = 150
+
+    // Full-screen page navigation needs enough time to communicate direction at
+    // both 60 Hz and high refresh rates. Forward is slightly more deliberate;
+    // back is shorter so returning never feels sticky.
+    const val NAV_ENTER_MS = 280
+    const val NAV_EXIT_MS = 240
     const val THEME_MS = 220
 
     // Refresh-rate votes are deliberately bounded. Touch/release boosting is
     // handled by the platform; these windows only cover motion the app knows is
     // still active after the gesture itself has finished.
-    const val NAV_REFRESH_BOOST_MS = 240L
+    const val NAV_REFRESH_BOOST_MS = 320L
     const val LIST_REFRESH_BOOST_MS = 220L
 
     /** Fast VPN starts should never flash a transient "Connecting" state. */
