@@ -44,6 +44,8 @@
     <string name="dns_adguard">AdGuard</string>
     <string name="dns_custom_label">DNS address</string>
     <string name="dns_placeholder">1.1.1.1 or https://dns.example/dns-query</string>
+    <string name="dns_custom_hint_https">Enter an IP address or an HTTPS DoH URL.</string>
+    <string name="dns_invalid_https">Check the address: enter an IP or an https:// DoH URL.</string>
     <string name="nav_backup">Export / import</string>
     <string name="nav_backup_sub">move settings to another device</string>
     <string name="backup_title">Export / import</string>
@@ -51,6 +53,7 @@
     <string name="backup_export">Export to file</string>
     <string name="backup_import">Import from file</string>
     <string name="backup_exported">Exported</string>
+    <string name="backup_imported_reconnect">Imported. Reconnect to apply changes.</string>
     <string name="backup_bad_file">This file is not a Detour backup</string>
     <string name="backup_error">Could not process the backup</string>
     <string name="nav_dpi">DPI bypass</string>
@@ -118,6 +121,14 @@
     <string name="notif_starting">Connecting…</string>
     <string name="notif_active">Tunnel active</string>
     <string name="notif_stop">Disconnect</string>
+    <string name="tile_connected">Connected</string>
+    <string name="tile_connecting">Connecting…</string>
+    <string name="tile_error">Connection error</string>
+    <string name="tile_disconnected">Disconnected</string>
+    <plurals name="tile_routed">
+        <item quantity="one">%1$d app in tunnel</item>
+        <item quantity="other">%1$d apps in tunnel</item>
+    </plurals>
     <string name="theme_midnight">Midnight</string>
     <string name="theme_ocean">Ocean</string>
     <string name="theme_graphite">Graphite and amber</string>
