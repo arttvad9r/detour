@@ -21,6 +21,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -64,6 +67,9 @@ private object Route {
     const val BACKUP = "backup"
 }
 
+internal fun themeTransitionDuration(previousDark: Boolean, targetDark: Boolean): Int =
+    if (previousDark == targetDark) Motion.THEME_MS else 0
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -73,32 +79,36 @@ class MainActivity : ComponentActivity() {
             val settings by store.settings.collectAsState()
             val theme = AppTheme.byId(settings?.themeId ?: "")
             val target = theme.colors
+            var previousDark by remember { mutableStateOf(theme.dark) }
+            val themeAnimation = tween<Color>(themeTransitionDuration(previousDark, theme.dark))
 
-            // Theme changes interpolate semantic colors in place instead of flashing
-            // the whole composition or creating a second navigation tree.
+            // Interpolate within the same brightness mode. A continuous light↔dark
+            // palette interpolation necessarily crosses a frame where foreground and
+            // background luminance converge, so cross-mode changes snap atomically.
             val animatedColors = DetourColors(
-                background = animateColorAsState(target.background, tween(Motion.THEME_MS), label = "themeBackground").value,
-                surface = animateColorAsState(target.surface, tween(Motion.THEME_MS), label = "themeSurface").value,
-                surfaceSoft = animateColorAsState(target.surfaceSoft, tween(Motion.THEME_MS), label = "themeSurfaceSoft").value,
-                surfaceSelected = animateColorAsState(target.surfaceSelected, tween(Motion.THEME_MS), label = "themeSelected").value,
-                textPrimary = animateColorAsState(target.textPrimary, tween(Motion.THEME_MS), label = "themeTextPrimary").value,
-                textSecondary = animateColorAsState(target.textSecondary, tween(Motion.THEME_MS), label = "themeTextSecondary").value,
-                textMuted = animateColorAsState(target.textMuted, tween(Motion.THEME_MS), label = "themeTextMuted").value,
-                accent = animateColorAsState(target.accent, tween(Motion.THEME_MS), label = "themeAccent").value,
-                onAccent = animateColorAsState(target.onAccent, tween(Motion.THEME_MS), label = "themeOnAccent").value,
-                accentSoft = animateColorAsState(target.accentSoft, tween(Motion.THEME_MS), label = "themeAccentSoft").value,
-                accentBorder = animateColorAsState(target.accentBorder, tween(Motion.THEME_MS), label = "themeAccentBorder").value,
-                divider = animateColorAsState(target.divider, tween(Motion.THEME_MS), label = "themeDivider").value,
-                border = animateColorAsState(target.border, tween(Motion.THEME_MS), label = "themeBorder").value,
-                active = animateColorAsState(target.active, tween(Motion.THEME_MS), label = "themeActive").value,
-                activeStrong = animateColorAsState(target.activeStrong, tween(Motion.THEME_MS), label = "themeActiveStrong").value,
-                activeSoft = animateColorAsState(target.activeSoft, tween(Motion.THEME_MS), label = "themeActiveSoft").value,
-                activeBorder = animateColorAsState(target.activeBorder, tween(Motion.THEME_MS), label = "themeActiveBorder").value,
-                error = animateColorAsState(target.error, tween(Motion.THEME_MS), label = "themeError").value,
-                errorSoft = animateColorAsState(target.errorSoft, tween(Motion.THEME_MS), label = "themeErrorSoft").value,
+                background = animateColorAsState(target.background, themeAnimation, label = "themeBackground").value,
+                surface = animateColorAsState(target.surface, themeAnimation, label = "themeSurface").value,
+                surfaceSoft = animateColorAsState(target.surfaceSoft, themeAnimation, label = "themeSurfaceSoft").value,
+                surfaceSelected = animateColorAsState(target.surfaceSelected, themeAnimation, label = "themeSelected").value,
+                textPrimary = animateColorAsState(target.textPrimary, themeAnimation, label = "themeTextPrimary").value,
+                textSecondary = animateColorAsState(target.textSecondary, themeAnimation, label = "themeTextSecondary").value,
+                textMuted = animateColorAsState(target.textMuted, themeAnimation, label = "themeTextMuted").value,
+                accent = animateColorAsState(target.accent, themeAnimation, label = "themeAccent").value,
+                onAccent = animateColorAsState(target.onAccent, themeAnimation, label = "themeOnAccent").value,
+                accentSoft = animateColorAsState(target.accentSoft, themeAnimation, label = "themeAccentSoft").value,
+                accentBorder = animateColorAsState(target.accentBorder, themeAnimation, label = "themeAccentBorder").value,
+                divider = animateColorAsState(target.divider, themeAnimation, label = "themeDivider").value,
+                border = animateColorAsState(target.border, themeAnimation, label = "themeBorder").value,
+                active = animateColorAsState(target.active, themeAnimation, label = "themeActive").value,
+                activeStrong = animateColorAsState(target.activeStrong, themeAnimation, label = "themeActiveStrong").value,
+                activeSoft = animateColorAsState(target.activeSoft, themeAnimation, label = "themeActiveSoft").value,
+                activeBorder = animateColorAsState(target.activeBorder, themeAnimation, label = "themeActiveBorder").value,
+                error = animateColorAsState(target.error, themeAnimation, label = "themeError").value,
+                errorSoft = animateColorAsState(target.errorSoft, themeAnimation, label = "themeErrorSoft").value,
             )
 
             LaunchedEffect(theme) {
+                previousDark = theme.dark
                 val style = if (theme.dark) SystemBarStyle.dark(Color.Transparent.toArgb())
                 else SystemBarStyle.light(Color.Transparent.toArgb(), Color.Transparent.toArgb())
                 enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
