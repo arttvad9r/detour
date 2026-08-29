@@ -146,12 +146,12 @@ object WarpConfigImporter {
             privateKey = requireNotNull(map.string("private-key")),
             publicKey = requireNotNull(map.string("public-key")),
             reserved = requireNotNull(map.intList("reserved")),
-            allowedIps = map.stringList("allowed-ips").ifEmpty { listOf("0.0.0.0/0") },
+            allowedIps = requireNotNull(map.stringList("allowed-ips")).ifEmpty { listOf("0.0.0.0/0") },
             udp = map.bool("udp") ?: true,
             mtu = map.int("mtu") ?: 1280,
             persistentKeepalive = map.int("persistent-keepalive"),
             remoteDnsResolve = map.bool("remote-dns-resolve") ?: true,
-            dns = map.stringList("dns"),
+            dns = requireNotNull(map.stringList("dns")),
             amnezia = AmneziaWgOptions(
                 jc = amz.int("jc"),
                 jmin = amz.int("jmin"),
@@ -249,10 +249,13 @@ object WarpConfigImporter {
         else -> null
     }
 
-    private fun Map<*, *>.stringList(key: String): List<String> =
-        (this[key] as? List<*>)?.mapNotNull { value ->
-            value?.toString()?.trim()?.takeIf { it.isNotEmpty() }
-        }.orEmpty()
+    private fun Map<*, *>.stringList(key: String): List<String>? {
+        if (!containsKey(key)) return emptyList()
+        val values = this[key] as? List<*> ?: return null
+        return values.map { value ->
+            value?.toString()?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        }
+    }
 
     private fun Map<*, *>.intList(key: String): List<Int>? {
         if (!containsKey(key)) return emptyList()
