@@ -15,20 +15,32 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import dev.triplet.app.R
-import dev.triplet.app.core.AppRoute
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.data.TriSettings
+import dev.triplet.app.vpn.EffectiveRoutes
+import dev.triplet.app.vpn.resolveEffectiveRoutes
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private data class MenuItem(
     val titleRes: Int,
@@ -48,11 +60,35 @@ fun SettingsMenuScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val ctx = LocalContext.current
     val settings by store.settings.collectAsState()
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
     val c = detourColors
-    val routed = settings?.routes?.countValues { it != AppRoute.DIRECT } ?: 0
+    val persistedRoutes = settings?.routes.orEmpty()
+    var routeRevision by remember { mutableIntStateOf(0) }
+    DisposableEffect(ctx) {
+        val owner = ctx as? LifecycleOwner
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) routeRevision++
+        }
+        owner?.lifecycle?.addObserver(observer)
+        onDispose { owner?.lifecycle?.removeObserver(observer) }
+    }
+    val effectiveRoutes by produceState(
+        initialValue = EffectiveRoutes(emptySet(), emptySet()),
+        key1 = persistedRoutes,
+        key2 = routeRevision,
+    ) {
+        value = if (persistedRoutes.isEmpty()) {
+            EffectiveRoutes(emptySet(), emptySet())
+        } else {
+            withContext(Dispatchers.IO) {
+                resolveEffectiveRoutes(ctx.packageManager, persistedRoutes)
+            }
+        }
+    }
+    val routed = effectiveRoutes.packages.size
     val theme = LocalDetourTheme.current
     val autoConnect = settings?.autoConnect == true
 
@@ -144,5 +180,3 @@ fun SettingsMenuScreen(
         Spacer(Modifier.height(Spacing.space24))
     }
 }
-
-private fun Map<String, AppRoute>.countValues(pred: (AppRoute) -> Boolean) = values.count(pred)
