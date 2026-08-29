@@ -48,6 +48,7 @@ import dev.triplet.app.ui.HomeViewModel
 import dev.triplet.app.ui.LocalDetourColors
 import dev.triplet.app.ui.LocalDetourTheme
 import dev.triplet.app.ui.Motion
+import dev.triplet.app.ui.ProfilesViewModel
 import dev.triplet.app.ui.SettingsMenuScreen
 import dev.triplet.app.ui.ThemeScreen
 import dev.triplet.app.ui.VlessKeyScreen
@@ -245,7 +246,26 @@ class MainActivity : ComponentActivity() {
                                 AppsScreen(store, onBack = { navController.popBackStack() })
                             }
                             composable(Route.VLESS) {
-                                VlessKeyScreen(store, onBack = { navController.popBackStack() })
+                                val profilesViewModel = viewModel<ProfilesViewModel>(
+                                    factory = ProfilesViewModel.factory(
+                                        store = store,
+                                        restartTunnel = {
+                                            VpnController.restartIfActive(appContext)
+                                        },
+                                        stopTunnelIfRunning = {
+                                            if (
+                                                VpnController.state.value == VpnState.Active ||
+                                                VpnController.state.value == VpnState.Starting
+                                            ) {
+                                                VpnController.stop(appContext)
+                                            }
+                                        },
+                                    ),
+                                )
+                                VlessKeyScreen(
+                                    profilesViewModel,
+                                    onBack = { navController.popBackStack() },
+                                )
                             }
                             composable(Route.DPI) {
                                 val dpiViewModel = viewModel<DpiViewModel>(
