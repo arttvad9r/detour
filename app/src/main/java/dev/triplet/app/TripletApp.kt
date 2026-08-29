@@ -24,7 +24,7 @@ class TripletApp : Application() {
     private val packageChanges = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val packageName = intent.data?.schemeSpecificPart ?: return
-            AppInventory.invalidate()
+            AppInventory.invalidate(packageName)
 
             // An in-place app update emits REMOVED(replacing=true) followed by
             // ADDED. Restart only after the replacement exists again, while a
@@ -62,8 +62,9 @@ class TripletApp : Application() {
             ContextCompat.RECEIVER_EXPORTED,
         )
 
-        // PackageManager discovery is useful only on the routes screen, so warm
-        // it off the main thread while the user is on the home screen.
-        appScope.launch { AppInventory.load(this@TripletApp) }
+        // Warm route metadata and tiny row icons off the main thread while the
+        // user is still on Home. The first Routes transition can then draw its
+        // real contents immediately instead of swapping placeholders mid-slide.
+        appScope.launch { AppInventory.warm(this@TripletApp) }
     }
 }
