@@ -115,8 +115,9 @@ PYEOF
 
 export PATH="$PATH:$(go env GOPATH)/bin"
 export GOFLAGS="-mod=mod -tags=with_gvisor"
-# -libname dropped: current gomobile no longer supports it; output defaults to <package>.aar == engine.aar
-gomobile bind -target android/arm64,android/amd64 -androidapi 24 -javapkg=dev.triplet.engine .
+# Strip the Go symbol table/DWARF and source paths from the shipped JNI libraries.
+# JNI exports and Go build info remain intact; the checks below verify the stamped toolchain.
+gomobile bind -target android/arm64,android/amd64 -androidapi 24 -javapkg=dev.triplet.engine -trimpath -ldflags="-s -w" .
 
 # Verify the shipped c-shared libraries were built by the selected Go toolchain.
 # `go version` reads the linker-stamped version from c-shared ELF files; checking
