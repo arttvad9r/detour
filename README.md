@@ -27,11 +27,12 @@ export ANDROID_NDK_ROOT="$ANDROID_NDK_HOME"
 export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$(go env GOPATH)/bin:$PATH"
 ```
 
-CI builds the native engine with Go 1.26.7. Keep the local Go toolchain on the same release when producing release artifacts. Install the Go-side build and vulnerability tools:
+CI builds the native engine with Go 1.26.7. Keep the local Go toolchain on the same release when producing release artifacts. Install the same Go-side build and vulnerability tools used by CI, then initialize gomobile against the configured Android SDK/NDK:
 
 ```bash
-go install golang.org/x/mobile/cmd/gomobile@latest
-go install golang.org/x/vuln/cmd/govulncheck@latest
+go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20260821190718-4776eadac327
+go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+gomobile init
 ```
 
 Build the app:
