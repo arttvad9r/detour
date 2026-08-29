@@ -36,14 +36,17 @@ object ConfigGenerator {
         val attr = { pkg: String -> "UID,${input.vpnUids[pkg]}" }
         val rules = buildList {
             add("- IP-CIDR6,::/0,REJECT,no-resolve")
+            // Before API 33 VpnService has no excludeRoute(). LAN destinations
+            // therefore enter the TUN and must be rejected before per-UID routes;
+            // otherwise the UID rule wins first and proxies local traffic.
+            if (input.apiLevel < 33) {
+                LAN_PREFIXES.forEach { add("- IP-CIDR,$it,REJECT,no-resolve") }
+            }
             vpnTag?.let { tag -> input.vpnApps.forEach { pkg -> add("- ${attr(pkg)},$tag") } }
             input.dpiApps.forEach { pkg ->
                 add("- AND,((${attr(pkg)}),(NETWORK,UDP),(DST-PORT,443)),REJECT")
             }
             input.dpiApps.forEach { pkg -> add("- ${attr(pkg)},DPI") }
-            if (input.apiLevel < 33) {
-                LAN_PREFIXES.forEach { add("- IP-CIDR,$it,REJECT,no-resolve") }
-            }
             // Unknown UID ownership must fail closed rather than bypassing the VPN.
             add("- MATCH,REJECT")
         }.joinToString("\n")
