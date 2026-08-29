@@ -59,62 +59,64 @@ fun DpiScreen(viewModel: DpiViewModel, onBack: () -> Unit, modifier: Modifier = 
             .detourHighRefresh(spatialMotionActive),
     ) {
         ScreenHeader(stringResource(R.string.dpi_title), onBack)
-        Spacer(Modifier.height(Spacing.space8))
 
-        DetourCard(Modifier.padding(horizontal = Spacing.space16).selectableGroup()) {
-            RadioRow(
-                title = stringResource(R.string.preset_recommended),
-                selected = !state.editingCustom && state.preset == DpiPreset.RECOMMENDED,
-                onClick = viewModel::chooseRecommended,
-            )
-            GroupDivider(startInset = 46)
-            RadioRow(
-                title = stringResource(R.string.preset_custom),
-                selected = state.editingCustom,
-                onClick = viewModel::editCustom,
-            )
-        }
-
-        AnimatedVisibility(
-            visibleState = customVisibility,
-            enter = fadeIn(
-                tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
-            ) + expandVertically(
-                animationSpec = tween(Motion.STATE_MS, easing = Motion.ENTER_EASING),
-                expandFrom = Alignment.Top,
-            ),
-            exit = fadeOut(
-                tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
-            ) + shrinkVertically(
-                animationSpec = tween(Motion.STATE_MS, easing = Motion.EXIT_EASING),
-                shrinkTowards = Alignment.Top,
-            ),
-        ) {
-            Column {
-                Spacer(Modifier.height(Spacing.space16))
-                DetourInputField(
-                    value = state.customField,
-                    onValueChange = viewModel::setCustomField,
-                    label = stringResource(R.string.dpi_custom_label),
-                    placeholder = stringResource(R.string.dpi_custom_placeholder),
-                    helper = stringResource(R.string.dpi_custom_hint),
-                    error = if (state.customInvalid) stringResource(R.string.dpi_custom_invalid) else null,
-                    singleLine = false,
-                    minHeight = 56.dp,
-                    maxHeight = 104.dp,
-                    maxLines = 3,
-                    modifier = Modifier.padding(horizontal = Spacing.space16),
+        DetourContentColumn {
+            Spacer(Modifier.height(Spacing.space8))
+            DetourCard(Modifier.padding(horizontal = Spacing.space16).selectableGroup()) {
+                RadioRow(
+                    title = stringResource(R.string.preset_recommended),
+                    selected = !state.editingCustom && state.preset == DpiPreset.RECOMMENDED,
+                    onClick = viewModel::chooseRecommended,
                 )
-                Spacer(Modifier.height(Spacing.space16))
-                DetourButton(
-                    text = stringResource(R.string.btn_save),
-                    onClick = viewModel::saveCustom,
-                    enabled = state.canSaveCustom,
-                    modifier = Modifier.padding(horizontal = Spacing.space16),
+                GroupDivider(startInset = 46)
+                RadioRow(
+                    title = stringResource(R.string.preset_custom),
+                    selected = state.editingCustom,
+                    onClick = viewModel::editCustom,
                 )
             }
-        }
 
-        Spacer(Modifier.height(Spacing.space24))
+            AnimatedVisibility(
+                visibleState = customVisibility,
+                enter = fadeIn(
+                    tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
+                ) + expandVertically(
+                    animationSpec = tween(Motion.STATE_MS, easing = Motion.ENTER_EASING),
+                    expandFrom = Alignment.Top,
+                ),
+                exit = fadeOut(
+                    tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
+                ) + shrinkVertically(
+                    animationSpec = tween(Motion.STATE_MS, easing = Motion.EXIT_EASING),
+                    shrinkTowards = Alignment.Top,
+                ),
+            ) {
+                Column {
+                    Spacer(Modifier.height(Spacing.space16))
+                    DetourInputField(
+                        value = state.customField,
+                        onValueChange = viewModel::setCustomField,
+                        label = stringResource(R.string.dpi_custom_label),
+                        placeholder = stringResource(R.string.dpi_custom_placeholder),
+                        helper = stringResource(R.string.dpi_custom_hint),
+                        error = if (state.customInvalid) stringResource(R.string.dpi_custom_invalid) else null,
+                        singleLine = false,
+                        minHeight = 56.dp,
+                        maxHeight = 104.dp,
+                        maxLines = 3,
+                        modifier = Modifier.padding(horizontal = Spacing.space16),
+                    )
+                    Spacer(Modifier.height(Spacing.space16))
+                    DetourButton(
+                        text = stringResource(R.string.btn_save),
+                        onClick = viewModel::saveCustom,
+                        enabled = state.canSaveCustom,
+                        modifier = Modifier.padding(horizontal = Spacing.space16),
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(Spacing.space24))
+        }
     }
 }
