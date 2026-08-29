@@ -1,19 +1,12 @@
 package dev.triplet.app.vpn
 
-import android.app.Notification
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Intent
-import android.content.pm.ServiceInfo
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
-import androidx.core.app.NotificationCompat
-import dev.triplet.app.MainActivity
 import dev.triplet.app.R
 import dev.triplet.app.core.AppRoute
 import dev.triplet.app.core.ConfigGenerator
@@ -41,9 +34,6 @@ class TriVpnService : VpnService() {
         const val ACTION_START = "dev.triplet.app.action.START"
         const val ACTION_STOP = "dev.triplet.app.action.STOP"
         const val ACTION_RESTART = "dev.triplet.app.action.RESTART"
-        // "-2": Android кэширует имя канала по ID; суффикс после ребрендинга
-        private const val CHANNEL_ID = "detour_vpn_2"
-        private const val NOTIFICATION_ID = 1
     }
 
     private val executor = Executors.newSingleThreadExecutor()
@@ -55,6 +45,7 @@ class TriVpnService : VpnService() {
     private val lifecycleLock = Any()
     private lateinit var store: RoutesStore
     private lateinit var dpi: DpiBackend
+    private lateinit var foreground: VpnForegroundNotifier
     private var netCallback: ConnectivityManager.NetworkCallback? = null
 
     override fun onCreate() {
@@ -74,7 +65,8 @@ class TriVpnService : VpnService() {
                 }
             }
         }
-        createChannel()
+        foreground = VpnForegroundNotifier(this)
+        foreground.createChannel()
         registerNetworkMonitor()
         // Мост атрибуции обязан быть зарегистрирован до Engine.start (pins.md round 2).
         Engine.setProcessResolver(TripUidResolver(applicationContext))
@@ -136,7 +128,7 @@ class TriVpnService : VpnService() {
         val current = VpnController.state.value
         if (current == VpnState.Active || current == VpnState.Starting) return
         VpnController.setState(VpnState.Starting)
-        goForeground(getString(R.string.notif_starting))
+        foreground.show(getString(R.string.notif_starting))
 
         // Executor-поток, блокировка допустима.
         val settings = runBlocking { store.snapshot() }
@@ -243,7 +235,7 @@ class TriVpnService : VpnService() {
         // activation and must not keep the UI or lifecycle executor in Starting.
         VpnController.setState(VpnState.Active)
         runBlocking { store.setSessionStartedAt(System.currentTimeMillis()) }
-        goForeground(getString(R.string.notif_active))
+        foreground.show(getString(R.string.notif_active))
         ServiceLog.i("active; validating routes")
         validateRoutesAsync(effVpn, effDpi, settings.activeVpn)
     }
@@ -399,38 +391,5 @@ class TriVpnService : VpnService() {
             getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(it)
         }
         netCallback = null
-    }
-
-    // ---- notification ------------------------------------------------------
-
-    private fun createChannel() {
-        getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, getString(R.string.notif_channel),
-                NotificationManager.IMPORTANCE_LOW),
-        )
-    }
-
-    private fun goForeground(text: String) {
-        val content = PendingIntent.getActivity(
-            this, 0, Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        val stop = PendingIntent.getService(
-            this, 1, Intent(this, TriVpnService::class.java).setAction(ACTION_STOP),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        val n: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_lock)
-            .setContentTitle("Detour")
-            .setContentText(text)
-            .setContentIntent(content)
-            .setOngoing(true)
-            .addAction(0, getString(R.string.notif_stop), stop)
-            .build()
-        if (Build.VERSION.SDK_INT >= 34) {
-            startForeground(NOTIFICATION_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-        } else {
-            startForeground(NOTIFICATION_ID, n)
-        }
     }
 }
