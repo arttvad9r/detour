@@ -36,6 +36,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -51,21 +52,24 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.triplet.app.R
-import dev.triplet.app.core.AppRoute
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.data.RoutesStore
+import dev.triplet.app.vpn.EffectiveRoutes
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
+import dev.triplet.app.vpn.resolveEffectiveRoutes
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 enum class HomeProtocol { VLESS_DPI, DPI, VLESS, NONE }
 private enum class VisualVpnState { IDLE, STARTING, ACTIVE, FAILED }
 
-fun homeProtocol(routes: Map<String, AppRoute>): HomeProtocol {
-    val dpi = routes.values.any { it == AppRoute.DPI }
-    val vpn = routes.values.any { it == AppRoute.VPN }
+fun homeProtocol(routes: EffectiveRoutes): HomeProtocol {
+    val dpi = routes.dpiPackages.isNotEmpty()
+    val vpn = routes.vpnPackages.isNotEmpty()
     return when {
         dpi && vpn -> HomeProtocol.VLESS_DPI
         dpi -> HomeProtocol.DPI
@@ -89,6 +93,19 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
     val st = state
     val c = detourColors
     val settings by store.settings.collectAsState()
+    val persistedRoutes = settings?.routes.orEmpty()
+    val effectiveRoutes by produceState(
+        initialValue = EffectiveRoutes(emptySet(), emptySet()),
+        key1 = persistedRoutes,
+    ) {
+        value = if (persistedRoutes.isEmpty()) {
+            EffectiveRoutes(emptySet(), emptySet())
+        } else {
+            withContext(Dispatchers.IO) {
+                resolveEffectiveRoutes(ctx.packageManager, persistedRoutes)
+            }
+        }
+    }
 
     var showStarting by remember { mutableStateOf(false) }
     var lastSettledState by remember {
@@ -160,7 +177,7 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
     }
 
     val activeVpn = settings?.activeVpn ?: VpnProfileKind.VLESS
-    val protocolRes = when (homeProtocol(settings?.routes ?: emptyMap())) {
+    val protocolRes = when (homeProtocol(effectiveRoutes)) {
         HomeProtocol.VLESS_DPI -> if (activeVpn == VpnProfileKind.WARP) R.string.protocol_warp_dpi else R.string.protocol_vless_dpi
         HomeProtocol.DPI -> R.string.protocol_dpi
         HomeProtocol.VLESS -> if (activeVpn == VpnProfileKind.WARP) R.string.protocol_warp else R.string.protocol_vless

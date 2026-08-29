@@ -1,6 +1,5 @@
 package dev.triplet.app.core
 
-import org.json.JSONArray
 import org.json.JSONObject
 
 /** Versioned, validated user-settings export. Runtime session state is excluded. */
@@ -35,14 +34,7 @@ object SettingsBackup {
         return JSONObject().apply {
             put("v", VERSION)
             put("app", APP)
-            put("vlessKeys", JSONObject().apply {
-                put("activeId", keys.activeId)
-                put("items", JSONArray().apply {
-                    keys.items.forEach { put(JSONObject().apply {
-                        put("id", it.id); put("name", it.name); put("uri", it.uri)
-                    }) }
-                })
-            })
+            put("vlessKeys", JSONObject(keys.toJson()))
             put("warpProfile", b.warpProfile?.let { JSONObject(it.toJson()) } ?: JSONObject.NULL)
             put("activeVpn", b.activeVpn.name)
             put("preset", b.presetId)

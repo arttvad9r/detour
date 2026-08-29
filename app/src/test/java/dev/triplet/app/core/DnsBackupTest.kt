@@ -71,6 +71,21 @@ class SettingsBackupTest {
         assertEquals(source, SettingsBackup.fromJson(SettingsBackup.toJson(source)))
     }
 
+    @Test fun `roundtrip preserves explicit no active VLESS key`() {
+        val keys = VlessKeys(
+            listOf(
+                VlessKey("a", "A", backup.vlessUri),
+                VlessKey("b", "B", backup.vlessUri),
+            ),
+            null,
+        )
+        val restored = SettingsBackup.fromJson(
+            SettingsBackup.toJson(backup.copy(vlessUri = "", vlessKeys = keys)),
+        )!!
+        assertEquals(keys.items, restored.vlessKeys.items)
+        assertNull(restored.vlessKeys.activeId)
+    }
+
     @Test
     fun `oversized backup is rejected`() {
         val oversized = """{"app":"detour","v":3,"customArgs":"${"x".repeat(SettingsBackup.MAX_BYTES)}"}"""
