@@ -46,29 +46,31 @@ fun ThemeScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mod
             .detourHighRefresh(scrollState.isScrollInProgress),
     ) {
         ScreenHeader(stringResource(R.string.theme_title), onBack)
-        Spacer(Modifier.height(Spacing.space8))
 
-        DetourCard(Modifier.padding(horizontal = Spacing.space16).selectableGroup()) {
-            AppTheme.entries.forEachIndexed { i, t ->
-                val selected = current == t.id
-                RadioRow(
-                    title = t.label,
-                    selected = selected,
-                    onClick = { scope.launch { store.setTheme(t.id) } },
-                    trailing = { ThemeSwatches(t) },
-                )
-                if (i < AppTheme.entries.lastIndex) GroupDivider(startInset = 46)
+        DetourContentColumn {
+            Spacer(Modifier.height(Spacing.space8))
+            DetourCard(Modifier.padding(horizontal = Spacing.space16).selectableGroup()) {
+                AppTheme.entries.forEachIndexed { i, t ->
+                    val selected = current == t.id
+                    RadioRow(
+                        title = t.label,
+                        selected = selected,
+                        onClick = { scope.launch { store.setTheme(t.id) } },
+                        trailing = { ThemeSwatches(t) },
+                    )
+                    if (i < AppTheme.entries.lastIndex) GroupDivider(startInset = 46)
+                }
             }
-        }
 
-        Spacer(Modifier.height(Spacing.space12))
-        Text(
-            stringResource(R.string.theme_hint),
-            style = MaterialTheme.typography.bodySmall,
-            color = c.textMuted,
-            modifier = Modifier.padding(horizontal = Spacing.space16),
-        )
-        Spacer(Modifier.height(Spacing.space24))
+            Spacer(Modifier.height(Spacing.space12))
+            Text(
+                stringResource(R.string.theme_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = c.textMuted,
+                modifier = Modifier.padding(horizontal = Spacing.space16),
+            )
+            Spacer(Modifier.height(Spacing.space24))
+        }
     }
 }
 
