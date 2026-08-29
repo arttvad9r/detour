@@ -60,9 +60,18 @@ class VlessKeysTest {
         assertEquals("b", keys.activeId)
     }
 
-    @Test fun `delete active chooses remaining and deleting only clears active`() {
-        assertEquals("b", VlessKeys(listOf(VlessKey("a", "a", validUri), VlessKey("b", "b", validUri)), "a").delete("a").activeId)
-        assertEquals(null, VlessKeys(listOf(VlessKey("a", "a", validUri)), "a").delete("a").activeId)
+    @Test fun `delete active requires explicit reselection`() {
+        val remaining = VlessKeys(
+            listOf(VlessKey("a", "a", validUri), VlessKey("b", "b", validUri)),
+            "a",
+        ).delete("a")
+        assertEquals(null, remaining.activeId)
+        assertEquals(listOf("b"), remaining.items.map { it.id })
+
+        assertEquals(
+            null,
+            VlessKeys(listOf(VlessKey("a", "a", validUri)), "a").delete("a").activeId,
+        )
     }
 
     @Test fun `explicit null active id survives json roundtrip`() {
