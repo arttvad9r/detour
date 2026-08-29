@@ -11,10 +11,13 @@ require(releaseAbi == null || releaseAbi in supportedReleaseAbis) {
 }
 
 val versionNameOverride = providers.gradleProperty("detourVersionName").orNull
+require(versionNameOverride == null || versionNameOverride.isNotBlank()) {
+    "detourVersionName must not be blank"
+}
 val versionCodeProperty = providers.gradleProperty("detourVersionCode").orNull
 val versionCodeOverride = versionCodeProperty?.toIntOrNull()
-require(versionCodeProperty == null || (versionCodeOverride != null && versionCodeOverride > 0)) {
-    "detourVersionCode must be a positive integer"
+require(versionCodeProperty == null || (versionCodeOverride != null && versionCodeOverride in 1..2_100_000_000)) {
+    "detourVersionCode must be an integer from 1 through 2100000000"
 }
 
 val releaseKeystorePath = providers.environmentVariable("DETOUR_RELEASE_KEYSTORE").orNull
