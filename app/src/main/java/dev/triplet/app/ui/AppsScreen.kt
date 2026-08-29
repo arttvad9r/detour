@@ -57,7 +57,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
@@ -81,7 +80,6 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
     val c = detourColors
     val settings by store.settings.collectAsState()
     val currentSettings = settings ?: return
-    val pm = ctx.packageManager
     val searchHint = stringResource(R.string.search_hint)
 
     var query by rememberSaveable { mutableStateOf("") }
@@ -250,7 +248,7 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
                             .fillMaxWidth()
                             .clip(shape),
                     ) {
-                        AppRow(app, current, pm) { route ->
+                        AppRow(app, current) { route ->
                             scope.launch {
                                 store.setRoute(app.packageName, route)
                                 VpnController.restartIfActive(ctx)
@@ -276,13 +274,18 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
 private fun AppRow(
     app: AppInfo,
     current: AppRoute,
-    pm: android.content.pm.PackageManager,
     onSelect: (AppRoute) -> Unit,
 ) {
+    val ctx = LocalContext.current
     val c = detourColors
-    val bmp by produceState<Bitmap?>(initialValue = null, app.packageName) {
-        value = withContext(Dispatchers.IO) {
-            runCatching { pm.getApplicationIcon(app.packageName).toBitmap(48, 48) }.getOrNull()
+    val bmp by produceState<Bitmap?>(
+        initialValue = AppInventory.peekIcon(app.packageName),
+        key1 = app.packageName,
+    ) {
+        if (value == null) {
+            value = withContext(Dispatchers.IO) {
+                AppInventory.loadIcon(ctx, app.packageName)
+            }
         }
     }
 
