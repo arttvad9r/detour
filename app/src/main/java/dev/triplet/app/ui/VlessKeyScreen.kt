@@ -184,99 +184,101 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                 .verticalScroll(rememberScrollState()),
         ) {
             ScreenHeader(stringResource(R.string.key_title), onBack)
-            Spacer(Modifier.height(Spacing.space8))
 
-            Text(
-                stringResource(R.string.key_list_title),
-                style = MaterialTheme.typography.titleSmall,
-                color = c.textPrimary,
-                modifier = Modifier.padding(horizontal = Spacing.space16),
-            )
-            Spacer(Modifier.height(Spacing.space8))
+            DetourContentColumn {
+                Spacer(Modifier.height(Spacing.space8))
+                Text(
+                    stringResource(R.string.key_list_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = c.textPrimary,
+                    modifier = Modifier.padding(horizontal = Spacing.space16),
+                )
+                Spacer(Modifier.height(Spacing.space8))
 
-            val snapshot = ProfileSnapshot(vlessItems, warpProfile)
-            AnimatedContent(
-                targetState = snapshot,
-                transitionSpec = {
-                    fadeIn(
-                        tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
-                    ) togetherWith fadeOut(
-                        tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
-                    )
-                },
-                label = "profileList",
-            ) { shown ->
-                if (shown.vless.isEmpty() && shown.warp == null) {
-                    Text(
-                        stringResource(R.string.profile_empty),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = c.textMuted,
-                        modifier = Modifier.padding(
-                            start = Spacing.space20,
-                            end = Spacing.space20,
-                            top = Spacing.space2,
-                            bottom = Spacing.space12,
-                        ),
-                    )
-                } else {
-                    DetourCard(
-                        Modifier
-                            .padding(horizontal = Spacing.space16)
-                            .selectableGroup(),
-                    ) {
-                        shown.vless.forEachIndexed { index, key ->
-                            val selected = activeVpn == VpnProfileKind.VLESS && key.id == activeVlessId
-                            KeyRow(
-                                key = key,
-                                selected = selected,
-                                onEdit = { beginVlessEdit(key) },
-                                onDelete = { viewModel.deleteVless(key.id) },
-                            ) {
-                                haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                                viewModel.selectVless(key.id)
-                            }
-                            if (index < shown.vless.lastIndex || shown.warp != null) {
-                                GroupDivider(startInset = 16)
-                            }
-                        }
-                        shown.warp?.let { profile ->
-                            val selected = activeVpn == VpnProfileKind.WARP
-                            WarpRow(
-                                profile = profile,
-                                selected = selected,
-                                onEdit = {
-                                    warpStatus = 0
-                                    warpLauncher.launch(arrayOf("*/*"))
-                                },
-                                onDelete = viewModel::deleteWarp,
-                                onClick = {
+                val snapshot = ProfileSnapshot(vlessItems, warpProfile)
+                AnimatedContent(
+                    targetState = snapshot,
+                    transitionSpec = {
+                        fadeIn(
+                            tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
+                        ) togetherWith fadeOut(
+                            tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
+                        )
+                    },
+                    label = "profileList",
+                ) { shown ->
+                    if (shown.vless.isEmpty() && shown.warp == null) {
+                        Text(
+                            stringResource(R.string.profile_empty),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = c.textMuted,
+                            modifier = Modifier.padding(
+                                start = Spacing.space20,
+                                end = Spacing.space20,
+                                top = Spacing.space2,
+                                bottom = Spacing.space12,
+                            ),
+                        )
+                    } else {
+                        DetourCard(
+                            Modifier
+                                .padding(horizontal = Spacing.space16)
+                                .selectableGroup(),
+                        ) {
+                            shown.vless.forEachIndexed { index, key ->
+                                val selected = activeVpn == VpnProfileKind.VLESS && key.id == activeVlessId
+                                KeyRow(
+                                    key = key,
+                                    selected = selected,
+                                    onEdit = { beginVlessEdit(key) },
+                                    onDelete = { viewModel.deleteVless(key.id) },
+                                ) {
                                     haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                                    viewModel.selectWarp()
-                                },
-                            )
+                                    viewModel.selectVless(key.id)
+                                }
+                                if (index < shown.vless.lastIndex || shown.warp != null) {
+                                    GroupDivider(startInset = 16)
+                                }
+                            }
+                            shown.warp?.let { profile ->
+                                val selected = activeVpn == VpnProfileKind.WARP
+                                WarpRow(
+                                    profile = profile,
+                                    selected = selected,
+                                    onEdit = {
+                                        warpStatus = 0
+                                        warpLauncher.launch(arrayOf("*/*"))
+                                    },
+                                    onDelete = viewModel::deleteWarp,
+                                    onClick = {
+                                        haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                        viewModel.selectWarp()
+                                    },
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            AnimatedVisibility(
-                visible = warpStatus != 0,
-                enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)),
-                exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)),
-            ) {
-                Column {
-                    Spacer(Modifier.height(Spacing.space8))
-                    Text(
-                        text = stringResource(
-                            if (warpStatus == 2) R.string.warp_invalid else R.string.warp_import_error,
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = c.error,
-                        modifier = Modifier.padding(horizontal = Spacing.space20),
-                    )
+                AnimatedVisibility(
+                    visible = warpStatus != 0,
+                    enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)),
+                    exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)),
+                ) {
+                    Column {
+                        Spacer(Modifier.height(Spacing.space8))
+                        Text(
+                            text = stringResource(
+                                if (warpStatus == 2) R.string.warp_invalid else R.string.warp_import_error,
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = c.error,
+                            modifier = Modifier.padding(horizontal = Spacing.space20),
+                        )
+                    }
                 }
+                Spacer(Modifier.height(Spacing.space24))
             }
-            Spacer(Modifier.height(Spacing.space24))
         }
     }
 
