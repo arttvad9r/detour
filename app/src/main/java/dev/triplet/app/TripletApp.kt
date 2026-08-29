@@ -59,7 +59,7 @@ class TripletApp : Application() {
             this,
             packageChanges,
             packageFilter,
-            ContextCompat.RECEIVER_EXPORTED,
+            ContextCompat.RECEIVER_NOT_EXPORTED,
         )
 
         // Warm route metadata and tiny row icons off the main thread while the
