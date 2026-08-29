@@ -7,30 +7,33 @@ This document defines the current verification contract. Historical screenshots,
 Every push and pull request runs:
 
 ```bash
-./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest :app:assembleRelease
 bash engine/vulnscan.sh
 ```
 
 The Android workflow pins:
 
 - JDK 17;
-- Android platform/target 36;
+- compile SDK 37 and target SDK 36;
+- Android platform package `platforms;android-37.0`;
 - build-tools 36.0.0;
 - NDK 28.0.13004108;
 - Go 1.26.7;
 - pinned `gomobile` and `govulncheck` versions.
 
+Dependency verification runs in strict mode against the committed `gradle/verification-metadata.xml` file.
+
 `engine/vulnscan.sh` covers the checked-in/patched Go engine source and the produced Android binary artifacts. Native source revisions and embedding patches are documented in `pins.md`.
 
 ## Instrumented tests
+
+Hosted CI compiles the instrumentation test APK with `:app:assembleDebugAndroidTest`, so androidTest source and dependencies are checked on every push and pull request. Executing instrumentation tests still requires an Android runtime.
 
 With an emulator or device connected:
 
 ```bash
 ANDROID_SERIAL=<serial> ./gradlew :app:connectedDebugAndroidTest
 ```
-
-Instrumented tests are not part of the hosted CI job because they require an Android runtime.
 
 ## Unit/regression coverage
 

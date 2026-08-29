@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "dev.triplet.app"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "dev.triplet.app"
@@ -41,10 +41,10 @@ android {
     }
 
     lint {
-        // compileSdk/targetSdk 36 закреплены в android-блоке; CI явно ставит
-        // platform 36 и build-tools 36.0.0. QUERY_ALL_PACKAGES не добавляем намеренно:
-        // если ownership shared UID скрыт package visibility, EffectiveRoutes
-        // отклоняет неоднозначный UID до любых TUN side effects (fail-closed).
+        // compileSdk 37 / targetSdk 36 are deliberate: use current AndroidX APIs
+        // without changing target-SDK behavior in the same maintenance pass.
+        // QUERY_ALL_PACKAGES remains intentionally absent; ambiguous shared UIDs
+        // fail closed before any TUN side effects.
         disable += listOf(
             "OldTargetApi",
             "AndroidGradlePluginVersion",
@@ -59,7 +59,7 @@ android {
 dependencies {
     testImplementation(libs.org.json)
     implementation(files("../engine/libs/engine.aar"))
-    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.core)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(platform(libs.androidx.compose.bom))

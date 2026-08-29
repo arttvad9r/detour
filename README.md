@@ -5,7 +5,7 @@ Detour is an Android-only VPN/network client with per-app routing. Selected appl
 ## Current platform
 
 - Android application module only (`:app`); no desktop/iOS/KMP target.
-- minSdk 29, compile/target SDK 36, Java 17.
+- minSdk 29, compileSdk 37, targetSdk 36, Java 17.
 - Kotlin + Jetpack Compose + Navigation Compose.
 - Android `VpnService` supplies the TUN interface and per-app allow-list.
 - Mihomo is embedded as the current data plane for TUN/gVisor, DNS, UID rules, VLESS/Reality, WireGuard/AmneziaWG and outbound chaining.
@@ -19,7 +19,7 @@ See [docs/architecture.md](docs/architecture.md) for the current component bound
 Install JDK 17, Go, Git, Python, unzip/zip, curl, Android command-line tools, and the exact Android SDK components used by CI:
 
 ```bash
-sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.0.13004108"
+sdkmanager "platforms;android-37.0" "build-tools;36.0.0" "ndk;28.0.13004108"
 ```
 
 Set the Android/JDK environment for your shell:
@@ -54,11 +54,11 @@ Gradle builds the native artifacts required by the app before packaging. Generat
 Run the same core gate as GitHub Actions:
 
 ```bash
-./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest :app:assembleRelease
 bash engine/vulnscan.sh
 ```
 
-With a device or emulator connected:
+`assembleDebugAndroidTest` compiles the instrumentation test APK in hosted CI. To execute those tests, connect a device or emulator and run:
 
 ```bash
 ./gradlew :app:connectedDebugAndroidTest
