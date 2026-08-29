@@ -54,6 +54,9 @@ jobs:
           EMULATOR_SERIAL="emulator-5554"
           EMULATOR_LOG="$RUNNER_TEMP/detour-emulator.log"
           SYSTEM_IMAGE="system-images;android-36;google_apis;x86_64"
+          export ANDROID_USER_HOME="$RUNNER_TEMP/android-user-home"
+          export ANDROID_AVD_HOME="$ANDROID_USER_HOME/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
 
           if [[ -e /dev/kvm ]]; then
             sudo chmod 666 /dev/kvm
@@ -64,6 +67,12 @@ jobs:
             --force \
             --name "$AVD_NAME" \
             --package "$SYSTEM_IMAGE"
+
+          if ! emulator -list-avds | grep -Fxq "$AVD_NAME"; then
+            echo "Created AVD is not visible to Android Emulator" >&2
+            find "$ANDROID_USER_HOME" -maxdepth 3 -type f -print >&2 || true
+            exit 1
+          fi
 
           cleanup() {
             adb -s "$EMULATOR_SERIAL" emu kill >/dev/null 2>&1 || true
