@@ -24,13 +24,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-private data class SupportingText(val text: String, val color: Color)
+private enum class SupportingTone { ERROR, SUCCESS, HELPER }
+private data class SupportingText(val text: String, val tone: SupportingTone)
 
 /**
  * Shared input treatment with restrained focus/validation motion. Multiline
@@ -125,9 +125,9 @@ fun DetourInputField(
         )
 
         val supporting = when {
-            error != null -> SupportingText(error, c.error)
-            success != null -> SupportingText(success, c.textSecondary)
-            helper != null -> SupportingText(helper, c.textMuted)
+            error != null -> SupportingText(error, SupportingTone.ERROR)
+            success != null -> SupportingText(success, SupportingTone.SUCCESS)
+            helper != null -> SupportingText(helper, SupportingTone.HELPER)
             else -> null
         }
         AnimatedContent(
@@ -142,7 +142,11 @@ fun DetourInputField(
                 Text(
                     text = shown.text,
                     style = MaterialTheme.typography.bodySmall,
-                    color = shown.color,
+                    color = when (shown.tone) {
+                        SupportingTone.ERROR -> c.error
+                        SupportingTone.SUCCESS -> c.textSecondary
+                        SupportingTone.HELPER -> c.textMuted
+                    },
                     modifier = Modifier.padding(
                         start = Spacing.space4,
                         end = Spacing.space4,

@@ -158,7 +158,7 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
             )
             Spacer(Modifier.width(8.dp))
             Box(Modifier.weight(1f)) {
-                androidx.compose.animation.AnimatedVisibility(
+                AnimatedVisibility(
                     visible = query.isEmpty(),
                     enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)),
                     exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)),
@@ -186,8 +186,9 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
         Row(
             Modifier.fillMaxWidth()
                 .padding(horizontal = Spacing.space16, vertical = Spacing.space8)
-                .detourClickable(
-                    onClick = { setShowSystemFromRow(!showSystem) },
+                .detourToggleable(
+                    value = showSystem,
+                    onValueChange = ::setShowSystemFromRow,
                     pressedColor = c.surfaceSelected.copy(alpha = 0.32f),
                     pressScale = Motion.PRESS_ROW,
                 ),
@@ -202,7 +203,7 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
             )
             DetourSwitch(
                 checked = showSystem,
-                onCheckedChange = { value -> scope.launch { store.setShowSystemApps(value) } },
+                onCheckedChange = null,
             )
         }
 

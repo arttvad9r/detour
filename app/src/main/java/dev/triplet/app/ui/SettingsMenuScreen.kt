@@ -54,6 +54,7 @@ fun SettingsMenuScreen(
     val c = detourColors
     val routed = settings?.routes?.countValues { it != AppRoute.DIRECT } ?: 0
     val theme = LocalDetourTheme.current
+    val autoConnect = settings?.autoConnect == true
 
     Column(
         modifier.fillMaxSize()
@@ -104,9 +105,9 @@ fun SettingsMenuScreen(
         DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
             Row(
                 Modifier.fillMaxWidth()
-                    .detourClickable(
-                        onClick = {
-                            val next = settings?.autoConnect != true
+                    .detourToggleable(
+                        value = autoConnect,
+                        onValueChange = { next ->
                             haptics.performHapticFeedback(
                                 if (next) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff,
                             )
@@ -126,8 +127,8 @@ fun SettingsMenuScreen(
                     modifier = Modifier.weight(1f),
                 )
                 DetourSwitch(
-                    checked = settings?.autoConnect == true,
-                    onCheckedChange = { v -> scope.launch { store.setAutoConnect(v) } },
+                    checked = autoConnect,
+                    onCheckedChange = null,
                     compact = true,
                 )
             }

@@ -145,6 +145,45 @@ fun Modifier.detourSelectable(
         )
 }
 
+/** Switch-row feedback with one toggleable semantics node for the whole row. */
+@Composable
+fun Modifier.detourToggleable(
+    value: Boolean,
+    onValueChange: (Boolean) -> Unit,
+    idleColor: Color = Color.Transparent,
+    pressedColor: Color? = null,
+    pressScale: Float = 1f,
+): Modifier {
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) pressScale else 1f,
+        animationSpec = spring(
+            dampingRatio = Motion.SPRING_DAMPING,
+            stiffness = Motion.SPRING_STIFFNESS,
+        ),
+        label = "toggleScale",
+    )
+    val background by animateColorAsState(
+        targetValue = if (pressed && pressedColor != null) pressedColor else idleColor,
+        animationSpec = tween(Motion.PRESS_TONE_MS),
+        label = "toggleTone",
+    )
+    return this
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }
+        .background(background)
+        .toggleable(
+            value = value,
+            interactionSource = interactionSource,
+            indication = null,
+            role = Role.Switch,
+            onValueChange = onValueChange,
+        )
+}
+
 /** Small controls respond by yielding under the finger rather than flashing a ripple. */
 @Composable
 fun DetourIconButton(
@@ -277,7 +316,7 @@ fun GroupDivider(startInset: Int = 60) {
 @Composable
 fun DetourSwitch(
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
+    onCheckedChange: ((Boolean) -> Unit)?,
     animate: Boolean = true,
     compact: Boolean = false,
 ) {
@@ -310,8 +349,9 @@ fun DetourSwitch(
         tween(Motion.COLOR_MS), label = "switchThumbBorder",
     )
     val interactionSource = remember { MutableInteractionSource() }
-
-    Box(
+    val switchModifier = if (onCheckedChange == null) {
+        Modifier.size(48.dp)
+    } else {
         Modifier.size(48.dp).toggleable(
             value = checked,
             interactionSource = interactionSource,
@@ -323,7 +363,11 @@ fun DetourSwitch(
                 )
                 onCheckedChange(value)
             },
-        ),
+        )
+    }
+
+    Box(
+        switchModifier,
         contentAlignment = Alignment.Center,
     ) {
         Box(
