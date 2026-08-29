@@ -201,6 +201,24 @@ class WarpConfigImporterTest {
         assertEquals(WarpImportResult.NoCompatibleProxies, WarpConfigImporter.parse(config))
     }
 
+    @Test fun `yaml rejects malformed allowed ips instead of widening to full tunnel`() {
+        val config = """
+            proxies:
+              - name: invalid
+                type: wireguard
+                server: 162.159.195.1
+                port: 500
+                ip: 172.16.0.2
+                private-key: private
+                public-key: public
+                allowed-ips: 10.0.0.0/8
+                amnezia-wg-option:
+                  jc: 1
+        """.trimIndent()
+
+        assertEquals(WarpImportResult.NoCompatibleProxies, WarpConfigImporter.parse(config))
+    }
+
     @Test fun `regular generator config with more than fifty aliases is accepted`() {
         val proxies = (1..135).joinToString("\n") { n ->
             """
