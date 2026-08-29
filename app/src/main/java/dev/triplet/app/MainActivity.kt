@@ -40,7 +40,9 @@ import dev.triplet.app.ui.AppsScreen
 import dev.triplet.app.ui.BackupScreen
 import dev.triplet.app.ui.DetourColors
 import dev.triplet.app.ui.DnsScreen
+import dev.triplet.app.ui.DnsViewModel
 import dev.triplet.app.ui.DpiScreen
+import dev.triplet.app.ui.DpiViewModel
 import dev.triplet.app.ui.HomeScreen
 import dev.triplet.app.ui.HomeViewModel
 import dev.triplet.app.ui.LocalDetourColors
@@ -80,6 +82,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         configureAdaptiveRefresh(window)
         val store = (application as TripletApp).routesStore
+        val appContext = applicationContext
         setContent {
             val settings by store.settings.collectAsStateWithLifecycle()
             val theme = AppTheme.byId(settings?.themeId ?: "")
@@ -149,7 +152,7 @@ class MainActivity : ComponentActivity() {
                         LaunchedEffect(Unit) {
                             val launchSettings = store.snapshot()
                             val effective = withContext(Dispatchers.IO) {
-                                resolveEffectiveRoutes(packageManager, launchSettings.routes)
+                                resolveEffectiveRoutes(appContext.packageManager, launchSettings.routes)
                             }
                             val activeVpnValid = when (launchSettings.activeVpn) {
                                 VpnProfileKind.VLESS -> launchSettings.vlessKeys.active?.uri?.let {
@@ -216,7 +219,7 @@ class MainActivity : ComponentActivity() {
                                         store = store,
                                         resolveRoutes = { routes ->
                                             withContext(Dispatchers.IO) {
-                                                resolveEffectiveRoutes(packageManager, routes)
+                                                resolveEffectiveRoutes(appContext.packageManager, routes)
                                             }
                                         },
                                     ),
@@ -245,13 +248,35 @@ class MainActivity : ComponentActivity() {
                                 VlessKeyScreen(store, onBack = { navController.popBackStack() })
                             }
                             composable(Route.DPI) {
-                                DpiScreen(store, onBack = { navController.popBackStack() })
+                                val dpiViewModel = viewModel<DpiViewModel>(
+                                    factory = DpiViewModel.factory(
+                                        store = store,
+                                        restartTunnel = {
+                                            VpnController.restartIfActive(appContext)
+                                        },
+                                    ),
+                                )
+                                DpiScreen(
+                                    dpiViewModel,
+                                    onBack = { navController.popBackStack() },
+                                )
                             }
                             composable(Route.THEME) {
                                 ThemeScreen(store, onBack = { navController.popBackStack() })
                             }
                             composable(Route.DNS) {
-                                DnsScreen(store, onBack = { navController.popBackStack() })
+                                val dnsViewModel = viewModel<DnsViewModel>(
+                                    factory = DnsViewModel.factory(
+                                        store = store,
+                                        restartTunnel = {
+                                            VpnController.restartIfActive(appContext)
+                                        },
+                                    ),
+                                )
+                                DnsScreen(
+                                    dnsViewModel,
+                                    onBack = { navController.popBackStack() },
+                                )
                             }
                             composable(Route.BACKUP) {
                                 BackupScreen(store, onBack = { navController.popBackStack() })
