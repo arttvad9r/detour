@@ -61,16 +61,18 @@ class RoutesMappingTest {
         assertTrue(s.activeVpnConfigured)
     }
 
-    @Test fun `missing or corrupt WARP selection falls back to VLESS`() {
+    @Test fun `missing or corrupt WARP stays selected but unconfigured`() {
         val missing = RoutesMapping.toSettings(mapOf("vpn_profile_kind" to "WARP"))
-        assertEquals(VpnProfileKind.VLESS, missing.activeVpn)
+        assertEquals(VpnProfileKind.WARP, missing.activeVpn)
         assertNull(missing.warpProfile)
+        assertFalse(missing.activeVpnConfigured)
 
         val corrupt = RoutesMapping.toSettings(
             mapOf("vpn_profile_kind" to "WARP", "warp_profile" to "{broken"),
         )
-        assertEquals(VpnProfileKind.VLESS, corrupt.activeVpn)
+        assertEquals(VpnProfileKind.WARP, corrupt.activeVpn)
         assertNull(corrupt.warpProfile)
+        assertFalse(corrupt.activeVpnConfigured)
     }
 
     @Test fun `defaults when empty`() {
