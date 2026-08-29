@@ -8,17 +8,36 @@ object AppInventory {
     @Volatile
     private var cached: List<AppInfo>? = null
 
-    fun load(context: Context): List<AppInfo> = cached ?: synchronized(this) {
-        cached ?: query(context.applicationContext).also { cached = it }
+    @Volatile
+    private var dirty: Boolean = false
+
+    /** Latest process-local snapshot, even if a package change marked it stale. */
+    fun peek(): List<AppInfo>? = cached
+
+    fun load(context: Context): List<AppInfo> {
+        val current = cached
+        if (current != null && !dirty) return current
+        return synchronized(this) {
+            val inside = cached
+            if (inside != null && !dirty) inside
+            else query(context.applicationContext).also {
+                cached = it
+                dirty = false
+            }
+        }
     }
 
     /** Force a fresh PackageManager scan and replace the process-local snapshot. */
     fun refresh(context: Context): List<AppInfo> = synchronized(this) {
-        query(context.applicationContext).also { cached = it }
+        query(context.applicationContext).also {
+            cached = it
+            dirty = false
+        }
     }
 
+    /** Keep the old snapshot renderable while marking it for background refresh. */
     fun invalidate() {
-        cached = null
+        dirty = true
     }
 
     private fun query(context: Context): List<AppInfo> {
@@ -28,7 +47,7 @@ object AppInventory {
 
         // Query launcher activities once instead of calling queryIntentActivities()
         // for every installed package. The result can stay cached for other callers,
-        // while the route screen explicitly refreshes it on foreground resume.
+        // while the route screen refreshes it after a foreground/package change.
         return pm.queryIntentActivities(launcher, 0)
             .asSequence()
             .mapNotNull { it.activityInfo?.applicationInfo }
