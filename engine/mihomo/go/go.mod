@@ -110,7 +110,7 @@ require (
 	github.com/tailscale/go-winio v0.0.0-20231025203758-c4f33415bf55 // indirect
 	github.com/tailscale/hujson v0.0.0-20221223112325-20486734a56a // indirect
 	github.com/tailscale/peercred v0.0.0-20250107143737-35a0c7bd7edc // indirect
-	github.com/u-root/uio v0.0.0-20230220225922-ffce2a382923 // indirect
+	github.com/u-root/uio v0.0.0-20230220225925-ffce2a382923 // indirect
 	github.com/ulikunitz/xz v0.5.15 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
