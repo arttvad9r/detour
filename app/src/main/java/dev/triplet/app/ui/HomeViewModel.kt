@@ -7,10 +7,8 @@ import dev.triplet.app.core.AppRoute
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.core.VpnProfileKind
-import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.data.TriSettings
 import dev.triplet.app.vpn.EffectiveRoutes
-import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -72,13 +70,14 @@ internal fun homeUiState(
 }
 
 class HomeViewModel(
-    store: RoutesStore,
+    settings: StateFlow<TriSettings?>,
+    vpnState: StateFlow<VpnState>,
     private val resolveRoutes: suspend (Map<String, AppRoute>) -> EffectiveRoutes,
 ) : ViewModel() {
     private val routeRefresh = MutableStateFlow(0L)
 
     private val effectiveRoutes = combine(
-        store.settings
+        settings
             .map { it?.routes.orEmpty() }
             .distinctUntilChanged(),
         routeRefresh,
@@ -94,8 +93,8 @@ class HomeViewModel(
         )
 
     val uiState: StateFlow<HomeUiState> = combine(
-        store.settings,
-        VpnController.state,
+        settings,
+        vpnState,
         effectiveRoutes,
         ::homeUiState,
     ).stateIn(
@@ -110,13 +109,14 @@ class HomeViewModel(
 
     companion object {
         fun factory(
-            store: RoutesStore,
+            settings: StateFlow<TriSettings?>,
+            vpnState: StateFlow<VpnState>,
             resolveRoutes: suspend (Map<String, AppRoute>) -> EffectiveRoutes,
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 require(modelClass.isAssignableFrom(HomeViewModel::class.java))
                 @Suppress("UNCHECKED_CAST")
-                return HomeViewModel(store, resolveRoutes) as T
+                return HomeViewModel(settings, vpnState, resolveRoutes) as T
             }
         }
     }
