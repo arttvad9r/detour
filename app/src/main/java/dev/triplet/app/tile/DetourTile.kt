@@ -8,13 +8,14 @@ import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import dev.triplet.app.R
 import dev.triplet.app.TripletApp
-import dev.triplet.app.core.AppRoute
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
+import dev.triplet.app.vpn.resolveEffectiveRoutes
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Плитка в шторке: подключение/отключение без открытия приложения. */
 @SuppressLint("StartActivityAndCollapseDeprecated")
@@ -30,7 +31,14 @@ class DetourTile : TileService() {
             scope.launch { VpnController.state.collect { update(it) } },
             scope.launch {
                 store.settings.collect { s ->
-                    routed = s?.routes?.count { it.value != AppRoute.DIRECT } ?: 0
+                    val routes = s?.routes.orEmpty()
+                    routed = if (routes.isEmpty()) {
+                        0
+                    } else {
+                        withContext(Dispatchers.IO) {
+                            resolveEffectiveRoutes(packageManager, routes).packages.size
+                        }
+                    }
                     update(VpnController.state.value)
                 }
             },
