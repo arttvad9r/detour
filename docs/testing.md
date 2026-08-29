@@ -1,115 +1,126 @@
-# Testing evidence
+# Testing
 
-## Окружение
+This document defines the current verification contract. Historical screenshots, one-off device investigations and completed remediation plans are intentionally not kept as active project documentation.
 
-- Текущая среда разработки: Arch Linux.
-- Android toolchain contract: JDK 17, platform/target 36, build-tools 36.0.0, NDK 28.0.13004108.
-- Native engine release/CI toolchain: Go 1.26.7, gomobile, govulncheck.
-- Automated verification: `./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug` и `bash engine/vulnscan.sh`.
-- Device evidence ниже историческое, если явно не указано обратное.
-- VLESS-сервер: Reality + xtls-rprx-vision + tcp; секретные данные в репозиторий и логи не попадают.
-- ByeDPI v0.17.3 (dynamic bionic ciadpi из jniLibs), preset RECOMMENDED.
-- Motion durations are time-based rather than frame-count-based. On Android 15+ the app keeps platform touch boost/ARR enabled and requests Compose `High` only for bounded navigation, scroll/fling, list-reorder, and expand/collapse motion; static UI returns to `Default` instead of pinning a concrete 120 Hz mode.
+## CI gate
 
-## Instrumented
-
-С подключённым эмулятором/устройством:
+Every push and pull request runs:
 
 ```bash
-ANDROID_SERIAL=emulator-XXXX ./gradlew :app:connectedDebugAndroidTest
-```
-
-Исторически подтверждено:
-
-| Класс | Тесты |
-|---|---|
-| MainActivitySmokeTest | 2/2 (Connect, вход в настройки) |
-| RoutesStoreInstrumentedTest | 3/3 (add/update/delete, duplicate id reject, import disables auto-connect) |
-
-## Engine / supply-chain gate
-
-```bash
+./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
 bash engine/vulnscan.sh
 ```
 
-- `go test -tags with_gvisor ./...` запускает checked-in engine tests против точного patched mihomo source tree, используемого для AAR.
-- `govulncheck -tags with_gvisor ./...` проверяет reachable vulnerabilities в source call graph.
-- `govulncheck -mode binary` проверяет каждый shipped `libgojni.so` внутри `engine.aar` (arm64-v8a и x86_64), включая фактически упакованный Go runtime/modules/symbols.
+The Android workflow pins:
 
-## Unit-уровень (накопительно)
+- JDK 17;
+- Android platform/target 36;
+- build-tools 36.0.0;
+- NDK 28.0.13004108;
+- Go 1.26.7;
+- pinned `gomobile` and `govulncheck` versions.
 
-Счётчики соответствуют фактическим текущим regression-наборам.
+`engine/vulnscan.sh` covers the checked-in/patched Go engine source and the produced Android binary artifacts. Native source revisions and embedding patches are documented in `pins.md`.
 
-| Компонент | Тесты |
-|---|---|
-| VlessKeyParser + fingerprints | 10/10 (8 parser cases + 2 fingerprint compatibility cases) |
-| VlessKeys storage | 11/11 (legacy migration, strict JSON, explicit reselection after delete, corrupt-storage fail-closed) |
-| ConfigGenerator | 16/16 (15 основных cases + отдельный API 29–32 LAN-before-UID regression) |
-| DnsValidation | 3/3 (IP/HTTPS validation, DoH bootstrap selection, bootstrap emission) |
-| DNS / backup persistence | 16/16 (5 DnsOptions + 11 SettingsBackup cases) |
-| DpiPresets | 4/4 |
-| RoutesMapping | 8/8 (включая corrupt WARP/VLESS fail-closed) |
-| Theme transition policy | 2/2 (light↔dark snap; same-mode animation retained) |
-| Status theme policy | 1/1 (Failed остаётся на neutral surface во всех темах; error используется только семантически) |
-| Profile tunnel policy | 4/4 (inactive mutation = none; active edit/replace = restart; active delete = stop) |
+## Instrumented tests
 
-## Сквозное доказательство маршрутов
+With an emulator or device connected:
 
-Исторический device scenario: Chrome → VPN, YouTube → DPI, остальные приложения вне allow-list TUN.
+```bash
+ANDROID_SERIAL=<serial> ./gradlew :app:connectedDebugAndroidTest
+```
 
-| Проверка | Результат | Доказательство |
-|---|---|---|
-| VLESS parser | PASS | валидный Reality/Vision link принят до подключения |
-| Подключение одной кнопкой | PASS | Home `Active`, foreground notification со Stop |
-| TUN поднят движком | PASS | mihomo log показывает gVisor TUN на fake-IP gateway `/30` |
-| Chrome → VLESS | PASS | egress совпал с адресом VLESS server; UID rule matched VLESS |
-| YouTube → DPI | PASS | mihomo log показывает UID match через DPI |
-| Нет VLESS при VPN-route | PASS | fail-closed без reconnect loop |
-| Невалидный VLESS | PASS | inline validation до Save |
-| Wi-Fi ↔ LTE | PASS на OnePlus | network monitor пересоздаёт tunnel, routes сохраняются |
-| Secrets in logs | PASS | uuid/VLESS URI/public key не обнаружены в engine/service logs |
+Instrumented tests are not part of the hosted CI job because they require an Android runtime.
 
-## Найденные и исправленные дефекты
+## Unit/regression coverage
 
-1. AppsScreen на узких экранах: route controls вынесены из сжимающей строки имени.
-2. VPN consent: после `RESULT_OK` подключение продолжается без второго тапа.
-3. Network monitor: VPN network игнорируется, restart storm устранён.
-4. ByeDPI: dynamic bionic build вместо неработающего static DNS path.
-5. IPv6: selected traffic захватывается и явно отклоняется при неподдерживаемом маршруте.
-6. ByeDPI process output: исключена блокировка на заполненном stdout/stderr pipe.
-7. RECOMMENDED preset закреплён tuned ladder + setup timeout.
-8. Android fake-IP TUN gateway восстановлен до `/30`.
-9. Backup import поверх Active останавливает старый tunnel и не включает auto-connect.
-10. Home/Settings/Tile используют effective routes, а не stale persisted summaries.
-11. VPN allow-list перестраивается после install/uninstall и защищён от UID reuse.
-12. API 29–32 LAN REJECT идёт до UID→VLESS/DPI rules; есть regression test порядка.
-13. Corrupt WARP/VLESS storage fail-closed и не выбирает другой endpoint неявно.
-14. Light↔dark transition не интерполирует foreground/background через низкий contrast.
-15. Изменение/удаление невыбранного профиля не рвёт tunnel; active delete делает Stop.
-16. Backup JSON serialization/parsing выполняется вне main thread и покрыта error handling.
-17. Quick Settings tile использует VPN/lock icon и app resource label; stale strings удалены.
-18. Full-screen navigation больше не alpha-crossfade'ит два destination одновременно: incoming screen движется поверх непрозрачного предыдущего, поэтому Settings/Home/Routes/DPI/DNS/Theme не просвечивают друг через друга.
-19. Failed-state Home больше не превращает `errorSoft` в почти непрозрачный red/pink fill; карточка остаётся neutral surface во всех темах, error остаётся в title/border, а дублирующий Retry внутри карточки удалён.
-20. Motion/refresh policy больше не предполагает фиксированные 60 Гц и не пинит 120 Гц: Android 15+ ARR и touch boost остаются включены, `High` запрашивается только пока реально движутся navigation/scroll/list/expand surfaces, после чего vote возвращается в `Default`.
+The JVM suite covers the behavior that must remain deterministic without a device, including:
 
-## Current automated/device limitations
+- VLESS parsing, fingerprints and profile storage/migration;
+- WARP/AmneziaWG profile parsing/storage and fail-closed selection behavior;
+- generated Mihomo configuration and rule ordering;
+- DNS validation/bootstrap generation;
+- backup serialization/import policy;
+- DPI presets;
+- DataStore settings mapping;
+- auto-connect eligibility;
+- active/inactive profile mutation policy;
+- theme-transition and VPN-status visual policy.
 
-- GitHub Actions проверяет JVM tests, lint, debug APK assembly, patched-engine Go tests и source/binary vulnerability scans.
-- `connectedDebugAndroidTest` требует отдельный эмулятор/устройство и не входит в CI job.
-- Частота дисплея и фактический выбор ARR зависят от устройства/Android/OEM и не могут быть подтверждены JVM/CI; frame-rate requests являются hints для системного scheduler, а не гарантией конкретных 120 Гц.
-- Полноценная platform ARR policy доступна на поддерживающих её устройствах Android 15 QPR1+; на более старых Android приложение не форсирует display mode и оставляет выбор повышенной герцовки системе/OEM.
-- OnePlus/AVD evidence выше историческое; после крупных routing/native changes нужен свежий device smoke на текущем head.
-- Current policy captures IPv6 in the TUN and explicitly rejects it, preventing selected applications from bypassing the VPN over IPv6.
-- DNS accepts only IP literals or HTTPS DoH URLs and is emitted through mihomo DNS hijack for routed applications.
+Do not maintain manual test-count totals in this file; the test runner is the source of truth.
 
-## Fresh device smoke checklist
+## Device smoke checklist
 
-- VPN connect/routing после TUN `/30`.
-- Backup import во время Active должен остановить текущий tunnel без auto-connect.
-- Удаление active VLESS/WARP должно завершать session через Stop; inactive edit/delete не должны рвать tunnel.
-- Home/Settings/Tile должны пересчитать effective routes после установки/удаления приложения.
-- API 29–32: LAN destinations не должны попадать в VLESS/DPI outbound.
-- Навигация Home ↔ Settings ↔ дочерние экраны не должна показывать два полноэкранных UI одновременно во время transition.
-- Failed-state проверить в Catppuccin Latte/Mocha, Gruvbox Dark и Dracula: neutral card surface, error title/border, без сплошной красной/розовой заливки и без второго Retry внутри карточки.
-- На 120 Гц устройстве включить системный refresh-rate overlay или записать FrameTimeline/Perfetto: navigation и active scroll/fling должны получать high-refresh residency, а статичные экраны после завершения motion должны иметь возможность вернуться к более низкой adaptive частоте.
-- Сравнить 60/120 Гц: физическая длительность navigation/segment/switch animation должна оставаться одинаковой; на 120 Гц увеличивается число кадров, а не скорость transition.
+Run this after changes to VPN lifecycle, engine/config generation, routing, package inventory, navigation or display policy.
+
+### VPN lifecycle
+
+- Idle → Connect → Active → Disconnect.
+- Fast connection must not flash a transient `Starting` state unnecessarily.
+- Failure keeps the Home status card on the neutral surface and exposes one retry path through the main action button.
+- Foreground notification and Quick Settings tile reflect the real VPN state.
+- Network changes rebuild the active tunnel without restart storms.
+
+### Profiles and persistence
+
+- Switch VLESS ↔ WARP/AmneziaWG and reconnect successfully.
+- Editing/replacing the active profile restarts the active tunnel.
+- Editing an inactive profile does not interrupt the tunnel.
+- Deleting the active profile stops the session instead of selecting another endpoint silently.
+- Backup import while Active stops the stale tunnel and leaves auto-connect disabled.
+- Reinstall/start behavior respects the persisted auto-connect preference.
+
+### Per-app routing
+
+- Verify at least one app on `VPN`, one on `DPI`, and one `DIRECT`/outside the routed allow-list.
+- Install/remove a routed application and confirm effective routes and the VPN allow-list are rebuilt.
+- Confirm selected IPv6 traffic does not bypass the VPN.
+- On API 29–32, verify LAN destinations are rejected before UID→VPN/DPI rules.
+- Check DNS resolution through the configured IP/DoH policy.
+
+### App Routes UI
+
+- First entry into App Routes should render the warmed app list without an empty intermediate layout.
+- App icons should already be present in the first normally visible frame; no mass placeholder → icon swap.
+- Search, Show system apps and route changes should not mass-fade/recreate the list.
+- Scroll/fling should remain smooth while icons are loaded from the process cache/background path.
+
+### Navigation and motion
+
+Exercise repeatedly:
+
+`Home → Settings → App Routes → Back → Back`
+
+Also open VPN profiles, DPI, DNS, Backup and Theme from Settings.
+
+Verify:
+
+- only the top full-screen destination moves;
+- the lower screen remains stationary;
+- no full-screen alpha crossfade/ghosting;
+- no abrupt layer removal at the end of Back;
+- Settings and App Routes remain readable during the transition;
+- system animator-duration scale is respected.
+
+### Adaptive refresh
+
+On a compatible high-refresh Android device, use the system refresh-rate overlay and/or Perfetto FrameTimeline:
+
+- navigation should request high-refresh residency only while moving;
+- active scroll/fling and bounded list/expand motion may request high refresh;
+- static screens should be allowed to return to the system/default adaptive policy;
+- touch boost remains platform-managed;
+- the app must not pin a concrete 120 Hz mode;
+- compare 60 Hz and 120 Hz: physical animation duration should remain time-based while the higher-refresh display renders more intermediate frames.
+
+Frame-rate requests are scheduler hints, not a guarantee of a particular panel mode. Full adaptive-refresh behavior depends on the Android version, device display stack and OEM implementation.
+
+## Release evidence
+
+Before treating a revision as release-ready, record at minimum:
+
+1. green CI for the exact commit;
+2. a fresh Android device/emulator smoke for the areas changed;
+3. for native/routing changes, a successful connect and per-app routing check on the exact produced build.
+
+Do not describe historical device results as validation of a newer commit.
