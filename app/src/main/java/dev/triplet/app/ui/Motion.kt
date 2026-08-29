@@ -21,10 +21,9 @@ object Motion {
     const val NAV_EXIT_MS = 150
     const val THEME_MS = 220
 
-    // Refresh-rate votes are deliberately bounded. High is requested only long
-    // enough to cover the visual motion, then the compositor returns to Default
-    // so adaptive/LTPO displays can lower their refresh rate again.
-    const val CONTROL_REFRESH_TAIL_MS = 180L
+    // Refresh-rate votes are deliberately bounded. Touch/release boosting is
+    // handled by the platform; these windows only cover motion the app knows is
+    // still active after the gesture itself has finished.
     const val NAV_REFRESH_BOOST_MS = 240L
     const val LIST_REFRESH_BOOST_MS = 220L
 
