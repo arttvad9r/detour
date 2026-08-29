@@ -35,13 +35,15 @@ fun ThemeScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mod
     val c = detourColors
     val settings by store.settings.collectAsState()
     val current = AppTheme.byId(settings?.themeId ?: "").id
+    val scrollState = rememberScrollState()
 
     Column(
         modifier.fillMaxSize()
             .background(c.background)
             .statusBarsPadding()
             .navigationBarsPadding()
-            .verticalScroll(rememberScrollState()),
+            .verticalScroll(scrollState)
+            .detourHighRefresh(scrollState.isScrollInProgress),
     ) {
         ScreenHeader(stringResource(R.string.theme_title), onBack)
         Spacer(Modifier.height(Spacing.space8))
