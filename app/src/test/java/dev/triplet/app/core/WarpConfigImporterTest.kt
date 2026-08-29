@@ -165,6 +165,42 @@ class WarpConfigImporterTest {
         assertEquals(2408, proxy.port)
     }
 
+    @Test fun `native conf rejects partially malformed reserved values`() {
+        val conf = """
+            [Interface]
+            PrivateKey = private
+            Address = 172.16.0.2
+            Reserved = 1, nope, 3
+            Jc = 1
+
+            [Peer]
+            PublicKey = public
+            AllowedIPs = 0.0.0.0/0
+            Endpoint = 162.159.195.1:500
+        """.trimIndent()
+
+        assertEquals(WarpImportResult.NoCompatibleProxies, WarpConfigImporter.parse(conf))
+    }
+
+    @Test fun `yaml rejects partially malformed reserved values`() {
+        val config = """
+            proxies:
+              - name: invalid
+                type: wireguard
+                server: 162.159.195.1
+                port: 500
+                ip: 172.16.0.2
+                private-key: private
+                public-key: public
+                reserved: [1, nope, 3]
+                allowed-ips: ['0.0.0.0/0']
+                amnezia-wg-option:
+                  jc: 1
+        """.trimIndent()
+
+        assertEquals(WarpImportResult.NoCompatibleProxies, WarpConfigImporter.parse(config))
+    }
+
     @Test fun `regular generator config with more than fifty aliases is accepted`() {
         val proxies = (1..135).joinToString("\n") { n ->
             """
