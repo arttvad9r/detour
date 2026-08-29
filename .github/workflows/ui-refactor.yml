@@ -1,0 +1,242 @@
+name: UI Refactor
+
+on:
+  push:
+    branches:
+      - refactor/ui-scaffold
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ui-refactor-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Refactor profile layout
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('app/src/main/java/dev/triplet/app/ui/VlessKeyScreen.kt')
+          s = p.read_text()
+          if 'private fun ProfileAddFab(' in s:
+              print('profile refactor already applied')
+              raise SystemExit(0)
+
+          def replace_once(old: str, new: str):
+              global s
+              count = s.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected one match, got {count}: {old[:80]!r}')
+              s = s.replace(old, new, 1)
+
+          replace_once(
+              'import androidx.compose.material3.ExperimentalMaterial3Api\n',
+              'import androidx.compose.material3.ExperimentalMaterial3Api\nimport androidx.compose.material3.FabPosition\n',
+          )
+          replace_once(
+              'import androidx.compose.material3.ModalBottomSheet\n',
+              'import androidx.compose.material3.ModalBottomSheet\nimport androidx.compose.material3.Scaffold\n',
+          )
+          replace_once(
+              '    val parse = field.trim().takeIf { it.isNotBlank() }?.let(VlessKeyParser::parse)\n',
+              '    val parse = remember(field) { field.trim().takeIf { it.isNotBlank() }?.let(VlessKeyParser::parse) }\n',
+          )
+
+          replace_once(
+              '''    Box(modifier.fillMaxSize().background(c.background)) {
+        Column(
+            Modifier.fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .verticalScroll(rememberScrollState()),
+        ) {''',
+              '''    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = c.background,
+        floatingActionButton = {
+            ProfileAddFab(
+                visible = !showSheet,
+                addDescription = addDescription,
+                onClick = {
+                    editingId = null
+                    field = ""
+                    sheetMode = ProfileSheetMode.PICKER
+                    showSheet = true
+                },
+            )
+        },
+        floatingActionButtonPosition = FabPosition.Center,
+    ) { innerPadding ->
+        Column(
+            Modifier.fillMaxSize()
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState()),
+        ) {''',
+          )
+
+          old_fab = '''
+        AnimatedVisibility(
+            visible = !showSheet,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 88.dp),
+            enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)) + scaleIn(
+                animationSpec = spring(
+                    dampingRatio = Motion.SPRING_DAMPING,
+                    stiffness = Motion.SPRING_STIFFNESS_SOFT,
+                ),
+                initialScale = 0.96f,
+            ),
+            exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)) + scaleOut(
+                animationSpec = tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
+                targetScale = 0.96f,
+            ),
+        ) {
+            val fabInteraction = remember { MutableInteractionSource() }
+            val fabPressed by fabInteraction.collectIsPressedAsState()
+            val fabScale by animateFloatAsState(
+                targetValue = if (fabPressed) Motion.PRESS_FAB else 1f,
+                animationSpec = spring(
+                    dampingRatio = Motion.SPRING_DAMPING,
+                    stiffness = Motion.SPRING_STIFFNESS,
+                ),
+                label = "profileFabPress",
+            )
+            FloatingActionButton(
+                onClick = {
+                    editingId = null
+                    field = ""
+                    sheetMode = ProfileSheetMode.PICKER
+                    showSheet = true
+                },
+                interactionSource = fabInteraction,
+                modifier = Modifier
+                    .graphicsLayer {
+                        scaleX = fabScale
+                        scaleY = fabScale
+                    }
+                    .semantics {
+                        contentDescription = addDescription
+                        role = Role.Button
+                    },
+                shape = AppShapes.small,
+                containerColor = c.accent,
+                contentColor = c.onAccent,
+            ) { Text("+", style = MaterialTheme.typography.headlineSmall) }
+        }
+'''
+          replace_once(old_fab, '\n')
+
+          replace_once(
+              '''private fun ProfileTypeRow(title: String, subtitle: String, onClick: () -> Unit) {''',
+              '''private fun ProfileAddFab(
+    visible: Boolean,
+    addDescription: String,
+    onClick: () -> Unit,
+) {
+    val c = detourColors
+    AnimatedVisibility(
+        visible = visible,
+        modifier = Modifier.navigationBarsPadding(),
+        enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)) + scaleIn(
+            animationSpec = spring(
+                dampingRatio = Motion.SPRING_DAMPING,
+                stiffness = Motion.SPRING_STIFFNESS_SOFT,
+            ),
+            initialScale = 0.96f,
+        ),
+        exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)) + scaleOut(
+            animationSpec = tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
+            targetScale = 0.96f,
+        ),
+    ) {
+        val fabInteraction = remember { MutableInteractionSource() }
+        val fabPressed by fabInteraction.collectIsPressedAsState()
+        val fabScale by animateFloatAsState(
+            targetValue = if (fabPressed) Motion.PRESS_FAB else 1f,
+            animationSpec = spring(
+                dampingRatio = Motion.SPRING_DAMPING,
+                stiffness = Motion.SPRING_STIFFNESS,
+            ),
+            label = "profileFabPress",
+        )
+        FloatingActionButton(
+            onClick = onClick,
+            interactionSource = fabInteraction,
+            modifier = Modifier
+                .graphicsLayer {
+                    scaleX = fabScale
+                    scaleY = fabScale
+                }
+                .semantics {
+                    contentDescription = addDescription
+                    role = Role.Button
+                },
+            shape = AppShapes.small,
+            containerColor = c.accent,
+            contentColor = c.onAccent,
+        ) { Text("+", style = MaterialTheme.typography.headlineSmall) }
+    }
+}
+
+@Composable
+private fun ProfileTypeRow(title: String, subtitle: String, onClick: () -> Unit) {''',
+          )
+
+          replace_once(
+              '''    val c = detourColors
+    Row(
+        Modifier.fillMaxWidth()
+            .detourSelectable(''',
+              '''    val c = detourColors
+    val profile = remember(key.uri) {
+        (VlessKeyParser.parse(key.uri) as? ParseResult.Ok)?.profile
+    }
+    Row(
+        Modifier.fillMaxWidth()
+            .detourSelectable(''',
+          )
+          replace_once('                keyName(key.uri, "VLESS"),\n', '                profile?.name?.ifBlank { profile.server } ?: "VLESS",\n')
+          replace_once('                serverValue(key),\n', '                profile?.let { "${it.server}:${it.port}" } ?: "—",\n')
+
+          replace_once(
+              '''                                        val key = VlessKey(
+                                            editingId ?: UUID.randomUUID().toString(),
+                                            keyName(value, vlessTitle),
+                                            value,
+                                        )''',
+              '''                                        val parsedProfile = (parse as? ParseResult.Ok)?.profile
+                                        val key = VlessKey(
+                                            editingId ?: UUID.randomUUID().toString(),
+                                            parsedProfile?.name?.ifBlank { parsedProfile.server } ?: vlessTitle,
+                                            value,
+                                        )''',
+          )
+
+          replace_once(
+              '''
+private fun serverValue(key: VlessKey): String =
+    (VlessKeyParser.parse(key.uri) as? ParseResult.Ok)?.profile?.let { "${it.server}:${it.port}" } ?: "—"
+
+private fun keyName(uri: String, fallback: String): String =
+    (VlessKeyParser.parse(uri) as? ParseResult.Ok)?.profile?.let { it.name.ifBlank { it.server } } ?: fallback''',
+              '',
+          )
+
+          p.write_text(s)
+          PY
+      - name: Commit profile refactor
+        run: |
+          if git diff --quiet -- app/src/main/java/dev/triplet/app/ui/VlessKeyScreen.kt; then
+            echo "no source changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- app/src/main/java/dev/triplet/app/ui/VlessKeyScreen.kt
+          git commit -m "Refactor profile screen layout"
+          git push origin HEAD:refactor/ui-scaffold
