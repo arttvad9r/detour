@@ -69,8 +69,8 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
-        val json = viewModel.exportJson() ?: return@rememberLauncherForActivityResult
         scope.launch {
+            val json = viewModel.exportJson() ?: return@launch
             val success = runCatching {
                 withContext(Dispatchers.IO) {
                     val output = requireNotNull(ctx.contentResolver.openOutputStream(uri))
