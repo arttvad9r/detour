@@ -315,9 +315,9 @@ class TriVpnService : VpnService() {
         builder.addAddress(ConfigGenerator.INET4.substringBefore('/'),
             ConfigGenerator.INET4.substringAfter('/').toInt())
 
-        // fake-ip DNS-адрес движка должен принадлежать TUN-интерфейсу
-        // (mihomo v1.19.x игнорирует tun.inet4-address, см. pins.md).
-        builder.addAddress("198.18.0.1", 16)
+        // Device spike requires mihomo's fake-IP gateway on the host-created TUN.
+        // Keep the validated /30; external-FD mode does not configure the interface.
+        builder.addAddress("198.18.0.1", 30)
 
         builder.addRoute("0.0.0.0", 0)
         // Capture IPv6 too; mihomo explicitly rejects it before the fallback rule.
