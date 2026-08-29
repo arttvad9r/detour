@@ -138,7 +138,9 @@ class RoutesStore(context: Context) {
 
                     if (storedKeys.isNullOrBlank()) {
                         val storedLegacy = get(uriKey)
-                        val legacyUri = storedLegacy?.let { cipher.decrypt(uriKey.name, it) }.orEmpty()
+                        val legacyUri = storedLegacy?.let {
+                            cipher.decryptLegacyCompatible(uriKey.name, it)
+                        }.orEmpty()
                         val keys = VlessKeys.fromStored("", legacyUri)
                         if (keys.items.isNotEmpty()) {
                             this[keysKey] = cipher.encrypt(keysKey.name, keys.toJson())
