@@ -28,7 +28,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -226,7 +225,6 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
                 timerText = timerText,
                 serverHost = serverHost,
                 protocol = stringResource(protocolRes),
-                onRetry = onMainAction,
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
                     .fillMaxWidth()
@@ -308,7 +306,6 @@ private fun StatusCard(
     timerText: String,
     serverHost: String?,
     protocol: String,
-    onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val c = detourColors
@@ -316,7 +313,7 @@ private fun StatusCard(
     Column(
         modifier
             .clip(AppShapes.medium)
-            .background(style.container.copy(alpha = 0.96f))
+            .background(style.container)
             .border(1.dp, style.border, AppShapes.medium)
             .padding(Spacing.space20),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -368,7 +365,7 @@ private fun StatusCard(
                 VisualVpnState.FAILED -> Text(
                     (state as? VpnState.Failed)?.reason ?: "",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = style.content.copy(alpha = 0.9f),
+                    color = c.textSecondary,
                     modifier = Modifier.padding(top = Spacing.space4),
                 )
                 VisualVpnState.IDLE -> Text(
@@ -406,17 +403,6 @@ private fun StatusCard(
             stringResource(R.string.row_server),
             serverHost ?: stringResource(R.string.server_missing),
         )
-
-        if (state is VpnState.Failed) {
-            Spacer(Modifier.height(4.dp))
-            TextButton(
-                onClick = onRetry,
-                colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = style.content),
-                modifier = Modifier.align(Alignment.End),
-            ) {
-                Text(stringResource(R.string.action_retry), style = MaterialTheme.typography.labelMedium)
-            }
-        }
     }
 }
 
