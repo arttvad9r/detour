@@ -56,6 +56,10 @@ This is a comparatively narrow integration boundary: replacing ByeDPI can preser
 
 VLESS profiles are parsed and validated by Detour before storage. WARP/AmneziaWG imports extract compatible WireGuard outbounds from source YAML/CONF; source routing, DNS, listeners and proxy groups are not adopted.
 
+Sensitive VLESS and WARP profile payloads are encrypted before they are persisted in DataStore. Detour uses AES-256-GCM with a non-exportable Android Keystore key and binds each ciphertext to its preference slot with authenticated additional data. If authenticated decryption fails, that profile is treated as unavailable rather than falling back to another endpoint. Non-secret preferences such as routes, theme and DNS selection remain ordinary DataStore values.
+
+Export/import is a separate user-controlled portability boundary: the exported JSON intentionally contains the decrypted VPN profile material needed on another device. The Backup screen therefore treats the exported file as sensitive and warns the user to store it securely.
+
 Profile mutation policy is fail-closed:
 
 - changing an inactive profile does not disturb an active tunnel;
