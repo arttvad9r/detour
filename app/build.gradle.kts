@@ -24,6 +24,14 @@ android {
 
     buildFeatures { compose = true }
 
+    buildTypes {
+        release {
+            optimization {
+                enable = true
+            }
+        }
+    }
+
     // Бинарник ByeDPI должен лежать распакованным файлом в nativeLibraryDir.
     packaging { jniLibs { useLegacyPackaging = true } }
 
