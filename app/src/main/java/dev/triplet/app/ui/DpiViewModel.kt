@@ -71,7 +71,7 @@ class DpiViewModel(
 
     fun chooseRecommended() {
         editingOverride.value = false
-        if (uiState.value.preset == DpiPreset.RECOMMENDED) return
+        if (settings.value?.preset == DpiPreset.RECOMMENDED) return
         viewModelScope.launch {
             setPreset(DpiPreset.RECOMMENDED)
             restartTunnel()
@@ -79,7 +79,7 @@ class DpiViewModel(
     }
 
     fun saveCustom() {
-        val value = uiState.value.customField.trim()
+        val value = (customDraft.value ?: settings.value?.dpiCustomArgs.orEmpty()).trim()
         if (!DpiArgs.isValid(value)) return
         viewModelScope.launch {
             // Persist the validated draft before activating CUSTOM so a process
