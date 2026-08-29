@@ -1,60 +1,57 @@
-# Pins
-- mihomo: v1.19.30, commit `ac017cdd246ce8bd547653d927e7bf77d7ee73d5` (patch: buildAndroidRules -> nil; triplet host-resolver bridge in tunnel.go/process.go)
-- byedpi: v0.17.3, commit `7efde1b1296eaaa187b70e951894dde17527489c` (exact checkout/reset; ciadpi cross-compiled via engine/byedpi/build.sh; dynamic bionic, android21, arm64-v8a + x86_64)
+# Native pins
 
-## Attribution decision
+Detour builds its native dependencies from exact upstream revisions. Do not replace these with floating tags/branches in release builds.
 
-### Round 1: engine-native attribution мертва в embedded-режиме
+## Mihomo
 
-Спайк (Task 3, эмулятор API 35, gvisor stack, embedded engine AAR):
-- UID lookup in mihomo TUN: **не работает**
-  (доказательство: при правиле `UID,2000,REJECT` TCP от shell-uid проходит:
-  `warning [UID] could not get uid from 1.1.1.1`,
-  `info [TCP] 198.18.0.1:41520 --> 1.1.1.1:80 doesn't match any rule using DIRECT`;
-  причина: metadata.Uid берётся из netlink INET_DIAG / procfs — запрещено обычным
-  приложениям на Android 14+; sing-tun packages.xml недоступен из приложения)
-- PROCESS-NAME package matching: **не работает** (процесс и пакет)
-  (доказательство: правила `PROCESS-NAME,ping|nc|com.google.android.gms.persistent,REJECT`
-  не срабатывают, соединения идут DIRECT;
-  `debug [Process] find process error for 173.194.220.188: process not found` на каждом соединении)
-- Контроль: `IP-CIDR,173.194.220.188/32,REJECT` срабатывает
-  (`match IPCIDR(173.194.220.188/32) using REJECT`) → TUN+rules pipeline исправен,
-  сломана именно атрибуция.
+- Version: `v1.19.30`
+- Commit: `ac017cdd246ce8bd547653d927e7bf77d7ee73d5`
+- Android AAR build: `engine/mihomo/build.sh`
+- Go build tag: `with_gvisor`
 
-### Round 2: host-side resolver bridge — оба механизма работают для app-uid
+Detour applies two Android embedding adjustments during the build:
 
-Мост: `process.TripletHostFinder` (патч tunnel.go FindProcess-closure) ← `Engine.setProcessResolver`
-← Android `ConnectivityManager.getConnectionOwnerUid` (техника PCAPdroid, VPN-owner privilege,
-API 29+), резолвится ДО Engine.start. Пробы (эмулятор API 35, gvisor, find-process-mode strict):
+1. Android package-rule discovery inside Mihomo is disabled because a normal application cannot read `/data/system/packages.xml`.
+2. Process/UID lookup is bridged to the Android host through `Engine.setProcessResolver` and `ConnectivityManager.getConnectionOwnerUid`.
 
-| Probe | Rule | Traffic | Result |
-|---|---|---|---|
-| A' | `UID,10143,REJECT` | GMS :5228 (uid 10143) | **PASSED**: `match Uid(10143) using REJECT` |
-| B/B2 | `PROCESS-NAME,ping\|nc,REJECT` | shell ping/nc (uid 2000) | **NOT blocked** — `getConnectionOwnerUid` вернул 0 для shell-сокета (`TripUid resolve ... => raw=0`) → без атрибуции rule не матчится |
-| C | `PROCESS-NAME,com.google.uid.shared,REJECT` | GMS :5228 | **PASSED**: `match ProcessName(com.google.uid.shared) using REJECT` |
+The host app resolves package→UID deterministically and remains the primary owner of per-app routing. Engine-side UID attribution is a supporting mechanism; PROCESS-NAME routing is not relied on because shared UIDs and Android visibility rules make it unsuitable as the product contract.
 
-Наблюдения:
-- JNI-коллбек срабатывает на каждом коннекте (`resolve tcp ... => raw=10143`);
-  атрибуция видна и в логе движка: `[TCP] ...(com.google.uid.shared, uid=10143)`.
-- Shell/system uids (2000) `getConnectionOwnerUid` не резолвит (raw=0) — для
-  продукта неважно (фильтруем app-uids 10000+); ICMP вообще не доходит до rules.
-- PROCESS-NAME зависит от нашего pkgOf(): `getNameForUid` для shared-uid даёт
-  имя shared-uid (`com.google.uid.shared`), не пакет — ещё один аргумент против.
+The embedded API is intentionally small: install the resolver, start generated YAML, report readiness, stop, and forward logs. Mihomo still implements the current data plane: gVisor TUN, DNS, TCP/UDP forwarding, VLESS/Reality, WireGuard/AmneziaWG and outbound chaining.
 
-- **ATTRIBUTION = UID** (подтверждено раундом 2).
-- ConfigGenerator: если эмитить attribution-правила движка — **только UID-правила**
-  (детерминированно: package->uid резолвим сами через PackageManager; PROCESS-NAME
-  зависит от имён shared-uid). Основной механизм per-app фильтрации остаётся
-  хостовым: VpnService allow/disallow списки по uid (kernel-enforced, трафик не
-  входит в TUN, нет per-connection JNI/netd lookup). Мост — валидированный
-  fallback для движковых правил.
+With a host-supplied TUN file descriptor, the Android `VpnService.Builder` must configure the fake-IP interface address itself. The current tunnel uses the validated IPv4 `/30` arrangement. Selected IPv6 traffic is captured and explicitly rejected while the routed data plane remains IPv4-only.
 
-## Engine build pin
-- AAR обязан собираться с `-tags with_gvisor` (`stack: gvisor` иначе падает:
-  "gVisor is not included in this build"); `stack: system` в embedded-режиме не
-  перехватывает TCP (нет [TCP] логов, чёрная дыра) — только ICMP.
-- При host-supplied TUN fd sing-tun использует `tun.inet4-address` в runtime-настройках,
-  но не конфигурирует уже созданный Android TUN-интерфейс. Device spike подтвердил
-  fake-IP gateway `198.18.0.1/30`, поэтому VpnService.Builder обязан добавить его сам.
-- YAML: generated external scalars are quoted when needed; IPv6 is captured and
-  explicitly rejected in the Android TUN policy.
+## ByeDPI
+
+- Version: `v0.17.3`
+- Commit: `7efde1b1296eaaa187b70e951894dde17527489c`
+- Build script: `engine/byedpi/build.sh`
+- Android targets: `arm64-v8a`, `x86_64`
+- API baseline: Android 21 native target
+
+The build produces the dynamic-bionic `ciadpi` executable and packages it through Android `jniLibs` under a `.so` filename so it is delivered with the APK. `DpiBackend` executes it as a child process and exposes its loopback SOCKS listener to the embedded engine.
+
+## Toolchain
+
+The CI/release contract currently pins:
+
+- JDK 17;
+- Android platform/target 36;
+- build-tools 36.0.0;
+- NDK 28.0.13004108;
+- Go 1.26.7;
+- `golang.org/x/mobile/cmd/gomobile@v0.0.0-20260821190718-4776eadac327`;
+- `golang.org/x/vuln/cmd/govulncheck@v1.7.0`.
+
+GitHub Actions themselves are pinned by commit SHA in `.github/workflows/android.yml`.
+
+## Updating a native pin
+
+A native dependency update is not a version-only change. Before merging it:
+
+1. update the exact version/commit in the build script;
+2. re-check every Detour patch against the new upstream source;
+3. run the full Gradle gate and `engine/vulnscan.sh`;
+4. run a fresh device smoke covering connect/disconnect and Direct/VPN/DPI routing;
+5. update this file with the new exact revision and any changed patch rationale.
+
+Generated AAR/SO outputs are build artifacts and remain ignored by git.
