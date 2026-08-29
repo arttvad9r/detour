@@ -13,11 +13,10 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
     fun delete(id: String): VlessKeys {
         if (items.none { it.id == id }) return this
         val remaining = items.filterNot { it.id == id }
-        val next = when {
-            remaining.isEmpty() -> null
-            activeId != id -> activeId
-            else -> remaining.first().id
-        }
+        // Deleting the selected endpoint must not silently activate another one.
+        // Keep inactive deletions stable, but require an explicit new selection
+        // after the active key is removed.
+        val next = if (activeId == id) null else activeId
         return VlessKeys(remaining, next)
     }
 
