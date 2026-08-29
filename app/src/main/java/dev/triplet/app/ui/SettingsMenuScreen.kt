@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -28,7 +29,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
@@ -94,6 +94,29 @@ fun SettingsMenuScreen(
     val theme = LocalDetourTheme.current
     val autoConnect = settings?.autoConnect == true
     val scrollState = rememberScrollState()
+    val items = listOf(
+        MenuItem(R.string.nav_routes, { stringResource(R.string.nav_routes_sub, routed) }, R.drawable.ic_routes) to onOpenRoutes,
+        MenuItem(
+            R.string.nav_key,
+            { current ->
+                val hasVless = current?.vlessKeys?.items?.isNotEmpty() == true
+                val hasWarp = current?.warpProfile != null
+                stringResource(
+                    when {
+                        hasVless && hasWarp -> R.string.nav_key_sub
+                        hasVless -> R.string.nav_key_sub_vless
+                        hasWarp -> R.string.nav_key_sub_warp
+                        else -> R.string.nav_key_sub_none
+                    },
+                )
+            },
+            R.drawable.ic_lock,
+        ) to onOpenVless,
+        MenuItem(R.string.nav_dpi, { stringResource(R.string.nav_dpi_sub) }, R.drawable.ic_dpi) to onOpenDpi,
+        MenuItem(R.string.nav_dns, { stringResource(R.string.nav_dns_sub) }, R.drawable.ic_globe) to onOpenDns,
+        MenuItem(R.string.nav_backup, { stringResource(R.string.nav_backup_sub) }, R.drawable.ic_export) to onOpenBackup,
+        MenuItem(R.string.nav_theme, { stringResource(themeLabel(theme)) }, R.drawable.ic_theme) to onOpenTheme,
+    )
 
     Column(
         modifier.fillMaxSize()
@@ -104,83 +127,62 @@ fun SettingsMenuScreen(
             .detourHighRefresh(scrollState.isScrollInProgress),
     ) {
         ScreenHeader(stringResource(R.string.settings_title), onBack)
-        Spacer(Modifier.height(Spacing.space8))
 
-        val items = listOf(
-            MenuItem(R.string.nav_routes, { stringResource(R.string.nav_routes_sub, routed) }, R.drawable.ic_routes) to onOpenRoutes,
-            MenuItem(
-                R.string.nav_key,
-                { current ->
-                    val hasVless = current?.vlessKeys?.items?.isNotEmpty() == true
-                    val hasWarp = current?.warpProfile != null
-                    stringResource(
-                        when {
-                            hasVless && hasWarp -> R.string.nav_key_sub
-                            hasVless -> R.string.nav_key_sub_vless
-                            hasWarp -> R.string.nav_key_sub_warp
-                            else -> R.string.nav_key_sub_none
-                        },
+        DetourContentColumn {
+            Spacer(Modifier.height(Spacing.space8))
+            DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
+                items.forEachIndexed { i, (item, onClick) ->
+                    SettingRow(
+                        title = stringResource(item.titleRes),
+                        subtitle = item.sub(settings),
+                        iconRes = item.iconRes,
+                        onClick = onClick,
                     )
-                },
-                R.drawable.ic_lock,
-            ) to onOpenVless,
-            MenuItem(R.string.nav_dpi, { stringResource(R.string.nav_dpi_sub) }, R.drawable.ic_dpi) to onOpenDpi,
-            MenuItem(R.string.nav_dns, { stringResource(R.string.nav_dns_sub) }, R.drawable.ic_globe) to onOpenDns,
-            MenuItem(R.string.nav_backup, { stringResource(R.string.nav_backup_sub) }, R.drawable.ic_export) to onOpenBackup,
-            MenuItem(R.string.nav_theme, { stringResource(themeLabel(theme)) }, R.drawable.ic_theme) to onOpenTheme,
-        )
-        DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-            items.forEachIndexed { i, (item, onClick) ->
-                SettingRow(
-                    title = stringResource(item.titleRes),
-                    subtitle = item.sub(settings),
-                    iconRes = item.iconRes,
-                    onClick = onClick,
-                )
-                if (i < items.lastIndex) GroupDivider()
+                    if (i < items.lastIndex) GroupDivider()
+                }
             }
-        }
 
-        Spacer(Modifier.height(Spacing.space12))
-        DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-            Row(
-                Modifier.fillMaxWidth()
-                    .detourToggleable(
-                        value = autoConnect,
-                        onValueChange = { next ->
-                            haptics.performHapticFeedback(
-                                if (next) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff,
-                            )
-                            scope.launch { store.setAutoConnect(next) }
-                        },
-                        pressedColor = c.surfaceSelected.copy(alpha = 0.34f),
-                        pressScale = Motion.PRESS_ROW,
+            Spacer(Modifier.height(Spacing.space12))
+            DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
+                Row(
+                    Modifier.fillMaxWidth()
+                        .detourToggleable(
+                            value = autoConnect,
+                            onValueChange = { next ->
+                                haptics.performHapticFeedback(
+                                    if (next) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff,
+                                )
+                                scope.launch { store.setAutoConnect(next) }
+                            },
+                            pressedColor = c.surfaceSelected.copy(alpha = 0.34f),
+                            pressScale = Motion.PRESS_ROW,
+                        )
+                        .heightIn(min = 60.dp)
+                        .padding(start = Spacing.space16, end = Spacing.space12),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        stringResource(R.string.auto_connect),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = c.textPrimary,
+                        modifier = Modifier.weight(1f),
                     )
-                    .height(60.dp)
-                    .padding(start = Spacing.space16, end = Spacing.space12),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    stringResource(R.string.auto_connect),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = c.textPrimary,
-                    modifier = Modifier.weight(1f),
-                )
-                DetourSwitch(
-                    checked = autoConnect,
-                    onCheckedChange = null,
-                    compact = true,
-                )
+                    DetourSwitch(
+                        checked = autoConnect,
+                        onCheckedChange = null,
+                        compact = true,
+                    )
+                }
             }
-        }
 
-        Spacer(Modifier.height(Spacing.space12))
-        Text(
-            stringResource(R.string.autorestart_note),
-            style = MaterialTheme.typography.bodySmall,
-            color = c.textMuted,
-            modifier = Modifier.padding(horizontal = Spacing.space20),
-        )
-        Spacer(Modifier.height(Spacing.space24))
+            Spacer(Modifier.height(Spacing.space12))
+            Text(
+                stringResource(R.string.autorestart_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = c.textMuted,
+                modifier = Modifier.padding(horizontal = Spacing.space20),
+            )
+            Spacer(Modifier.height(Spacing.space24))
+        }
     }
 }
