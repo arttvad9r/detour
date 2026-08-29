@@ -7,7 +7,9 @@ import dev.triplet.app.core.DpiArgs
 import dev.triplet.app.core.DpiPreset
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.data.TriSettings
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -45,6 +47,8 @@ class DpiViewModel(
 ) : ViewModel() {
     private val customDraft = MutableStateFlow<String?>(null)
     private val editingOverride = MutableStateFlow<Boolean?>(null)
+    private val _customSaved = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val customSaved: SharedFlow<Unit> = _customSaved
 
     val uiState: StateFlow<DpiUiState> = combine(
         settings,
@@ -85,6 +89,7 @@ class DpiViewModel(
             customDraft.value = value
             editingOverride.value = true
             restartTunnel()
+            _customSaved.emit(Unit)
         }
     }
 
