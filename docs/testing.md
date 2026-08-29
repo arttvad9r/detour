@@ -97,6 +97,7 @@ bash engine/vulnscan.sh
 - GitHub Actions проверяет JVM tests, lint, debug APK assembly, patched-engine Go tests и source/binary vulnerability scans.
 - `connectedDebugAndroidTest` требует отдельный эмулятор/устройство и не входит в CI job.
 - Частота дисплея и фактический выбор ARR зависят от устройства/Android/OEM и не могут быть подтверждены JVM/CI; frame-rate requests являются hints для системного scheduler, а не гарантией конкретных 120 Гц.
+- Полноценная platform ARR policy доступна на поддерживающих её устройствах Android 15 QPR1+; на более старых Android приложение не форсирует display mode и оставляет выбор повышенной герцовки системе/OEM.
 - OnePlus/AVD evidence выше историческое; после крупных routing/native changes нужен свежий device smoke на текущем head.
 - Current policy captures IPv6 in the TUN and explicitly rejects it, preventing selected applications from bypassing the VPN over IPv6.
 - DNS accepts only IP literals or HTTPS DoH URLs and is emitted through mihomo DNS hijack for routed applications.
