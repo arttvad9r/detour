@@ -22,11 +22,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -196,8 +196,27 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
         HomeProtocol.NONE -> R.string.protocol_none
     }
 
-    Box(modifier.fillMaxSize().background(c.background)) {
-        Column(Modifier.fillMaxSize().statusBarsPadding()) {
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = c.background,
+        bottomBar = {
+            Box(Modifier.fillMaxWidth().navigationBarsPadding()) {
+                MainButton(
+                    state = visualState,
+                    busy = st == VpnState.Starting,
+                    onClick = onMainAction,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.space16, vertical = Spacing.space20),
+                )
+            }
+        },
+    ) { innerPadding ->
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+        ) {
             Row(
                 Modifier.fillMaxWidth().padding(start = Spacing.space16, end = Spacing.space8, top = Spacing.space8),
                 verticalAlignment = Alignment.CenterVertically,
@@ -232,17 +251,6 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
                     .widthIn(max = 360.dp),
             )
             Spacer(Modifier.weight(1.35f))
-
-            Box(Modifier.fillMaxWidth().navigationBarsPadding()) {
-                MainButton(
-                    state = visualState,
-                    busy = st == VpnState.Starting,
-                    onClick = onMainAction,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = Spacing.space16, vertical = Spacing.space20),
-                )
-            }
         }
     }
 }

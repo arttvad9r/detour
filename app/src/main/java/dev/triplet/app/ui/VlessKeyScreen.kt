@@ -15,11 +15,9 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -30,15 +28,16 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -128,7 +127,9 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
     var sheetMode by remember { androidx.compose.runtime.mutableStateOf(ProfileSheetMode.PICKER) }
     var field by rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
     var warpStatus by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
-    val parse = field.trim().takeIf { it.isNotBlank() }?.let(VlessKeyParser::parse)
+    val parse = remember(field) {
+        field.trim().takeIf { it.isNotBlank() }?.let(VlessKeyParser::parse)
+    }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     fun beginVlessEdit(key: VlessKey?) {
@@ -188,11 +189,26 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
         }
     }
 
-    Box(modifier.fillMaxSize().background(c.background)) {
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = c.background,
+        floatingActionButton = {
+            ProfileAddFab(
+                visible = !showSheet,
+                addDescription = addDescription,
+                onClick = {
+                    editingId = null
+                    field = ""
+                    sheetMode = ProfileSheetMode.PICKER
+                    showSheet = true
+                },
+            )
+        },
+        floatingActionButtonPosition = FabPosition.Center,
+    ) { innerPadding ->
         Column(
             Modifier.fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
+                .padding(innerPadding)
                 .verticalScroll(rememberScrollState()),
         ) {
             ScreenHeader(stringResource(R.string.key_title), onBack)
@@ -312,54 +328,6 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                 }
             }
             Spacer(Modifier.height(Spacing.space24))
-        }
-
-        AnimatedVisibility(
-            visible = !showSheet,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 88.dp),
-            enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)) + scaleIn(
-                animationSpec = spring(
-                    dampingRatio = Motion.SPRING_DAMPING,
-                    stiffness = Motion.SPRING_STIFFNESS_SOFT,
-                ),
-                initialScale = 0.96f,
-            ),
-            exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)) + scaleOut(
-                animationSpec = tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
-                targetScale = 0.96f,
-            ),
-        ) {
-            val fabInteraction = remember { MutableInteractionSource() }
-            val fabPressed by fabInteraction.collectIsPressedAsState()
-            val fabScale by animateFloatAsState(
-                targetValue = if (fabPressed) Motion.PRESS_FAB else 1f,
-                animationSpec = spring(
-                    dampingRatio = Motion.SPRING_DAMPING,
-                    stiffness = Motion.SPRING_STIFFNESS,
-                ),
-                label = "profileFabPress",
-            )
-            FloatingActionButton(
-                onClick = {
-                    editingId = null
-                    field = ""
-                    sheetMode = ProfileSheetMode.PICKER
-                    showSheet = true
-                },
-                interactionSource = fabInteraction,
-                modifier = Modifier
-                    .graphicsLayer {
-                        scaleX = fabScale
-                        scaleY = fabScale
-                    }
-                    .semantics {
-                        contentDescription = addDescription
-                        role = Role.Button
-                    },
-                shape = AppShapes.small,
-                containerColor = c.accent,
-                contentColor = c.onAccent,
-            ) { Text("+", style = MaterialTheme.typography.headlineSmall) }
         }
     }
 
@@ -524,9 +492,10 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                                     enabled = parse is ParseResult.Ok,
                                     onClick = {
                                         val value = field.trim()
+                                        val parsedProfile = (parse as? ParseResult.Ok)?.profile
                                         val key = VlessKey(
                                             editingId ?: UUID.randomUUID().toString(),
-                                            keyName(value, vlessTitle),
+                                            parsedProfile?.name?.ifBlank { parsedProfile.server } ?: vlessTitle,
                                             value,
                                         )
                                         val tunnelAction = vlessMutationTunnelAction(
@@ -552,6 +521,57 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ProfileAddFab(
+    visible: Boolean,
+    addDescription: String,
+    onClick: () -> Unit,
+) {
+    val c = detourColors
+    AnimatedVisibility(
+        visible = visible,
+        modifier = Modifier.navigationBarsPadding(),
+        enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)) + scaleIn(
+            animationSpec = spring(
+                dampingRatio = Motion.SPRING_DAMPING,
+                stiffness = Motion.SPRING_STIFFNESS_SOFT,
+            ),
+            initialScale = 0.96f,
+        ),
+        exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)) + scaleOut(
+            animationSpec = tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
+            targetScale = 0.96f,
+        ),
+    ) {
+        val fabInteraction = remember { MutableInteractionSource() }
+        val fabPressed by fabInteraction.collectIsPressedAsState()
+        val fabScale by animateFloatAsState(
+            targetValue = if (fabPressed) Motion.PRESS_FAB else 1f,
+            animationSpec = spring(
+                dampingRatio = Motion.SPRING_DAMPING,
+                stiffness = Motion.SPRING_STIFFNESS,
+            ),
+            label = "profileFabPress",
+        )
+        FloatingActionButton(
+            onClick = onClick,
+            interactionSource = fabInteraction,
+            modifier = Modifier
+                .graphicsLayer {
+                    scaleX = fabScale
+                    scaleY = fabScale
+                }
+                .semantics {
+                    contentDescription = addDescription
+                    role = Role.Button
+                },
+            shape = AppShapes.small,
+            containerColor = c.accent,
+            contentColor = c.onAccent,
+        ) { Text("+", style = MaterialTheme.typography.headlineSmall) }
     }
 }
 
@@ -595,6 +615,9 @@ private fun KeyRow(
     onClick: () -> Unit,
 ) {
     val c = detourColors
+    val profile = remember(key.uri) {
+        (VlessKeyParser.parse(key.uri) as? ParseResult.Ok)?.profile
+    }
     Row(
         Modifier.fillMaxWidth()
             .detourSelectable(
@@ -610,14 +633,14 @@ private fun KeyRow(
         RadioDot(selected)
         Column(Modifier.padding(start = Spacing.space12).weight(1f)) {
             Text(
-                keyName(key.uri, "VLESS"),
+                profile?.name?.ifBlank { profile.server } ?: "VLESS",
                 style = MaterialTheme.typography.titleSmall,
                 color = c.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                serverValue(key),
+                profile?.let { "${it.server}:${it.port}" } ?: "—",
                 style = MaterialTheme.typography.bodySmall,
                 color = c.textSecondary,
                 maxLines = 1,
@@ -720,9 +743,3 @@ private fun readWarpConfig(context: android.content.Context, uri: Uri): String? 
         return out.toString(Charsets.UTF_8.name())
     }
 }
-
-private fun serverValue(key: VlessKey): String =
-    (VlessKeyParser.parse(key.uri) as? ParseResult.Ok)?.profile?.let { "${it.server}:${it.port}" } ?: "—"
-
-private fun keyName(uri: String, fallback: String): String =
-    (VlessKeyParser.parse(uri) as? ParseResult.Ok)?.profile?.let { it.name.ifBlank { it.server } } ?: fallback
