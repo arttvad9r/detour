@@ -31,6 +31,7 @@ internal fun profilesUiState(settings: TriSettings?): ProfilesUiState = Profiles
 )
 
 internal enum class ProfileTunnelAction { NONE, RESTART, STOP }
+enum class ProfileSavedKind { VLESS, WARP }
 
 internal fun vlessMutationTunnelAction(
     activeVpn: VpnProfileKind,
@@ -62,8 +63,8 @@ class ProfilesViewModel(
     private val restartTunnel: () -> Unit,
     private val stopTunnelIfRunning: () -> Unit,
 ) : ViewModel() {
-    private val _profileSaved = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    val profileSaved: SharedFlow<Unit> = _profileSaved
+    private val _profileSaved = MutableSharedFlow<ProfileSavedKind>(extraBufferCapacity = 1)
+    val profileSaved: SharedFlow<ProfileSavedKind> = _profileSaved
 
     val uiState: StateFlow<ProfilesUiState> = settings
         .map(::profilesUiState)
@@ -84,7 +85,7 @@ class ProfilesViewModel(
         viewModelScope.launch {
             if (isNew) addVlessKey(key) else updateVlessKey(key)
             applyTunnelAction(tunnelAction)
-            _profileSaved.emit(Unit)
+            _profileSaved.emit(ProfileSavedKind.VLESS)
         }
     }
 
@@ -119,7 +120,7 @@ class ProfilesViewModel(
         viewModelScope.launch {
             setWarpProfile(profile)
             applyTunnelAction(tunnelAction)
-            _profileSaved.emit(Unit)
+            _profileSaved.emit(ProfileSavedKind.WARP)
         }
     }
 
