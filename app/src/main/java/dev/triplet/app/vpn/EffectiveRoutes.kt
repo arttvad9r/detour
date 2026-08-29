@@ -11,6 +11,19 @@ data class EffectiveRoutes(
     val isEmpty: Boolean get() = packages.isEmpty()
 }
 
+/**
+ * PackageManager.getPackagesForUid() is visibility-filtered on Android 11+.
+ * For an ordinary app UID, getNameForUid() is that package name; for a shared
+ * UID Android returns a distinct shared-user name. If the official UID name is
+ * not among the visible packages, ownership is incomplete/ambiguous and must
+ * be rejected rather than allowing a hidden sibling into the VPN by UID.
+ */
+internal fun trustworthyUidPackages(
+    visiblePackages: Set<String>,
+    officialUidName: String?,
+): Set<String> =
+    if (officialUidName != null && officialUidName in visiblePackages) visiblePackages else emptySet()
+
 /** Filters persisted package names before any TUN/engine side effect. */
 fun effectiveRoutes(
     routes: Map<String, AppRoute>,

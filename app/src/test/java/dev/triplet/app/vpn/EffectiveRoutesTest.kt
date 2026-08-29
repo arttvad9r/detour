@@ -87,4 +87,26 @@ class EffectiveRoutesTest {
         assertTrue(result.isEmpty)
         assertTrue(result.sharedUidConflict.isEmpty())
     }
+
+    @Test fun `ordinary uid ownership remains trusted`() {
+        assertEquals(
+            setOf("selected"),
+            trustworthyUidPackages(setOf("selected"), "selected"),
+        )
+    }
+
+    @Test fun `shared uid with hidden siblings is rejected from official uid name`() {
+        val ownership = trustworthyUidPackages(
+            visiblePackages = setOf("selected"),
+            officialUidName = "shared.example:10001",
+        )
+        val result = effectiveRoutes(
+            mapOf("selected" to AppRoute.VPN),
+            mapOf("selected" to 10001),
+            mapOf(10001 to ownership),
+        )
+
+        assertEquals(setOf(10001), result.sharedUidConflict)
+        assertTrue(result.isEmpty)
+    }
 }

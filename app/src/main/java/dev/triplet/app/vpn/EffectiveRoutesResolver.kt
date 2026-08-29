@@ -24,7 +24,10 @@ fun resolveRouteSnapshot(
     val uidPackages = installed.values
         .filterNotNull()
         .distinct()
-        .associateWith { uid -> packageManager.getPackagesForUid(uid)?.toSet().orEmpty() }
+        .associateWith { uid ->
+            val visiblePackages = packageManager.getPackagesForUid(uid)?.toSet().orEmpty()
+            trustworthyUidPackages(visiblePackages, packageManager.getNameForUid(uid))
+        }
 
     return ResolvedRouteSnapshot(
         effective = effectiveRoutes(
