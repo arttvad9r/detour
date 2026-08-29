@@ -142,20 +142,23 @@ class RoutesStore(context: Context) {
 
     private val settingsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    /**
-     * Shared cached settings snapshot. New screens receive the latest DataStore value
-     * immediately instead of rendering a temporary null/default state for one frame.
-     */
-    val settings: StateFlow<TriSettings?> = store.data
+    private val settingsData = store.data
         .catch { exception ->
             if (exception is IOException) emit(emptyPreferences()) else throw exception
         }
         .map<Preferences, TriSettings?> { prefs ->
             RoutesMapping.toSettings(prefs.asMap().mapKeys { (k, _) -> k.name })
         }
+
+    /**
+     * Shared cached settings snapshot. New screens receive the latest DataStore value
+     * immediately instead of rendering a temporary null/default state for one frame.
+     */
+    val settings: StateFlow<TriSettings?> = settingsData
         .stateIn(settingsScope, SharingStarted.Eagerly, null)
 
-    suspend fun snapshot(): TriSettings = settings.filterNotNull().first()
+    /** Reads the latest committed DataStore value instead of the asynchronously updated UI cache. */
+    suspend fun snapshot(): TriSettings = settingsData.filterNotNull().first()
 
     suspend fun setVlessUri(uri: String) = store.edit { it[RoutesMapping.uriKey()] = uri }
     suspend fun setSessionStartedAt(value: Long?) = store.edit {

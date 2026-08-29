@@ -12,11 +12,20 @@ python3 tools/apk_size_report.py app/build/outputs/apk/release
 bash engine/vulnscan.sh
 ```
 
+Pull requests and pushes to `master` additionally install the hosted Android 16 emulator image and run:
+
+```bash
+./gradlew :app:connectedDebugAndroidTest
+```
+
+Ordinary branch pushes still compile the instrumentation APK but skip the emulator download and runtime test. The pull-request gate therefore validates the exact review revision on a device before merge, and the `master` push validates the integrated revision after merge.
+
 The Android workflow pins:
 
 - JDK 17;
 - compile SDK 37 and target SDK 36;
 - Android platform package `platforms;android-37.0`;
+- Android 16 / API 36 `google_apis` x86_64 system image for hosted instrumentation tests;
 - build-tools 36.0.0;
 - NDK 28.0.13004108;
 - Go 1.26.7;
@@ -30,9 +39,17 @@ After release assembly, `tools/apk_size_report.py` records the total APK size, c
 
 ## Instrumented tests
 
-Hosted CI compiles the instrumentation test APK with `:app:assembleDebugAndroidTest`, so androidTest source and dependencies are checked on every push and pull request. Executing instrumentation tests still requires an Android runtime.
+For pull requests and `master` pushes, hosted CI creates a headless hardware-accelerated Android 16 / API 36 emulator after the normal build gate and executes `:app:connectedDebugAndroidTest`. Keeping the runtime test in the same job reuses the already-built Mihomo/ByeDPI artifacts instead of rebuilding the native engine in a second job.
 
-With an emulator or device connected:
+The hosted runtime suite intentionally stays below the VPN data plane. It currently covers:
+
+- real `MainActivity` launch and primary Home controls;
+- on-device Preferences DataStore profile mutations and duplicate-id rejection;
+- backup restore policy, including forced-off auto-connect.
+
+VPN consent, live TUN establishment, per-app routing, network changes, DNS behavior and DPI/VPN traffic validation still require the device smoke checklist below.
+
+With a local emulator or device connected, run the same instrumentation suite with:
 
 ```bash
 ANDROID_SERIAL=<serial> ./gradlew :app:connectedDebugAndroidTest
