@@ -5,9 +5,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
@@ -153,84 +153,24 @@ class MainActivity : ComponentActivity() {
                             startDestination = Route.HOME,
                             modifier = Modifier.fillMaxSize(),
                             enterTransition = {
-                                val rootTransition =
-                                    initialState.destination.route == Route.HOME &&
-                                        targetState.destination.route == Route.SETTINGS
-                                if (rootTransition) {
-                                    fadeIn(
-                                        tween(Motion.NAV_ENTER_MS, easing = Motion.ENTER_EASING),
-                                    )
-                                } else {
-                                    fadeIn(
-                                        tween(Motion.NAV_ENTER_MS, easing = Motion.ENTER_EASING),
-                                    ) + slideInHorizontally(
-                                        animationSpec = tween(
-                                            Motion.NAV_ENTER_MS,
-                                            easing = Motion.ENTER_EASING,
-                                        ),
-                                        initialOffsetX = { it / 24 },
-                                    )
-                                }
+                                slideInHorizontally(
+                                    animationSpec = tween(
+                                        Motion.NAV_ENTER_MS,
+                                        easing = Motion.ENTER_EASING,
+                                    ),
+                                    initialOffsetX = { it / 12 },
+                                )
                             },
-                            exitTransition = {
-                                val rootTransition =
-                                    initialState.destination.route == Route.HOME &&
-                                        targetState.destination.route == Route.SETTINGS
-                                if (rootTransition) {
-                                    fadeOut(
-                                        tween(Motion.NAV_EXIT_MS, easing = Motion.EXIT_EASING),
-                                    )
-                                } else {
-                                    fadeOut(
-                                        tween(Motion.NAV_EXIT_MS, easing = Motion.EXIT_EASING),
-                                    ) + slideOutHorizontally(
-                                        animationSpec = tween(
-                                            Motion.NAV_EXIT_MS,
-                                            easing = Motion.EXIT_EASING,
-                                        ),
-                                        targetOffsetX = { -it / 48 },
-                                    )
-                                }
-                            },
-                            popEnterTransition = {
-                                val rootTransition =
-                                    initialState.destination.route == Route.SETTINGS &&
-                                        targetState.destination.route == Route.HOME
-                                if (rootTransition) {
-                                    fadeIn(
-                                        tween(Motion.NAV_ENTER_MS, easing = Motion.ENTER_EASING),
-                                    )
-                                } else {
-                                    fadeIn(
-                                        tween(Motion.NAV_ENTER_MS, easing = Motion.ENTER_EASING),
-                                    ) + slideInHorizontally(
-                                        animationSpec = tween(
-                                            Motion.NAV_ENTER_MS,
-                                            easing = Motion.ENTER_EASING,
-                                        ),
-                                        initialOffsetX = { -it / 24 },
-                                    )
-                                }
-                            },
+                            exitTransition = { ExitTransition.None },
+                            popEnterTransition = { EnterTransition.None },
                             popExitTransition = {
-                                val rootTransition =
-                                    initialState.destination.route == Route.SETTINGS &&
-                                        targetState.destination.route == Route.HOME
-                                if (rootTransition) {
-                                    fadeOut(
-                                        tween(Motion.NAV_EXIT_MS, easing = Motion.EXIT_EASING),
-                                    )
-                                } else {
-                                    fadeOut(
-                                        tween(Motion.NAV_EXIT_MS, easing = Motion.EXIT_EASING),
-                                    ) + slideOutHorizontally(
-                                        animationSpec = tween(
-                                            Motion.NAV_EXIT_MS,
-                                            easing = Motion.EXIT_EASING,
-                                        ),
-                                        targetOffsetX = { it / 48 },
-                                    )
-                                }
+                                slideOutHorizontally(
+                                    animationSpec = tween(
+                                        Motion.NAV_EXIT_MS,
+                                        easing = Motion.EXIT_EASING,
+                                    ),
+                                    targetOffsetX = { it / 12 },
+                                )
                             },
                         ) {
                             composable(Route.HOME) {
