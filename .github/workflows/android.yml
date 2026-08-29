@@ -46,16 +46,19 @@ jobs:
         run: python3 tools/apk_size_report.py app/build/outputs/apk/release
       - run: bash engine/vulnscan.sh
       - name: Run instrumentation tests on Android 16 emulator
-        timeout-minutes: 12
+        timeout-minutes: 15
         shell: bash
         run: |
           set -euo pipefail
           AVD_NAME="detour-ci-api36"
+          EMULATOR_SERIAL="emulator-5554"
+          EMULATOR_LOG="$RUNNER_TEMP/detour-emulator.log"
           SYSTEM_IMAGE="system-images;android-36;google_apis;x86_64"
 
           if [[ -e /dev/kvm ]]; then
             sudo chmod 666 /dev/kvm
           fi
+          emulator -accel-check || true
 
           echo "no" | avdmanager create avd \
             --force \
@@ -63,44 +66,72 @@ jobs:
             --package "$SYSTEM_IMAGE"
 
           cleanup() {
-            adb emu kill >/dev/null 2>&1 || true
+            adb -s "$EMULATOR_SERIAL" emu kill >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
 
           emulator "@$AVD_NAME" \
+            -port 5554 \
             -no-window \
             -no-audio \
             -no-boot-anim \
             -no-snapshot \
             -gpu swiftshader_indirect \
-            -accel on \
-            > "$RUNNER_TEMP/detour-emulator.log" 2>&1 &
+            -accel auto \
+            > "$EMULATOR_LOG" 2>&1 &
+          EMULATOR_PID=$!
 
-          adb wait-for-device
+          adb start-server
+          device_ready=0
+          for _ in $(seq 1 60); do
+            if adb -s "$EMULATOR_SERIAL" get-state 2>/dev/null | grep -qx device; then
+              device_ready=1
+              break
+            fi
+            if ! kill -0 "$EMULATOR_PID" 2>/dev/null; then
+              echo "Android emulator exited before adb connected" >&2
+              tail -n 200 "$EMULATOR_LOG" >&2 || true
+              exit 1
+            fi
+            sleep 2
+          done
+
+          if [[ "$device_ready" != "1" ]]; then
+            echo "Android emulator did not appear in adb" >&2
+            adb devices -l >&2 || true
+            tail -n 200 "$EMULATOR_LOG" >&2 || true
+            exit 1
+          fi
+
           booted=0
           for _ in $(seq 1 120); do
-            if [[ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; then
+            if [[ "$(adb -s "$EMULATOR_SERIAL" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == "1" ]]; then
               booted=1
               break
+            fi
+            if ! kill -0 "$EMULATOR_PID" 2>/dev/null; then
+              echo "Android emulator exited while booting" >&2
+              tail -n 200 "$EMULATOR_LOG" >&2 || true
+              exit 1
             fi
             sleep 2
           done
 
           if [[ "$booted" != "1" ]]; then
             echo "Android emulator did not finish booting" >&2
-            tail -n 200 "$RUNNER_TEMP/detour-emulator.log" >&2 || true
+            tail -n 200 "$EMULATOR_LOG" >&2 || true
             exit 1
           fi
 
-          adb shell input keyevent 82 || true
-          adb shell settings put global window_animation_scale 0
-          adb shell settings put global transition_animation_scale 0
-          adb shell settings put global animator_duration_scale 0
+          adb -s "$EMULATOR_SERIAL" shell input keyevent 82 || true
+          adb -s "$EMULATOR_SERIAL" shell settings put global window_animation_scale 0
+          adb -s "$EMULATOR_SERIAL" shell settings put global transition_animation_scale 0
+          adb -s "$EMULATOR_SERIAL" shell settings put global animator_duration_scale 0
 
-          if ! ./gradlew :app:connectedDebugAndroidTest; then
+          if ! ANDROID_SERIAL="$EMULATOR_SERIAL" ./gradlew :app:connectedDebugAndroidTest; then
             echo "--- emulator log ---" >&2
-            tail -n 200 "$RUNNER_TEMP/detour-emulator.log" >&2 || true
+            tail -n 200 "$EMULATOR_LOG" >&2 || true
             echo "--- device logcat ---" >&2
-            adb logcat -d -t 500 >&2 || true
+            adb -s "$EMULATOR_SERIAL" logcat -d -t 500 >&2 || true
             exit 1
           fi
