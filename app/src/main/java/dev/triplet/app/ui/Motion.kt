@@ -21,6 +21,12 @@ object Motion {
     const val NAV_EXIT_MS = 150
     const val THEME_MS = 220
 
+    // Refresh-rate votes are deliberately bounded. High is requested only long
+    // enough to cover the visual motion, then the compositor returns to Default
+    // so adaptive/LTPO displays can lower their refresh rate again.
+    const val NAV_REFRESH_BOOST_MS = 240L
+    const val LIST_REFRESH_BOOST_MS = 220L
+
     /** Fast VPN starts should never flash a transient "Connecting" state. */
     const val DEFERRED_BUSY_MS = 350L
 
