@@ -118,7 +118,7 @@
     <string name="err_key_required">Set a VLESS key first</string>
     <string name="err_vpn_profile_required">Select or import a VPN profile first</string>
     <string name="err_engine">Engine error</string>
-    <string name="err_shared_uid">Packages sharing a UID must use one route</string>
+    <string name="err_shared_uid">Apps sharing a UID cannot be routed safely</string>
     <string name="notif_starting">Connecting…</string>
     <string name="notif_active">Tunnel active</string>
     <string name="notif_stop">Disconnect</string>

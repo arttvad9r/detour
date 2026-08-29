@@ -110,7 +110,7 @@
     <string name="err_key_required">Сначала задайте ключ VLESS</string>
     <string name="err_vpn_profile_required">Сначала выберите или импортируйте VPN-профиль</string>
     <string name="err_engine">Ошибка движка</string>
-    <string name="err_shared_uid">Пакеты с общим UID должны иметь один маршрут</string>
+    <string name="err_shared_uid">Приложения с общим UID нельзя безопасно маршрутизировать</string>
     <string name="notif_starting">Подключение…</string>
     <string name="notif_active">Туннель активен</string>
     <string name="notif_stop">Отключить</string>

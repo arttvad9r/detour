@@ -35,9 +35,9 @@ android {
     lint {
         // Осознанные пины: compileSdk/targetSdk 36 закреплены в shell.nix
         // (composeAndroidPackages platformVersions), обновления зависимостей
-        // отслеживаются отдельно. QUERY_ALL_PACKAGES не добавляем намеренно —
-        // приватность важнее полноты shared-UID проверки; неполные данные
-        // корректно обрабатываются в EffectiveRoutes (fallback на выбранные).
+        // отслеживаются отдельно. QUERY_ALL_PACKAGES не добавляем намеренно:
+        // если ownership shared UID скрыт package visibility, EffectiveRoutes
+        // отклоняет неоднозначный UID до любых TUN side effects (fail-closed).
         disable += listOf(
             "OldTargetApi",
             "AndroidGradlePluginVersion",
