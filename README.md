@@ -1,22 +1,28 @@
 # Detour
 
-Android network client with per-app routing through embedded native components.
+Detour is an Android-only VPN/network client with per-app routing. Selected applications can use Direct, VPN, or DPI paths while the app owns the Android `VpnService`, routing policy, profile state, and UI.
 
-## Development on Arch Linux
+## Current platform
 
-Install the host tools:
+- Android application module only (`:app`); no desktop/iOS/KMP target.
+- minSdk 29, compile/target SDK 36, Java 17.
+- Kotlin + Jetpack Compose + Navigation Compose.
+- Android `VpnService` supplies the TUN interface and per-app allow-list.
+- Mihomo is embedded as the current data plane for TUN/gVisor, DNS, UID rules, VLESS/Reality, WireGuard/AmneziaWG and outbound chaining.
+- ByeDPI is packaged as a local native `ciadpi` backend and exposed to the engine through a loopback SOCKS endpoint.
+- WARP/AmneziaWG and VLESS profiles are managed by Detour; imported proxy configs do not take ownership of Detour routing rules.
 
-```bash
-sudo pacman -S --needed jdk17-openjdk go git python unzip zip curl
-```
+See [docs/architecture.md](docs/architecture.md) for the current component boundaries and lifecycle.
 
-Install Android command-line tools, then install the exact SDK components used by the project:
+## Build
+
+Install JDK 17, Go, Git, Python, unzip/zip, curl, Android command-line tools, and the exact Android SDK components used by CI:
 
 ```bash
 sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.0.13004108"
 ```
 
-Set the Android/JDK environment for your shell. Adjust `ANDROID_HOME` if your SDK lives elsewhere:
+Set the Android/JDK environment for your shell:
 
 ```bash
 export JAVA_HOME=/usr/lib/jvm/java-17-openjdk
@@ -27,7 +33,7 @@ export ANDROID_NDK_ROOT="$ANDROID_NDK_HOME"
 export PATH="$JAVA_HOME/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin:$(go env GOPATH)/bin:$PATH"
 ```
 
-CI builds the native engine with Go 1.26.7. Keep the local Go toolchain on the same release when producing release artifacts. Install the same Go-side build and vulnerability tools used by CI, then initialize gomobile against the configured Android SDK/NDK:
+CI uses Go 1.26.7 and pinned Go-side tooling:
 
 ```bash
 go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20260821190718-4776eadac327
@@ -35,31 +41,36 @@ go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
 gomobile init
 ```
 
-Build the app:
+Build the debug APK:
 
 ```bash
 ./gradlew :app:assembleDebug
 ```
 
-The Gradle build creates the native artifacts it consumes before packaging. Generated artifacts, caches, and machine-specific SDK configuration are kept out of git.
+Gradle builds the native artifacts required by the app before packaging. Generated AAR/SO files, caches, IDE state, and machine-specific SDK configuration are not committed.
 
 ## Verification
 
-Run the same core checks configured in GitHub Actions:
+Run the same core gate as GitHub Actions:
 
 ```bash
 ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
 bash engine/vulnscan.sh
 ```
 
-With an Android emulator or device connected, instrumented tests can be run separately:
+With a device or emulator connected:
 
 ```bash
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-The Gradle wrapper verifies its distribution checksum, and dependency verification metadata is committed in `gradle/verification-metadata.xml`. Native source revisions and embedding patches are recorded in `docs/pins.md`.
+Device-only checks for routing, VPN lifecycle, navigation motion and adaptive refresh are listed in [docs/testing.md](docs/testing.md).
 
-Selected-app IPv6 traffic is captured and rejected explicitly when unsupported rather than escaping through the physical interface. DNS settings accept IP literals or HTTPS DoH endpoints; hostname-based DoH gets a bootstrap resolver in the generated engine configuration.
+## Documentation
 
-WARP/AmneziaWG import behavior is documented in `docs/warp-profiles.md`. Historical device and test evidence is recorded in `docs/testing.md`; documents under `docs/superpowers/` are project history rather than current build instructions.
+- [Architecture](docs/architecture.md) — Android/VPN/engine boundaries and runtime flow.
+- [Testing](docs/testing.md) — CI contract and current device smoke checklist.
+- [Native pins](docs/pins.md) — exact Mihomo/ByeDPI revisions and Android embedding notes.
+- [WARP profiles](docs/warp-profiles.md) — supported WARP/AmneziaWG import behavior.
+
+The Gradle wrapper distribution checksum and dependency verification metadata are committed. Native source revisions are pinned; generated native binaries are reproducible build outputs rather than repository source files.
