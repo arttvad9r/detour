@@ -10,6 +10,28 @@ require(releaseAbi == null || releaseAbi in supportedReleaseAbis) {
     "Unsupported detourReleaseAbi=$releaseAbi; expected one of ${supportedReleaseAbis.sorted()}"
 }
 
+val versionNameOverride = providers.gradleProperty("detourVersionName").orNull
+val versionCodeProperty = providers.gradleProperty("detourVersionCode").orNull
+val versionCodeOverride = versionCodeProperty?.toIntOrNull()
+require(versionCodeProperty == null || (versionCodeOverride != null && versionCodeOverride > 0)) {
+    "detourVersionCode must be a positive integer"
+}
+
+val releaseKeystorePath = providers.environmentVariable("DETOUR_RELEASE_KEYSTORE").orNull
+val releaseStorePassword = providers.environmentVariable("DETOUR_RELEASE_STORE_PASSWORD").orNull
+val releaseKeyAlias = providers.environmentVariable("DETOUR_RELEASE_KEY_ALIAS").orNull
+val releaseKeyPassword = providers.environmentVariable("DETOUR_RELEASE_KEY_PASSWORD").orNull
+val releaseSigningValueCount = listOf(
+    releaseKeystorePath,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+).count { !it.isNullOrBlank() }
+require(releaseSigningValueCount == 0 || releaseSigningValueCount == 4) {
+    "Release signing requires DETOUR_RELEASE_KEYSTORE, DETOUR_RELEASE_STORE_PASSWORD, " +
+        "DETOUR_RELEASE_KEY_ALIAS and DETOUR_RELEASE_KEY_PASSWORD together"
+}
+
 android {
     namespace = "dev.triplet.app"
     compileSdk = 37
@@ -18,8 +40,8 @@ android {
         applicationId = "dev.triplet.app"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = versionCodeOverride ?: 1
+        versionName = versionNameOverride ?: "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Normal builds keep both ABIs for emulator/device coverage. Distribution
@@ -36,11 +58,23 @@ android {
 
     buildFeatures { compose = true }
 
+    signingConfigs {
+        if (releaseSigningValueCount == 4) {
+            create("release") {
+                storeFile = file(requireNotNull(releaseKeystorePath))
+                storePassword = requireNotNull(releaseStorePassword)
+                keyAlias = requireNotNull(releaseKeyAlias)
+                keyPassword = requireNotNull(releaseKeyPassword)
+            }
+        }
+    }
+
     buildTypes {
         release {
             optimization {
                 enable = true
             }
+            signingConfigs.findByName("release")?.let { signingConfig = it }
         }
     }
 
