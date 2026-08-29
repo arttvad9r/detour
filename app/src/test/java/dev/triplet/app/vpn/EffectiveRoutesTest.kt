@@ -63,4 +63,28 @@ class EffectiveRoutesTest {
         assertEquals(setOf(10001), result.sharedUidConflict)
         assertTrue(result.isEmpty)
     }
+
+    @Test fun `excluded host uid is never routed`() {
+        val result = effectiveRoutes(
+            mapOf("self" to AppRoute.VPN, "other" to AppRoute.DPI),
+            mapOf("self" to 10000, "other" to 10001),
+            mapOf(10000 to setOf("self"), 10001 to setOf("other")),
+            excludedUids = setOf(10000),
+        )
+
+        assertTrue("self" !in result.packages)
+        assertEquals(setOf("other"), result.dpiPackages)
+    }
+
+    @Test fun `all packages sharing excluded host uid are skipped`() {
+        val result = effectiveRoutes(
+            mapOf("self" to AppRoute.VPN, "sibling" to AppRoute.VPN),
+            mapOf("self" to 10000, "sibling" to 10000),
+            mapOf(10000 to setOf("self", "sibling")),
+            excludedUids = setOf(10000),
+        )
+
+        assertTrue(result.isEmpty)
+        assertTrue(result.sharedUidConflict.isEmpty())
+    }
 }

@@ -16,8 +16,14 @@ fun effectiveRoutes(
     routes: Map<String, AppRoute>,
     installedUids: Map<String, Int?>,
     uidPackages: Map<Int, Set<String>>? = null,
+    excludedUids: Set<Int> = emptySet(),
 ): EffectiveRoutes {
-    val present = routes.keys.filter { installedUids[it] != null }
+    // A VPN implementation must never route its own process UID back into its
+    // TUN. Excluding by UID (not just package name) also covers shared-UID apps.
+    val present = routes.keys.filter { pkg ->
+        val uid = installedUids[pkg]
+        uid != null && uid !in excludedUids
+    }
     val byUid = present.groupBy { installedUids.getValue(it)!! }
     val conflicts = byUid.filter { (uid, packages) ->
         val siblings = uidPackages?.get(uid)

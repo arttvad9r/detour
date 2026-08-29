@@ -1,6 +1,7 @@
 package dev.triplet.app.vpn
 
 import android.content.pm.PackageManager
+import android.os.Process
 import dev.triplet.app.core.AppRoute
 
 data class ResolvedRouteSnapshot(
@@ -26,7 +27,12 @@ fun resolveRouteSnapshot(
         .associateWith { uid -> packageManager.getPackagesForUid(uid)?.toSet().orEmpty() }
 
     return ResolvedRouteSnapshot(
-        effective = effectiveRoutes(routes, installed, uidPackages),
+        effective = effectiveRoutes(
+            routes,
+            installed,
+            uidPackages,
+            excludedUids = setOf(Process.myUid()),
+        ),
         installedUids = installed,
     )
 }
