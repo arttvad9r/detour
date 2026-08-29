@@ -13,13 +13,23 @@ let
     ndkVersions = [ "28.0.13004108" ];
   };
   androidHome = "${android.androidsdk}/libexec/android-sdk";
+
+  # Keep the repository-wide nixpkgs pin stable while taking the upstream Go
+  # security patch used to build and scan the embedded Mihomo engine.
+  go = pkgs.go.overrideAttrs (_: {
+    version = "1.26.7";
+    src = pkgs.fetchurl {
+      url = "https://go.dev/dl/go1.26.7.src.tar.gz";
+      hash = "sha256-DtJOrHVRBQhbif6cq8J0K5GgrXuUtZ0602SRjryJVq0=";
+    };
+  });
 in
 pkgs.mkShell {
   name = "triplet-dev";
 
   nativeBuildInputs = [
     pkgs.jdk17
-    pkgs.go
+    go
     pkgs.gomobile
     pkgs.govulncheck
     pkgs.git
