@@ -1,15 +1,18 @@
 package dev.triplet.app.data
 
 import android.content.Context
-import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.test.core.app.ApplicationProvider
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import dev.triplet.app.TripletApp
+import dev.triplet.app.core.AmneziaWgOptions
 import dev.triplet.app.core.AppRoute
 import dev.triplet.app.core.DpiPreset
 import dev.triplet.app.core.SettingsBackup
 import dev.triplet.app.core.VlessKey
 import dev.triplet.app.core.VlessKeys
-import kotlinx.coroutines.flow.first
+import dev.triplet.app.core.WarpProfile
+import dev.triplet.app.core.WarpProxy
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -19,7 +22,7 @@ import org.junit.runner.RunWith
 
 /**
  * On-device DataStore behavior: atomic key mutations, duplicate-id rejection,
- * and import that never enables auto-connect.
+ * import policy, and Android-Keystore-backed encryption of VPN credentials.
  */
 @RunWith(AndroidJUnit4::class)
 class RoutesStoreInstrumentedTest {
@@ -69,5 +72,48 @@ class RoutesStoreInstrumentedTest {
         val s = store.snapshot()
         assertFalse("import must not enable auto-connect", s.autoConnect)
         assertEquals(AppRoute.VPN, s.routes["com.example.imported"])
+    }
+
+    @Test fun vpnCredentialsAreEncryptedAtRest() = runBlocking {
+        val id = "encrypted-at-rest"
+        val secretUri = validUri.replace("example.com:443", "at-rest-marker.detour.invalid:443")
+        val privateMarker = "warp-private-at-rest-marker-2af74b8d"
+        val warp = WarpProfile(
+            id = "warp-encrypted-at-rest",
+            name = "Encrypted WARP",
+            proxies = listOf(
+                WarpProxy(
+                    name = "endpoint",
+                    server = "warp.invalid",
+                    port = 4500,
+                    ip = "172.16.0.2",
+                    privateKey = privateMarker,
+                    publicKey = "warp-public-key",
+                    reserved = listOf(1, 2, 3),
+                    allowedIps = listOf("0.0.0.0/0"),
+                    amnezia = AmneziaWgOptions(jc = 4),
+                ),
+            ),
+        )
+
+        try {
+            runCatching { store.deleteVlessKey(id) }
+            store.addVlessKey(VlessKey(id, "Encrypted", secretUri))
+            store.setWarpProfile(warp)
+
+            val snapshot = store.snapshot()
+            assertEquals(secretUri, snapshot.vlessKeys.items.single { it.id == id }.uri)
+            assertEquals(privateMarker, snapshot.warpProfile?.proxies?.single()?.privateKey)
+
+            val raw = String(
+                ctx.preferencesDataStoreFile("triplet_settings").readBytes(),
+                Charsets.ISO_8859_1,
+            )
+            assertFalse("VLESS URI must not be stored as plaintext", raw.contains(secretUri))
+            assertFalse("WARP private key must not be stored as plaintext", raw.contains(privateMarker))
+        } finally {
+            store.deleteVlessKey(id)
+            store.deleteWarpProfile()
+        }
     }
 }
