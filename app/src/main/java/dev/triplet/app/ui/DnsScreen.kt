@@ -1,7 +1,6 @@
 package dev.triplet.app.ui
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -11,7 +10,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -26,6 +24,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
@@ -104,14 +103,17 @@ fun DnsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
 
         AnimatedVisibility(
             visible = editingCustom,
-            enter = fadeIn(tween(Motion.CONTENT_IN_MS)) + expandVertically(
-                animationSpec = spring(
-                    dampingRatio = Motion.SPRING_DAMPING,
-                    stiffness = Motion.SPRING_STIFFNESS_SOFT,
-                ),
+            enter = fadeIn(
+                tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
+            ) + expandVertically(
+                animationSpec = tween(Motion.STATE_MS, easing = Motion.ENTER_EASING),
+                expandFrom = Alignment.Top,
             ),
-            exit = fadeOut(tween(Motion.CONTENT_OUT_MS)) + shrinkVertically(
-                animationSpec = tween(Motion.STATE_MS),
+            exit = fadeOut(
+                tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
+            ) + shrinkVertically(
+                animationSpec = tween(Motion.STATE_MS, easing = Motion.EXIT_EASING),
+                shrinkTowards = Alignment.Top,
             ),
         ) {
             Column {
