@@ -82,7 +82,8 @@ object WarpConfigImporter {
         val ipv6 = addresses.firstOrNull { it.contains(':') }
         val dns = csv(iface["dns"])
         val mtu = iface["mtu"]?.toIntOrNull() ?: 1280
-        val reserved = csv(iface["reserved"]).mapNotNull { it.toIntOrNull() }
+        val reserved = csvIntList(iface["reserved"])
+            ?: return WarpImportResult.NoCompatibleProxies
         val amnezia = AmneziaWgOptions(
             jc = iface.iniInt("jc"),
             jmin = iface.iniInt("jmin"),
@@ -144,7 +145,7 @@ object WarpConfigImporter {
             ipv6 = map.string("ipv6"),
             privateKey = requireNotNull(map.string("private-key")),
             publicKey = requireNotNull(map.string("public-key")),
-            reserved = map.intList("reserved"),
+            reserved = requireNotNull(map.intList("reserved")),
             allowedIps = map.stringList("allowed-ips").ifEmpty { listOf("0.0.0.0/0") },
             udp = map.bool("udp") ?: true,
             mtu = map.int("mtu") ?: 1280,
@@ -221,6 +222,9 @@ object WarpConfigImporter {
     private fun csv(value: String?): List<String> =
         value?.split(',')?.mapNotNull { it.trim().takeIf(String::isNotEmpty) }.orEmpty()
 
+    private fun csvIntList(value: String?): List<Int>? =
+        csv(value).map { it.toIntOrNull() ?: return null }
+
     private fun withoutCidr(value: String): String = value.substringBefore('/').trim()
 
     private fun Map<String, String>.iniInt(key: String): Int? = this[key]?.toIntOrNull()
@@ -250,12 +254,16 @@ object WarpConfigImporter {
             value?.toString()?.trim()?.takeIf { it.isNotEmpty() }
         }.orEmpty()
 
-    private fun Map<*, *>.intList(key: String): List<Int> =
-        (this[key] as? List<*>)?.mapNotNull {
-            when (it) {
-                is Number -> it.toInt()
-                is String -> it.trim().toIntOrNull()
+    private fun Map<*, *>.intList(key: String): List<Int>? {
+        if (!containsKey(key)) return emptyList()
+        val values = this[key] as? List<*> ?: return null
+        return values.map { value ->
+            when (value) {
+                is Byte, is Short, is Int -> (value as Number).toInt()
+                is Long -> value.takeIf { it in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong() }?.toInt()
+                is String -> value.trim().toIntOrNull()
                 else -> null
-            }
-        }.orEmpty()
+            } ?: return null
+        }
+    }
 }
