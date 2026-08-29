@@ -7,8 +7,10 @@ import dev.triplet.app.core.AppRoute
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.core.VpnProfileKind
+import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.data.TriSettings
 import dev.triplet.app.vpn.EffectiveRoutes
+import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -119,5 +121,15 @@ class HomeViewModel(
                 return HomeViewModel(settings, vpnState, resolveRoutes) as T
             }
         }
+
+        /** Convenience for the Android composition root; the ViewModel itself only receives flows. */
+        fun factory(
+            store: RoutesStore,
+            resolveRoutes: suspend (Map<String, AppRoute>) -> EffectiveRoutes,
+        ): ViewModelProvider.Factory = factory(
+            settings = store.settings,
+            vpnState = VpnController.state,
+            resolveRoutes = resolveRoutes,
+        )
     }
 }
