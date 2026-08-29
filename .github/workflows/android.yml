@@ -54,6 +54,7 @@ jobs:
           EMULATOR="$ANDROID_SDK_ROOT/emulator/emulator"
           EMULATOR_SERIAL="emulator-5554"
           EMULATOR_LOG="$RUNNER_TEMP/detour-emulator.log"
+          INSTRUMENTATION_LOG="$RUNNER_TEMP/detour-instrumentation.log"
           LOGCAT_LOG="$RUNNER_TEMP/detour-logcat.txt"
           SYSTEM_IMAGE="system-images;android-36;google_apis;x86_64"
           export ANDROID_USER_HOME="$RUNNER_TEMP/android-user-home"
@@ -143,13 +144,20 @@ jobs:
           adb -s "$EMULATOR_SERIAL" shell settings put global transition_animation_scale 0
           adb -s "$EMULATOR_SERIAL" shell settings put global animator_duration_scale 0
 
-          if ! ANDROID_SERIAL="$EMULATOR_SERIAL" ./gradlew :app:connectedDebugAndroidTest --stacktrace; then
+          set +e
+          ANDROID_SERIAL="$EMULATOR_SERIAL" ./gradlew :app:connectedDebugAndroidTest --stacktrace 2>&1 | tee "$INSTRUMENTATION_LOG"
+          TEST_EXIT=${PIPESTATUS[0]}
+          set -e
+
+          if [[ "$TEST_EXIT" -ne 0 ]]; then
+            echo "--- instrumentation log tail ---" >&2
+            tail -n 250 "$INSTRUMENTATION_LOG" >&2 || true
             echo "--- emulator log ---" >&2
             tail -n 200 "$EMULATOR_LOG" >&2 || true
             adb -s "$EMULATOR_SERIAL" logcat -d -t 1000 > "$LOGCAT_LOG" 2>&1 || true
             echo "--- device logcat ---" >&2
             tail -n 500 "$LOGCAT_LOG" >&2 || true
-            exit 1
+            exit "$TEST_EXIT"
           fi
       - name: Upload instrumentation diagnostics
         if: always()
@@ -161,5 +169,6 @@ jobs:
           path: |
             app/build/outputs/androidTest-results/**
             app/build/reports/androidTests/**
+            ${{ runner.temp }}/detour-instrumentation.log
             ${{ runner.temp }}/detour-emulator.log
             ${{ runner.temp }}/detour-logcat.txt
