@@ -2,7 +2,7 @@ module engine
 
 go 1.25.0
 
-require github.com/metacubex/mihomo v1.19.29
+require github.com/metacubex/mihomo v1.19.30
 
 require (
 	github.com/RyuaNerin/go-krypto v1.3.0 // indirect

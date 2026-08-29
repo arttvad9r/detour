@@ -1,5 +1,5 @@
 # Pins
-- mihomo: v1.19.29, commit `e26714a181ac0e2fa803453c0a8e9a9ce94e31cb` (patch: buildAndroidRules -> nil; triplet host-resolver bridge in tunnel.go/process.go)
+- mihomo: v1.19.30, commit `ac017cdd246ce8bd547653d927e7bf77d7ee73d5` (patch: buildAndroidRules -> nil; triplet host-resolver bridge in tunnel.go/process.go)
 - byedpi: v0.17.3, commit `7efde1b1296eaaa187b70e951894dde17527489c` (exact checkout/reset; ciadpi cross-compiled via engine/byedpi/build.sh; dynamic bionic, android21, arm64-v8a + x86_64)
 
 ## Attribution decision

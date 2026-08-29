@@ -5,8 +5,8 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-MIHOMO_VERSION="v1.19.29"
-MIHOMO_COMMIT="e26714a181ac0e2fa803453c0a8e9a9ce94e31cb"
+MIHOMO_VERSION="v1.19.30"
+MIHOMO_COMMIT="ac017cdd246ce8bd547653d927e7bf77d7ee73d5"
 CACHE="${MIHOMO_CACHE:-$REPO_ROOT/.cache/mihomo-src}"
 BIND_DIR="$REPO_ROOT/engine/mihomo/go"
 OUT="$REPO_ROOT/engine/libs/engine.aar"
