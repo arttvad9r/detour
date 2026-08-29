@@ -5,8 +5,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -173,24 +171,46 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier
                                 .fillMaxSize()
                                 .detourHighRefresh(navMotionActive),
+                            // Keep full-screen destinations opaque, but move them far
+                            // enough that navigation reads as one continuous page
+                            // transition. The new page travels the complete width;
+                            // the previous page only shifts a fifth-width underneath
+                            // it for depth. No layer is removed while it is still
+                            // visually covering most of the destination below.
                             enterTransition = {
                                 slideInHorizontally(
                                     animationSpec = tween(
                                         Motion.NAV_ENTER_MS,
-                                        easing = Motion.ENTER_EASING,
+                                        easing = Motion.STANDARD_EASING,
                                     ),
-                                    initialOffsetX = { it / 12 },
+                                    initialOffsetX = { it },
                                 )
                             },
-                            exitTransition = { ExitTransition.None },
-                            popEnterTransition = { EnterTransition.None },
+                            exitTransition = {
+                                slideOutHorizontally(
+                                    animationSpec = tween(
+                                        Motion.NAV_ENTER_MS,
+                                        easing = Motion.STANDARD_EASING,
+                                    ),
+                                    targetOffsetX = { -it / 5 },
+                                )
+                            },
+                            popEnterTransition = {
+                                slideInHorizontally(
+                                    animationSpec = tween(
+                                        Motion.NAV_EXIT_MS,
+                                        easing = Motion.STANDARD_EASING,
+                                    ),
+                                    initialOffsetX = { -it / 5 },
+                                )
+                            },
                             popExitTransition = {
                                 slideOutHorizontally(
                                     animationSpec = tween(
                                         Motion.NAV_EXIT_MS,
-                                        easing = Motion.EXIT_EASING,
+                                        easing = Motion.STANDARD_EASING,
                                     ),
-                                    targetOffsetX = { it / 12 },
+                                    targetOffsetX = { it },
                                 )
                             },
                         ) {
