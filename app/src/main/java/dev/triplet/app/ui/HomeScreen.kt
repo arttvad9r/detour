@@ -31,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -51,6 +52,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import dev.triplet.app.R
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.VlessKeyParser
@@ -94,9 +98,19 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
     val c = detourColors
     val settings by store.settings.collectAsState()
     val persistedRoutes = settings?.routes.orEmpty()
+    var routeRevision by remember { mutableIntStateOf(0) }
+    DisposableEffect(ctx) {
+        val owner = ctx as? LifecycleOwner
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) routeRevision++
+        }
+        owner?.lifecycle?.addObserver(observer)
+        onDispose { owner?.lifecycle?.removeObserver(observer) }
+    }
     val effectiveRoutes by produceState(
         initialValue = EffectiveRoutes(emptySet(), emptySet()),
         key1 = persistedRoutes,
+        key2 = routeRevision,
     ) {
         value = if (persistedRoutes.isEmpty()) {
             EffectiveRoutes(emptySet(), emptySet())
