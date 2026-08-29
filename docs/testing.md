@@ -12,13 +12,16 @@ python3 tools/apk_size_report.py app/build/outputs/apk/release
 bash engine/vulnscan.sh
 ```
 
-The first release assembly is the universal compatibility baseline. CI then rebuilds the release APK for the primary distribution ABI with:
+The first release assembly is the universal compatibility baseline. CI then generates a disposable test keystore and rebuilds the release APK for the primary distribution ABI with signing and version overrides enabled. The disposable key exists only to exercise the production signing path; it is never used for published builds.
 
 ```bash
-./gradlew :app:assembleRelease -PdetourReleaseAbi=arm64-v8a
+./gradlew :app:assembleRelease \
+  -PdetourReleaseAbi=arm64-v8a \
+  -PdetourVersionName=0.1.0-ci \
+  -PdetourVersionCode=1001
 ```
 
-The arm64 distribution check requires the APK to contain exactly `arm64-v8a` native libraries and enforces a 30 MiB maximum APK size. The universal and arm64 JSON size reports are retained as the `apk-size-reports` workflow artifact for comparison and regression diagnosis.
+CI verifies that signed APK with Android `apksigner`. The arm64 distribution check requires the APK to contain exactly `arm64-v8a` native libraries and enforces a 30 MiB maximum APK size. The universal and arm64 JSON size reports are retained as the `apk-size-reports` workflow artifact for comparison and regression diagnosis.
 
 Pull requests and pushes to `master` additionally install the hosted Android 16 emulator image and run:
 
