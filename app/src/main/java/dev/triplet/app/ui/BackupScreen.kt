@@ -56,7 +56,7 @@ fun BackupScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mo
     val settings by store.settings.collectAsState(initial = null)
     val exportedText = stringResource(R.string.backup_exported)
     val badFileText = stringResource(R.string.backup_bad_file)
-    val importedText = stringResource(R.string.backup_imported)
+    val importedText = stringResource(R.string.backup_imported_reconnect)
     val genericErrorText = stringResource(R.string.backup_error)
 
     var status by remember { mutableStateOf("") }

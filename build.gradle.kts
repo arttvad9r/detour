@@ -1,6 +1,6 @@
 plugins {
     alias(libs.plugins.android.application) apply false
-    // AGP 9: kotlin-android plugin not needed (built-in Kotlin), alias stays in version catalog only.
+    // AGP 9: kotlin-android plugin is not needed; Kotlin is built into AGP.
     alias(libs.plugins.kotlin.compose) apply false
 }
 
@@ -13,7 +13,8 @@ tasks.register<Exec>("buildMihomoAar") {
 
 tasks.register<Exec>("buildByeDpi") {
     inputs.file("engine/byedpi/build.sh")
+    // A different NDK may produce different binaries even with the same script.
+    inputs.property("androidNdkHome", providers.environmentVariable("ANDROID_NDK_HOME").orElse(""))
     outputs.dir("app/src/main/jniLibs")
-    outputs.upToDateWhen { false }
     commandLine("bash", "engine/byedpi/build.sh")
 }

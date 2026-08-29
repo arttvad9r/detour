@@ -1,11 +1,12 @@
 package dev.triplet.app.tile
 
-import android.content.Intent
 import android.app.PendingIntent
-import android.os.Build
 import android.annotation.SuppressLint
+import android.content.Intent
+import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
+import dev.triplet.app.R
 import dev.triplet.app.TripletApp
 import dev.triplet.app.core.AppRoute
 import dev.triplet.app.vpn.VpnController
@@ -70,19 +71,25 @@ class DetourTile : TileService() {
         when (state) {
             VpnState.Active -> {
                 tile.state = Tile.STATE_ACTIVE
-                tile.subtitle = "подключено"
+                tile.subtitle = getString(R.string.tile_connected)
             }
             VpnState.Starting -> {
                 tile.state = Tile.STATE_INACTIVE
-                tile.subtitle = "подключение…"
+                tile.subtitle = getString(R.string.tile_connecting)
             }
             is VpnState.Failed -> {
-                tile.state = Tile.STATE_UNAVAILABLE
-                tile.subtitle = "ошибка"
+                // UNAVAILABLE tiles are not actionable. Keep the tile tappable so
+                // a failed connection can be retried directly from Quick Settings.
+                tile.state = Tile.STATE_INACTIVE
+                tile.subtitle = getString(R.string.tile_error)
             }
             VpnState.Idle -> {
                 tile.state = Tile.STATE_INACTIVE
-                tile.subtitle = if (routed > 0) "$routed в туннеле" else "отключено"
+                tile.subtitle = if (routed > 0) {
+                    resources.getQuantityString(R.plurals.tile_routed, routed, routed)
+                } else {
+                    getString(R.string.tile_disconnected)
+                }
             }
         }
         tile.updateTile()

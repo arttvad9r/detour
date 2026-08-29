@@ -46,17 +46,18 @@ pkgs.mkShell {
     export PATH="$(go env GOPATH)/bin:$PATH"
     export GRADLE_USER_HOME="$PWD/.gradle"
 
-    # sdk.dir -> Nix SDK (compileSdk 36 присутствует в nixpkgs, оверлей не нужен)
+    # sdk.dir -> Nix SDK. local.properties is ignored by git.
     if [ ! -f local.properties ]; then
       echo "sdk.dir=$ANDROID_HOME" > local.properties
     fi
 
-    # Use the Nix-provided, already-patched SDK aapt2 instead of mutating
-    # immutable Gradle transform caches. AGP reads this flag only from
-    # gradle.properties, so the machine-specific path is appended locally and
-    # deliberately kept out of git.
-    if ! grep -q '^android.aapt2FromMavenOverride=' gradle.properties 2>/dev/null; then
-      printf 'android.aapt2FromMavenOverride=%s/build-tools/36.0.0/aapt2\n' "$ANDROID_HOME" >> gradle.properties
+    # AGP reads Gradle properties from GRADLE_USER_HOME as well as the project.
+    # Keep the machine-specific Nix aapt2 path in the ignored user-home file so
+    # entering the dev shell never dirties the tracked gradle.properties.
+    mkdir -p "$GRADLE_USER_HOME"
+    user_gradle_props="$GRADLE_USER_HOME/gradle.properties"
+    if ! grep -q '^android.aapt2FromMavenOverride=' "$user_gradle_props" 2>/dev/null; then
+      printf 'android.aapt2FromMavenOverride=%s/build-tools/36.0.0/aapt2\n' "$ANDROID_HOME" >> "$user_gradle_props"
     fi
     echo "Triplet dev shell  ANDROID_HOME=$ANDROID_HOME"
   '';

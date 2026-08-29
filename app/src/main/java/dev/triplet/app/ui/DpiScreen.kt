@@ -47,6 +47,9 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
     var customField by rememberSaveable(settings?.dpiCustomArgs) {
         androidx.compose.runtime.mutableStateOf(settings?.dpiCustomArgs ?: "")
     }
+    var editingCustom by rememberSaveable(settings?.preset) {
+        androidx.compose.runtime.mutableStateOf(settings?.preset == DpiPreset.CUSTOM)
+    }
     val customInvalid = customField.isNotBlank() && !DpiArgs.isValid(customField)
 
     Column(
@@ -60,31 +63,38 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
         ScreenHeader(stringResource(R.string.dpi_title), onBack)
         Spacer(Modifier.height(Spacing.space8))
 
-        fun choose(preset: DpiPreset) {
-            if (settings?.preset == preset) return
-            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+        fun chooseRecommended() {
+            editingCustom = false
+            if (settings?.preset == DpiPreset.RECOMMENDED) return
             scope.launch {
-                store.setPreset(preset)
+                store.setPreset(DpiPreset.RECOMMENDED)
                 VpnController.restartIfActive(ctx)
             }
+        }
+
+        fun editCustom() {
+            if (editingCustom) return
+            // Editing must not mutate the live tunnel. Persist CUSTOM only after
+            // the user saves a validated argument string below.
+            editingCustom = true
         }
 
         DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
             RadioRow(
                 title = stringResource(R.string.preset_recommended),
-                selected = settings?.preset == DpiPreset.RECOMMENDED,
-                onClick = { choose(DpiPreset.RECOMMENDED) },
+                selected = !editingCustom && settings?.preset == DpiPreset.RECOMMENDED,
+                onClick = ::chooseRecommended,
             )
             GroupDivider(startInset = 46)
             RadioRow(
                 title = stringResource(R.string.preset_custom),
-                selected = settings?.preset == DpiPreset.CUSTOM,
-                onClick = { choose(DpiPreset.CUSTOM) },
+                selected = editingCustom,
+                onClick = ::editCustom,
             )
         }
 
         AnimatedVisibility(
-            visible = settings?.preset == DpiPreset.CUSTOM,
+            visible = editingCustom,
             enter = fadeIn(tween(Motion.CONTENT_IN_MS)) + expandVertically(
                 animationSpec = spring(
                     dampingRatio = Motion.SPRING_DAMPING,
@@ -116,8 +126,13 @@ fun DpiScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
                 DetourButton(
                     text = stringResource(R.string.btn_save),
                     onClick = {
+                        val value = customField.trim()
                         scope.launch {
-                            store.setCustomArgs(customField.trim())
+                            // Store the validated draft before switching the active
+                            // preset. If the process dies between writes, RECOMMENDED
+                            // remains active rather than exposing an invalid CUSTOM.
+                            store.setCustomArgs(value)
+                            store.setPreset(DpiPreset.CUSTOM)
                             VpnController.restartIfActive(ctx)
                             haptics.performHapticFeedback(HapticFeedbackType.Confirm)
                         }

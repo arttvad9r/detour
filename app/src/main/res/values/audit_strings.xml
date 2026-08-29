@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dns_custom_hint_https">Enter an IP address or an HTTPS DoH URL.</string>
+    <string name="dns_invalid_https">Check the address: enter an IP or an https:// DoH URL.</string>
+    <string name="backup_imported_reconnect">Imported. Reconnect to apply changes.</string>
+    <string name="tile_connected">Connected</string>
+    <string name="tile_connecting">Connecting…</string>
+    <string name="tile_error">Connection error</string>
+    <string name="tile_disconnected">Disconnected</string>
+    <plurals name="tile_routed">
+        <item quantity="one">%1$d app in tunnel</item>
+        <item quantity="other">%1$d apps in tunnel</item>
+    </plurals>
+</resources>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dns_custom_hint_https">Можно указать IP-адрес или HTTPS DoH URL.</string>
+    <string name="dns_invalid_https">Проверьте адрес: нужен IP или DoH URL с https://.</string>
+    <string name="backup_imported_reconnect">Импортировано. Переподключитесь, чтобы применить изменения.</string>
+    <string name="tile_connected">Подключено</string>
+    <string name="tile_connecting">Подключение…</string>
+    <string name="tile_error">Ошибка подключения</string>
+    <string name="tile_disconnected">Отключено</string>
+    <plurals name="tile_routed">
+        <item quantity="one">%1$d приложение в туннеле</item>
+        <item quantity="few">%1$d приложения в туннеле</item>
+        <item quantity="many">%1$d приложений в туннеле</item>
+        <item quantity="other">%1$d приложения в туннеле</item>
+    </plurals>
+</resources>

@@ -50,7 +50,12 @@ fun DnsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
     val c = detourColors
     val settings by store.settings.collectAsState()
     val selectedDns = settings?.dnsId?.ifBlank { null } ?: "google"
-    var customField by rememberSaveable(settings?.dnsCustom) { androidx.compose.runtime.mutableStateOf(settings?.dnsCustom ?: "") }
+    var customField by rememberSaveable(settings?.dnsCustom) {
+        androidx.compose.runtime.mutableStateOf(settings?.dnsCustom ?: "")
+    }
+    var editingCustom by rememberSaveable(settings?.dnsId) {
+        androidx.compose.runtime.mutableStateOf(settings?.dnsId == DnsOptions.CUSTOM)
+    }
     val customInvalid = customField.isNotBlank() && !DnsOptions.isValid(customField)
 
     Column(
@@ -64,33 +69,40 @@ fun DnsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
         ScreenHeader(stringResource(R.string.dns_title), onBack)
         Spacer(Modifier.height(Spacing.space8))
 
-        fun apply(id: String, custom: String = settings?.dnsCustom ?: "") {
+        fun chooseKnown(id: String) {
+            editingCustom = false
             if (selectedDns == id) return
-            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
             scope.launch {
-                store.setDns(id, custom)
+                store.setDns(id, settings?.dnsCustom ?: "")
                 VpnController.restartIfActive(ctx)
             }
+        }
+
+        fun editCustom() {
+            if (editingCustom) return
+            // Selecting the editor is not a configuration change. The active DNS
+            // stays untouched until Save commits a valid custom resolver.
+            editingCustom = true
         }
 
         DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
             DnsOptions.servers.forEach { (id, _) ->
                 RadioRow(
                     title = stringResource(DNS_LABELS[id] ?: R.string.dns_custom),
-                    selected = selectedDns == id,
-                    onClick = { apply(id) },
+                    selected = !editingCustom && selectedDns == id,
+                    onClick = { chooseKnown(id) },
                 )
                 GroupDivider(startInset = 46)
             }
             RadioRow(
                 title = stringResource(R.string.dns_custom),
-                selected = settings?.dnsId == DnsOptions.CUSTOM,
-                onClick = { apply(DnsOptions.CUSTOM, customField.ifBlank { settings?.dnsCustom ?: "" }) },
+                selected = editingCustom,
+                onClick = ::editCustom,
             )
         }
 
         AnimatedVisibility(
-            visible = settings?.dnsId == DnsOptions.CUSTOM,
+            visible = editingCustom,
             enter = fadeIn(tween(Motion.CONTENT_IN_MS)) + expandVertically(
                 animationSpec = spring(
                     dampingRatio = Motion.SPRING_DAMPING,
@@ -108,8 +120,8 @@ fun DnsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modif
                     onValueChange = { customField = it },
                     label = stringResource(R.string.dns_custom_label),
                     placeholder = stringResource(R.string.dns_placeholder),
-                    helper = stringResource(R.string.dns_custom_hint),
-                    error = if (customInvalid) stringResource(R.string.dns_invalid) else null,
+                    helper = stringResource(R.string.dns_custom_hint_https),
+                    error = if (customInvalid) stringResource(R.string.dns_invalid_https) else null,
                     modifier = Modifier.padding(horizontal = Spacing.space16),
                 )
                 Spacer(Modifier.height(Spacing.space16))

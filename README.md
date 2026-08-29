@@ -1,28 +1,34 @@
 # Detour
 
-Android VPN-клиент: локальный прокси на базе mihomo + обход блокировок через ByeDPI.
+Android network client with per-app routing through embedded native components.
 
 ## Build
 
+The repository includes a pinned Nix flake (`flake.nix` and `flake.lock`). Use it for the reproducible Java, Android SDK/NDK, Go, and gomobile environment:
+
 ```bash
-nix-shell --run "./gradlew :app:assembleDebug"
+nix develop -c ./gradlew :app:assembleDebug
 ```
 
-The Gradle build creates both native artifacts before packaging: the mihomo
-AAR and the ByeDPI libraries. `shell.nix` supplies Java, Android SDK/NDK,
-Go, and gomobile. It intentionally accepts `pkgs` as an argument so callers
-can provide a pinned nixpkgs revision; this repository does not currently
-contain a nixpkgs lock or flake.
+The Gradle build creates the native artifacts it consumes before packaging. Generated artifacts, caches, and machine-specific SDK configuration are kept out of git.
 
-The wrapper verifies the Gradle distribution checksum. Dependency verification
-metadata is committed in `gradle/verification-metadata.xml`; CI also runs
-`govulncheck` over the embedded Go engine and fails on reachable findings.
+## Verification
 
-Native source revisions and their build patches are recorded in
-[docs/pins.md](docs/pins.md). IPv6 is captured by the TUN and explicitly
-rejected by the engine, so selected applications cannot silently bypass the
-VPN over the physical IPv6 interface.
+Run the same core checks configured in GitHub Actions:
 
-Unit tests and historical device evidence remain in [docs/testing.md](docs/testing.md).
-The old corrective-pass and design documents under `docs/superpowers/` are
-archived project history, not current build instructions.
+```bash
+nix develop -c ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+nix develop -c bash engine/vulnscan.sh
+```
+
+With an Android emulator or device connected, instrumented tests can be run separately:
+
+```bash
+nix develop -c ./gradlew :app:connectedDebugAndroidTest
+```
+
+The Gradle wrapper verifies its distribution checksum, and dependency verification metadata is committed in `gradle/verification-metadata.xml`. Native source revisions and embedding patches are recorded in `docs/pins.md`.
+
+Selected-app IPv6 traffic is captured and rejected explicitly when unsupported rather than escaping through the physical interface. DNS settings accept IP literals or HTTPS DoH endpoints; hostname-based DoH gets a bootstrap resolver in the generated engine configuration.
+
+WARP/AmneziaWG import behavior is documented in `docs/warp-profiles.md`. Historical device and test evidence is recorded in `docs/testing.md`; documents under `docs/superpowers/` are project history rather than current build instructions.

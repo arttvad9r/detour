@@ -28,7 +28,9 @@ object VlessKeyParser {
     const val ERR_TRANSPORT = 2    // err_unsupported_transport
     const val ERR_SECURITY = 3     // err_reality_required
 
-    private val fingerprints = setOf("chrome", "firefox", "safari", "edge", "ios", "android", "random")
+    private val fingerprints = setOf(
+        "chrome", "firefox", "safari", "iOS", "android", "edge", "360", "qq", "random",
+    )
     private const val FLOW = "xtls-rprx-vision"
 
     fun parse(uriRaw: String): ParseResult {
@@ -57,7 +59,9 @@ object VlessKeyParser {
                 ?: return ParseResult.Err(ERR_SECURITY)
             val sid = q["sid"]?.takeIf { it.matches(Regex("[0-9a-fA-F]{1,16}")) }
                 ?: return ParseResult.Err(ERR_SECURITY)
-            val fp = q["fp"] ?: "chrome"
+            // Current mihomo spells this fingerprint "iOS". Accept the older
+            // lowercase form from existing links but normalize the generated YAML.
+            val fp = (q["fp"] ?: "chrome").let { if (it == "ios") "iOS" else it }
             if (fp !in fingerprints) return ParseResult.Err(ERR_FORMAT)
             val flow = q["flow"] ?: FLOW
             if (flow != FLOW) return ParseResult.Err(ERR_FORMAT)

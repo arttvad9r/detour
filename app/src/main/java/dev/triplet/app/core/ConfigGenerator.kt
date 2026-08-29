@@ -93,6 +93,9 @@ object ConfigGenerator {
         // Шаблон flush-left; отступы фрагментов задают сами хелперы,
         // trimIndent не используется (смешанные отступы ломали YAML).
         val excludeLan = if (input.apiLevel >= 33) items(LAN_PREFIXES) else " []"
+        val dnsBootstrap = DnsOptions.bootstrapServer(input.nameserver)?.let {
+            "\n  default-nameserver:\n    - ${yamlScalar(it)}"
+        } ?: ""
 
         return """
 mode: rule
@@ -115,7 +118,7 @@ tun:
     - any:53
 dns:
   enable: true
-  enhanced-mode: redir-host
+  enhanced-mode: redir-host$dnsBootstrap
   nameserver:
     - ${yamlScalar(input.nameserver)}
 proxies:

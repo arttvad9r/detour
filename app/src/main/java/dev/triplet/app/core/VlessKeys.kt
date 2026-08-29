@@ -30,13 +30,11 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
 
     companion object {
         fun fromStored(json: String, legacyUri: String): VlessKeys {
-            if (json.isBlank()) {
-                if (legacyUri.isBlank()) return VlessKeys(emptyList(), null)
-                val key = VlessKey(stableLegacyId(legacyUri), "VLESS", legacyUri)
-                return VlessKeys(listOf(key), key.id)
-            }
+            if (json.isBlank()) return legacyOrEmpty(legacyUri)
             return runCatching { fromJson(json) }.getOrElse {
-                VlessKeys(emptyList(), null)
+                // A damaged key-list snapshot should not discard a still-present
+                // legacy URI. This path is only for storage recovery.
+                legacyOrEmpty(legacyUri)
             }
         }
 
@@ -62,9 +60,23 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
                 }
             }
             require(parsed.map { it.id }.distinct().size == parsed.size) { "duplicate VLESS key id" }
-            val activeId = if (root.has("activeId")) root.get("activeId") else null
-            require(activeId == null || activeId == JSONObject.NULL || activeId is String)
-            return VlessKeys(parsed, (activeId as? String).takeIf { id -> parsed.any { it.id == id } } ?: parsed.firstOrNull()?.id)
+
+            val hasActiveId = root.has("activeId")
+            val activeValue = if (hasActiveId) root.get("activeId") else null
+            require(activeValue == null || activeValue == JSONObject.NULL || activeValue is String)
+            val activeId = when {
+                !hasActiveId -> parsed.firstOrNull()?.id // compatibility with pre-activeId JSON
+                activeValue == null || activeValue == JSONObject.NULL -> null
+                activeValue is String && parsed.any { it.id == activeValue } -> activeValue
+                else -> null
+            }
+            return VlessKeys(parsed, activeId)
+        }
+
+        private fun legacyOrEmpty(legacyUri: String): VlessKeys {
+            if (legacyUri.isBlank()) return VlessKeys(emptyList(), null)
+            val key = VlessKey(stableLegacyId(legacyUri), "VLESS", legacyUri)
+            return VlessKeys(listOf(key), key.id)
         }
 
         private fun stableLegacyId(uri: String): String =
