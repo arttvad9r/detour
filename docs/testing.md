@@ -9,6 +9,7 @@
 - Device evidence ниже историческое, если явно не указано обратное.
 - VLESS-сервер: Reality + xtls-rprx-vision + tcp; секретные данные в репозиторий и логи не попадают.
 - ByeDPI v0.17.3 (dynamic bionic ciadpi из jniLibs), preset RECOMMENDED.
+- Motion durations are time-based rather than frame-count-based. On Android 15+ the app keeps platform touch boost/ARR enabled and requests Compose `High` only for bounded navigation, scroll/fling, list-reorder, and expand/collapse motion; static UI returns to `Default` instead of pinning a concrete 120 Hz mode.
 
 ## Instrumented
 
@@ -89,11 +90,13 @@ bash engine/vulnscan.sh
 17. Quick Settings tile использует VPN/lock icon и app resource label; stale strings удалены.
 18. Full-screen navigation больше не alpha-crossfade'ит два destination одновременно: incoming screen движется поверх непрозрачного предыдущего, поэтому Settings/Home/Routes/DPI/DNS/Theme не просвечивают друг через друга.
 19. Failed-state Home больше не превращает `errorSoft` в почти непрозрачный red/pink fill; карточка остаётся neutral surface во всех темах, error остаётся в title/border, а дублирующий Retry внутри карточки удалён.
+20. Motion/refresh policy больше не предполагает фиксированные 60 Гц и не пинит 120 Гц: Android 15+ ARR и touch boost остаются включены, `High` запрашивается только пока реально движутся navigation/scroll/list/expand surfaces, после чего vote возвращается в `Default`.
 
 ## Current automated/device limitations
 
 - GitHub Actions проверяет JVM tests, lint, debug APK assembly, patched-engine Go tests и source/binary vulnerability scans.
 - `connectedDebugAndroidTest` требует отдельный эмулятор/устройство и не входит в CI job.
+- Частота дисплея и фактический выбор ARR зависят от устройства/Android/OEM и не могут быть подтверждены JVM/CI; frame-rate requests являются hints для системного scheduler, а не гарантией конкретных 120 Гц.
 - OnePlus/AVD evidence выше историческое; после крупных routing/native changes нужен свежий device smoke на текущем head.
 - Current policy captures IPv6 in the TUN and explicitly rejects it, preventing selected applications from bypassing the VPN over IPv6.
 - DNS accepts only IP literals or HTTPS DoH URLs and is emitted through mihomo DNS hijack for routed applications.
@@ -107,3 +110,5 @@ bash engine/vulnscan.sh
 - API 29–32: LAN destinations не должны попадать в VLESS/DPI outbound.
 - Навигация Home ↔ Settings ↔ дочерние экраны не должна показывать два полноэкранных UI одновременно во время transition.
 - Failed-state проверить в Catppuccin Latte/Mocha, Gruvbox Dark и Dracula: neutral card surface, error title/border, без сплошной красной/розовой заливки и без второго Retry внутри карточки.
+- На 120 Гц устройстве включить системный refresh-rate overlay или записать FrameTimeline/Perfetto: navigation и active scroll/fling должны получать high-refresh residency, а статичные экраны после завершения motion должны иметь возможность вернуться к более низкой adaptive частоте.
+- Сравнить 60/120 Гц: физическая длительность navigation/segment/switch animation должна оставаться одинаковой; на 120 Гц увеличивается число кадров, а не скорость transition.
