@@ -40,6 +40,7 @@ import dev.triplet.app.ui.AppTypography
 import dev.triplet.app.ui.AppsScreen
 import dev.triplet.app.ui.AppsViewModel
 import dev.triplet.app.ui.BackupScreen
+import dev.triplet.app.ui.BackupViewModel
 import dev.triplet.app.ui.DetourColors
 import dev.triplet.app.ui.DnsScreen
 import dev.triplet.app.ui.DnsViewModel
@@ -181,10 +182,6 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier
                                 .fillMaxSize()
                                 .detourHighRefresh(navMotionActive),
-                            // Only the top page moves. Settings and app routes are
-                            // visually denser than the other destinations, so give
-                            // their full-width travel a longer nominal window. Compose
-                            // still applies Android's animator-duration scale.
                             enterTransition = {
                                 val duration = when (targetState.destination.route) {
                                     Route.SETTINGS -> Motion.NAV_SETTINGS_ENTER_MS
@@ -318,7 +315,23 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                             composable(Route.BACKUP) {
-                                BackupScreen(store, onBack = { navController.popBackStack() })
+                                val backupViewModel = viewModel<BackupViewModel>(
+                                    factory = BackupViewModel.factory(
+                                        store = store,
+                                        stopTunnelIfRunning = {
+                                            if (
+                                                VpnController.state.value == VpnState.Active ||
+                                                VpnController.state.value == VpnState.Starting
+                                            ) {
+                                                VpnController.stop(appContext)
+                                            }
+                                        },
+                                    ),
+                                )
+                                BackupScreen(
+                                    backupViewModel,
+                                    onBack = { navController.popBackStack() },
+                                )
                             }
                         }
                     }
