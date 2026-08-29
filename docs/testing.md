@@ -12,6 +12,14 @@ python3 tools/apk_size_report.py app/build/outputs/apk/release
 bash engine/vulnscan.sh
 ```
 
+The first release assembly is the universal compatibility baseline. CI then rebuilds the release APK for the primary distribution ABI with:
+
+```bash
+./gradlew :app:assembleRelease -PdetourReleaseAbi=arm64-v8a
+```
+
+The arm64 distribution check requires the APK to contain exactly `arm64-v8a` native libraries and enforces a 30 MiB maximum APK size. The universal and arm64 JSON size reports are retained as the `apk-size-reports` workflow artifact for comparison and regression diagnosis.
+
 Pull requests and pushes to `master` additionally install the hosted Android 16 emulator image and run:
 
 ```bash
@@ -33,7 +41,7 @@ The Android workflow pins:
 
 Dependency verification runs in strict mode against the committed `gradle/verification-metadata.xml` file.
 
-After release assembly, `tools/apk_size_report.py` records the total APK size, component totals, native library sizes per ABI, and the largest ZIP entries in the GitHub Actions job summary. It also writes `app/build/reports/apk-size.json` for machine-readable follow-up. No hard size threshold is enforced yet; this establishes a baseline before changing ABI/distribution packaging.
+After release assembly, `tools/apk_size_report.py` records the total APK size, packaged native ABI set, component totals, native library sizes per ABI, and the largest ZIP entries in the GitHub Actions job summary. It also writes machine-readable JSON reports. The arm64 distribution report is a hard gate: exceeding 30 MiB or packaging any ABI other than `arm64-v8a` fails CI.
 
 `engine/vulnscan.sh` covers the checked-in/patched Go engine source and the produced Android binary artifacts. Native source revisions and embedding patches are documented in `pins.md`.
 

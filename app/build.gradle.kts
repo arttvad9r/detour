@@ -4,6 +4,12 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+val releaseAbi = providers.gradleProperty("detourReleaseAbi").orNull
+val supportedReleaseAbis = setOf("arm64-v8a", "x86_64")
+require(releaseAbi == null || releaseAbi in supportedReleaseAbis) {
+    "Unsupported detourReleaseAbi=$releaseAbi; expected one of ${supportedReleaseAbis.sorted()}"
+}
+
 android {
     namespace = "dev.triplet.app"
     compileSdk = 37
@@ -15,6 +21,12 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Normal builds keep both ABIs for emulator/device coverage. Distribution
+        // release builds may opt into one ABI without changing debug/androidTest packaging.
+        releaseAbi?.let { abi ->
+            ndk { abiFilters += abi }
+        }
     }
 
     compileOptions {

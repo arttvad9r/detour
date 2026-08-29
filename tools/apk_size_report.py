@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
@@ -49,11 +50,31 @@ def component(name: str) -> str:
     return "Other"
 
 
-def main() -> int:
-    if len(sys.argv) != 2:
-        raise SystemExit("usage: apk_size_report.py <apk-or-release-directory>")
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Report and optionally gate APK size")
+    parser.add_argument("apk", help="APK file or directory containing exactly one APK")
+    parser.add_argument(
+        "--max-bytes",
+        type=int,
+        help="Fail when the APK is larger than this many bytes",
+    )
+    parser.add_argument(
+        "--expected-abi",
+        action="append",
+        default=[],
+        help="Require the packaged native ABI set to match exactly; may be repeated",
+    )
+    parser.add_argument(
+        "--report",
+        type=Path,
+        help="Optional JSON report path; defaults to app/build/reports/apk-size.json",
+    )
+    return parser.parse_args()
 
-    apk = locate_apk(sys.argv[1]).resolve()
+
+def main() -> int:
+    args = parse_args()
+    apk = locate_apk(args.apk).resolve()
     apk_size = apk.stat().st_size
 
     with ZipFile(apk) as archive:
@@ -77,9 +98,12 @@ def main() -> int:
                 }
             )
 
+    actual_abis = sorted({str(item["abi"]) for item in native})
+    expected_abis = sorted(set(args.expected_abi))
     largest = sorted(entries, key=lambda entry: entry.compress_size, reverse=True)[:12]
     payload = {
         "apk": {"name": apk.name, "size_bytes": apk_size},
+        "abis": actual_abis,
         "components": {
             name: {"compressed_bytes": values[0], "uncompressed_bytes": values[1]}
             for name, values in sorted(groups.items())
@@ -97,7 +121,7 @@ def main() -> int:
         ],
     }
 
-    report_path = apk.parents[3] / "reports" / "apk-size.json"
+    report_path = args.report or (apk.parents[3] / "reports" / "apk-size.json")
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
@@ -105,11 +129,20 @@ def main() -> int:
         "## Release APK size",
         "",
         f"- APK: `{apk.name}` — **{format_bytes(apk_size)}** ({apk_size:,} bytes)",
+        f"- Native ABIs: {', '.join(f'`{abi}`' for abi in actual_abis) if actual_abis else 'none'}",
         "- Component values below are ZIP entry sizes and exclude container/alignment overhead.",
-        "",
-        "| Component | APK bytes | ZIP uncompressed |",
-        "| --- | ---: | ---: |",
     ]
+    if args.max_bytes is not None:
+        lines.append(f"- Size limit: **{format_bytes(args.max_bytes)}** ({args.max_bytes:,} bytes)")
+    if expected_abis:
+        lines.append(f"- Required ABI set: {', '.join(f'`{abi}`' for abi in expected_abis)}")
+    lines.extend(
+        [
+            "",
+            "| Component | APK bytes | ZIP uncompressed |",
+            "| --- | ---: | ---: |",
+        ]
+    )
     for name, values in sorted(groups.items(), key=lambda item: item[1][0], reverse=True):
         lines.append(
             f"| {name} | {format_bytes(values[0])} | {format_bytes(values[1])} |"
@@ -153,7 +186,21 @@ def main() -> int:
     if summary:
         with Path(summary).open("a", encoding="utf-8") as handle:
             handle.write(report)
-    return 0
+
+    failures: list[str] = []
+    if args.max_bytes is not None and apk_size > args.max_bytes:
+        failures.append(
+            f"APK size {apk_size:,} exceeds limit {args.max_bytes:,} by "
+            f"{apk_size - args.max_bytes:,} bytes"
+        )
+    if expected_abis and actual_abis != expected_abis:
+        failures.append(
+            f"APK ABI set {actual_abis} does not match expected {expected_abis}"
+        )
+
+    for failure in failures:
+        print(f"ERROR: {failure}", file=sys.stderr)
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":
