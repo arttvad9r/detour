@@ -30,15 +30,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -58,44 +54,31 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
 import dev.triplet.app.core.AppRoute
 import dev.triplet.app.data.AppInfo
 import dev.triplet.app.data.AppInventory
 import dev.triplet.app.data.AppRouteOrdering
-import dev.triplet.app.data.RoutesStore
-import dev.triplet.app.vpn.VpnController
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modifier) {
-    val ctx = LocalContext.current
+fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val haptics = LocalHapticFeedback.current
-    val scope = rememberCoroutineScope()
     val c = detourColors
-    val settings by store.settings.collectAsState()
-    val currentSettings = settings ?: return
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
     val searchHint = stringResource(R.string.search_hint)
 
-    var query by rememberSaveable { mutableStateOf("") }
     var searchFocused by remember { mutableStateOf(false) }
-    var inventoryRevision by remember { mutableIntStateOf(0) }
 
-    // Re-query PackageManager whenever Detour comes back to the foreground. This
-    // catches apps installed/removed while Play Store or another installer was on
-    // top. AppInventory keeps the previous snapshot renderable until refresh ends.
-    DisposableEffect(ctx) {
-        val owner = ctx as? LifecycleOwner
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) inventoryRevision++
-        }
-        owner?.lifecycle?.addObserver(observer)
-        onDispose { owner?.lifecycle?.removeObserver(observer) }
+    LaunchedEffect(viewModel) {
+        viewModel.refreshInventory()
+    }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.refreshInventory()
     }
 
     val searchBorder by animateColorAsState(
@@ -106,33 +89,25 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
         if (searchFocused) c.accent else c.textMuted,
         tween(Motion.COLOR_MS), label = "searchIcon",
     )
-    val showSystem = currentSettings.showSystemApps
-    val allApps by produceState<List<AppInfo>?>(
-        initialValue = AppInventory.peek(),
-        key1 = ctx,
-        key2 = inventoryRevision,
-    ) {
-        value = withContext(Dispatchers.IO) { AppInventory.load(ctx) }
-    }
-    val routes = currentSettings.routes
-    val loadedApps = allApps.orEmpty()
+    val showSystem = state.showSystemApps
+    val loadedApps = state.loadedApps.orEmpty()
     val screenOrder = remember(loadedApps) {
-        AppRouteOrdering.snapshot(loadedApps, currentSettings.routes)
+        AppRouteOrdering.snapshot(loadedApps, state.routes)
     }
-    val apps = remember(loadedApps, screenOrder, query, showSystem) {
+    val apps = remember(loadedApps, screenOrder, state.query, showSystem) {
         val ordered = AppRouteOrdering.apply(loadedApps, screenOrder)
         ordered
             .filter { showSystem || !it.isSystem }
             .filter {
-                query.isBlank() ||
-                    it.label.contains(query, ignoreCase = true) ||
-                    it.packageName.contains(query, ignoreCase = true)
+                state.query.isBlank() ||
+                    it.label.contains(state.query, ignoreCase = true) ||
+                    it.packageName.contains(state.query, ignoreCase = true)
             }
     }
     val appKeys = remember(apps) { apps.map { it.packageName } }
     val listState = rememberLazyListState()
     var listMotionActive by remember { mutableStateOf(false) }
-    LaunchedEffect(query, showSystem, appKeys) {
+    LaunchedEffect(state.query, showSystem, appKeys) {
         listMotionActive = true
         delay(Motion.LIST_REFRESH_BOOST_MS)
         listMotionActive = false
@@ -142,7 +117,7 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
         haptics.performHapticFeedback(
             if (value) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff,
         )
-        scope.launch { store.setShowSystemApps(value) }
+        viewModel.setShowSystem(value)
     }
 
     Column(
@@ -172,7 +147,7 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
             Spacer(Modifier.width(8.dp))
             Box(Modifier.weight(1f)) {
                 androidx.compose.animation.AnimatedVisibility(
-                    visible = query.isEmpty(),
+                    visible = state.query.isEmpty(),
                     enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)),
                     exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)),
                 ) {
@@ -183,8 +158,8 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
                     )
                 }
                 BasicTextField(
-                    value = query,
-                    onValueChange = { query = it },
+                    value = state.query,
+                    onValueChange = viewModel::setQuery,
                     singleLine = true,
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = c.textPrimary),
                     cursorBrush = SolidColor(c.accent),
@@ -228,7 +203,7 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
                     .detourHighRefresh(listState.isScrollInProgress || listMotionActive),
             ) {
                 itemsIndexed(apps, key = { _, app -> app.packageName }) { i, app ->
-                    val current = routes[app.packageName] ?: AppRoute.DIRECT
+                    val current = state.routes[app.packageName] ?: AppRoute.DIRECT
                     val shape = when {
                         apps.size == 1 -> AppShapes.small
                         i == 0 -> RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp)
@@ -249,10 +224,7 @@ fun AppsScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modi
                             .clip(shape),
                     ) {
                         AppRow(app, current) { route ->
-                            scope.launch {
-                                store.setRoute(app.packageName, route)
-                                VpnController.restartIfActive(ctx)
-                            }
+                            viewModel.setAppRoute(app.packageName, route)
                         }
                         if (i < apps.lastIndex) {
                             Box(
