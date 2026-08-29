@@ -156,6 +156,8 @@ fun HomeScreen(viewModel: HomeViewModel, onOpenSettings: () -> Unit, modifier: M
                     busy = st == VpnState.Starting,
                     onClick = onMainAction,
                     modifier = Modifier
+                        .align(Alignment.Center)
+                        .widthIn(max = 480.dp)
                         .fillMaxWidth()
                         .padding(horizontal = Spacing.space16, vertical = Spacing.space20),
                 )
