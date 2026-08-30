@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FloatingActionButton
@@ -71,8 +72,8 @@ import dev.triplet.app.core.VlessKey
 import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.core.WarpConfigImporter
-import dev.triplet.app.core.WarpImportResult
 import dev.triplet.app.core.WarpProfile
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -97,6 +98,8 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
     val warpProfile = state.warpProfile
     val activeVpn = state.activeVpn
     val activeVlessId = state.activeVlessId
+    val warpImportStatus = state.warpImportStatus
+    val warpImporting = warpImportStatus == WarpImportStatus.IMPORTING
     val addDescription = stringResource(R.string.profile_add_title)
     val vlessTitle = stringResource(R.string.profile_add_vless)
 
@@ -104,7 +107,6 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
     var showSheet by rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     var sheetMode by remember { androidx.compose.runtime.mutableStateOf(ProfileSheetMode.PICKER) }
     var field by rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
-    var warpStatus by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
     val parse = remember(field) {
         field.trim().takeIf { it.isNotBlank() }?.let(VlessKeyParser::parse)
     }
@@ -117,6 +119,11 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                 runCatching { sheetState.hide() }
                 showSheet = false
             }
+        }
+    }
+    LaunchedEffect(viewModel) {
+        viewModel.warpImportRejected.collect {
+            haptics.performHapticFeedback(HapticFeedbackType.Reject)
         }
     }
 
@@ -136,27 +143,24 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
     }
 
     val warpLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-        if (uri == null) return@rememberLauncherForActivityResult
+        if (uri == null || !viewModel.beginWarpImport()) return@rememberLauncherForActivityResult
         scope.launch {
-            val result = runCatching {
-                withContext(Dispatchers.IO) {
-                    val raw = readWarpConfig(ctx, uri) ?: return@withContext WarpImportResult.Invalid
-                    WarpConfigImporter.parse(raw)
+            var handedOff = false
+            try {
+                val raw = try {
+                    withContext(Dispatchers.IO) {
+                        readWarpConfig(ctx, uri)
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    viewModel.reportWarpImportReadError()
+                    return@launch
                 }
-            }.getOrElse { WarpImportResult.Invalid }
-            when (result) {
-                is WarpImportResult.Ok -> {
-                    viewModel.replaceWarp(result.profile)
-                    warpStatus = 0
-                }
-                WarpImportResult.NoCompatibleProxies -> {
-                    warpStatus = 2
-                    haptics.performHapticFeedback(HapticFeedbackType.Reject)
-                }
-                WarpImportResult.Invalid -> {
-                    warpStatus = 3
-                    haptics.performHapticFeedback(HapticFeedbackType.Reject)
-                }
+                viewModel.importWarp(raw)
+                handedOff = true
+            } finally {
+                if (!handedOff) viewModel.cancelWarpImport()
             }
         }
     }
@@ -166,7 +170,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
         containerColor = c.background,
         floatingActionButton = {
             ProfileAddFab(
-                visible = !showSheet,
+                visible = !showSheet && !warpImporting,
                 addDescription = addDescription,
                 onClick = {
                     editingId = null
@@ -245,10 +249,8 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                                 WarpRow(
                                     profile = profile,
                                     selected = selected,
-                                    onEdit = {
-                                        warpStatus = 0
-                                        warpLauncher.launch(arrayOf("*/*"))
-                                    },
+                                    importing = warpImporting,
+                                    onEdit = { warpLauncher.launch(arrayOf("*/*")) },
                                     onDelete = viewModel::deleteWarp,
                                     onClick = {
                                         haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
@@ -261,20 +263,48 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                 }
 
                 AnimatedVisibility(
-                    visible = warpStatus != 0,
+                    visible = warpImportStatus != WarpImportStatus.IDLE,
                     enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)),
                     exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)),
                 ) {
                     Column {
                         Spacer(Modifier.height(Spacing.space8))
-                        Text(
-                            text = stringResource(
-                                if (warpStatus == 2) R.string.warp_invalid else R.string.warp_import_error,
-                            ),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = c.error,
-                            modifier = Modifier.padding(horizontal = Spacing.space20),
-                        )
+                        when (warpImportStatus) {
+                            WarpImportStatus.IMPORTING -> {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = Spacing.space20),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = c.accent,
+                                    )
+                                    Spacer(Modifier.size(Spacing.space8))
+                                    Text(
+                                        text = stringResource(R.string.warp_importing),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = c.textSecondary,
+                                    )
+                                }
+                            }
+                            WarpImportStatus.NO_COMPATIBLE_PROXIES,
+                            WarpImportStatus.ERROR -> {
+                                Text(
+                                    text = stringResource(
+                                        if (warpImportStatus == WarpImportStatus.NO_COMPATIBLE_PROXIES) {
+                                            R.string.warp_invalid
+                                        } else {
+                                            R.string.warp_import_error
+                                        },
+                                    ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = c.error,
+                                    modifier = Modifier.padding(horizontal = Spacing.space20),
+                                )
+                            }
+                            WarpImportStatus.IDLE -> Unit
+                        }
                     }
                 }
                 Spacer(Modifier.height(Spacing.space24))
@@ -354,7 +384,6 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                                 ),
                             ) {
                                 dismissSheet {
-                                    warpStatus = 0
                                     warpLauncher.launch(arrayOf("*/*"))
                                 }
                             }
@@ -611,6 +640,7 @@ private fun KeyRow(
 private fun WarpRow(
     profile: WarpProfile,
     selected: Boolean,
+    importing: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onClick: () -> Unit,
@@ -645,22 +675,30 @@ private fun WarpRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Row(horizontalArrangement = Arrangement.End) {
-            DetourIconButton(onClick = onEdit, size = 36) {
-                Icon(
-                    painterResource(R.drawable.ic_edit),
-                    contentDescription = stringResource(R.string.warp_replace),
-                    tint = c.textSecondary,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            DetourIconButton(onClick = onDelete, size = 36) {
-                Icon(
-                    painterResource(R.drawable.ic_delete),
-                    contentDescription = stringResource(R.string.warp_delete),
-                    tint = c.error,
-                    modifier = Modifier.size(18.dp),
-                )
+        if (importing) {
+            CircularProgressIndicator(
+                modifier = Modifier.padding(horizontal = Spacing.space12).size(18.dp),
+                strokeWidth = 2.dp,
+                color = c.accent,
+            )
+        } else {
+            Row(horizontalArrangement = Arrangement.End) {
+                DetourIconButton(onClick = onEdit, size = 36) {
+                    Icon(
+                        painterResource(R.drawable.ic_edit),
+                        contentDescription = stringResource(R.string.warp_replace),
+                        tint = c.textSecondary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                DetourIconButton(onClick = onDelete, size = 36) {
+                    Icon(
+                        painterResource(R.drawable.ic_delete),
+                        contentDescription = stringResource(R.string.warp_delete),
+                        tint = c.error,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
             }
         }
     }

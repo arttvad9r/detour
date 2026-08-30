@@ -32,6 +32,15 @@ class ProfilesViewModelStateTest {
         assertEquals(key.id, state.activeVlessId)
         assertEquals(VpnProfileKind.VLESS, state.activeVpn)
         assertNull(state.warpProfile)
+        assertEquals(WarpImportStatus.IDLE, state.warpImportStatus)
+    }
+
+    @Test fun `profile state carries WARP import status independently of settings`() {
+        val state = profilesUiState(null, WarpImportStatus.IMPORTING)
+
+        assertEquals(WarpImportStatus.IMPORTING, state.warpImportStatus)
+        assertEquals(emptyList<VlessKey>(), state.vlessItems)
+        assertNull(state.warpProfile)
     }
 
     @Test fun `null settings map to safe empty profile state`() {

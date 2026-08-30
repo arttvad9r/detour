@@ -5,29 +5,42 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import dev.triplet.app.core.VlessKey
 import dev.triplet.app.core.VpnProfileKind
+import dev.triplet.app.core.WarpConfigImporter
+import dev.triplet.app.core.WarpImportResult
 import dev.triplet.app.core.WarpProfile
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.data.TriSettings
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+enum class WarpImportStatus { IDLE, IMPORTING, NO_COMPATIBLE_PROXIES, ERROR }
 
 data class ProfilesUiState(
     val vlessItems: List<VlessKey> = emptyList(),
     val activeVlessId: String? = null,
     val warpProfile: WarpProfile? = null,
     val activeVpn: VpnProfileKind = VpnProfileKind.VLESS,
+    val warpImportStatus: WarpImportStatus = WarpImportStatus.IDLE,
 )
 
-internal fun profilesUiState(settings: TriSettings?): ProfilesUiState = ProfilesUiState(
+internal fun profilesUiState(
+    settings: TriSettings?,
+    warpImportStatus: WarpImportStatus = WarpImportStatus.IDLE,
+): ProfilesUiState = ProfilesUiState(
     vlessItems = settings?.vlessKeys?.items.orEmpty(),
     activeVlessId = settings?.vlessKeys?.activeId,
     warpProfile = settings?.warpProfile,
     activeVpn = settings?.activeVpn ?: VpnProfileKind.VLESS,
+    warpImportStatus = warpImportStatus,
 )
 
 internal enum class ProfileTunnelAction { NONE, RESTART, STOP }
@@ -66,13 +79,19 @@ class ProfilesViewModel(
     private val _profileSaved = MutableSharedFlow<ProfileSavedKind>(extraBufferCapacity = 1)
     val profileSaved: SharedFlow<ProfileSavedKind> = _profileSaved
 
-    val uiState: StateFlow<ProfilesUiState> = settings
-        .map(::profilesUiState)
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = profilesUiState(settings.value),
-        )
+    private val warpImportStatus = MutableStateFlow(WarpImportStatus.IDLE)
+    private val _warpImportRejected = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val warpImportRejected: SharedFlow<Unit> = _warpImportRejected
+
+    val uiState: StateFlow<ProfilesUiState> = combine(
+        settings,
+        warpImportStatus,
+        ::profilesUiState,
+    ).stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = profilesUiState(settings.value, warpImportStatus.value),
+    )
 
     fun saveVless(key: VlessKey, isNew: Boolean) {
         val state = profilesUiState(settings.value)
@@ -112,6 +131,69 @@ class ProfilesViewModel(
         }
     }
 
+    fun beginWarpImport(): Boolean {
+        if (warpImportStatus.value == WarpImportStatus.IMPORTING) return false
+        warpImportStatus.value = WarpImportStatus.IMPORTING
+        return true
+    }
+
+    fun cancelWarpImport() {
+        if (warpImportStatus.value == WarpImportStatus.IMPORTING) {
+            warpImportStatus.value = WarpImportStatus.IDLE
+        }
+    }
+
+    fun reportWarpImportReadError() {
+        if (warpImportStatus.value == WarpImportStatus.IMPORTING) {
+            failWarpImport(WarpImportStatus.ERROR)
+        }
+    }
+
+    fun importWarp(raw: String?) {
+        if (warpImportStatus.value != WarpImportStatus.IMPORTING) return
+        if (raw == null) {
+            failWarpImport(WarpImportStatus.ERROR)
+            return
+        }
+        viewModelScope.launch {
+            val result = try {
+                withContext(Dispatchers.Default) {
+                    WarpConfigImporter.parse(raw)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                failWarpImport(WarpImportStatus.ERROR)
+                return@launch
+            }
+
+            when (result) {
+                is WarpImportResult.Ok -> {
+                    val tunnelAction = warpMutationTunnelAction(
+                        profilesUiState(settings.value).activeVpn,
+                        deleting = false,
+                    )
+                    try {
+                        setWarpProfile(result.profile)
+                        applyTunnelAction(tunnelAction)
+                        warpImportStatus.value = WarpImportStatus.IDLE
+                        _profileSaved.emit(ProfileSavedKind.WARP)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        failWarpImport(WarpImportStatus.ERROR)
+                    }
+                }
+                WarpImportResult.NoCompatibleProxies -> {
+                    failWarpImport(WarpImportStatus.NO_COMPATIBLE_PROXIES)
+                }
+                WarpImportResult.Invalid -> {
+                    failWarpImport(WarpImportStatus.ERROR)
+                }
+            }
+        }
+    }
+
     fun replaceWarp(profile: WarpProfile) {
         val tunnelAction = warpMutationTunnelAction(
             profilesUiState(settings.value).activeVpn,
@@ -141,6 +223,11 @@ class ProfilesViewModel(
             setActiveVpn(VpnProfileKind.WARP)
             restartTunnel()
         }
+    }
+
+    private fun failWarpImport(status: WarpImportStatus) {
+        warpImportStatus.value = status
+        _warpImportRejected.tryEmit(Unit)
     }
 
     private fun applyTunnelAction(action: ProfileTunnelAction) {
