@@ -92,7 +92,7 @@ jobs:
             --expected-abi arm64-v8a
       - name: Upload APK size reports
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: apk-size-reports
           if-no-files-found: error
@@ -215,7 +215,7 @@ jobs:
           fi
       - name: Upload instrumentation diagnostics
         if: ${{ always() && (github.event_name == 'pull_request' || github.ref == 'refs/heads/master') }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: instrumentation-diagnostics
           if-no-files-found: ignore
