@@ -1,8 +1,11 @@
 package dev.triplet.app.ui
 
+import androidx.window.core.layout.WindowSizeClass
 import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.vpn.EffectiveRoutes
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HomePresentationTest {
@@ -42,6 +45,12 @@ class HomePresentationTest {
             HomeProfilePresentation(name = "Warp", server = null, endpointCount = 8),
             homeProfilePresentation(VpnProfileKind.WARP, vless, "Warp", 8),
         )
+    }
+
+    @Test fun `home split layout starts at expanded width`() {
+        assertFalse(homeUsesSplitLayout(WindowSizeClass(839, 900)))
+        assertTrue(homeUsesSplitLayout(WindowSizeClass(840, 900)))
+        assertTrue(homeUsesSplitLayout(WindowSizeClass(1600, 900)))
     }
 
     @Test fun `session elapsed formatting is stable and clamps negatives`() {

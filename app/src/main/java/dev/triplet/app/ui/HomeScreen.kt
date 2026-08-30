@@ -28,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -49,6 +50,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.window.core.layout.WindowSizeClass
+import androidx.window.core.layout.WindowSizeClass.Companion.WIDTH_DP_EXPANDED_LOWER_BOUND
 import dev.triplet.app.R
 import dev.triplet.app.core.DnsOptions
 import dev.triplet.app.core.VpnProfileKind
@@ -73,6 +76,9 @@ internal fun formatSessionElapsed(seconds: Int): String {
     return "%02d:%02d:%02d".format(h, m, sec)
 }
 
+internal fun homeUsesSplitLayout(windowSizeClass: WindowSizeClass): Boolean =
+    windowSizeClass.isWidthAtLeastBreakpoint(WIDTH_DP_EXPANDED_LOWER_BOUND)
+
 @Composable
 fun HomeScreen(viewModel: HomeViewModel, onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -80,6 +86,7 @@ fun HomeScreen(viewModel: HomeViewModel, onOpenSettings: () -> Unit, modifier: M
     val haptics = LocalHapticFeedback.current
     val st = uiState.vpnState
     val c = detourColors
+    val splitLayout = homeUsesSplitLayout(currentWindowAdaptiveInfoV2().windowSizeClass)
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.refreshRoutes()
@@ -191,29 +198,82 @@ fun HomeScreen(viewModel: HomeViewModel, onOpenSettings: () -> Unit, modifier: M
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 contentAlignment = Alignment.Center,
             ) {
-                Column(
-                    modifier = Modifier
-                        .padding(horizontal = Spacing.space16, vertical = Spacing.space24)
-                        .widthIn(max = 480.dp)
-                        .fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    ConnectionHero(
-                        state = visualState,
-                        statusContent = statusContent,
-                        sessionStartedAt = uiState.sessionStartedAt,
-                    )
-                    Spacer(Modifier.height(Spacing.space24))
-                    ConnectionDetails(
-                        profileName = uiState.profileName,
-                        activeVpn = uiState.activeVpn,
-                        serverHost = uiState.serverHost,
-                        endpointCount = uiState.endpointCount,
-                        protocol = stringResource(protocolRes),
-                        dns = dnsValue,
-                    )
-                }
+                HomeConnectionContent(
+                    splitLayout = splitLayout,
+                    state = visualState,
+                    statusContent = statusContent,
+                    sessionStartedAt = uiState.sessionStartedAt,
+                    profileName = uiState.profileName,
+                    activeVpn = uiState.activeVpn,
+                    serverHost = uiState.serverHost,
+                    endpointCount = uiState.endpointCount,
+                    protocol = stringResource(protocolRes),
+                    dns = dnsValue,
+                )
             }
+        }
+    }
+}
+
+@Composable
+private fun HomeConnectionContent(
+    splitLayout: Boolean,
+    state: VpnState,
+    statusContent: Color,
+    sessionStartedAt: Long?,
+    profileName: String?,
+    activeVpn: VpnProfileKind,
+    serverHost: String?,
+    endpointCount: Int,
+    protocol: String,
+    dns: String,
+) {
+    val contentModifier = Modifier
+        .padding(horizontal = Spacing.space16, vertical = Spacing.space24)
+        .widthIn(max = if (splitLayout) 960.dp else 480.dp)
+        .fillMaxWidth()
+
+    if (splitLayout) {
+        Row(
+            modifier = contentModifier,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.space32),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ConnectionHero(
+                state = state,
+                statusContent = statusContent,
+                sessionStartedAt = sessionStartedAt,
+                modifier = Modifier.weight(1f),
+            )
+            ConnectionDetails(
+                profileName = profileName,
+                activeVpn = activeVpn,
+                serverHost = serverHost,
+                endpointCount = endpointCount,
+                protocol = protocol,
+                dns = dns,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    } else {
+        Column(
+            modifier = contentModifier,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            ConnectionHero(
+                state = state,
+                statusContent = statusContent,
+                sessionStartedAt = sessionStartedAt,
+            )
+            Spacer(Modifier.height(Spacing.space24))
+            ConnectionDetails(
+                profileName = profileName,
+                activeVpn = activeVpn,
+                serverHost = serverHost,
+                endpointCount = endpointCount,
+                protocol = protocol,
+                dns = dns,
+            )
         }
     }
 }
