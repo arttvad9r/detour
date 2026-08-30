@@ -360,15 +360,17 @@ class TriVpnService : VpnService() {
         val cm = getSystemService(ConnectivityManager::class.java)
 
         // Seed the currently active underlying network before registering the
-        // callback. The first onAvailable() is an initial snapshot, not a network
-        // change, and must never restart a tunnel that just became Active.
+        // callback. The first capabilities callback is an initial snapshot, not a
+        // network change, and must never restart a tunnel that just became Active.
         lastNetwork = cm.activeNetwork?.takeIf { network ->
             cm.getNetworkCapabilities(network)?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) != true
         }
 
         val cb = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) {
-                val caps = cm.getNetworkCapabilities(network) ?: return
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                // Android guarantees these capabilities are ordered with the
+                // preceding onAvailable callback. Synchronous capability queries
+                // from inside onAvailable are explicitly documented as racy.
                 if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) return
 
                 val previous = lastNetwork
