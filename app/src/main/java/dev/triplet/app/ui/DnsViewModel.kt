@@ -1,8 +1,12 @@
 package dev.triplet.app.ui
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.triplet.app.core.DnsOptions
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.data.TriSettings
@@ -62,9 +66,10 @@ class DnsViewModel(
     private val settings: StateFlow<TriSettings?>,
     private val setDns: suspend (String, String) -> Unit,
     private val restartTunnel: () -> Unit,
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
-    private val customDraft = MutableStateFlow<String?>(null)
-    private val editingOverride = MutableStateFlow<Boolean?>(null)
+    private val customDraft = savedStateHandle.getStateFlow<String?>(KEY_CUSTOM_DRAFT, null)
+    private val editingOverride = savedStateHandle.getStateFlow<Boolean?>(KEY_EDITING_CUSTOM, null)
     private val selectionOverride = MutableStateFlow<String?>(null)
     private val saveState = MutableStateFlow(DnsSaveState.IDLE)
     private val writeMutex = Mutex()
@@ -88,15 +93,15 @@ class DnsViewModel(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = dnsUiState(settings.value, null, null),
+        initialValue = dnsUiState(settings.value, customDraft.value, editingOverride.value),
     )
 
     fun editCustom() {
-        editingOverride.value = true
+        savedStateHandle[KEY_EDITING_CUSTOM] = true
     }
 
     fun setCustomField(value: String) {
-        customDraft.value = value
+        savedStateHandle[KEY_CUSTOM_DRAFT] = value
         if (saveState.value == DnsSaveState.ERROR) saveState.value = DnsSaveState.IDLE
     }
 
@@ -104,7 +109,7 @@ class DnsViewModel(
         require(id in DnsOptions.servers)
         if (saveState.value == DnsSaveState.SAVING) return
         saveState.value = DnsSaveState.IDLE
-        editingOverride.value = null
+        savedStateHandle[KEY_EDITING_CUSTOM] = null
 
         val currentIntent = selectionOverride.value ?: persistedDnsSelection(settings.value)
         if (currentIntent == id) return
@@ -141,7 +146,7 @@ class DnsViewModel(
         if (current?.dnsId == DnsOptions.CUSTOM && current.dnsCustom.trim() == value) return
         if (saveState.value == DnsSaveState.SAVING) return
 
-        editingOverride.value = true
+        savedStateHandle[KEY_EDITING_CUSTOM] = true
         selectionOverride.value = DnsOptions.CUSTOM
         saveState.value = DnsSaveState.SAVING
         viewModelScope.launch {
@@ -160,8 +165,8 @@ class DnsViewModel(
                     restartTunnel()
 
                     if (customDraft.value?.trim() == value) {
-                        customDraft.value = null
-                        if (editingOverride.value == true) editingOverride.value = null
+                        savedStateHandle[KEY_CUSTOM_DRAFT] = null
+                        if (editingOverride.value == true) savedStateHandle[KEY_EDITING_CUSTOM] = null
                     }
                     if (selectionOverride.value == DnsOptions.CUSTOM) selectionOverride.value = null
                     saveState.value = DnsSaveState.IDLE
@@ -179,18 +184,20 @@ class DnsViewModel(
     }
 
     companion object {
+        private const val KEY_CUSTOM_DRAFT = "dns_custom_draft"
+        private const val KEY_EDITING_CUSTOM = "dns_editing_custom"
+
         fun factory(
             store: RoutesStore,
             restartTunnel: () -> Unit,
-        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                require(modelClass.isAssignableFrom(DnsViewModel::class.java))
-                @Suppress("UNCHECKED_CAST")
-                return DnsViewModel(
+        ): ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                DnsViewModel(
                     settings = store.settings,
                     setDns = store::setDns,
                     restartTunnel = restartTunnel,
-                ) as T
+                    savedStateHandle = createSavedStateHandle(),
+                )
             }
         }
     }

@@ -1,8 +1,12 @@
 package dev.triplet.app.ui
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.triplet.app.core.DpiArgs
 import dev.triplet.app.core.DpiPreset
 import dev.triplet.app.data.RoutesStore
@@ -60,9 +64,10 @@ class DpiViewModel(
     private val setPreset: suspend (DpiPreset) -> Unit,
     private val setCustomArgs: suspend (String) -> Unit,
     private val restartTunnel: () -> Unit,
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
-    private val customDraft = MutableStateFlow<String?>(null)
-    private val editingOverride = MutableStateFlow<Boolean?>(null)
+    private val customDraft = savedStateHandle.getStateFlow<String?>(KEY_CUSTOM_DRAFT, null)
+    private val editingOverride = savedStateHandle.getStateFlow<Boolean?>(KEY_EDITING_CUSTOM, null)
     private val presetOverride = MutableStateFlow<DpiPreset?>(null)
     private val saveState = MutableStateFlow(DpiSaveState.IDLE)
     private val writeMutex = Mutex()
@@ -86,22 +91,22 @@ class DpiViewModel(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = dpiUiState(settings.value, null, null),
+        initialValue = dpiUiState(settings.value, customDraft.value, editingOverride.value),
     )
 
     fun editCustom() {
-        editingOverride.value = true
+        savedStateHandle[KEY_EDITING_CUSTOM] = true
     }
 
     fun setCustomField(value: String) {
-        customDraft.value = value.replace("\r", " ").replace("\n", " ")
+        savedStateHandle[KEY_CUSTOM_DRAFT] = value.replace("\r", " ").replace("\n", " ")
         if (saveState.value == DpiSaveState.ERROR) saveState.value = DpiSaveState.IDLE
     }
 
     fun chooseRecommended() {
         if (saveState.value == DpiSaveState.SAVING) return
         saveState.value = DpiSaveState.IDLE
-        editingOverride.value = null
+        savedStateHandle[KEY_EDITING_CUSTOM] = null
 
         val currentIntent = presetOverride.value ?: settings.value?.preset ?: DpiPreset.RECOMMENDED
         if (currentIntent == DpiPreset.RECOMMENDED) return
@@ -138,7 +143,7 @@ class DpiViewModel(
         if (current?.preset == DpiPreset.CUSTOM && current.dpiCustomArgs.trim() == value) return
         if (saveState.value == DpiSaveState.SAVING) return
 
-        editingOverride.value = true
+        savedStateHandle[KEY_EDITING_CUSTOM] = true
         presetOverride.value = DpiPreset.CUSTOM
         saveState.value = DpiSaveState.SAVING
         viewModelScope.launch {
@@ -160,8 +165,8 @@ class DpiViewModel(
                     restartTunnel()
 
                     if (customDraft.value?.trim() == value) {
-                        customDraft.value = null
-                        if (editingOverride.value == true) editingOverride.value = null
+                        savedStateHandle[KEY_CUSTOM_DRAFT] = null
+                        if (editingOverride.value == true) savedStateHandle[KEY_EDITING_CUSTOM] = null
                     }
                     if (presetOverride.value == DpiPreset.CUSTOM) presetOverride.value = null
                     saveState.value = DpiSaveState.IDLE
@@ -179,19 +184,21 @@ class DpiViewModel(
     }
 
     companion object {
+        private const val KEY_CUSTOM_DRAFT = "dpi_custom_draft"
+        private const val KEY_EDITING_CUSTOM = "dpi_editing_custom"
+
         fun factory(
             store: RoutesStore,
             restartTunnel: () -> Unit,
-        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                require(modelClass.isAssignableFrom(DpiViewModel::class.java))
-                @Suppress("UNCHECKED_CAST")
-                return DpiViewModel(
+        ): ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                DpiViewModel(
                     settings = store.settings,
                     setPreset = store::setPreset,
                     setCustomArgs = store::setCustomArgs,
                     restartTunnel = restartTunnel,
-                ) as T
+                    savedStateHandle = createSavedStateHandle(),
+                )
             }
         }
     }

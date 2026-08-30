@@ -1,8 +1,12 @@
 package dev.triplet.app.ui
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.triplet.app.core.AppRoute
 import dev.triplet.app.data.AppInfo
 import dev.triplet.app.data.RoutesStore
@@ -81,9 +85,10 @@ class AppsViewModel(
     private val setShowSystemApps: suspend (Boolean) -> Unit,
     private val setRoute: suspend (String, AppRoute) -> Unit,
     private val restartTunnel: () -> Unit,
+    private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     private val inventory = MutableStateFlow(AppsInventoryState(initialApps))
-    private val query = MutableStateFlow("")
+    private val query = savedStateHandle.getStateFlow(KEY_QUERY, "")
     private val showSystemOverride = MutableStateFlow<Boolean?>(null)
     private val routeOverrides = MutableStateFlow<Map<String, AppRoute>>(emptyMap())
     private val showSystemWriteMutex = Mutex()
@@ -100,11 +105,11 @@ class AppsViewModel(
     ).stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = appsUiState(settings.value, inventory.value, ""),
+        initialValue = appsUiState(settings.value, inventory.value, query.value),
     )
 
     fun setQuery(value: String) {
-        query.value = value
+        savedStateHandle[KEY_QUERY] = value
     }
 
     fun refreshInventory() {
@@ -180,23 +185,24 @@ class AppsViewModel(
     }
 
     companion object {
+        private const val KEY_QUERY = "apps_query"
+
         fun factory(
             store: RoutesStore,
             initialApps: List<AppInfo>?,
             loadApps: suspend () -> List<AppInfo>,
             restartTunnel: () -> Unit,
-        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
-            override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                require(modelClass.isAssignableFrom(AppsViewModel::class.java))
-                @Suppress("UNCHECKED_CAST")
-                return AppsViewModel(
+        ): ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                AppsViewModel(
                     settings = store.settings,
                     initialApps = initialApps,
                     loadApps = loadApps,
                     setShowSystemApps = store::setShowSystemApps,
                     setRoute = store::setRoute,
                     restartTunnel = restartTunnel,
-                ) as T
+                    savedStateHandle = createSavedStateHandle(),
+                )
             }
         }
     }
