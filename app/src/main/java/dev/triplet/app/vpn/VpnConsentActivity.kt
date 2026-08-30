@@ -14,6 +14,10 @@ class VpnConsentActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // ActivityResultRegistry restores an in-flight launch across recreation.
+        // Relaunching here would create a second VPN consent activity for the same request.
+        if (savedInstanceState != null) return
+
         val intent = VpnService.prepare(this)
         if (intent == null) {
             VpnController.startNow(this)
