@@ -55,6 +55,7 @@ import dev.triplet.app.ui.SettingsMenuScreen
 import dev.triplet.app.ui.SettingsSection
 import dev.triplet.app.ui.SettingsMenuViewModel
 import dev.triplet.app.ui.ThemeScreen
+import dev.triplet.app.ui.ThemeViewModel
 import dev.triplet.app.ui.VlessKeyScreen
 import dev.triplet.app.ui.detourColors
 import dev.triplet.app.ui.detourHighRefresh
@@ -313,7 +314,10 @@ internal fun DetourNavigation(
             }
 
             entry<AppDestination.Theme>(metadata = ListDetailSceneStrategy.detailPane()) {
-                ThemeScreen(store, onBack = popBack)
+                val themeViewModel = viewModel<ThemeViewModel>(
+                    factory = ThemeViewModel.factory(store),
+                )
+                ThemeScreen(themeViewModel, onBack = popBack)
             }
 
             entry<AppDestination.Dns>(metadata = ListDetailSceneStrategy.detailPane()) {

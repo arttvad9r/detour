@@ -25,14 +25,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.triplet.app.R
-import dev.triplet.app.data.RoutesStore
 
 @Composable
-fun ThemeScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modifier) {
-    val themeViewModel = viewModel<ThemeViewModel>(factory = ThemeViewModel.factory(store))
-    val state by themeViewModel.uiState.collectAsStateWithLifecycle()
+fun ThemeScreen(viewModel: ThemeViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
     val c = detourColors
     val scrollState = rememberScrollState()
 
@@ -53,7 +50,7 @@ fun ThemeScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mod
                     ChoiceRow(
                         title = stringResource(themeLabel(theme)),
                         selected = state.selectedThemeId == theme.id,
-                        onClick = { themeViewModel.selectTheme(theme.id) },
+                        onClick = { viewModel.selectTheme(theme.id) },
                         trailing = { ThemePalettePreview(theme) },
                     )
                     if (i < AppTheme.entries.lastIndex) GroupDivider(startInset = 56)
