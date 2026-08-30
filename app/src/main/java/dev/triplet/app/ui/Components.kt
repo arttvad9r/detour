@@ -296,11 +296,14 @@ fun SettingRow(
 
 @Composable
 fun Chevron() {
-    Text(
-        "›", style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.Normal,
-        color = detourColors.textMuted.copy(alpha = .9f),
-        modifier = Modifier.padding(start = Spacing.space4),
+    Icon(
+        painterResource(R.drawable.ic_back),
+        contentDescription = null,
+        tint = detourColors.textMuted.copy(alpha = .9f),
+        modifier = Modifier
+            .padding(start = Spacing.space4)
+            .size(18.dp)
+            .graphicsLayer { rotationZ = 180f },
     )
 }
 

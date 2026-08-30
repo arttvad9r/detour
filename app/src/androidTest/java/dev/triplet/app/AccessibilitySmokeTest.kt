@@ -37,4 +37,12 @@ class AccessibilitySmokeTest {
         rule.onNodeWithContentDescription(label)
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Error, validationError))
     }
+
+    @Test fun settingsChevronsAreDecorativeOnly() {
+        rule.onNodeWithContentDescription(rule.activity.getString(R.string.cd_settings))
+            .performClick()
+
+        rule.onNodeWithText("›", useUnmergedTree = true)
+            .assertDoesNotExist()
+    }
 }
