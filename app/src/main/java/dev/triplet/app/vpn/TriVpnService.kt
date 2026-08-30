@@ -93,6 +93,7 @@ class TriVpnService : VpnService() {
 
     override fun onRevoke() {
         ServiceLog.w("vpn permission revoked")
+        stopQueued.set(true)
         executor.execute { stopSequence(stopSelf = true) }
     }
 
