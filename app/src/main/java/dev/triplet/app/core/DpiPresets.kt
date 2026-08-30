@@ -24,7 +24,11 @@ enum class DpiPreset(val id: String, val args: List<String>) {
 /** Разбор пользовательской строки аргументов ciadpi и выбор источника стратегии. */
 object DpiArgs {
     private const val MAX_TOKENS = 64
+    private const val UINT_MAX = 0xffff_ffffL
     private val allowed = setOf("-d", "-s", "-a", "--timeout")
+    private val decimalSeconds = Regex(
+        """[+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:[eE][+-]?\d+)?""",
+    )
 
     fun resolve(preset: DpiPreset, customRaw: String): List<String> =
         if (preset == DpiPreset.CUSTOM) tokenize(customRaw) else preset.args
@@ -34,13 +38,60 @@ object DpiArgs {
         if (raw.trim().split(Regex("\\s+")).count { it.isNotBlank() } > MAX_TOKENS) return false
         if (tokens.isEmpty() || tokens.any { it.any { c -> c.code < 0x20 || c.code == 0x7f } }) return false
         if (tokens.any { it in setOf("-i", "-p", "-U", "--daemon", "--pid", "--log", "--bind", "--listen") }) return false
-        var expecting = false
+
+        var option: String? = null
         tokens.forEach { token ->
-            if (expecting) { expecting = false; return@forEach }
-            if (token !in allowed) return false
-            expecting = true
+            val current = option
+            if (current == null) {
+                if (token !in allowed) return false
+                option = token
+            } else {
+                if (!isValueValid(current, token)) return false
+                option = null
+            }
         }
-        return !expecting
+        return option == null
+    }
+
+    private fun isValueValid(option: String, value: String): Boolean = when (option) {
+        "-a" -> parseCInteger(value)?.let { it in 0..Int.MAX_VALUE.toLong() } == true
+        "--timeout" -> {
+            // Pinned ByeDPI v0.17.3 parses Linux timeout with strtof(), converts
+            // seconds to integer milliseconds, then compares that integer to UINT_MAX.
+            if (!decimalSeconds.matches(value)) false
+            else value.toFloatOrNull()?.let { seconds ->
+                val millis = seconds * 1000f
+                seconds.isFinite() && millis.isFinite() && millis.toLong() in 1..UINT_MAX
+            } == true
+        }
+        // -s/-d use ByeDPI's permissive parse_offset(). Do not invent a stricter
+        // grammar here than the exact binary bundled by Detour accepts.
+        "-s", "-d" -> true
+        else -> false
+    }
+
+    /** Match strtol(..., base=0) for the narrow integer option we expose. */
+    private fun parseCInteger(value: String): Long? {
+        if (value.isEmpty()) return null
+        var body = value
+        var negative = false
+        when (body.first()) {
+            '+' -> body = body.drop(1)
+            '-' -> {
+                negative = true
+                body = body.drop(1)
+            }
+        }
+        if (body.isEmpty()) return null
+
+        val (digits, radix) = when {
+            body.startsWith("0x", ignoreCase = true) -> body.drop(2) to 16
+            body.length > 1 && body.startsWith('0') -> body.drop(1) to 8
+            else -> body to 10
+        }
+        if (digits.isEmpty()) return if (body == "0") 0L else null
+        val parsed = digits.toLongOrNull(radix) ?: return null
+        return if (negative) -parsed else parsed
     }
 
     /** Пробелы/переводы строк -> argv; пустые токены отбрасываются, длина ограничена. */
