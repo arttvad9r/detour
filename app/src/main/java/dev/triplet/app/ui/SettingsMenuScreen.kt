@@ -1,6 +1,7 @@
 package dev.triplet.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,21 +23,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
 
+internal enum class SettingsSection { ROUTES, PROFILES, DPI, DNS, BACKUP, APPEARANCE }
+
 private data class MenuItem(
     val titleRes: Int,
     val sub: @Composable () -> String,
     val iconRes: Int,
+    val section: SettingsSection,
 )
 
 @Composable
-fun SettingsMenuScreen(
+internal fun SettingsMenuScreen(
     viewModel: SettingsMenuViewModel,
+    selectedSection: SettingsSection?,
     onOpenRoutes: () -> Unit,
     onOpenVless: () -> Unit,
     onOpenDpi: () -> Unit,
@@ -60,6 +67,7 @@ fun SettingsMenuScreen(
         R.string.nav_routes,
         { stringResource(R.string.nav_routes_sub, state.routedCount) },
         R.drawable.ic_routes,
+        SettingsSection.ROUTES,
     ) to onOpenRoutes
     val profiles = MenuItem(
         R.string.nav_key,
@@ -74,26 +82,31 @@ fun SettingsMenuScreen(
             )
         },
         R.drawable.ic_lock,
+        SettingsSection.PROFILES,
     ) to onOpenVless
     val dpi = MenuItem(
         R.string.nav_dpi,
         { stringResource(R.string.nav_dpi_sub) },
         R.drawable.ic_dpi,
+        SettingsSection.DPI,
     ) to onOpenDpi
     val dns = MenuItem(
         R.string.nav_dns,
         { stringResource(R.string.nav_dns_sub) },
         R.drawable.ic_globe,
+        SettingsSection.DNS,
     ) to onOpenDns
     val backup = MenuItem(
         R.string.nav_backup,
         { stringResource(R.string.nav_backup_sub) },
         R.drawable.ic_export,
+        SettingsSection.BACKUP,
     ) to onOpenBackup
     val appearance = MenuItem(
         R.string.nav_theme,
         { stringResource(themeLabel(theme)) },
         R.drawable.ic_theme,
+        SettingsSection.APPEARANCE,
     ) to onOpenTheme
 
     Column(
@@ -114,13 +127,13 @@ fun SettingsMenuScreen(
             Spacer(Modifier.height(Spacing.space8))
             SettingsSectionLabel(R.string.settings_section_routing)
             Spacer(Modifier.height(Spacing.space8))
-            SettingsGroup(listOf(routes, profiles))
+            SettingsGroup(listOf(routes, profiles), selectedSection)
 
             Spacer(Modifier.height(Spacing.space20))
             SettingsSectionLabel(R.string.settings_section_connection)
             Spacer(Modifier.height(Spacing.space8))
             DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-                SettingsRows(listOf(dpi, dns))
+                SettingsRows(listOf(dpi, dns), selectedSection)
                 GroupDivider()
                 Row(
                     Modifier.fillMaxWidth()
@@ -163,7 +176,7 @@ fun SettingsMenuScreen(
             Spacer(Modifier.height(Spacing.space20))
             SettingsSectionLabel(R.string.settings_section_app)
             Spacer(Modifier.height(Spacing.space8))
-            SettingsGroup(listOf(backup, appearance))
+            SettingsGroup(listOf(backup, appearance), selectedSection)
 
             Spacer(Modifier.height(Spacing.space24))
         }
@@ -181,21 +194,40 @@ private fun SettingsSectionLabel(titleRes: Int) {
 }
 
 @Composable
-private fun SettingsGroup(items: List<Pair<MenuItem, () -> Unit>>) {
+private fun SettingsGroup(
+    items: List<Pair<MenuItem, () -> Unit>>,
+    selectedSection: SettingsSection?,
+) {
     DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-        SettingsRows(items)
+        SettingsRows(items, selectedSection)
     }
 }
 
 @Composable
-private fun SettingsRows(items: List<Pair<MenuItem, () -> Unit>>) {
+private fun SettingsRows(
+    items: List<Pair<MenuItem, () -> Unit>>,
+    selectedSection: SettingsSection?,
+) {
     items.forEachIndexed { index, (item, onClick) ->
-        SettingRow(
-            title = stringResource(item.titleRes),
-            subtitle = item.sub(),
-            iconRes = item.iconRes,
-            onClick = onClick,
-        )
+        val selected = item.section == selectedSection
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .background(
+                    if (selected) detourColors.accentSoft else androidx.compose.ui.graphics.Color.Transparent,
+                )
+                .semantics { this.selected = selected },
+        ) {
+            SettingRow(
+                title = stringResource(item.titleRes),
+                subtitle = item.sub(),
+                iconRes = item.iconRes,
+                onClick = onClick,
+                trailing = if (selected) {
+                    { SelectionMark(selected = true, modifier = Modifier.padding(end = Spacing.space8)) }
+                } else null,
+            )
+        }
         if (index < items.lastIndex) GroupDivider()
     }
 }

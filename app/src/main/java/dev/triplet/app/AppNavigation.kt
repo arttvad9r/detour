@@ -50,6 +50,7 @@ import dev.triplet.app.ui.HomeViewModel
 import dev.triplet.app.ui.Motion
 import dev.triplet.app.ui.ProfilesViewModel
 import dev.triplet.app.ui.SettingsMenuScreen
+import dev.triplet.app.ui.SettingsSection
 import dev.triplet.app.ui.SettingsMenuViewModel
 import dev.triplet.app.ui.ThemeScreen
 import dev.triplet.app.ui.VlessKeyScreen
@@ -89,6 +90,18 @@ internal sealed interface AppDestination : NavKey {
 
     @Serializable
     data object Backup : AppDestination
+}
+
+private fun AppDestination.settingsSectionOrNull(): SettingsSection? = when (this) {
+    AppDestination.Routes -> SettingsSection.ROUTES
+    AppDestination.Vless -> SettingsSection.PROFILES
+    AppDestination.Dpi -> SettingsSection.DPI
+    AppDestination.Dns -> SettingsSection.DNS
+    AppDestination.Backup -> SettingsSection.BACKUP
+    AppDestination.Theme -> SettingsSection.APPEARANCE
+    AppDestination.Home,
+    AppDestination.Settings,
+    -> null
 }
 
 private fun AppDestination.isSettingsDetail(): Boolean = when (this) {
@@ -231,7 +244,8 @@ internal fun DetourNavigation(
                     ),
                 )
                 SettingsMenuScreen(
-                    settingsViewModel,
+                    viewModel = settingsViewModel,
+                    selectedSection = (currentDestination as? AppDestination)?.settingsSectionOrNull(),
                     onOpenRoutes = { openSettingsDetail(AppDestination.Routes) },
                     onOpenVless = { openSettingsDetail(AppDestination.Vless) },
                     onOpenDpi = { openSettingsDetail(AppDestination.Dpi) },
