@@ -46,7 +46,10 @@ jobs:
           gomobile init
       - run: ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest :app:assembleRelease
       - name: Report universal release APK size
-        run: python3 tools/apk_size_report.py app/build/outputs/apk/release
+        run: >-
+          python3 tools/apk_size_report.py app/build/outputs/apk/release
+          --expected-abi arm64-v8a
+          --expected-abi x86_64
       - run: bash engine/vulnscan.sh
       - name: Generate disposable CI release keystore
         shell: bash

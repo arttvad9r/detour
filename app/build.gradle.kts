@@ -48,10 +48,11 @@ android {
         versionName = versionNameOverride ?: "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Normal builds keep both ABIs for emulator/device coverage. Distribution
-        // release builds may opt into one ABI without changing debug/androidTest packaging.
-        releaseAbi?.let { abi ->
-            ndk { abiFilters += abi }
+        // Package only ABIs for which Detour ships both native engines. Normal
+        // builds keep arm64 + x86_64 for device/emulator coverage; distribution
+        // releases may narrow this to one supported ABI.
+        ndk {
+            abiFilters += releaseAbi?.let { setOf(it) } ?: supportedReleaseAbis
         }
     }
 
