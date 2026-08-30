@@ -3,6 +3,7 @@ package dev.triplet.app.core
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -15,10 +16,14 @@ class DnsOptionsTest {
     @Test fun `custom is used only for custom id`() {
         assertEquals("9.9.9.9", DnsOptions.resolve("custom", " 9.9.9.9 "))
         assertEquals("8.8.8.8", DnsOptions.resolve("google", "9.9.9.9"))
-        assertEquals("8.8.8.8", DnsOptions.resolve("custom", "  "))
+        assertThrows(IllegalArgumentException::class.java) {
+            DnsOptions.resolve("custom", "  ")
+        }
     }
-    @Test fun `unknown id falls back to default`() {
-        assertEquals("8.8.8.8", DnsOptions.resolve("bogus", ""))
+    @Test fun `unknown id fails closed`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            DnsOptions.resolve("bogus", "")
+        }
     }
     @Test fun `unknown selection is rejected`() {
         assertFalse(DnsOptions.isSelectionValid("bogus", ""))
