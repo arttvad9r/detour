@@ -15,19 +15,9 @@ import org.junit.Test
 class AppsViewModelStateTest {
     @Test fun `app state combines inventory routes visibility and query`() {
         val app = AppInfo("com.example.app", "Example", false)
-        val settings = TriSettings(
-            vlessKeys = VlessKeys(emptyList(), null),
-            warpProfile = null,
-            activeVpn = VpnProfileKind.VLESS,
-            preset = DpiPreset.RECOMMENDED,
-            dpiCustomArgs = "",
-            autoConnect = false,
-            themeId = "",
-            dnsId = "google",
-            dnsCustom = "",
+        val settings = settings(
             routes = mapOf(app.packageName to AppRoute.VPN),
             showSystemApps = true,
-            sessionStartedAt = null,
         )
 
         val state = appsUiState(
@@ -40,6 +30,42 @@ class AppsViewModelStateTest {
         assertTrue(state.showSystemApps)
         assertEquals("example", state.query)
         assertEquals(AppsInventoryStatus.READY, state.inventoryStatus)
+    }
+
+    @Test fun `pending system apps intent overrides lagging persistence`() {
+        val state = appsUiState(
+            settings = settings(showSystemApps = false),
+            inventory = AppsInventoryState(emptyList(), AppsInventoryStatus.READY),
+            query = "",
+            showSystemOverride = true,
+        )
+
+        assertTrue(state.showSystemApps)
+    }
+
+    @Test fun `pending direct route overrides persisted vpn route`() {
+        val packageName = "com.example.app"
+        val state = appsUiState(
+            settings = settings(routes = mapOf(packageName to AppRoute.VPN)),
+            inventory = AppsInventoryState(emptyList(), AppsInventoryStatus.READY),
+            query = "",
+            routeOverrides = mapOf(packageName to AppRoute.DIRECT),
+        )
+
+        assertEquals(AppRoute.DIRECT, state.routes[packageName] ?: AppRoute.DIRECT)
+        assertFalse(state.routes.containsKey(packageName))
+    }
+
+    @Test fun `pending dpi route overrides persisted direct route`() {
+        val packageName = "com.example.app"
+        val state = appsUiState(
+            settings = settings(),
+            inventory = AppsInventoryState(emptyList(), AppsInventoryStatus.READY),
+            query = "",
+            routeOverrides = mapOf(packageName to AppRoute.DPI),
+        )
+
+        assertEquals(AppRoute.DPI, state.routes[packageName])
     }
 
     @Test fun `null settings keep safe defaults while initial inventory is loading`() {
@@ -83,4 +109,22 @@ class AppsViewModelStateTest {
         assertNull(failed.apps)
         assertEquals(AppsInventoryStatus.ERROR, failed.status)
     }
+
+    private fun settings(
+        routes: Map<String, AppRoute> = emptyMap(),
+        showSystemApps: Boolean = false,
+    ) = TriSettings(
+        vlessKeys = VlessKeys(emptyList(), null),
+        warpProfile = null,
+        activeVpn = VpnProfileKind.VLESS,
+        preset = DpiPreset.RECOMMENDED,
+        dpiCustomArgs = "",
+        autoConnect = false,
+        themeId = "",
+        dnsId = "google",
+        dnsCustom = "",
+        routes = routes,
+        showSystemApps = showSystemApps,
+        sessionStartedAt = null,
+    )
 }

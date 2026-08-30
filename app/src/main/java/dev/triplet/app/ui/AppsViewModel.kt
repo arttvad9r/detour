@@ -7,13 +7,17 @@ import dev.triplet.app.core.AppRoute
 import dev.triplet.app.data.AppInfo
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.data.TriSettings
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 enum class AppsInventoryStatus { LOADING, READY, ERROR }
 
@@ -34,14 +38,28 @@ data class AppsUiState(
     },
 )
 
+private fun routeFor(settings: TriSettings?, packageName: String): AppRoute =
+    settings?.routes?.get(packageName) ?: AppRoute.DIRECT
+
+private fun applyRouteOverrides(
+    persisted: Map<String, AppRoute>,
+    overrides: Map<String, AppRoute>,
+): Map<String, AppRoute> = persisted.toMutableMap().apply {
+    overrides.forEach { (packageName, route) ->
+        if (route == AppRoute.DIRECT) remove(packageName) else put(packageName, route)
+    }
+}
+
 internal fun appsUiState(
     settings: TriSettings?,
     inventory: AppsInventoryState,
     query: String,
+    showSystemOverride: Boolean? = null,
+    routeOverrides: Map<String, AppRoute> = emptyMap(),
 ): AppsUiState = AppsUiState(
     loadedApps = inventory.apps,
-    routes = settings?.routes.orEmpty(),
-    showSystemApps = settings?.showSystemApps ?: false,
+    routes = applyRouteOverrides(settings?.routes.orEmpty(), routeOverrides),
+    showSystemApps = showSystemOverride ?: (settings?.showSystemApps ?: false),
     query = query,
     inventoryStatus = inventory.status,
 )
@@ -66,12 +84,18 @@ class AppsViewModel(
 ) : ViewModel() {
     private val inventory = MutableStateFlow(AppsInventoryState(initialApps))
     private val query = MutableStateFlow("")
+    private val showSystemOverride = MutableStateFlow<Boolean?>(null)
+    private val routeOverrides = MutableStateFlow<Map<String, AppRoute>>(emptyMap())
+    private val showSystemWriteMutex = Mutex()
+    private val routeWriteMutex = Mutex()
     private var refreshJob: Job? = null
 
     val uiState: StateFlow<AppsUiState> = combine(
         settings,
         inventory,
         query,
+        showSystemOverride,
+        routeOverrides,
         ::appsUiState,
     ).stateIn(
         scope = viewModelScope,
@@ -97,16 +121,61 @@ class AppsViewModel(
     }
 
     fun setShowSystem(value: Boolean) {
-        if (settings.value?.showSystemApps == value) return
-        viewModelScope.launch { setShowSystemApps(value) }
+        val currentIntent = showSystemOverride.value ?: (settings.value?.showSystemApps ?: false)
+        if (currentIntent == value) return
+        showSystemOverride.value = value
+
+        viewModelScope.launch {
+            showSystemWriteMutex.withLock {
+                val desired = showSystemOverride.value ?: return@withLock
+                try {
+                    if (settings.value?.showSystemApps != desired) {
+                        setShowSystemApps(desired)
+                    }
+                    if (settings.value?.showSystemApps != desired) {
+                        settings.first { it?.showSystemApps == desired }
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    if (showSystemOverride.value == desired) showSystemOverride.value = null
+                    return@withLock
+                }
+
+                if (showSystemOverride.value == desired) showSystemOverride.value = null
+            }
+        }
     }
 
     fun setAppRoute(packageName: String, route: AppRoute) {
-        val current = settings.value?.routes?.get(packageName) ?: AppRoute.DIRECT
-        if (current == route) return
+        val currentIntent = routeOverrides.value[packageName] ?: routeFor(settings.value, packageName)
+        if (currentIntent == route) return
+        routeOverrides.value = routeOverrides.value + (packageName to route)
+
         viewModelScope.launch {
-            setRoute(packageName, route)
-            restartTunnel()
+            routeWriteMutex.withLock {
+                val desired = routeOverrides.value[packageName] ?: return@withLock
+                try {
+                    if (routeFor(settings.value, packageName) != desired) {
+                        setRoute(packageName, desired)
+                        if (routeFor(settings.value, packageName) != desired) {
+                            settings.first { routeFor(it, packageName) == desired }
+                        }
+                        restartTunnel()
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    if (routeOverrides.value[packageName] == desired) {
+                        routeOverrides.value = routeOverrides.value - packageName
+                    }
+                    return@withLock
+                }
+
+                if (routeOverrides.value[packageName] == desired) {
+                    routeOverrides.value = routeOverrides.value - packageName
+                }
+            }
         }
     }
 
