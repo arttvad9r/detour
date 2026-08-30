@@ -18,8 +18,11 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 enum class WarpImportStatus { IDLE, IMPORTING, NO_COMPATIBLE_PROXIES, ERROR }
@@ -41,6 +44,11 @@ sealed interface ProfileDeleteRequest {
     ) : ProfileDeleteRequest
 }
 
+sealed interface ProfileSelection {
+    data class Vless(val keyId: String) : ProfileSelection
+    data object Warp : ProfileSelection
+}
+
 data class ProfilesUiState(
     val vlessItems: List<VlessKey> = emptyList(),
     val activeVlessId: String? = null,
@@ -50,18 +58,35 @@ data class ProfilesUiState(
     val vlessSaveStatus: VlessSaveStatus = VlessSaveStatus.IDLE,
 )
 
+internal fun persistedProfileSelection(settings: TriSettings?): ProfileSelection? = when (settings?.activeVpn) {
+    VpnProfileKind.VLESS -> settings.vlessKeys.activeId?.let(ProfileSelection::Vless)
+    VpnProfileKind.WARP -> ProfileSelection.Warp
+    null -> null
+}
+
 internal fun profilesUiState(
     settings: TriSettings?,
     warpImportStatus: WarpImportStatus = WarpImportStatus.IDLE,
     vlessSaveStatus: VlessSaveStatus = VlessSaveStatus.IDLE,
-): ProfilesUiState = ProfilesUiState(
-    vlessItems = settings?.vlessKeys?.items.orEmpty(),
-    activeVlessId = settings?.vlessKeys?.activeId,
-    warpProfile = settings?.warpProfile,
-    activeVpn = settings?.activeVpn ?: VpnProfileKind.VLESS,
-    warpImportStatus = warpImportStatus,
-    vlessSaveStatus = vlessSaveStatus,
-)
+    selectionOverride: ProfileSelection? = null,
+): ProfilesUiState {
+    val selection = selectionOverride ?: persistedProfileSelection(settings)
+    return ProfilesUiState(
+        vlessItems = settings?.vlessKeys?.items.orEmpty(),
+        activeVlessId = when (selection) {
+            is ProfileSelection.Vless -> selection.keyId
+            ProfileSelection.Warp, null -> settings?.vlessKeys?.activeId
+        },
+        warpProfile = settings?.warpProfile,
+        activeVpn = when (selection) {
+            is ProfileSelection.Vless -> VpnProfileKind.VLESS
+            ProfileSelection.Warp -> VpnProfileKind.WARP
+            null -> settings?.activeVpn ?: VpnProfileKind.VLESS
+        },
+        warpImportStatus = warpImportStatus,
+        vlessSaveStatus = vlessSaveStatus,
+    )
+}
 
 internal fun vlessDeleteRequest(
     settings: TriSettings?,
@@ -116,6 +141,8 @@ class ProfilesViewModel(
 
     private val vlessSaveStatus = MutableStateFlow(VlessSaveStatus.IDLE)
     private val warpImportStatus = MutableStateFlow(WarpImportStatus.IDLE)
+    private val selectionOverride = MutableStateFlow<ProfileSelection?>(null)
+    private val selectionWriteMutex = Mutex()
     private val _warpImportRejected = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val warpImportRejected: SharedFlow<Unit> = _warpImportRejected
 
@@ -126,12 +153,23 @@ class ProfilesViewModel(
         settings,
         warpImportStatus,
         vlessSaveStatus,
-    ) { currentSettings, currentWarpStatus, currentVlessSaveStatus ->
-        profilesUiState(currentSettings, currentWarpStatus, currentVlessSaveStatus)
+        selectionOverride,
+    ) { currentSettings, currentWarpStatus, currentVlessSaveStatus, currentSelectionOverride ->
+        profilesUiState(
+            currentSettings,
+            currentWarpStatus,
+            currentVlessSaveStatus,
+            currentSelectionOverride,
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = profilesUiState(settings.value, warpImportStatus.value, vlessSaveStatus.value),
+        initialValue = profilesUiState(
+            settings.value,
+            warpImportStatus.value,
+            vlessSaveStatus.value,
+            selectionOverride.value,
+        ),
     )
 
     fun saveVless(key: VlessKey, isNew: Boolean) {
@@ -175,12 +213,7 @@ class ProfilesViewModel(
     }
 
     fun selectVless(keyId: String) {
-        val state = profilesUiState(settings.value)
-        if (state.activeVpn == VpnProfileKind.VLESS && state.activeVlessId == keyId) return
-        viewModelScope.launch {
-            setActiveVlessKey(keyId)
-            restartTunnel()
-        }
+        selectProfile(ProfileSelection.Vless(keyId))
     }
 
     fun beginWarpImport(): Boolean {
@@ -286,10 +319,37 @@ class ProfilesViewModel(
     }
 
     fun selectWarp() {
-        if (profilesUiState(settings.value).activeVpn == VpnProfileKind.WARP) return
+        selectProfile(ProfileSelection.Warp)
+    }
+
+    private fun selectProfile(selection: ProfileSelection) {
+        val currentIntent = selectionOverride.value ?: persistedProfileSelection(settings.value)
+        if (currentIntent == selection) return
+        selectionOverride.value = selection
+
         viewModelScope.launch {
-            setActiveVpn(VpnProfileKind.WARP)
-            restartTunnel()
+            selectionWriteMutex.withLock {
+                val desired = selectionOverride.value ?: return@withLock
+                try {
+                    if (persistedProfileSelection(settings.value) != desired) {
+                        when (desired) {
+                            is ProfileSelection.Vless -> setActiveVlessKey(desired.keyId)
+                            ProfileSelection.Warp -> setActiveVpn(VpnProfileKind.WARP)
+                        }
+                        if (persistedProfileSelection(settings.value) != desired) {
+                            settings.first { persistedProfileSelection(it) == desired }
+                        }
+                        restartTunnel()
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    if (selectionOverride.value == desired) selectionOverride.value = null
+                    return@withLock
+                }
+
+                if (selectionOverride.value == desired) selectionOverride.value = null
+            }
         }
     }
 

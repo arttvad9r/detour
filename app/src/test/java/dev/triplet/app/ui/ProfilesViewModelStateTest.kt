@@ -36,6 +36,56 @@ class ProfilesViewModelStateTest {
         assertEquals(VlessSaveStatus.IDLE, state.vlessSaveStatus)
     }
 
+    @Test fun `pending VLESS selection overrides lagging WARP persistence`() {
+        val key = VlessKey("next", "Server", "vless://example")
+        val settings = TriSettings(
+            vlessKeys = VlessKeys(listOf(key), key.id),
+            warpProfile = null,
+            activeVpn = VpnProfileKind.WARP,
+            preset = DpiPreset.RECOMMENDED,
+            dpiCustomArgs = "",
+            autoConnect = false,
+            themeId = "",
+            dnsId = "google",
+            dnsCustom = "",
+            routes = emptyMap(),
+            showSystemApps = false,
+            sessionStartedAt = null,
+        )
+
+        val state = profilesUiState(
+            settings,
+            selectionOverride = ProfileSelection.Vless(key.id),
+        )
+
+        assertEquals(VpnProfileKind.VLESS, state.activeVpn)
+        assertEquals(key.id, state.activeVlessId)
+    }
+
+    @Test fun `pending WARP selection overrides lagging VLESS persistence`() {
+        val key = VlessKey("active", "Server", "vless://example")
+        val settings = TriSettings(
+            vlessKeys = VlessKeys(listOf(key), key.id),
+            warpProfile = null,
+            activeVpn = VpnProfileKind.VLESS,
+            preset = DpiPreset.RECOMMENDED,
+            dpiCustomArgs = "",
+            autoConnect = false,
+            themeId = "",
+            dnsId = "google",
+            dnsCustom = "",
+            routes = emptyMap(),
+            showSystemApps = false,
+            sessionStartedAt = null,
+        )
+
+        val state = profilesUiState(settings, selectionOverride = ProfileSelection.Warp)
+
+        assertEquals(VpnProfileKind.WARP, state.activeVpn)
+        assertEquals(key.id, state.activeVlessId)
+        assertEquals(ProfileSelection.Vless(key.id), persistedProfileSelection(settings))
+    }
+
     @Test fun `profile state carries WARP import status independently of settings`() {
         val state = profilesUiState(null, WarpImportStatus.IMPORTING)
 
