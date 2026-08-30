@@ -62,6 +62,8 @@ import dev.triplet.app.vpn.VpnState
 import dev.triplet.app.vpn.resolveEffectiveRoutes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
 private object Route {
@@ -85,9 +87,14 @@ class MainActivity : ComponentActivity() {
         configureAdaptiveRefresh(window)
         val store = (application as TripletApp).routesStore
         val appContext = applicationContext
+        val initialTheme = AppTheme.byId(store.settings.value?.themeId.orEmpty())
         setContent {
-            val settings by store.settings.collectAsStateWithLifecycle()
-            val theme = AppTheme.byId(settings?.themeId ?: "")
+            val themeFlow = remember(store) {
+                store.settings
+                    .map { AppTheme.byId(it?.themeId.orEmpty()) }
+                    .distinctUntilChanged()
+            }
+            val theme by themeFlow.collectAsStateWithLifecycle(initialValue = initialTheme)
             val target = theme.colors
             var previousDark by remember { mutableStateOf(theme.dark) }
             val themeAnimation = tween<Color>(themeTransitionDuration(previousDark, theme.dark))
