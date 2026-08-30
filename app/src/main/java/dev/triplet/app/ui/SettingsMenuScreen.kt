@@ -16,41 +16,27 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.produceState
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
-import dev.triplet.app.data.RoutesStore
-import dev.triplet.app.data.TriSettings
-import dev.triplet.app.vpn.resolveEffectiveRoutes
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 private data class MenuItem(
     val titleRes: Int,
-    val sub: @Composable (TriSettings?) -> String,
+    val sub: @Composable () -> String,
     val iconRes: Int,
 )
 
 @Composable
 fun SettingsMenuScreen(
-    store: RoutesStore,
+    viewModel: SettingsMenuViewModel,
     onOpenRoutes: () -> Unit,
     onOpenVless: () -> Unit,
     onOpenDpi: () -> Unit,
@@ -60,53 +46,30 @@ fun SettingsMenuScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val ctx = LocalContext.current
-    val settings by store.settings.collectAsStateWithLifecycle()
-    val scope = rememberCoroutineScope()
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
     val haptics = LocalHapticFeedback.current
     val c = detourColors
-    val persistedRoutes = settings?.routes.orEmpty()
-    var routeRevision by remember { mutableIntStateOf(0) }
-    DisposableEffect(ctx) {
-        val owner = ctx as? LifecycleOwner
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) routeRevision++
-        }
-        owner?.lifecycle?.addObserver(observer)
-        onDispose { owner?.lifecycle?.removeObserver(observer) }
+    val theme = LocalDetourTheme.current
+    val scrollState = rememberScrollState()
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.refreshRoutes()
     }
 
-    // The persisted count is correct for the first rendered frame in the common
-    // case. Resolve installed packages off-thread and update only if removals made
-    // the effective count differ; never flash "0" while Settings is sliding in.
-    val routed by produceState(
-        initialValue = persistedRoutes.size,
-        key1 = persistedRoutes,
-        key2 = routeRevision,
-    ) {
-        value = if (persistedRoutes.isEmpty()) {
-            0
-        } else {
-            withContext(Dispatchers.IO) {
-                resolveEffectiveRoutes(ctx.packageManager, persistedRoutes).packages.size
-            }
-        }
-    }
-    val theme = LocalDetourTheme.current
-    val autoConnect = settings?.autoConnect == true
-    val scrollState = rememberScrollState()
     val items = listOf(
-        MenuItem(R.string.nav_routes, { stringResource(R.string.nav_routes_sub, routed) }, R.drawable.ic_routes) to onOpenRoutes,
+        MenuItem(
+            R.string.nav_routes,
+            { stringResource(R.string.nav_routes_sub, state.routedCount) },
+            R.drawable.ic_routes,
+        ) to onOpenRoutes,
         MenuItem(
             R.string.nav_key,
-            { current ->
-                val hasVless = current?.vlessKeys?.items?.isNotEmpty() == true
-                val hasWarp = current?.warpProfile != null
+            {
                 stringResource(
                     when {
-                        hasVless && hasWarp -> R.string.nav_key_sub
-                        hasVless -> R.string.nav_key_sub_vless
-                        hasWarp -> R.string.nav_key_sub_warp
+                        state.hasVless && state.hasWarp -> R.string.nav_key_sub
+                        state.hasVless -> R.string.nav_key_sub_vless
+                        state.hasWarp -> R.string.nav_key_sub_warp
                         else -> R.string.nav_key_sub_none
                     },
                 )
@@ -135,7 +98,7 @@ fun SettingsMenuScreen(
                 items.forEachIndexed { i, (item, onClick) ->
                     SettingRow(
                         title = stringResource(item.titleRes),
-                        subtitle = item.sub(settings),
+                        subtitle = item.sub(),
                         iconRes = item.iconRes,
                         onClick = onClick,
                     )
@@ -148,12 +111,12 @@ fun SettingsMenuScreen(
                 Row(
                     Modifier.fillMaxWidth()
                         .detourToggleable(
-                            value = autoConnect,
+                            value = state.autoConnect,
                             onValueChange = { next ->
                                 haptics.performHapticFeedback(
                                     if (next) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff,
                                 )
-                                scope.launch { store.setAutoConnect(next) }
+                                viewModel.setAutoConnect(next)
                             },
                             pressedColor = c.surfaceSelected.copy(alpha = 0.34f),
                             pressScale = Motion.PRESS_ROW,
@@ -169,7 +132,7 @@ fun SettingsMenuScreen(
                         modifier = Modifier.weight(1f),
                     )
                     DetourSwitch(
-                        checked = autoConnect,
+                        checked = state.autoConnect,
                         onCheckedChange = null,
                         compact = true,
                     )

@@ -50,6 +50,7 @@ import dev.triplet.app.ui.LocalDetourTheme
 import dev.triplet.app.ui.Motion
 import dev.triplet.app.ui.ProfilesViewModel
 import dev.triplet.app.ui.SettingsMenuScreen
+import dev.triplet.app.ui.SettingsMenuViewModel
 import dev.triplet.app.ui.ThemeScreen
 import dev.triplet.app.ui.VlessKeyScreen
 import dev.triplet.app.ui.colorSchemeFor
@@ -220,8 +221,18 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                             composable(Route.SETTINGS) {
+                                val settingsViewModel = viewModel<SettingsMenuViewModel>(
+                                    factory = SettingsMenuViewModel.factory(
+                                        store = store,
+                                        resolveRoutes = { routes ->
+                                            withContext(Dispatchers.IO) {
+                                                resolveEffectiveRoutes(appContext.packageManager, routes)
+                                            }
+                                        },
+                                    ),
+                                )
                                 SettingsMenuScreen(
-                                    store,
+                                    settingsViewModel,
                                     onOpenRoutes = { navController.navigate(Route.ROUTES) },
                                     onOpenVless = { navController.navigate(Route.VLESS) },
                                     onOpenDpi = { navController.navigate(Route.DPI) },
