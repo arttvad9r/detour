@@ -179,15 +179,33 @@ private fun JSONObject.optIntOrNull(key: String): Int? =
 private fun JSONObject.optStringOrNull(key: String): String? =
     if (has(key) && !isNull(key)) getString(key).takeIf { it.isNotBlank() } else null
 
+private fun String.hasNoControlCharacters(): Boolean =
+    none { it.code < 0x20 || it.code == 0x7f }
+
+private fun requireRenderedScalar(value: String) {
+    require(value.isNotBlank() && value.hasNoControlCharacters())
+}
+
 fun validateWarpProxy(proxy: WarpProxy) {
     require(proxy.name.isNotBlank())
-    require(proxy.server.isNotBlank())
+    requireRenderedScalar(proxy.server)
     require(proxy.port in 1..65535)
-    require(proxy.ip.isNotBlank())
-    require(proxy.privateKey.isNotBlank() && proxy.publicKey.isNotBlank())
+    requireRenderedScalar(proxy.ip)
+    proxy.ipv6?.let(::requireRenderedScalar)
+    requireRenderedScalar(proxy.privateKey)
+    requireRenderedScalar(proxy.publicKey)
     require(proxy.reserved.all { it in 0..255 })
-    require(proxy.allowedIps.isNotEmpty() && proxy.allowedIps.all { it.isNotBlank() })
+    require(proxy.allowedIps.isNotEmpty() && proxy.allowedIps.all {
+        it.isNotBlank() && it.hasNoControlCharacters()
+    })
     require(proxy.mtu in 576..9000)
     require(proxy.persistentKeepalive == null || proxy.persistentKeepalive in 0..65535)
-    require(proxy.dns.all { it.isNotBlank() })
+    require(proxy.dns.all { it.isNotBlank() && it.hasNoControlCharacters() })
+    listOf(
+        proxy.amnezia.i1,
+        proxy.amnezia.i2,
+        proxy.amnezia.i3,
+        proxy.amnezia.i4,
+        proxy.amnezia.i5,
+    ).filterNotNull().forEach { require(it.hasNoControlCharacters()) }
 }
