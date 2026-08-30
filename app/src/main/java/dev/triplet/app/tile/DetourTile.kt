@@ -28,6 +28,7 @@ class DetourTile : TileService() {
     private var routed = 0
 
     override fun onStartListening() {
+        cancelListeningJobs()
         val scope = CoroutineScope(Dispatchers.Main.immediate)
         jobs = listOf(
             scope.launch { VpnController.state.collect { update(it) } },
@@ -50,8 +51,12 @@ class DetourTile : TileService() {
     }
 
     override fun onStopListening() {
-        jobs.forEach { it.cancel() }
-        jobs = emptyList()
+        cancelListeningJobs()
+    }
+
+    override fun onDestroy() {
+        cancelListeningJobs()
+        super.onDestroy()
     }
 
     override fun onClick() {
@@ -76,6 +81,11 @@ class DetourTile : TileService() {
             }
         }
         update(VpnController.state.value)
+    }
+
+    private fun cancelListeningJobs() {
+        jobs.forEach { it.cancel() }
+        jobs = emptyList()
     }
 
     private fun update(state: VpnState) {
