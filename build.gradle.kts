@@ -18,7 +18,7 @@ tasks.register<Exec>("buildMihomoAar") {
 }
 
 tasks.register<Exec>("buildByeDpi") {
-    inputs.file("engine/byedpi/build.sh")
+    inputs.files("engine/byedpi/build.sh", "engine/byedpi/apply_socks_auth.py")
     // A different NDK may produce different binaries even with the same script.
     inputs.property("androidNdkHome", providers.environmentVariable("ANDROID_NDK_HOME").orElse(""))
     outputs.dir("app/src/main/jniLibs")

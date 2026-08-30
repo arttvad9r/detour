@@ -14,6 +14,8 @@ import dev.triplet.app.core.DnsOptions
 import dev.triplet.app.core.DpiArgs
 import dev.triplet.app.core.DpiBackend
 import dev.triplet.app.core.ParseResult
+import dev.triplet.app.core.ProbeAuth
+import dev.triplet.app.core.ProbeCredentials
 import dev.triplet.app.core.RoutingInput
 import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.core.VpnOutbound
@@ -133,6 +135,9 @@ class TriVpnService : VpnService() {
 
         // Executor-поток, блокировка допустима.
         val settings = runBlocking { store.snapshot() }
+        // Capture loopback auth once so ByeDPI, mihomo and validation probes
+        // cannot diverge even if credential generation changes in the future.
+        val probeCredentials = ProbeAuth.current()
 
         // 1. Разрешаем только выбранный VPN-профиль. VLESS парсится заново перед
         // запуском, WARP уже был строго проверен при импорте/чтении из DataStore.
@@ -184,6 +189,7 @@ class TriVpnService : VpnService() {
             }
             if (!dpi.start(
                     DpiArgs.resolve(settings.preset, settings.dpiCustomArgs), 10808,
+                    credentials = probeCredentials,
                     cancelled = { stopQueued.get() || destroyed.get() },
                 )) {
                 VpnController.setState(VpnState.Failed(getString(R.string.err_dpi_failed)))
@@ -215,6 +221,7 @@ class TriVpnService : VpnService() {
                     vpn = vpn, vpnApps = effVpn, vpnUids = vpnUids,
                     dpiApps = effDpi,
                     nameserver = DnsOptions.resolve(settings.dnsId, settings.dnsCustom),
+                    probeCredentials = probeCredentials,
                 ),
             )
             val logPath = File(cacheDir, "mihomo.log").absolutePath
@@ -238,13 +245,14 @@ class TriVpnService : VpnService() {
         runBlocking { store.setSessionStartedAt(System.currentTimeMillis()) }
         foreground.show(getString(R.string.notif_active))
         ServiceLog.i("active; validating routes")
-        validateRoutesAsync(effVpn, effDpi, settings.activeVpn)
+        validateRoutesAsync(effVpn, effDpi, settings.activeVpn, probeCredentials)
     }
 
     private fun validateRoutesAsync(
         effVpn: Set<String>,
         effDpi: Set<String>,
         vpnKind: VpnProfileKind,
+        probeCredentials: ProbeCredentials,
     ) {
         val generation = validationGeneration.incrementAndGet()
         runCatching {
@@ -258,9 +266,18 @@ class TriVpnService : VpnService() {
                 // url-test group resolves/chooses an endpoint.
                 val vpnTimeout = if (vpnKind == VpnProfileKind.WARP) 5000 else 2500
                 val vpnHealthy = effVpn.isEmpty() ||
-                    HealthCheck.generate204(10810, timeoutMs = vpnTimeout, cancelled = cancelled)
+                    HealthCheck.generate204(
+                        10810,
+                        timeoutMs = vpnTimeout,
+                        cancelled = cancelled,
+                        credentials = probeCredentials,
+                    )
                 val dpiHealthy = effDpi.isEmpty() ||
-                    (dpi.isAlive() && HealthCheck.generate204(10811, cancelled = cancelled))
+                    (dpi.isAlive() && HealthCheck.generate204(
+                        10811,
+                        cancelled = cancelled,
+                        credentials = probeCredentials,
+                    ))
                 ServiceLog.i("probe results: vpn=$vpnHealthy dpi=$dpiHealthy")
                 if (cancelled() || (vpnHealthy && dpiHealthy)) return@execute
 
