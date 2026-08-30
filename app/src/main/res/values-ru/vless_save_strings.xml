@@ -1,0 +1,4 @@
+<resources>
+    <string name="vless_saving">Сохранение…</string>
+    <string name="vless_save_error">Не удалось сохранить профиль. Повторите попытку.</string>
+</resources>

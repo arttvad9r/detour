@@ -33,6 +33,7 @@ class ProfilesViewModelStateTest {
         assertEquals(VpnProfileKind.VLESS, state.activeVpn)
         assertNull(state.warpProfile)
         assertEquals(WarpImportStatus.IDLE, state.warpImportStatus)
+        assertEquals(VlessSaveStatus.IDLE, state.vlessSaveStatus)
     }
 
     @Test fun `profile state carries WARP import status independently of settings`() {
@@ -41,6 +42,18 @@ class ProfilesViewModelStateTest {
         assertEquals(WarpImportStatus.IMPORTING, state.warpImportStatus)
         assertEquals(emptyList<VlessKey>(), state.vlessItems)
         assertNull(state.warpProfile)
+    }
+
+    @Test fun `VLESS save gate blocks duplicate submit while saving`() {
+        assertEquals(true, canStartVlessSave(VlessSaveStatus.IDLE))
+        assertEquals(false, canStartVlessSave(VlessSaveStatus.SAVING))
+        assertEquals(false, canStartVlessSave(VlessSaveStatus.SAVED))
+        assertEquals(true, canStartVlessSave(VlessSaveStatus.ERROR))
+
+        val state = profilesUiState(null, vlessSaveStatus = VlessSaveStatus.ERROR)
+        assertEquals(VlessSaveStatus.ERROR, state.vlessSaveStatus)
+        val savedState = profilesUiState(null, vlessSaveStatus = VlessSaveStatus.SAVED)
+        assertEquals(VlessSaveStatus.SAVED, savedState.vlessSaveStatus)
     }
 
     @Test fun `VLESS delete request reports whether the profile is active`() {

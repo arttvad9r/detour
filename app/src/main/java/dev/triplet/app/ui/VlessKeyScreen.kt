@@ -39,6 +39,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -47,6 +48,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -100,25 +102,38 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
     val activeVlessId = state.activeVlessId
     val warpImportStatus = state.warpImportStatus
     val warpImporting = warpImportStatus == WarpImportStatus.IMPORTING
+    val vlessSaveStatus = state.vlessSaveStatus
+    val vlessSaving = vlessSaveStatus == VlessSaveStatus.SAVING
     val addDescription = stringResource(R.string.profile_add_title)
     val vlessTitle = stringResource(R.string.profile_add_vless)
 
     var editingId by rememberSaveable { androidx.compose.runtime.mutableStateOf<String?>(null) }
     var showSheet by rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
-    var sheetMode by remember { androidx.compose.runtime.mutableStateOf(ProfileSheetMode.PICKER) }
+    var sheetMode by rememberSaveable { androidx.compose.runtime.mutableStateOf(ProfileSheetMode.PICKER) }
     var field by rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
     val parse = remember(field) {
         field.trim().takeIf { it.isNotBlank() }?.let(VlessKeyParser::parse)
     }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val currentVlessSaving = rememberUpdatedState(vlessSaving)
+    val confirmSheetValueChange = remember {
+        { target: SheetValue -> !currentVlessSaving.value || target != SheetValue.Hidden }
+    }
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = confirmSheetValueChange,
+    )
 
-    LaunchedEffect(viewModel, sheetState) {
-        viewModel.profileSaved.collect { kind ->
+    LaunchedEffect(vlessSaveStatus, sheetState) {
+        if (vlessSaveStatus == VlessSaveStatus.SAVED) {
             haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-            if (kind == ProfileSavedKind.VLESS) {
-                runCatching { sheetState.hide() }
-                showSheet = false
-            }
+            runCatching { sheetState.hide() }
+            showSheet = false
+            viewModel.acknowledgeVlessSave()
+        }
+    }
+    LaunchedEffect(viewModel) {
+        viewModel.warpSaved.collect {
+            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
         }
     }
     LaunchedEffect(viewModel) {
@@ -128,6 +143,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
     }
 
     fun beginVlessEdit(key: VlessKey?) {
+        viewModel.clearVlessSaveError()
         editingId = key?.id
         field = key?.uri ?: ""
         sheetMode = ProfileSheetMode.VLESS_EDITOR
@@ -173,6 +189,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                 visible = !showSheet && !warpImporting,
                 addDescription = addDescription,
                 onClick = {
+                    viewModel.clearVlessSaveError()
                     editingId = null
                     field = ""
                     sheetMode = ProfileSheetMode.PICKER
@@ -314,7 +331,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
 
     if (showSheet) {
         ModalBottomSheet(
-            onDismissRequest = { showSheet = false },
+            onDismissRequest = { if (!vlessSaving) showSheet = false },
             sheetState = sheetState,
             containerColor = c.surface,
             contentColor = c.textPrimary,
@@ -416,12 +433,17 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                             DetourInputField(
                                 value = field,
                                 onValueChange = { value ->
+                                    viewModel.clearVlessSaveError()
                                     field = value.replace("\r", "").replace("\n", "")
                                 },
                                 label = stringResource(R.string.key_uri),
                                 placeholder = stringResource(R.string.key_placeholder),
                                 helper = stringResource(R.string.key_input_hint),
-                                error = if (parse is ParseResult.Err) stringResource(R.string.key_invalid) else null,
+                                error = when {
+                                    parse is ParseResult.Err -> stringResource(R.string.key_invalid)
+                                    vlessSaveStatus == VlessSaveStatus.ERROR -> stringResource(R.string.vless_save_error)
+                                    else -> null
+                                },
                                 success = (parse as? ParseResult.Ok)?.let { result ->
                                     stringResource(
                                         R.string.key_detected_server,
@@ -440,6 +462,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                                 onClick = {
                                     scope.launch {
                                         clipboard.getClipEntry()?.clipData?.getItemAt(0)?.text?.toString()?.let {
+                                            viewModel.clearVlessSaveError()
                                             field = it.trim().replace("\r", "").replace("\n", "")
                                         }
                                     }
@@ -464,12 +487,15 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                                             dismissSheet()
                                         }
                                     },
+                                    enabled = !vlessSaving,
                                     style = ButtonStyle.SECONDARY,
                                     modifier = Modifier.weight(1f),
                                 )
                                 DetourButton(
-                                    text = stringResource(R.string.btn_save),
-                                    enabled = parse is ParseResult.Ok,
+                                    text = stringResource(
+                                        if (vlessSaving) R.string.vless_saving else R.string.btn_save,
+                                    ),
+                                    enabled = parse is ParseResult.Ok && !vlessSaving,
                                     onClick = {
                                         val value = field.trim()
                                         val parsedProfile = (parse as? ParseResult.Ok)?.profile

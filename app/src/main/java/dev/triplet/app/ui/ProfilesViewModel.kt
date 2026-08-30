@@ -23,6 +23,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 enum class WarpImportStatus { IDLE, IMPORTING, NO_COMPATIBLE_PROXIES, ERROR }
+enum class VlessSaveStatus { IDLE, SAVING, SAVED, ERROR }
+
+internal fun canStartVlessSave(status: VlessSaveStatus): Boolean =
+    status == VlessSaveStatus.IDLE || status == VlessSaveStatus.ERROR
 
 sealed interface ProfileDeleteRequest {
     val active: Boolean
@@ -43,17 +47,20 @@ data class ProfilesUiState(
     val warpProfile: WarpProfile? = null,
     val activeVpn: VpnProfileKind = VpnProfileKind.VLESS,
     val warpImportStatus: WarpImportStatus = WarpImportStatus.IDLE,
+    val vlessSaveStatus: VlessSaveStatus = VlessSaveStatus.IDLE,
 )
 
 internal fun profilesUiState(
     settings: TriSettings?,
     warpImportStatus: WarpImportStatus = WarpImportStatus.IDLE,
+    vlessSaveStatus: VlessSaveStatus = VlessSaveStatus.IDLE,
 ): ProfilesUiState = ProfilesUiState(
     vlessItems = settings?.vlessKeys?.items.orEmpty(),
     activeVlessId = settings?.vlessKeys?.activeId,
     warpProfile = settings?.warpProfile,
     activeVpn = settings?.activeVpn ?: VpnProfileKind.VLESS,
     warpImportStatus = warpImportStatus,
+    vlessSaveStatus = vlessSaveStatus,
 )
 
 internal fun vlessDeleteRequest(
@@ -73,7 +80,6 @@ internal fun warpDeleteRequest(settings: TriSettings?): ProfileDeleteRequest.War
 }
 
 internal enum class ProfileTunnelAction { NONE, RESTART, STOP }
-enum class ProfileSavedKind { VLESS, WARP }
 
 internal fun vlessMutationTunnelAction(
     activeVpn: VpnProfileKind,
@@ -105,9 +111,10 @@ class ProfilesViewModel(
     private val restartTunnel: () -> Unit,
     private val stopTunnelIfRunning: () -> Unit,
 ) : ViewModel() {
-    private val _profileSaved = MutableSharedFlow<ProfileSavedKind>(extraBufferCapacity = 1)
-    val profileSaved: SharedFlow<ProfileSavedKind> = _profileSaved
+    private val _warpSaved = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val warpSaved: SharedFlow<Unit> = _warpSaved
 
+    private val vlessSaveStatus = MutableStateFlow(VlessSaveStatus.IDLE)
     private val warpImportStatus = MutableStateFlow(WarpImportStatus.IDLE)
     private val _warpImportRejected = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val warpImportRejected: SharedFlow<Unit> = _warpImportRejected
@@ -118,14 +125,17 @@ class ProfilesViewModel(
     val uiState: StateFlow<ProfilesUiState> = combine(
         settings,
         warpImportStatus,
-        ::profilesUiState,
-    ).stateIn(
+        vlessSaveStatus,
+    ) { currentSettings, currentWarpStatus, currentVlessSaveStatus ->
+        profilesUiState(currentSettings, currentWarpStatus, currentVlessSaveStatus)
+    }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = profilesUiState(settings.value, warpImportStatus.value),
+        initialValue = profilesUiState(settings.value, warpImportStatus.value, vlessSaveStatus.value),
     )
 
     fun saveVless(key: VlessKey, isNew: Boolean) {
+        if (!canStartVlessSave(vlessSaveStatus.value)) return
         val state = profilesUiState(settings.value)
         val tunnelAction = vlessMutationTunnelAction(
             state.activeVpn,
@@ -133,10 +143,30 @@ class ProfilesViewModel(
             key.id,
             deleting = false,
         )
+        vlessSaveStatus.value = VlessSaveStatus.SAVING
         viewModelScope.launch {
-            if (isNew) addVlessKey(key) else updateVlessKey(key)
-            applyTunnelAction(tunnelAction)
-            _profileSaved.emit(ProfileSavedKind.VLESS)
+            try {
+                if (isNew) addVlessKey(key) else updateVlessKey(key)
+                applyTunnelAction(tunnelAction)
+                vlessSaveStatus.value = VlessSaveStatus.SAVED
+            } catch (cancelled: CancellationException) {
+                vlessSaveStatus.value = VlessSaveStatus.IDLE
+                throw cancelled
+            } catch (_: Exception) {
+                vlessSaveStatus.value = VlessSaveStatus.ERROR
+            }
+        }
+    }
+
+    fun acknowledgeVlessSave() {
+        if (vlessSaveStatus.value == VlessSaveStatus.SAVED) {
+            vlessSaveStatus.value = VlessSaveStatus.IDLE
+        }
+    }
+
+    fun clearVlessSaveError() {
+        if (vlessSaveStatus.value == VlessSaveStatus.ERROR) {
+            vlessSaveStatus.value = VlessSaveStatus.IDLE
         }
     }
 
@@ -199,7 +229,7 @@ class ProfilesViewModel(
                         setWarpProfile(result.profile)
                         applyTunnelAction(tunnelAction)
                         warpImportStatus.value = WarpImportStatus.IDLE
-                        _profileSaved.emit(ProfileSavedKind.WARP)
+                        _warpSaved.emit(Unit)
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (_: Exception) {
@@ -224,7 +254,7 @@ class ProfilesViewModel(
         viewModelScope.launch {
             setWarpProfile(profile)
             applyTunnelAction(tunnelAction)
-            _profileSaved.emit(ProfileSavedKind.WARP)
+            _warpSaved.emit(Unit)
         }
     }
 

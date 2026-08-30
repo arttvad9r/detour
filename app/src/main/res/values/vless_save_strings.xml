@@ -1,0 +1,4 @@
+<resources>
+    <string name="vless_saving">Saving…</string>
+    <string name="vless_save_error">Couldn’t save the profile. Try again.</string>
+</resources>
