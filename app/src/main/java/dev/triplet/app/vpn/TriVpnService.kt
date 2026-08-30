@@ -379,9 +379,22 @@ class TriVpnService : VpnService() {
                 if (VpnController.state.value != VpnState.Active) return
 
                 ServiceLog.i("underlying network changed, restarting tunnel")
-                if (!stopQueued.get() && restartQueued.compareAndSet(false, true)) executor.execute {
+                if (
+                    destroyed.get() || stopQueued.get() ||
+                    !restartQueued.compareAndSet(false, true)
+                ) return
+                runCatching {
+                    executor.execute {
+                        restartQueued.set(false)
+                        if (!destroyed.get() && !stopQueued.get()) {
+                            stopSequence(stopSelf = false)
+                            startSequence()
+                        }
+                    }
+                }.onFailure {
+                    // onDestroy() can shut the executor down while an already
+                    // delivered network callback is still finishing.
                     restartQueued.set(false)
-                    if (!stopQueued.get()) { stopSequence(stopSelf = false); startSequence() }
                 }
             }
         }
