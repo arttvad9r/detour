@@ -1,5 +1,6 @@
 package dev.triplet.app
 
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -22,6 +23,17 @@ class AccessibilitySmokeTest {
 
     @get:Rule
     val rule = createAndroidComposeRule<MainActivity>()
+
+    @Test fun homeDetailShortcutsExposeButtonSemanticsAndTouchTargets() {
+        val buttonRole = SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Button)
+
+        rule.onNodeWithText(rule.activity.getString(R.string.row_profile))
+            .assert(buttonRole)
+            .assertHeightIsAtLeast(48.dp)
+        rule.onNodeWithText(rule.activity.getString(R.string.row_dns))
+            .assert(buttonRole)
+            .assertHeightIsAtLeast(48.dp)
+    }
 
     @Test fun dnsCustomInputExposesAccessibleLabelAndValidationError() {
         rule.onNodeWithContentDescription(rule.activity.getString(R.string.cd_settings))
