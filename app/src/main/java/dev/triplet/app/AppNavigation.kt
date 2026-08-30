@@ -223,8 +223,10 @@ internal fun DetourNavigation(
                     ),
                 )
                 HomeScreen(
-                    homeViewModel,
+                    viewModel = homeViewModel,
                     onOpenSettings = { backStack.add(AppDestination.Settings) },
+                    onOpenProfiles = { openSettingsDetail(AppDestination.Vless) },
+                    onOpenDns = { openSettingsDetail(AppDestination.Dns) },
                 )
             }
 

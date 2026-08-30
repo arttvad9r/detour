@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -80,7 +81,13 @@ internal fun homeUsesSplitLayout(windowSizeClass: WindowSizeClass): Boolean =
     windowSizeClass.isWidthAtLeastBreakpoint(WIDTH_DP_EXPANDED_LOWER_BOUND)
 
 @Composable
-fun HomeScreen(viewModel: HomeViewModel, onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
+fun HomeScreen(
+    viewModel: HomeViewModel,
+    onOpenSettings: () -> Unit,
+    onOpenProfiles: () -> Unit,
+    onOpenDns: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
     val haptics = LocalHapticFeedback.current
@@ -209,6 +216,8 @@ fun HomeScreen(viewModel: HomeViewModel, onOpenSettings: () -> Unit, modifier: M
                     endpointCount = uiState.endpointCount,
                     protocol = stringResource(protocolRes),
                     dns = dnsValue,
+                    onOpenProfiles = onOpenProfiles,
+                    onOpenDns = onOpenDns,
                 )
             }
         }
@@ -227,6 +236,8 @@ private fun HomeConnectionContent(
     endpointCount: Int,
     protocol: String,
     dns: String,
+    onOpenProfiles: () -> Unit,
+    onOpenDns: () -> Unit,
 ) {
     val contentModifier = Modifier
         .padding(horizontal = Spacing.space16, vertical = Spacing.space24)
@@ -252,6 +263,8 @@ private fun HomeConnectionContent(
                 endpointCount = endpointCount,
                 protocol = protocol,
                 dns = dns,
+                onOpenProfiles = onOpenProfiles,
+                onOpenDns = onOpenDns,
                 modifier = Modifier.weight(1f),
             )
         }
@@ -273,6 +286,8 @@ private fun HomeConnectionContent(
                 endpointCount = endpointCount,
                 protocol = protocol,
                 dns = dns,
+                onOpenProfiles = onOpenProfiles,
+                onOpenDns = onOpenDns,
             )
         }
     }
@@ -408,6 +423,8 @@ private fun ConnectionDetails(
     endpointCount: Int,
     protocol: String,
     dns: String,
+    onOpenProfiles: () -> Unit,
+    onOpenDns: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     DetourCard(modifier) {
@@ -417,6 +434,7 @@ private fun ConnectionDetails(
             InfoRow(
                 stringResource(R.string.row_profile),
                 profileName ?: stringResource(R.string.server_missing),
+                onClick = onOpenProfiles,
             )
             DetailsDivider()
             if (activeVpn == VpnProfileKind.WARP) {
@@ -433,7 +451,11 @@ private fun ConnectionDetails(
             DetailsDivider()
             InfoRow(stringResource(R.string.row_protocol), protocol)
             DetailsDivider()
-            InfoRow(stringResource(R.string.row_dns), dns)
+            InfoRow(
+                stringResource(R.string.row_dns),
+                dns,
+                onClick = onOpenDns,
+            )
         }
     }
 }
@@ -471,10 +493,27 @@ private fun SessionTimer(sessionStartedAt: Long?, color: Color) {
 }
 
 @Composable
-private fun InfoRow(label: String, value: String) {
+private fun InfoRow(
+    label: String,
+    value: String,
+    onClick: (() -> Unit)? = null,
+) {
     val c = detourColors
+    val rowModifier = if (onClick != null) {
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .detourClickable(
+                onClick = onClick,
+                role = androidx.compose.ui.semantics.Role.Button,
+                pressedColor = c.surfaceSelected.copy(alpha = 0.38f),
+                pressScale = Motion.PRESS_ROW,
+            )
+    } else {
+        Modifier.fillMaxWidth()
+    }
     Row(
-        Modifier.fillMaxWidth().padding(vertical = Spacing.space4),
+        rowModifier.padding(vertical = Spacing.space4),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -485,6 +524,7 @@ private fun InfoRow(label: String, value: String) {
         )
         AnimatedContent(
             targetState = value,
+            modifier = Modifier.weight(1f),
             transitionSpec = {
                 fadeIn(tween(Motion.CONTENT_IN_MS)) togetherWith
                     fadeOut(tween(Motion.CONTENT_OUT_MS))
@@ -500,5 +540,6 @@ private fun InfoRow(label: String, value: String) {
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        if (onClick != null) Chevron()
     }
 }
