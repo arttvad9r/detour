@@ -99,7 +99,11 @@ fun DpiScreen(viewModel: DpiViewModel, onBack: () -> Unit, modifier: Modifier = 
                         label = stringResource(R.string.dpi_custom_label),
                         placeholder = stringResource(R.string.dpi_custom_placeholder),
                         helper = stringResource(R.string.dpi_custom_hint),
-                        error = if (state.customInvalid) stringResource(R.string.dpi_custom_invalid) else null,
+                        error = when {
+                            state.customInvalid -> stringResource(R.string.dpi_custom_invalid)
+                            state.saveState == DpiSaveState.ERROR -> stringResource(R.string.dpi_save_error)
+                            else -> null
+                        },
                         singleLine = false,
                         minHeight = 56.dp,
                         maxHeight = 104.dp,
@@ -108,7 +112,11 @@ fun DpiScreen(viewModel: DpiViewModel, onBack: () -> Unit, modifier: Modifier = 
                     )
                     Spacer(Modifier.height(Spacing.space16))
                     DetourButton(
-                        text = stringResource(R.string.btn_save),
+                        text = if (state.saveState == DpiSaveState.SAVING) {
+                            stringResource(R.string.dpi_saving)
+                        } else {
+                            stringResource(R.string.btn_save)
+                        },
                         onClick = viewModel::saveCustom,
                         enabled = state.canSaveCustom,
                         modifier = Modifier.padding(horizontal = Spacing.space16),

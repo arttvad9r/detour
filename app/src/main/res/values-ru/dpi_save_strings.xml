@@ -1,0 +1,4 @@
+<resources>
+    <string name="dpi_saving">Сохранение…</string>
+    <string name="dpi_save_error">Не удалось применить настройку DPI. Повторите попытку.</string>
+</resources>

@@ -1,0 +1,4 @@
+<resources>
+    <string name="dpi_saving">Saving…</string>
+    <string name="dpi_save_error">Couldn’t apply the DPI setting. Try again.</string>
+</resources>

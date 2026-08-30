@@ -7,6 +7,7 @@ import dev.triplet.app.core.DpiArgs
 import dev.triplet.app.core.DpiPreset
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.data.TriSettings
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -16,20 +17,26 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+enum class DpiSaveState { IDLE, SAVING, ERROR }
+
 data class DpiUiState(
     val preset: DpiPreset = DpiPreset.RECOMMENDED,
     val customField: String = "",
     val editingCustom: Boolean = false,
     val customInvalid: Boolean = false,
     val customChanged: Boolean = false,
+    val saveState: DpiSaveState = DpiSaveState.IDLE,
 ) {
-    val canSaveCustom: Boolean get() = customField.isNotBlank() && !customInvalid && customChanged
+    val canSaveCustom: Boolean
+        get() = saveState != DpiSaveState.SAVING &&
+            customField.isNotBlank() && !customInvalid && customChanged
 }
 
 internal fun dpiUiState(
     settings: TriSettings?,
     customDraft: String?,
     editingOverride: Boolean?,
+    saveState: DpiSaveState = DpiSaveState.IDLE,
 ): DpiUiState {
     val persistedCustom = settings?.dpiCustomArgs.orEmpty()
     val customField = customDraft ?: persistedCustom
@@ -40,6 +47,7 @@ internal fun dpiUiState(
         editingCustom = editingOverride ?: (settings?.preset == DpiPreset.CUSTOM),
         customInvalid = customField.isNotBlank() && !DpiArgs.isValid(customField),
         customChanged = preset != DpiPreset.CUSTOM || customField.trim() != persistedCustom.trim(),
+        saveState = saveState,
     )
 }
 
@@ -51,6 +59,7 @@ class DpiViewModel(
 ) : ViewModel() {
     private val customDraft = MutableStateFlow<String?>(null)
     private val editingOverride = MutableStateFlow<Boolean?>(null)
+    private val saveState = MutableStateFlow(DpiSaveState.IDLE)
     private val _customSaved = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val customSaved: SharedFlow<Unit> = _customSaved
 
@@ -58,6 +67,7 @@ class DpiViewModel(
         settings,
         customDraft,
         editingOverride,
+        saveState,
         ::dpiUiState,
     ).stateIn(
         scope = viewModelScope,
@@ -71,10 +81,13 @@ class DpiViewModel(
 
     fun setCustomField(value: String) {
         customDraft.value = value.replace("\r", " ").replace("\n", " ")
+        if (saveState.value == DpiSaveState.ERROR) saveState.value = DpiSaveState.IDLE
     }
 
     fun chooseRecommended() {
+        if (saveState.value == DpiSaveState.SAVING) return
         editingOverride.value = false
+        saveState.value = DpiSaveState.IDLE
         if (settings.value?.preset == DpiPreset.RECOMMENDED) return
         viewModelScope.launch {
             setPreset(DpiPreset.RECOMMENDED)
@@ -87,15 +100,25 @@ class DpiViewModel(
         if (!DpiArgs.isValid(value)) return
         val current = settings.value
         if (current?.preset == DpiPreset.CUSTOM && current.dpiCustomArgs.trim() == value) return
+        if (saveState.value == DpiSaveState.SAVING) return
+        saveState.value = DpiSaveState.SAVING
         viewModelScope.launch {
-            // Persist the validated draft before activating CUSTOM so a process
-            // death between writes cannot expose an invalid custom preset.
-            setCustomArgs(value)
-            setPreset(DpiPreset.CUSTOM)
-            customDraft.value = value
-            editingOverride.value = true
-            restartTunnel()
-            _customSaved.emit(Unit)
+            try {
+                // Persist the validated draft before activating CUSTOM so a process
+                // death between writes cannot expose an invalid custom preset.
+                setCustomArgs(value)
+                setPreset(DpiPreset.CUSTOM)
+                if (customDraft.value?.trim() == value) customDraft.value = value
+                editingOverride.value = true
+                restartTunnel()
+                saveState.value = DpiSaveState.IDLE
+                _customSaved.emit(Unit)
+            } catch (cancelled: CancellationException) {
+                saveState.value = DpiSaveState.IDLE
+                throw cancelled
+            } catch (_: Exception) {
+                saveState.value = DpiSaveState.ERROR
+            }
         }
     }
 
