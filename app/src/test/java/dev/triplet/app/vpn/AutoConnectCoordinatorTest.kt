@@ -45,29 +45,72 @@ class AutoConnectCoordinatorTest {
         assertEquals(1, starts)
     }
 
-    @Test fun `coordinator does not start without permission or from non-idle state`() = runBlocking {
-        var starts = 0
+    @Test fun `disabled auto-connect skips state permission and route resolution`() = runBlocking {
+        var stateChecks = 0
+        var permissionChecks = 0
+        var routeResolutions = 0
+        val coordinator = AutoConnectCoordinator(
+            loadSettings = { settings(AppRoute.DPI, autoConnect = false) },
+            resolveRoutes = {
+                routeResolutions++
+                EffectiveRoutes(emptySet(), setOf("app"))
+            },
+            vpnPermissionGranted = {
+                permissionChecks++
+                true
+            },
+            currentVpnState = {
+                stateChecks++
+                VpnState.Idle
+            },
+            startVpn = { error("must not start") },
+        )
+
+        assertFalse(coordinator.runOnce())
+        assertEquals(0, stateChecks)
+        assertEquals(0, permissionChecks)
+        assertEquals(0, routeResolutions)
+    }
+
+    @Test fun `permission denial and non-idle state skip route resolution`() = runBlocking {
+        var routeResolutions = 0
+        var permissionChecks = 0
         val source = settings(AppRoute.DPI)
-        val effective = EffectiveRoutes(vpnPackages = emptySet(), dpiPackages = setOf("app"))
 
         val noPermission = AutoConnectCoordinator(
             loadSettings = { source },
-            resolveRoutes = { effective },
-            vpnPermissionGranted = { false },
+            resolveRoutes = {
+                routeResolutions++
+                EffectiveRoutes(emptySet(), setOf("app"))
+            },
+            vpnPermissionGranted = {
+                permissionChecks++
+                false
+            },
             currentVpnState = { VpnState.Idle },
-            startVpn = { starts++ },
+            startVpn = { error("must not start") },
         )
         assertFalse(noPermission.runOnce())
+        assertEquals(1, permissionChecks)
+        assertEquals(0, routeResolutions)
 
+        permissionChecks = 0
         val alreadyActive = AutoConnectCoordinator(
             loadSettings = { source },
-            resolveRoutes = { effective },
-            vpnPermissionGranted = { true },
+            resolveRoutes = {
+                routeResolutions++
+                EffectiveRoutes(emptySet(), setOf("app"))
+            },
+            vpnPermissionGranted = {
+                permissionChecks++
+                true
+            },
             currentVpnState = { VpnState.Active },
-            startVpn = { starts++ },
+            startVpn = { error("must not start") },
         )
         assertFalse(alreadyActive.runOnce())
-        assertEquals(0, starts)
+        assertEquals(0, permissionChecks)
+        assertEquals(0, routeResolutions)
     }
 
     @Test fun `vpn route requires a valid selected profile`() = runBlocking {
