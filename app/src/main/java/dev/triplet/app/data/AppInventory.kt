@@ -6,14 +6,16 @@ import android.content.pm.ApplicationInfo
 import android.graphics.Bitmap
 import androidx.core.graphics.drawable.toBitmap
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 
 object AppInventory {
     @Volatile
     private var cached: List<AppInfo>? = null
 
     @Volatile
-    private var dirty: Boolean = false
+    private var cachedGeneration: Long = -1L
 
+    private val invalidationGeneration = AtomicLong(0L)
     private val iconCache = ConcurrentHashMap<String, Bitmap>()
 
     /** Latest process-local snapshot, even if a package change marked it stale. */
@@ -23,15 +25,15 @@ object AppInventory {
     fun peekIcon(packageName: String): Bitmap? = iconCache[packageName]
 
     fun load(context: Context): List<AppInfo> {
+        val generation = invalidationGeneration.get()
         val current = cached
-        if (current != null && !dirty) return current
+        if (current != null && cachedGeneration == generation) return current
+
         return synchronized(this) {
+            val insideGeneration = invalidationGeneration.get()
             val inside = cached
-            if (inside != null && !dirty) inside
-            else query(context.applicationContext).also {
-                cached = it
-                dirty = false
-            }
+            if (inside != null && cachedGeneration == insideGeneration) inside
+            else queryUntilStable(context.applicationContext)
         }
     }
 
@@ -46,24 +48,49 @@ object AppInventory {
 
     fun loadIcon(context: Context, packageName: String): Bitmap? {
         iconCache[packageName]?.let { return it }
+        val generation = invalidationGeneration.get()
         val icon = runCatching {
             context.packageManager.getApplicationIcon(packageName).toBitmap(48, 48)
         }.getOrNull() ?: return null
-        return iconCache.putIfAbsent(packageName, icon) ?: icon
+
+        // A package update/removal can cross the PackageManager call above. The
+        // current caller may still render that bitmap, but never repopulate the
+        // shared cache with data produced before the invalidation.
+        if (invalidationGeneration.get() != generation) return icon
+        val existing = iconCache.putIfAbsent(packageName, icon)
+        if (existing != null) return existing
+        if (invalidationGeneration.get() != generation) {
+            iconCache.remove(packageName, icon)
+        }
+        return icon
     }
 
     /** Force a fresh PackageManager scan and replace the process-local snapshot. */
     fun refresh(context: Context): List<AppInfo> = synchronized(this) {
-        query(context.applicationContext).also {
-            cached = it
-            dirty = false
-        }
+        queryUntilStable(context.applicationContext)
     }
 
     /** Keep the old snapshot renderable while marking it for background refresh. */
     fun invalidate(packageName: String? = null) {
-        dirty = true
+        invalidationGeneration.incrementAndGet()
         if (packageName == null) iconCache.clear() else iconCache.remove(packageName)
+    }
+
+    /**
+     * Package broadcasts can arrive while PackageManager is being scanned. Only
+     * publish a snapshot as fresh when no invalidation crossed that scan; otherwise
+     * retry against the new package generation instead of losing the broadcast.
+     */
+    private fun queryUntilStable(context: Context): List<AppInfo> {
+        while (true) {
+            val generation = invalidationGeneration.get()
+            val result = query(context)
+            if (invalidationGeneration.get() == generation) {
+                cached = result
+                cachedGeneration = generation
+                return result
+            }
+        }
     }
 
     private fun query(context: Context): List<AppInfo> {
