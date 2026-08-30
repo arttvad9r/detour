@@ -42,13 +42,14 @@ The `Release` workflow then:
 1. validates the tag and derives `versionName` / `versionCode`;
 2. validates that all signing secrets are present;
 3. rebuilds the pinned native engine and ByeDPI binaries;
-4. builds a signed `arm64-v8a` release APK;
-5. runs the pinned engine tests plus source and shipped-binary `govulncheck` scans against the exact Mihomo AAR produced for the release;
-6. verifies the APK signature with Android `apksigner`;
-7. enforces the exact `arm64-v8a` ABI set and the 30 MiB APK budget;
-8. writes a SHA-256 checksum;
-9. uploads the APK, checksum and size report as a workflow artifact;
-10. creates or updates the matching GitHub Release and attaches the APK and checksum.
+4. runs debug unit tests and lint, builds the debug APK, and compiles the instrumentation-test APK;
+5. builds a signed `arm64-v8a` release APK;
+6. runs the pinned engine tests plus source and shipped-binary `govulncheck` scans against the exact Mihomo AAR produced for the release;
+7. verifies the APK signature with Android `apksigner`;
+8. enforces the exact `arm64-v8a` ABI set and the 30 MiB APK budget;
+9. writes a SHA-256 checksum;
+10. uploads the APK, checksum and size report as a workflow artifact;
+11. creates or updates the matching GitHub Release and attaches the APK and checksum.
 
 The published APK is named `detour-MAJOR.MINOR.PATCH-arm64.apk`.
 

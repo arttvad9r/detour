@@ -95,6 +95,13 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           export PATH="$(go env GOPATH)/bin:$PATH"
           gomobile init
+      - name: Verify app tests and lint
+        run: >-
+          ./gradlew
+          :app:testDebugUnitTest
+          :app:lintDebug
+          :app:assembleDebug
+          :app:assembleDebugAndroidTest
       - name: Restore release keystore
         shell: bash
         env:
