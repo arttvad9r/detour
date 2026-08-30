@@ -107,12 +107,20 @@ fun DnsScreen(viewModel: DnsViewModel, onBack: () -> Unit, modifier: Modifier = 
                         label = stringResource(R.string.dns_custom_label),
                         placeholder = stringResource(R.string.dns_placeholder),
                         helper = stringResource(R.string.dns_custom_hint_https),
-                        error = if (state.customInvalid) stringResource(R.string.dns_invalid_https) else null,
+                        error = when {
+                            state.customInvalid -> stringResource(R.string.dns_invalid_https)
+                            state.saveState == DnsSaveState.ERROR -> stringResource(R.string.dns_save_error)
+                            else -> null
+                        },
                         modifier = Modifier.padding(horizontal = Spacing.space16),
                     )
                     Spacer(Modifier.height(Spacing.space16))
                     DetourButton(
-                        text = stringResource(R.string.btn_save),
+                        text = if (state.saveState == DnsSaveState.SAVING) {
+                            stringResource(R.string.dns_saving)
+                        } else {
+                            stringResource(R.string.btn_save)
+                        },
                         onClick = viewModel::saveCustom,
                         enabled = state.canSaveCustom,
                         modifier = Modifier.padding(horizontal = Spacing.space16),

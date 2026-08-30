@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import dev.triplet.app.core.DnsOptions
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.data.TriSettings
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -15,20 +16,26 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+enum class DnsSaveState { IDLE, SAVING, ERROR }
+
 data class DnsUiState(
     val selectedDns: String = "google",
     val customField: String = "",
     val editingCustom: Boolean = false,
     val customInvalid: Boolean = false,
     val customChanged: Boolean = false,
+    val saveState: DnsSaveState = DnsSaveState.IDLE,
 ) {
-    val canSaveCustom: Boolean get() = customField.isNotBlank() && !customInvalid && customChanged
+    val canSaveCustom: Boolean
+        get() = saveState != DnsSaveState.SAVING &&
+            customField.isNotBlank() && !customInvalid && customChanged
 }
 
 internal fun dnsUiState(
     settings: TriSettings?,
     customDraft: String?,
     editingOverride: Boolean?,
+    saveState: DnsSaveState = DnsSaveState.IDLE,
 ): DnsUiState {
     val persistedCustom = settings?.dnsCustom.orEmpty()
     val customField = customDraft ?: persistedCustom
@@ -40,6 +47,7 @@ internal fun dnsUiState(
         customInvalid = customField.isNotBlank() && !DnsOptions.isValid(customField),
         customChanged =
             selectedDns != DnsOptions.CUSTOM || customField.trim() != persistedCustom.trim(),
+        saveState = saveState,
     )
 }
 
@@ -50,6 +58,7 @@ class DnsViewModel(
 ) : ViewModel() {
     private val customDraft = MutableStateFlow<String?>(null)
     private val editingOverride = MutableStateFlow<Boolean?>(null)
+    private val saveState = MutableStateFlow(DnsSaveState.IDLE)
     private val _customSaved = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val customSaved: SharedFlow<Unit> = _customSaved
 
@@ -57,6 +66,7 @@ class DnsViewModel(
         settings,
         customDraft,
         editingOverride,
+        saveState,
         ::dnsUiState,
     ).stateIn(
         scope = viewModelScope,
@@ -70,11 +80,14 @@ class DnsViewModel(
 
     fun setCustomField(value: String) {
         customDraft.value = value
+        if (saveState.value == DnsSaveState.ERROR) saveState.value = DnsSaveState.IDLE
     }
 
     fun chooseKnown(id: String) {
         require(id in DnsOptions.servers)
+        if (saveState.value == DnsSaveState.SAVING) return
         editingOverride.value = false
+        saveState.value = DnsSaveState.IDLE
         val selectedDns = settings.value?.dnsId?.ifBlank { null } ?: "google"
         if (selectedDns == id) return
         val persistedCustom = settings.value?.dnsCustom.orEmpty()
@@ -89,12 +102,22 @@ class DnsViewModel(
         if (!DnsOptions.isValid(value)) return
         val current = settings.value
         if (current?.dnsId == DnsOptions.CUSTOM && current.dnsCustom.trim() == value) return
+        if (saveState.value == DnsSaveState.SAVING) return
+        saveState.value = DnsSaveState.SAVING
         viewModelScope.launch {
-            setDns(DnsOptions.CUSTOM, value)
-            customDraft.value = value
-            editingOverride.value = true
-            restartTunnel()
-            _customSaved.emit(Unit)
+            try {
+                setDns(DnsOptions.CUSTOM, value)
+                if (customDraft.value?.trim() == value) customDraft.value = value
+                editingOverride.value = true
+                restartTunnel()
+                saveState.value = DnsSaveState.IDLE
+                _customSaved.emit(Unit)
+            } catch (cancelled: CancellationException) {
+                saveState.value = DnsSaveState.IDLE
+                throw cancelled
+            } catch (_: Exception) {
+                saveState.value = DnsSaveState.ERROR
+            }
         }
     }
 
