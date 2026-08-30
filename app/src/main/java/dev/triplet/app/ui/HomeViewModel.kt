@@ -12,6 +12,7 @@ import dev.triplet.app.data.TriSettings
 import dev.triplet.app.vpn.EffectiveRoutes
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -78,6 +79,7 @@ class HomeViewModel(
 ) : ViewModel() {
     private val routeRefresh = MutableStateFlow(0L)
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     private val effectiveRoutes = combine(
         settings
             .map { it?.routes.orEmpty() }
