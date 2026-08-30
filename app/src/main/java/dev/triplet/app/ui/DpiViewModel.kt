@@ -21,8 +21,9 @@ data class DpiUiState(
     val customField: String = "",
     val editingCustom: Boolean = false,
     val customInvalid: Boolean = false,
+    val customChanged: Boolean = false,
 ) {
-    val canSaveCustom: Boolean get() = customField.isNotBlank() && !customInvalid
+    val canSaveCustom: Boolean get() = customField.isNotBlank() && !customInvalid && customChanged
 }
 
 internal fun dpiUiState(
@@ -30,12 +31,15 @@ internal fun dpiUiState(
     customDraft: String?,
     editingOverride: Boolean?,
 ): DpiUiState {
-    val customField = customDraft ?: settings?.dpiCustomArgs.orEmpty()
+    val persistedCustom = settings?.dpiCustomArgs.orEmpty()
+    val customField = customDraft ?: persistedCustom
+    val preset = settings?.preset ?: DpiPreset.RECOMMENDED
     return DpiUiState(
-        preset = settings?.preset ?: DpiPreset.RECOMMENDED,
+        preset = preset,
         customField = customField,
         editingCustom = editingOverride ?: (settings?.preset == DpiPreset.CUSTOM),
         customInvalid = customField.isNotBlank() && !DpiArgs.isValid(customField),
+        customChanged = preset != DpiPreset.CUSTOM || customField.trim() != persistedCustom.trim(),
     )
 }
 
@@ -81,6 +85,8 @@ class DpiViewModel(
     fun saveCustom() {
         val value = (customDraft.value ?: settings.value?.dpiCustomArgs.orEmpty()).trim()
         if (!DpiArgs.isValid(value)) return
+        val current = settings.value
+        if (current?.preset == DpiPreset.CUSTOM && current.dpiCustomArgs.trim() == value) return
         viewModelScope.launch {
             // Persist the validated draft before activating CUSTOM so a process
             // death between writes cannot expose an invalid custom preset.

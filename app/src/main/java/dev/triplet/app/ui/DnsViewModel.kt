@@ -20,8 +20,9 @@ data class DnsUiState(
     val customField: String = "",
     val editingCustom: Boolean = false,
     val customInvalid: Boolean = false,
+    val customChanged: Boolean = false,
 ) {
-    val canSaveCustom: Boolean get() = customField.isNotBlank() && !customInvalid
+    val canSaveCustom: Boolean get() = customField.isNotBlank() && !customInvalid && customChanged
 }
 
 internal fun dnsUiState(
@@ -29,12 +30,16 @@ internal fun dnsUiState(
     customDraft: String?,
     editingOverride: Boolean?,
 ): DnsUiState {
-    val customField = customDraft ?: settings?.dnsCustom.orEmpty()
+    val persistedCustom = settings?.dnsCustom.orEmpty()
+    val customField = customDraft ?: persistedCustom
+    val selectedDns = settings?.dnsId?.ifBlank { null } ?: "google"
     return DnsUiState(
-        selectedDns = settings?.dnsId?.ifBlank { null } ?: "google",
+        selectedDns = selectedDns,
         customField = customField,
         editingCustom = editingOverride ?: (settings?.dnsId == DnsOptions.CUSTOM),
         customInvalid = customField.isNotBlank() && !DnsOptions.isValid(customField),
+        customChanged =
+            selectedDns != DnsOptions.CUSTOM || customField.trim() != persistedCustom.trim(),
     )
 }
 
@@ -82,6 +87,8 @@ class DnsViewModel(
     fun saveCustom() {
         val value = (customDraft.value ?: settings.value?.dnsCustom.orEmpty()).trim()
         if (!DnsOptions.isValid(value)) return
+        val current = settings.value
+        if (current?.dnsId == DnsOptions.CUSTOM && current.dnsCustom.trim() == value) return
         viewModelScope.launch {
             setDns(DnsOptions.CUSTOM, value)
             customDraft.value = value

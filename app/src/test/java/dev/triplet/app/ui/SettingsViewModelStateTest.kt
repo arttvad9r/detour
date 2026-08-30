@@ -1,5 +1,6 @@
 package dev.triplet.app.ui
 
+import dev.triplet.app.core.DnsOptions
 import dev.triplet.app.core.DpiPreset
 import dev.triplet.app.core.VlessKeys
 import dev.triplet.app.core.VpnProfileKind
@@ -51,6 +52,25 @@ class SettingsViewModelStateTest {
         assertEquals("google", dnsUiState(settings(dnsId = ""), null, null).selectedDns)
     }
 
+    @Test fun `active custom dns disables unchanged save but known selection can reactivate it`() {
+        val activeCustom = dnsUiState(
+            settings(dnsId = DnsOptions.CUSTOM),
+            customDraft = null,
+            editingOverride = null,
+        )
+        assertTrue(activeCustom.editingCustom)
+        assertFalse(activeCustom.customChanged)
+        assertFalse(activeCustom.canSaveCustom)
+
+        val selectedKnown = dnsUiState(
+            settings(dnsId = "cloudflare"),
+            customDraft = null,
+            editingOverride = true,
+        )
+        assertTrue(selectedKnown.customChanged)
+        assertTrue(selectedKnown.canSaveCustom)
+    }
+
     @Test fun `dpi draft overrides persisted args and validates independently`() {
         val persisted = dpiUiState(settings(), customDraft = null, editingOverride = null)
         assertEquals(DpiPreset.RECOMMENDED, persisted.preset)
@@ -68,8 +88,18 @@ class SettingsViewModelStateTest {
         assertFalse(invalid.canSaveCustom)
     }
 
-    @Test fun `persisted custom dpi opens editor`() {
-        val state = dpiUiState(settings(preset = DpiPreset.CUSTOM), null, null)
-        assertTrue(state.editingCustom)
+    @Test fun `active custom dpi disables unchanged save but recommended can reactivate it`() {
+        val activeCustom = dpiUiState(settings(preset = DpiPreset.CUSTOM), null, null)
+        assertTrue(activeCustom.editingCustom)
+        assertFalse(activeCustom.customChanged)
+        assertFalse(activeCustom.canSaveCustom)
+
+        val recommended = dpiUiState(
+            settings(preset = DpiPreset.RECOMMENDED),
+            customDraft = null,
+            editingOverride = true,
+        )
+        assertTrue(recommended.customChanged)
+        assertTrue(recommended.canSaveCustom)
     }
 }
