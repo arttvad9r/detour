@@ -165,14 +165,18 @@ class ConfigGeneratorTest {
         assertFalse(yaml.contains("mixed-port:"))
     }
 
-    @Test fun `health probes are pinned to their outbounds`() {
-        val yaml = ConfigGenerator.build(input())
+    @Test fun `health probes are pinned and authenticated`() {
+        val routing = input()
+        val yaml = ConfigGenerator.build(routing)
         assertTrue(yaml.contains("name: PROBE_VLESS"))
         assertTrue(yaml.contains("port: 10810"))
         assertTrue(yaml.contains("proxy: VLESS"))
         assertTrue(yaml.contains("name: PROBE_DPI"))
         assertTrue(yaml.contains("port: 10811"))
         assertTrue(yaml.contains("proxy: DPI"))
+        assertTrue(yaml.contains("username: ${routing.probeCredentials.username}"))
+        assertTrue(yaml.contains("password: ${routing.probeCredentials.password}"))
+        assertEquals(2, Regex("\\n  users:\\n").findAll(yaml).count())
     }
 
     @Test fun `whole vless output matches golden yaml`() {
@@ -244,11 +248,17 @@ class ConfigGeneratorTest {
             |  listen: 127.0.0.1
             |  port: 10810
             |  proxy: VLESS
+            |  users:
+            |    - username: ${ProbeAuth.current().username}
+            |      password: ${ProbeAuth.current().password}
             |- name: PROBE_DPI
             |  type: mixed
             |  listen: 127.0.0.1
             |  port: 10811
             |  proxy: DPI
+            |  users:
+            |    - username: ${ProbeAuth.current().username}
+            |      password: ${ProbeAuth.current().password}
             |rules:
             |- IP-CIDR6,::/0,REJECT,no-resolve
             |- UID,10101,VLESS

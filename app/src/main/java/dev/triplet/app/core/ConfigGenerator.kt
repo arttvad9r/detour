@@ -75,6 +75,8 @@ object ConfigGenerator {
             "\nproxy-groups:\n" + renderWarpGroup(warpProxies.size)
         } else ""
 
+        val probeUser = yamlScalar(input.probeCredentials.username)
+        val probePassword = yamlScalar(input.probeCredentials.password)
         val probes = buildList {
             if (input.vpnApps.isNotEmpty() && input.vpn != null) {
                 val name = if (input.vpn is VpnOutbound.Vless) "PROBE_VLESS" else "PROBE_WARP"
@@ -82,14 +84,20 @@ object ConfigGenerator {
   type: mixed
   listen: 127.0.0.1
   port: 10810
-  proxy: $vpnTag""")
+  proxy: $vpnTag
+  users:
+    - username: $probeUser
+      password: $probePassword""")
             }
             if (input.dpiApps.isNotEmpty()) {
                 add("""- name: PROBE_DPI
   type: mixed
   listen: 127.0.0.1
   port: 10811
-  proxy: DPI""")
+  proxy: DPI
+  users:
+    - username: $probeUser
+      password: $probePassword""")
             }
         }.joinToString("\n")
 
