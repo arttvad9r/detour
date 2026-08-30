@@ -12,23 +12,7 @@ import org.junit.Test
 
 class SettingsMenuViewModelTest {
     @Test fun `presentation state summarizes settings without exposing persistence`() {
-        val source = TriSettings(
-            vlessKeys = VlessKeys(
-                items = listOf(VlessKey("id", "Profile", "vless://example")),
-                activeId = "id",
-            ),
-            warpProfile = null,
-            activeVpn = VpnProfileKind.VLESS,
-            preset = DpiPreset.RECOMMENDED,
-            dpiCustomArgs = "",
-            autoConnect = true,
-            themeId = "",
-            dnsId = "google",
-            dnsCustom = "",
-            routes = emptyMap(),
-            showSystemApps = false,
-            sessionStartedAt = null,
-        )
+        val source = settings(autoConnect = true, withVless = true)
 
         val state = settingsMenuUiState(source, routedCount = 3)
 
@@ -38,7 +22,49 @@ class SettingsMenuViewModelTest {
         assertTrue(state.autoConnect)
     }
 
+    @Test fun `pending auto connect intent overrides lagging persistence`() {
+        val state = settingsMenuUiState(
+            settings = settings(autoConnect = false),
+            routedCount = 0,
+            autoConnectOverride = true,
+        )
+
+        assertTrue(state.autoConnect)
+    }
+
+    @Test fun `latest pending disable overrides persisted enabled value`() {
+        val state = settingsMenuUiState(
+            settings = settings(autoConnect = true),
+            routedCount = 0,
+            autoConnectOverride = false,
+        )
+
+        assertFalse(state.autoConnect)
+    }
+
     @Test fun `missing settings render safe defaults`() {
         assertEquals(SettingsMenuUiState(), settingsMenuUiState(null, routedCount = 0))
     }
+
+    private fun settings(autoConnect: Boolean, withVless: Boolean = false) = TriSettings(
+        vlessKeys = if (withVless) {
+            VlessKeys(
+                items = listOf(VlessKey("id", "Profile", "vless://example")),
+                activeId = "id",
+            )
+        } else {
+            VlessKeys(emptyList(), null)
+        },
+        warpProfile = null,
+        activeVpn = VpnProfileKind.VLESS,
+        preset = DpiPreset.RECOMMENDED,
+        dpiCustomArgs = "",
+        autoConnect = autoConnect,
+        themeId = "",
+        dnsId = "google",
+        dnsCustom = "",
+        routes = emptyMap(),
+        showSystemApps = false,
+        sessionStartedAt = null,
+    )
 }

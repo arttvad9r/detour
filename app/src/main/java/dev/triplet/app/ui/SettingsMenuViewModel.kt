@@ -7,16 +7,20 @@ import dev.triplet.app.core.AppRoute
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.data.TriSettings
 import dev.triplet.app.vpn.EffectiveRoutes
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 data class SettingsMenuUiState(
     val routedCount: Int = 0,
@@ -28,11 +32,12 @@ data class SettingsMenuUiState(
 internal fun settingsMenuUiState(
     settings: TriSettings?,
     routedCount: Int,
+    autoConnectOverride: Boolean? = null,
 ): SettingsMenuUiState = SettingsMenuUiState(
     routedCount = routedCount,
     hasVless = settings?.vlessKeys?.items?.isNotEmpty() == true,
     hasWarp = settings?.warpProfile != null,
-    autoConnect = settings?.autoConnect == true,
+    autoConnect = autoConnectOverride ?: (settings?.autoConnect == true),
 )
 
 class SettingsMenuViewModel(
@@ -41,6 +46,8 @@ class SettingsMenuViewModel(
     private val persistAutoConnect: suspend (Boolean) -> Unit,
 ) : ViewModel() {
     private val routeRefresh = MutableStateFlow(0L)
+    private val autoConnectOverride = MutableStateFlow<Boolean?>(null)
+    private val autoConnectWriteMutex = Mutex()
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val routedCount = combine(
@@ -61,8 +68,10 @@ class SettingsMenuViewModel(
     val uiState: StateFlow<SettingsMenuUiState> = combine(
         settings,
         routedCount,
-        ::settingsMenuUiState,
-    ).stateIn(
+        autoConnectOverride,
+    ) { settings, routedCount, override ->
+        settingsMenuUiState(settings, routedCount, override)
+    }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = settingsMenuUiState(
@@ -76,8 +85,30 @@ class SettingsMenuViewModel(
     }
 
     fun setAutoConnect(enabled: Boolean) {
-        if (settings.value?.autoConnect == enabled) return
-        viewModelScope.launch { persistAutoConnect(enabled) }
+        val currentIntent = autoConnectOverride.value ?: (settings.value?.autoConnect == true)
+        if (currentIntent == enabled) return
+        autoConnectOverride.value = enabled
+
+        viewModelScope.launch {
+            autoConnectWriteMutex.withLock {
+                val desired = autoConnectOverride.value ?: return@withLock
+                try {
+                    if (settings.value?.autoConnect != desired) {
+                        persistAutoConnect(desired)
+                    }
+                    if (settings.value?.autoConnect != desired) {
+                        settings.first { it?.autoConnect == desired }
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    if (autoConnectOverride.value == desired) autoConnectOverride.value = null
+                    return@withLock
+                }
+
+                if (autoConnectOverride.value == desired) autoConnectOverride.value = null
+            }
+        }
     }
 
     companion object {
