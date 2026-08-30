@@ -28,6 +28,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.runtime.Composable
@@ -36,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,6 +62,7 @@ import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private enum class VisualVpnState { IDLE, STARTING, ACTIVE, FAILED }
 
@@ -136,8 +140,17 @@ fun HomeScreen(
         label = "statusContent",
     ).value
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val permissionNotGrantedMessage = stringResource(R.string.err_vpn_permission)
     val consentLauncher = rememberLauncherForActivityResult(StartActivityForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) VpnController.startNow(ctx)
+        if (result.resultCode == Activity.RESULT_OK) {
+            VpnController.startNow(ctx)
+        } else {
+            scope.launch {
+                snackbarHostState.showSnackbar(permissionNotGrantedMessage)
+            }
+        }
     }
     val canCancelStarting = st == VpnState.Starting && showStarting
     val onMainAction: () -> Unit = {
@@ -164,6 +177,7 @@ fun HomeScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = c.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             Box(Modifier.fillMaxWidth().navigationBarsPadding()) {
                 MainButton(
