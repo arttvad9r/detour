@@ -17,23 +17,38 @@ class DpiBackend(context: Context, private val onUnexpectedExit: () -> Unit = {}
     private var proc: Process? = null
     private val stopping = AtomicBoolean(false)
 
-    fun start(strategyArgs: List<String>, port: Int, cancelled: () -> Boolean = { false }): Boolean {
+    fun start(
+        strategyArgs: List<String>,
+        port: Int,
+        credentials: ProbeCredentials = ProbeAuth.current(),
+        cancelled: () -> Boolean = { false },
+    ): Boolean {
         stop()
         if (!bin.exists()) return false
+        if (!validCredential(credentials.username) || !validCredential(credentials.password)) return false
         // -U: TCP-only для DPI-маршрута (fail-closed); QUIC режется правилом
         // с быстрым отказом, приложения сразу уходят на TCP-обход.
-        val cmd = listOf(bin.absolutePath, "-i", "127.0.0.1", "-p", port.toString(), "-U") +
-            strategyArgs
+        // -J: Detour patch requires RFC1929 credentials supplied through stdin.
+        val cmd = listOf(
+            bin.absolutePath, "-i", "127.0.0.1", "-p", port.toString(), "-U", "-J",
+        ) + strategyArgs
         return try {
             stopping.set(false)
             // Обязательно уводим stdout/stderr: непрочитанный пайп заполняется
             // (~64KB) и ciadpi блокируется на записи — выглядит как «повис».
-            proc = ProcessBuilder(cmd)
+            val process = ProcessBuilder(cmd)
                 .redirectErrorStream(true)
                 .redirectOutput(ProcessBuilder.Redirect.INHERIT)
                 .start()
+            proc = process
+            // Secret does not enter argv/environment or persistent settings. The patched
+            // child reads exactly these two lines before opening the SOCKS listener.
+            process.outputStream.bufferedWriter(Charsets.UTF_8).use { writer ->
+                writer.append(credentials.username).append('\n')
+                writer.append(credentials.password).append('\n')
+            }
             val started = awaitPort(port, timeoutMs = 4000, cancelled = cancelled)
-            if (started) watchExit(proc!!)
+            if (started) watchExit(process)
             started
         } catch (e: Exception) {
             stop()
@@ -59,6 +74,11 @@ class DpiBackend(context: Context, private val onUnexpectedExit: () -> Unit = {}
     }
 
     fun isAlive(): Boolean = proc?.isAlive == true
+
+    private fun validCredential(value: String): Boolean {
+        val bytes = value.toByteArray(Charsets.UTF_8)
+        return bytes.size in 1..255 && value.none { it == '\r' || it == '\n' || it == '\u0000' }
+    }
 
     private fun watchExit(process: Process) {
         Thread {

@@ -117,12 +117,15 @@ class ConfigGeneratorTest {
         assertTrue(dpiIdx > quicIdx)
     }
 
-    @Test fun `dpi socks outbound targets loopback port`() {
-        val yaml = ConfigGenerator.build(input())
-        assertTrue(yaml.contains("- name: DPI"))
-        assertTrue(yaml.contains("type: socks5"))
-        assertTrue(yaml.contains("server: 127.0.0.1"))
-        assertTrue(yaml.contains("port: 10808"))
+    @Test fun `dpi socks outbound targets loopback port with credentials`() {
+        val routing = input()
+        val yaml = ConfigGenerator.build(routing)
+        val dpiBlock = yaml.substringAfter("- name: DPI").substringBefore("listeners:")
+        assertTrue(dpiBlock.contains("type: socks5"))
+        assertTrue(dpiBlock.contains("server: 127.0.0.1"))
+        assertTrue(dpiBlock.contains("port: 10808"))
+        assertTrue(dpiBlock.contains("username: ${routing.probeCredentials.username}"))
+        assertTrue(dpiBlock.contains("password: ${routing.probeCredentials.password}"))
     }
 
     @Test fun `last rule rejects unknown ownership`() {
@@ -241,6 +244,8 @@ class ConfigGeneratorTest {
             |  type: socks5
             |  server: 127.0.0.1
             |  port: 10808
+            |  username: ${ProbeAuth.current().username}
+            |  password: ${ProbeAuth.current().password}
             |  udp: false
             |listeners:
             |- name: PROBE_VLESS

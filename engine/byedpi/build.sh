@@ -6,6 +6,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CACHE="${BYEDPI_CACHE:-$REPO_ROOT/.cache/byedpi-src}"
 OUT_DIR="$REPO_ROOT/app/src/main/jniLibs"
+PATCH="$REPO_ROOT/engine/byedpi/detour-socks-auth.patch"
 BYEDPI_VERSION="v0.17.3"
 BYEDPI_COMMIT="7efde1b1296eaaa187b70e951894dde17527489c"
 
@@ -21,6 +22,9 @@ fi
 git -C "$CACHE" fetch --tags --force origin "$TAG"
 git -C "$CACHE" reset --hard "$BYEDPI_COMMIT"
 git -C "$CACHE" clean -fdx
+git -C "$CACHE" apply --check "$PATCH"
+git -C "$CACHE" apply "$PATCH"
+echo "detour socks auth patch applied"
 
 TC="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
 declare -A CLANG=(

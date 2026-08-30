@@ -1,0 +1,216 @@
+diff --git a/conev.h b/conev.h
+--- a/conev.h
++++ b/conev.h
+@@ -45,6 +45,7 @@ typedef int (*evcb_t)(struct poolhd *, struct eval *, int);
+ #define FLAG_S5 2
+ #define FLAG_CONN 4
+ #define FLAG_HTTP 8
++#define FLAG_S5_AUTH 16
+ 
+ struct buffer {
+     size_t size;
+diff --git a/proxy.h b/proxy.h
+--- a/proxy.h
++++ b/proxy.h
+@@ -54,6 +54,7 @@ struct s5_rep {
+ #pragma pack(pop)
+ 
+ #define S_AUTH_NONE 0x00
++#define S_AUTH_USERPASS 0x02
+ #define S_AUTH_BAD 0xff
+ 
+ #define S_ATP_I4 0x01
+@@ -77,6 +78,8 @@ struct s5_rep {
+ #define S_SIZE_I6 22
+ #define S_SIZE_ID 7
+ 
++int load_socks5_auth_stdin(void);
++
+ void map_fix(union sockaddr_u *addr, char f6);
+ 
+ int create_conn(struct poolhd *pool,
+diff --git a/main.c b/main.c
+--- a/main.c
++++ b/main.c
+@@ -76,5 +76,6 @@ static const char help_text[] = {
+     "    -I  --conn-ip <ip>        Connection binded IP, default ::\n"
+     "    -b, --buf-size <size>     Buffer size, default 16384\n"
+     "    -x, --debug <level>       Print logs, 0, 1 or 2\n"
++    "    -J, --socks5-auth-stdin   Require SOCKS5 username/password from stdin\n"
+     "    -g, --def-ttl <num>       TTL for all outgoing connections\n"
+     // desync options
+@@ -139,6 +140,7 @@ const struct option options[] = {
+     {"no-ipv6",       0, 0, 'X'},
+     {"no-udp",        0, 0, 'U'},
+     {"http-connect",  0, 0, 'G'},
++    {"socks5-auth-stdin", 0, 0, 'J'},
+     {"help",          0, 0, 'h'},
+     {"version",       0, 0, 'v'},
+     {"ip",            1, 0, 'i'},
+@@ -683,5 +685,6 @@ int main(int argc, char **argv)
+     const char *pid_file = 0;
+     bool daemonize = 0;
++    bool socks5_auth_stdin = 0;
+     
+     int rez;
+     int invalid = 0;
+@@ -709,6 +712,9 @@ int main(int argc, char **argv)
+         case 'G':
+             params.http_connect = 1;
+             break;
++        case 'J':
++            socks5_auth_stdin = 1;
++            break;
+         #ifdef __linux__
+         case 'E':
+             params.transparent = 1;
+@@ -1220,6 +1226,11 @@ int main(int argc, char **argv)
+             return -1;
+         }
+     }
++    if (socks5_auth_stdin && load_socks5_auth_stdin() < 0) {
++        fprintf(stderr, "invalid SOCKS5 auth on stdin\n");
++        clear_params();
++        return -1;
++    }
+     params.mempool = mem_pool(MF_EXTRA, CMP_BYTES);
+     if (!params.mempool) {
+         uniperror("mem_pool");
+diff --git a/proxy.c b/proxy.c
+--- a/proxy.c
++++ b/proxy.c
+@@ -144,5 +144,55 @@ static int resolve(const char *chost, int len,
+     return 0;
+ }
+ 
+ 
++static char socks5_user[256];
++static char socks5_pass[256];
++static size_t socks5_user_len;
++static size_t socks5_pass_len;
++static char socks5_auth_enabled;
++
++
++static int read_auth_line(char out[256])
++{
++    char line[257];
++    if (!fgets(line, sizeof(line), stdin)) {
++        return -1;
++    }
++    size_t len = strcspn(line, "\r\n");
++    if (!len || len > 255 || line[len] == '\0') {
++        return -1;
++    }
++    memcpy(out, line, len);
++    out[len] = 0;
++    return (int)len;
++}
++
++
++int load_socks5_auth_stdin(void)
++{
++    int user_len = read_auth_line(socks5_user);
++    int pass_len = read_auth_line(socks5_pass);
++    if (user_len < 1 || pass_len < 1) {
++        return -1;
++    }
++    socks5_user_len = (size_t)user_len;
++    socks5_pass_len = (size_t)pass_len;
++    socks5_auth_enabled = 1;
++    return 0;
++}
++
++
++static int auth_equal(const char *a, size_t an, const char *b, size_t bn)
++{
++    if (an != bn) {
++        return 0;
++    }
++    unsigned char diff = 0;
++    for (size_t i = 0; i < an; i++) {
++        diff |= (unsigned char)a[i] ^ (unsigned char)b[i];
++    }
++    return diff == 0;
++}
++
++
+ static int auth_socks5(int fd, const char *buffer, ssize_t n)
+@@ -150,15 +200,16 @@ static int auth_socks5(int fd, const char *buffer, ssize_t n)
+     if (n <= 2 || (uint8_t)buffer[1] != (n - 2)) {
+         return -1;
+     }
++    uint8_t required = socks5_auth_enabled ? S_AUTH_USERPASS : S_AUTH_NONE;
+     uint8_t c = S_AUTH_BAD;
+     for (long i = 2; i < n; i++)
+-        if (buffer[i] == S_AUTH_NONE) {
+-            c = S_AUTH_NONE;
++        if ((uint8_t)buffer[i] == required) {
++            c = required;
+             break;
+         }
+     uint8_t a[2] = { S_VER5, c };
+     if (send(fd, (char *)a, sizeof(a), 0) < 0) {
+         uniperror("send");
+         return -1;
+     }
+-    return c != S_AUTH_BAD ? 0 : -1;
++    return c != S_AUTH_BAD ? c : -1;
+@@ -165,4 +216,32 @@ static int auth_socks5(int fd, const char *buffer, ssize_t n)
+ }
+ 
+ 
++static int auth_socks5_userpass(int fd, const char *buffer, ssize_t n)
++{
++    if (!socks5_auth_enabled || n < 5 || (uint8_t)buffer[0] != 0x01) {
++        return -1;
++    }
++    size_t user_len = (uint8_t)buffer[1];
++    size_t pass_len_pos = 2 + user_len;
++    if (!user_len || pass_len_pos >= (size_t)n) {
++        return -1;
++    }
++    size_t pass_len = (uint8_t)buffer[pass_len_pos];
++    size_t expected = pass_len_pos + 1 + pass_len;
++    uint8_t status = 1;
++    if (pass_len && expected == (size_t)n &&
++            auth_equal(buffer + 2, user_len, socks5_user, socks5_user_len) &&
++            auth_equal(buffer + pass_len_pos + 1, pass_len,
++                socks5_pass, socks5_pass_len)) {
++        status = 0;
++    }
++    uint8_t reply[2] = { 0x01, status };
++    if (send(fd, (char *)reply, sizeof(reply), 0) < 0) {
++        uniperror("send");
++        return -1;
++    }
++    return status ? -1 : 0;
++}
++
++
+ static int resp_s5_error(int fd, int e)
+@@ -830,12 +909,23 @@ int on_request(struct poolhd *pool, struct eval *val, int et)
+     }
+     int error = 0;
+     
++    if (val->flag == FLAG_S5_AUTH) {
++        if (auth_socks5_userpass(val->fd, buff->data, n)) {
++            return -1;
++        }
++        val->flag = FLAG_S5;
++        return 0;
++    }
++    if (socks5_auth_enabled && *buff->data != S_VER5) {
++        return -1;
++    }
+     if (*buff->data == S_VER5) {
+         if (val->flag != FLAG_S5) {
+-            if (auth_socks5(val->fd, buff->data, n)) {
++            int auth = auth_socks5(val->fd, buff->data, n);
++            if (auth < 0) {
+                 return -1;
+             }
+-            val->flag = FLAG_S5;
++            val->flag = auth == S_AUTH_USERPASS ? FLAG_S5_AUTH : FLAG_S5;
+             return 0;
+         }
+         if (n < S_SIZE_MIN) {
