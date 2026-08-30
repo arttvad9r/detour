@@ -25,7 +25,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -127,7 +126,7 @@ internal fun DetourNavigation(
     appContext: Context,
     modifier: Modifier = Modifier,
 ) {
-    val activityContext = LocalContext.current
+    val autoConnectLaunchViewModel = viewModel<AutoConnectLaunchViewModel>()
     val backStack = rememberNavBackStack(AppDestination.Home)
     val listDetailStrategy = rememberListDetailSceneStrategy<NavKey>()
     val currentDestination = backStack.lastOrNull()
@@ -144,18 +143,20 @@ internal fun DetourNavigation(
         }
     }
 
-    LaunchedEffect(Unit) {
-        AutoConnectCoordinator(
-            loadSettings = store::snapshot,
-            resolveRoutes = { routes ->
-                withContext(Dispatchers.IO) {
-                    resolveEffectiveRoutes(appContext.packageManager, routes)
-                }
-            },
-            vpnPermissionGranted = { VpnService.prepare(activityContext) == null },
-            currentVpnState = { VpnController.state.value },
-            startVpn = { VpnController.startNow(activityContext) },
-        ).runOnce()
+    LaunchedEffect(autoConnectLaunchViewModel) {
+        autoConnectLaunchViewModel.launchOnce {
+            AutoConnectCoordinator(
+                loadSettings = store::snapshot,
+                resolveRoutes = { routes ->
+                    withContext(Dispatchers.IO) {
+                        resolveEffectiveRoutes(appContext.packageManager, routes)
+                    }
+                },
+                vpnPermissionGranted = { VpnService.prepare(appContext) == null },
+                currentVpnState = { VpnController.state.value },
+                startVpn = { VpnController.startNow(appContext) },
+            ).runOnce()
+        }
     }
 
     fun openSettingsDetail(destination: AppDestination) {
