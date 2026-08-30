@@ -20,22 +20,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.triplet.app.R
 import dev.triplet.app.data.RoutesStore
-import kotlinx.coroutines.launch
 
 @Composable
 fun ThemeScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modifier) {
-    val scope = rememberCoroutineScope()
+    val themeViewModel = viewModel<ThemeViewModel>(factory = ThemeViewModel.factory(store))
+    val state by themeViewModel.uiState.collectAsStateWithLifecycle()
     val c = detourColors
-    val settings by store.settings.collectAsStateWithLifecycle()
-    val current = AppTheme.byId(settings?.themeId ?: "").id
     val scrollState = rememberScrollState()
 
     Column(
@@ -54,8 +52,8 @@ fun ThemeScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mod
                 AppTheme.entries.forEachIndexed { i, theme ->
                     ChoiceRow(
                         title = stringResource(themeLabel(theme)),
-                        selected = current == theme.id,
-                        onClick = { scope.launch { store.setTheme(theme.id) } },
+                        selected = state.selectedThemeId == theme.id,
+                        onClick = { themeViewModel.selectTheme(theme.id) },
                         trailing = { ThemePalettePreview(theme) },
                     )
                     if (i < AppTheme.entries.lastIndex) GroupDivider(startInset = 56)
