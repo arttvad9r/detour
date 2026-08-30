@@ -142,6 +142,9 @@ jobs:
           fi
 
           "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
+          "$ANDROID_SDK_ROOT/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$APK"
+          python3 tools/check_elf_alignment.py "$APK" \
+            --readelf "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
           python3 tools/apk_size_report.py "$APK" \
             --report app/build/reports/apk-size-release.json \
             --max-bytes 31457280 \
@@ -178,4 +181,3 @@ jobs:
               --verify-tag \
               --generate-notes \
               --title "Detour $VERSION_NAME"
-          fi

@@ -50,6 +50,10 @@ jobs:
           python3 tools/apk_size_report.py app/build/outputs/apk/release
           --expected-abi arm64-v8a
           --expected-abi x86_64
+      - name: Verify universal 16 KB ELF alignment
+        run: >-
+          python3 tools/check_elf_alignment.py app/build/outputs/apk/release
+          --readelf "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
       - run: bash engine/vulnscan.sh
       - name: Generate disposable CI release keystore
         shell: bash
@@ -89,6 +93,9 @@ jobs:
             exit 1
           fi
           "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_SDK_ROOT/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$APK"
+          python3 tools/check_elf_alignment.py "$APK" \
+            --readelf "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
           python3 tools/apk_size_report.py "$APK" \
             --report app/build/reports/apk-size-arm64.json \
             --max-bytes 31457280 \
