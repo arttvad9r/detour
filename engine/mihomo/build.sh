@@ -115,9 +115,9 @@ PYEOF
 
 export PATH="$PATH:$(go env GOPATH)/bin"
 export GOFLAGS="-mod=mod -tags=with_gvisor"
-# Strip the Go symbol table/DWARF and source paths from the shipped JNI libraries.
-# JNI exports and Go build info remain intact; the checks below verify the stamped toolchain.
-gomobile bind -target android/arm64,android/amd64 -androidapi 24 -javapkg=dev.triplet.engine -trimpath -ldflags="-s -w" .
+# Remove DWARF debug data and source paths while preserving the Go symbol table.
+# The symbol table is required by the shipped-binary govulncheck gate below.
+gomobile bind -target android/arm64,android/amd64 -androidapi 24 -javapkg=dev.triplet.engine -trimpath -ldflags="-w" .
 
 # Verify the shipped c-shared libraries were built by the selected Go toolchain.
 # `go version` reads the linker-stamped version from c-shared ELF files; checking
