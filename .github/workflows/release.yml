@@ -32,8 +32,15 @@ jobs:
           MAJOR="${BASH_REMATCH[1]}"
           MINOR="${BASH_REMATCH[2]}"
           PATCH="${BASH_REMATCH[3]}"
-          if (( 10#$MINOR > 999 || 10#$PATCH > 999 )); then
-            echo "MINOR and PATCH must be <= 999 for Android versionCode mapping" >&2
+          # Bound decimal widths before Bash arithmetic. Otherwise a malicious or
+          # accidental tag with hundreds of digits can overflow the shell integer
+          # while evaluating 10#VALUE and potentially wrap into a valid-looking code.
+          if (( ${#MAJOR} > 4 || ${#MINOR} > 3 || ${#PATCH} > 3 )); then
+            echo "Release version components exceed Android versionCode bounds" >&2
+            exit 1
+          fi
+          if (( 10#$MAJOR > 2100 || 10#$MINOR > 999 || 10#$PATCH > 999 )); then
+            echo "MAJOR must be <= 2100; MINOR and PATCH must be <= 999" >&2
             exit 1
           fi
 

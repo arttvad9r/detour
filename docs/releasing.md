@@ -9,7 +9,7 @@ The tag controls both Android version fields for the release build:
 - `versionName = MAJOR.MINOR.PATCH`;
 - `versionCode = MAJOR * 1,000,000 + MINOR * 1,000 + PATCH`.
 
-`MINOR` and `PATCH` must be at most 999. The computed `versionCode` must be a positive Android-compatible integer. Normal development builds keep the fallback `0.1.0` / `1` values unless Gradle overrides are supplied explicitly.
+`MAJOR` must be at most 2100, while `MINOR` and `PATCH` must be at most 999. The computed `versionCode` must still be a positive Android-compatible integer no greater than 2,100,000,000, so not every `MAJOR = 2100` combination is valid. Normal development builds keep the fallback `0.1.0` / `1` values unless Gradle overrides are supplied explicitly.
 
 A release tag must point to a commit that is contained in `master`. The workflow refuses to publish tags from an unrelated branch.
 
