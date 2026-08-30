@@ -2,6 +2,7 @@ package dev.triplet.app.core
 
 import java.net.URI
 import java.net.URLDecoder
+import java.util.Base64
 import java.util.UUID
 
 data class VlessProfile(
@@ -32,6 +33,8 @@ object VlessKeyParser {
         "chrome", "firefox", "safari", "iOS", "android", "edge", "360", "qq", "random",
     )
     private const val FLOW = "xtls-rprx-vision"
+    private const val REALITY_PUBLIC_KEY_BYTES = 32
+    private const val REALITY_SHORT_ID_HEX_CHARS = 16
 
     fun parse(uriRaw: String): ParseResult {
         val uri = uriRaw.trim()
@@ -39,7 +42,14 @@ object VlessKeyParser {
         return try {
             val u = URI(uri)
             val userInfo = u.userInfo ?: return ParseResult.Err(ERR_FORMAT)
-            UUID.fromString(userInfo)
+            val parsedUuid = UUID.fromString(userInfo)
+            // Android 10-13 retain Java 8's lenient UUID parser and accept shortened
+            // groups such as "1-1-1-1-1". Require the standard representation on
+            // every OS version so mihomo never hashes a noncanonical UUID string.
+            if (!parsedUuid.toString().equals(userInfo, ignoreCase = true)) {
+                return ParseResult.Err(ERR_FORMAT)
+            }
+            val canonicalUuid = parsedUuid.toString()
             val host = u.host?.takeIf { it.isNotBlank() } ?: return ParseResult.Err(ERR_FORMAT)
             if (host.any { it.code < 0x20 || it.code == 0x7f }) return ParseResult.Err(ERR_FORMAT)
             val port = if (u.port == -1) 443 else u.port
@@ -55,20 +65,20 @@ object VlessKeyParser {
             // Поддерживаемый профиль: Reality (+vision). Plain TLS сознательно отклонён:
             // продукт заточен под проверенный профиль пользователя (см. спеку).
             if (q["security"] != "reality") return ParseResult.Err(ERR_SECURITY)
-            val pbk = q["pbk"]?.takeIf { it.matches(Regex("[A-Za-z0-9_-]{32,128}")) }
+            val pbk = q["pbk"]?.takeIf(::isRealityPublicKey)
                 ?: return ParseResult.Err(ERR_SECURITY)
-            val sid = q["sid"]?.takeIf { it.matches(Regex("[0-9a-fA-F]{1,16}")) }
-                ?: return ParseResult.Err(ERR_SECURITY)
+            val sid = q["sid"].orEmpty()
+            if (!isRealityShortId(sid)) return ParseResult.Err(ERR_SECURITY)
             // Current mihomo spells this fingerprint "iOS". Accept the older
             // lowercase form from existing links but normalize the generated YAML.
             val fp = (q["fp"] ?: "chrome").let { if (it == "ios") "iOS" else it }
             if (fp !in fingerprints) return ParseResult.Err(ERR_FORMAT)
             val flow = q["flow"] ?: FLOW
             if (flow != FLOW) return ParseResult.Err(ERR_FORMAT)
-            val values = listOf(userInfo, host, pbk, sid, fp, flow, q["sni"] ?: host, u.fragment ?: "")
+            val values = listOf(canonicalUuid, host, pbk, sid, fp, flow, q["sni"] ?: host, u.fragment ?: "")
             if (values.any { it.any { c -> c.code < 0x20 || c.code == 0x7f } }) return ParseResult.Err(ERR_FORMAT)
             val profile = VlessProfile(
-                uuid = userInfo, server = host, port = port,
+                uuid = canonicalUuid, server = host, port = port,
                 sni = q["sni"]?.takeIf { it.isNotBlank() } ?: host,
                 publicKey = pbk, shortId = sid,
                 fingerprint = fp,
@@ -80,4 +90,17 @@ object VlessKeyParser {
             ParseResult.Err(ERR_FORMAT)
         }
     }
+
+    /** Mirrors mihomo v1.19.30 RealityOptions.Parse(): canonical raw URL-base64, 32 decoded bytes. */
+    private fun isRealityPublicKey(value: String): Boolean = runCatching {
+        val decoded = Base64.getUrlDecoder().decode(value)
+        decoded.size == REALITY_PUBLIC_KEY_BYTES &&
+            Base64.getUrlEncoder().withoutPadding().encodeToString(decoded) == value
+    }.getOrDefault(false)
+
+    /** mihomo accepts an empty short-id; non-empty values are hex and at most 8 decoded bytes. */
+    private fun isRealityShortId(value: String): Boolean =
+        value.length <= REALITY_SHORT_ID_HEX_CHARS &&
+            value.length % 2 == 0 &&
+            value.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }
 }
