@@ -246,18 +246,6 @@ class ProfilesViewModel(
         }
     }
 
-    fun replaceWarp(profile: WarpProfile) {
-        val tunnelAction = warpMutationTunnelAction(
-            profilesUiState(settings.value).activeVpn,
-            deleting = false,
-        )
-        viewModelScope.launch {
-            setWarpProfile(profile)
-            applyTunnelAction(tunnelAction)
-            _warpSaved.emit(Unit)
-        }
-    }
-
     fun deleteWarp() {
         _pendingDelete.value = warpDeleteRequest(settings.value)
     }
