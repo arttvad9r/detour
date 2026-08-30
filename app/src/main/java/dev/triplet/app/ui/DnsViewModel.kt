@@ -13,8 +13,11 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 enum class DnsSaveState { IDLE, SAVING, ERROR }
 
@@ -31,19 +34,23 @@ data class DnsUiState(
             customField.isNotBlank() && !customInvalid && customChanged
 }
 
+internal fun persistedDnsSelection(settings: TriSettings?): String =
+    settings?.dnsId?.ifBlank { null } ?: "google"
+
 internal fun dnsUiState(
     settings: TriSettings?,
     customDraft: String?,
     editingOverride: Boolean?,
     saveState: DnsSaveState = DnsSaveState.IDLE,
+    selectionOverride: String? = null,
 ): DnsUiState {
     val persistedCustom = settings?.dnsCustom.orEmpty()
     val customField = customDraft ?: persistedCustom
-    val selectedDns = settings?.dnsId?.ifBlank { null } ?: "google"
+    val selectedDns = selectionOverride ?: persistedDnsSelection(settings)
     return DnsUiState(
         selectedDns = selectedDns,
         customField = customField,
-        editingCustom = editingOverride ?: (settings?.dnsId == DnsOptions.CUSTOM),
+        editingCustom = editingOverride ?: (selectedDns == DnsOptions.CUSTOM),
         customInvalid = customField.isNotBlank() && !DnsOptions.isValid(customField),
         customChanged =
             selectedDns != DnsOptions.CUSTOM || customField.trim() != persistedCustom.trim(),
@@ -58,7 +65,9 @@ class DnsViewModel(
 ) : ViewModel() {
     private val customDraft = MutableStateFlow<String?>(null)
     private val editingOverride = MutableStateFlow<Boolean?>(null)
+    private val selectionOverride = MutableStateFlow<String?>(null)
     private val saveState = MutableStateFlow(DnsSaveState.IDLE)
+    private val writeMutex = Mutex()
     private val _customSaved = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val customSaved: SharedFlow<Unit> = _customSaved
 
@@ -67,8 +76,16 @@ class DnsViewModel(
         customDraft,
         editingOverride,
         saveState,
-        ::dnsUiState,
-    ).stateIn(
+        selectionOverride,
+    ) { currentSettings, currentDraft, currentEditingOverride, currentSaveState, currentSelectionOverride ->
+        dnsUiState(
+            currentSettings,
+            currentDraft,
+            currentEditingOverride,
+            currentSaveState,
+            currentSelectionOverride,
+        )
+    }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = dnsUiState(settings.value, null, null),
@@ -86,14 +103,34 @@ class DnsViewModel(
     fun chooseKnown(id: String) {
         require(id in DnsOptions.servers)
         if (saveState.value == DnsSaveState.SAVING) return
-        editingOverride.value = false
         saveState.value = DnsSaveState.IDLE
-        val selectedDns = settings.value?.dnsId?.ifBlank { null } ?: "google"
-        if (selectedDns == id) return
-        val persistedCustom = settings.value?.dnsCustom.orEmpty()
+        editingOverride.value = null
+
+        val currentIntent = selectionOverride.value ?: persistedDnsSelection(settings.value)
+        if (currentIntent == id) return
+        selectionOverride.value = id
+
         viewModelScope.launch {
-            setDns(id, persistedCustom)
-            restartTunnel()
+            writeMutex.withLock {
+                val desired = selectionOverride.value ?: return@withLock
+                if (desired == DnsOptions.CUSTOM) return@withLock
+                try {
+                    if (persistedDnsSelection(settings.value) != desired) {
+                        setDns(desired, settings.value?.dnsCustom.orEmpty())
+                        if (persistedDnsSelection(settings.value) != desired) {
+                            settings.first { persistedDnsSelection(it) == desired }
+                        }
+                        restartTunnel()
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    if (selectionOverride.value == desired) selectionOverride.value = null
+                    return@withLock
+                }
+
+                if (selectionOverride.value == desired) selectionOverride.value = null
+            }
         }
     }
 
@@ -103,20 +140,40 @@ class DnsViewModel(
         val current = settings.value
         if (current?.dnsId == DnsOptions.CUSTOM && current.dnsCustom.trim() == value) return
         if (saveState.value == DnsSaveState.SAVING) return
+
+        editingOverride.value = true
+        selectionOverride.value = DnsOptions.CUSTOM
         saveState.value = DnsSaveState.SAVING
         viewModelScope.launch {
-            try {
-                setDns(DnsOptions.CUSTOM, value)
-                if (customDraft.value?.trim() == value) customDraft.value = value
-                editingOverride.value = true
-                restartTunnel()
-                saveState.value = DnsSaveState.IDLE
-                _customSaved.emit(Unit)
-            } catch (cancelled: CancellationException) {
-                saveState.value = DnsSaveState.IDLE
-                throw cancelled
-            } catch (_: Exception) {
-                saveState.value = DnsSaveState.ERROR
+            writeMutex.withLock {
+                try {
+                    setDns(DnsOptions.CUSTOM, value)
+                    if (
+                        persistedDnsSelection(settings.value) != DnsOptions.CUSTOM ||
+                        settings.value?.dnsCustom?.trim() != value
+                    ) {
+                        settings.first {
+                            persistedDnsSelection(it) == DnsOptions.CUSTOM &&
+                                it?.dnsCustom?.trim() == value
+                        }
+                    }
+                    restartTunnel()
+
+                    if (customDraft.value?.trim() == value) {
+                        customDraft.value = null
+                        if (editingOverride.value == true) editingOverride.value = null
+                    }
+                    if (selectionOverride.value == DnsOptions.CUSTOM) selectionOverride.value = null
+                    saveState.value = DnsSaveState.IDLE
+                    _customSaved.emit(Unit)
+                } catch (cancelled: CancellationException) {
+                    if (selectionOverride.value == DnsOptions.CUSTOM) selectionOverride.value = null
+                    saveState.value = DnsSaveState.IDLE
+                    throw cancelled
+                } catch (_: Exception) {
+                    if (selectionOverride.value == DnsOptions.CUSTOM) selectionOverride.value = null
+                    saveState.value = DnsSaveState.ERROR
+                }
             }
         }
     }
