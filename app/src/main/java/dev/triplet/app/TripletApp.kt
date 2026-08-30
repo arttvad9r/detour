@@ -10,6 +10,7 @@ import dev.triplet.app.data.AppInventory
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
+import dev.triplet.app.vpn.resolveRouteSnapshot
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -20,6 +21,15 @@ internal fun shouldRestartVpnForPackageChange(action: String?, replacing: Boolea
     Intent.ACTION_PACKAGE_REMOVED -> !replacing
     else -> false
 }
+
+internal fun packageChangeAffectsRoutes(
+    packageName: String,
+    changedUid: Int,
+    routedPackages: Set<String>,
+    routedUids: Collection<Int?>,
+): Boolean =
+    packageName in routedPackages ||
+        (changedUid >= 0 && routedUids.any { it == changedUid })
 
 class TripletApp : Application() {
     lateinit var routesStore: RoutesStore
@@ -43,8 +53,16 @@ class TripletApp : Application() {
             val state = VpnController.state.value
             if (state != VpnState.Active && state != VpnState.Starting) return
 
+            val changedUid = intent.getIntExtra(Intent.EXTRA_UID, -1)
             appScope.launch {
-                if (packageName in routesStore.snapshot().routes) {
+                val settings = routesStore.snapshot()
+                val resolved = resolveRouteSnapshot(packageManager, settings.routes)
+                if (packageChangeAffectsRoutes(
+                        packageName = packageName,
+                        changedUid = changedUid,
+                        routedPackages = settings.routes.keys,
+                        routedUids = resolved.installedUids.values,
+                    )) {
                     VpnController.restartIfActive(this@TripletApp)
                 }
             }
