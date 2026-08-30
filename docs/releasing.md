@@ -43,11 +43,12 @@ The `Release` workflow then:
 2. validates that all signing secrets are present;
 3. rebuilds the pinned native engine and ByeDPI binaries;
 4. builds a signed `arm64-v8a` release APK;
-5. verifies the APK signature with Android `apksigner`;
-6. enforces the exact `arm64-v8a` ABI set and the 30 MiB APK budget;
-7. writes a SHA-256 checksum;
-8. uploads the APK, checksum and size report as a workflow artifact;
-9. creates or updates the matching GitHub Release and attaches the APK and checksum.
+5. runs the pinned engine tests plus source and shipped-binary `govulncheck` scans against the exact Mihomo AAR produced for the release;
+6. verifies the APK signature with Android `apksigner`;
+7. enforces the exact `arm64-v8a` ABI set and the 30 MiB APK budget;
+8. writes a SHA-256 checksum;
+9. uploads the APK, checksum and size report as a workflow artifact;
+10. creates or updates the matching GitHub Release and attaches the APK and checksum.
 
 The published APK is named `detour-MAJOR.MINOR.PATCH-arm64.apk`.
 
@@ -67,4 +68,4 @@ export DETOUR_RELEASE_KEY_PASSWORD='...'
   -PdetourVersionCode=1000
 ```
 
-Run `apksigner verify --verbose --print-certs` on the resulting APK before distributing a locally produced build.
+Run `bash engine/vulnscan.sh` with the pinned `govulncheck` tool available, then run `apksigner verify --verbose --print-certs` on the resulting APK before distributing a locally produced build.

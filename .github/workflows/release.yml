@@ -91,6 +91,7 @@ jobs:
       - name: Install Go tooling
         run: |
           go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20260821190718-4776eadac327
+          go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           export PATH="$(go env GOPATH)/bin:$PATH"
           gomobile init
@@ -114,6 +115,8 @@ jobs:
           -PdetourReleaseAbi=arm64-v8a
           -PdetourVersionName="$VERSION_NAME"
           -PdetourVersionCode="$VERSION_CODE"
+      - name: Verify embedded engine vulnerabilities
+        run: bash engine/vulnscan.sh
       - name: Verify release APK
         shell: bash
         run: |
