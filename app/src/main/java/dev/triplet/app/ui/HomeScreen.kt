@@ -157,9 +157,9 @@ fun HomeScreen(viewModel: HomeViewModel, onOpenSettings: () -> Unit, modifier: M
                     onClick = onMainAction,
                     modifier = Modifier
                         .align(Alignment.Center)
+                        .padding(horizontal = Spacing.space16, vertical = Spacing.space20)
                         .widthIn(max = 480.dp)
-                        .fillMaxWidth()
-                        .padding(horizontal = Spacing.space16, vertical = Spacing.space20),
+                        .fillMaxWidth(),
                 )
             }
         },
@@ -198,9 +198,9 @@ fun HomeScreen(viewModel: HomeViewModel, onOpenSettings: () -> Unit, modifier: M
                 protocol = stringResource(protocolRes),
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
-                    .fillMaxWidth()
                     .padding(horizontal = Spacing.space16)
-                    .widthIn(max = 360.dp),
+                    .widthIn(max = 360.dp)
+                    .fillMaxWidth(),
             )
             Spacer(Modifier.weight(1.35f))
         }
