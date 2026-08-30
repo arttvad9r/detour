@@ -318,7 +318,7 @@ class TriVpnService : VpnService() {
 
         if (Build.VERSION.SDK_INT >= 33) {
             ConfigGenerator.LAN_PREFIXES.forEach { prefix ->
-                runCatching { builder.excludeRoute(toPrefix(prefix)) }
+                builder.excludeRoute(toPrefix(prefix))
             }
         }
 
