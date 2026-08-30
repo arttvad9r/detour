@@ -6,7 +6,9 @@ import dev.triplet.app.core.VlessKeys
 import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.data.TriSettings
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ProfilesViewModelStateTest {
@@ -108,20 +110,7 @@ class ProfilesViewModelStateTest {
 
     @Test fun `VLESS delete request reports whether the profile is active`() {
         val key = VlessKey("active", "Server", "vless://example")
-        val settings = TriSettings(
-            vlessKeys = VlessKeys(listOf(key), key.id),
-            warpProfile = null,
-            activeVpn = VpnProfileKind.VLESS,
-            preset = DpiPreset.RECOMMENDED,
-            dpiCustomArgs = "",
-            autoConnect = false,
-            themeId = "",
-            dnsId = "google",
-            dnsCustom = "",
-            routes = emptyMap(),
-            showSystemApps = false,
-            sessionStartedAt = null,
-        )
+        val settings = settings(activeVpn = VpnProfileKind.VLESS, key = key)
 
         assertEquals(
             ProfileDeleteRequest.Vless(key.id, active = true),
@@ -133,21 +122,39 @@ class ProfilesViewModelStateTest {
         )
     }
 
-    @Test fun `WARP delete request reports active tunnel`() {
-        val settings = TriSettings(
-            vlessKeys = VlessKeys(emptyList(), null),
-            warpProfile = null,
-            activeVpn = VpnProfileKind.WARP,
-            preset = DpiPreset.RECOMMENDED,
-            dpiCustomArgs = "",
-            autoConnect = false,
-            themeId = "",
-            dnsId = "google",
-            dnsCustom = "",
-            routes = emptyMap(),
-            showSystemApps = false,
-            sessionStartedAt = null,
+    @Test fun `delete request follows optimistic profile selection`() {
+        val key = VlessKey("next", "Server", "vless://example")
+        val settings = settings(activeVpn = VpnProfileKind.WARP, key = key)
+
+        val request = vlessDeleteRequest(
+            settings,
+            key.id,
+            selectionOverride = ProfileSelection.Vless(key.id),
         )
+
+        assertTrue(request.active)
+        assertFalse(request.failed)
+    }
+
+    @Test fun `WARP delete request reports optimistic active tunnel`() {
+        val key = VlessKey("active", "Server", "vless://example")
+        val settings = settings(activeVpn = VpnProfileKind.VLESS, key = key)
+
+        val request = warpDeleteRequest(settings, selectionOverride = ProfileSelection.Warp)
+
+        assertTrue(request.active)
+        assertFalse(request.failed)
+    }
+
+    @Test fun `failed delete request preserves identity and becomes retryable`() {
+        val request = ProfileDeleteRequest.Vless("profile", active = true)
+        val failed = request.failedCopy()
+
+        assertEquals(ProfileDeleteRequest.Vless("profile", active = true, failed = true), failed)
+    }
+
+    @Test fun `WARP delete request reports active tunnel`() {
+        val settings = settings(activeVpn = VpnProfileKind.WARP)
 
         assertEquals(ProfileDeleteRequest.Warp(active = true), warpDeleteRequest(settings))
     }
@@ -155,4 +162,22 @@ class ProfilesViewModelStateTest {
     @Test fun `null settings map to safe empty profile state`() {
         assertEquals(ProfilesUiState(), profilesUiState(null))
     }
+
+    private fun settings(
+        activeVpn: VpnProfileKind,
+        key: VlessKey? = null,
+    ) = TriSettings(
+        vlessKeys = if (key == null) VlessKeys(emptyList(), null) else VlessKeys(listOf(key), key.id),
+        warpProfile = null,
+        activeVpn = activeVpn,
+        preset = DpiPreset.RECOMMENDED,
+        dpiCustomArgs = "",
+        autoConnect = false,
+        themeId = "",
+        dnsId = "google",
+        dnsCustom = "",
+        routes = emptyMap(),
+        showSystemApps = false,
+        sessionStartedAt = null,
+    )
 }

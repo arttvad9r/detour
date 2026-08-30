@@ -1,10 +1,15 @@
 package dev.triplet.app.ui
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import dev.triplet.app.R
 
 @Composable
@@ -23,21 +28,32 @@ fun ProfileDeleteConfirmationDialog(
             )
         },
         text = {
-            Text(
-                text = stringResource(
-                    if (request.active) {
-                        R.string.profile_delete_active_message
-                    } else {
-                        R.string.profile_delete_message
-                    },
-                ),
-                color = c.textSecondary,
-            )
+            Column {
+                Text(
+                    text = stringResource(
+                        if (request.active) {
+                            R.string.profile_delete_active_message
+                        } else {
+                            R.string.profile_delete_message
+                        },
+                    ),
+                    color = c.textSecondary,
+                )
+                if (request.failed) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = stringResource(R.string.profile_delete_error),
+                        color = c.error,
+                    )
+                }
+            }
         },
         confirmButton = {
             TextButton(onClick = onConfirm) {
                 Text(
-                    text = stringResource(R.string.key_delete),
+                    text = stringResource(
+                        if (request.failed) R.string.action_retry else R.string.key_delete,
+                    ),
                     color = c.error,
                 )
             }

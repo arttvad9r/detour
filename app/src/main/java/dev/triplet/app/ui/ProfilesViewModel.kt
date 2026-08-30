@@ -33,15 +33,23 @@ internal fun canStartVlessSave(status: VlessSaveStatus): Boolean =
 
 sealed interface ProfileDeleteRequest {
     val active: Boolean
+    val failed: Boolean
 
     data class Vless(
         val keyId: String,
         override val active: Boolean,
+        override val failed: Boolean = false,
     ) : ProfileDeleteRequest
 
     data class Warp(
         override val active: Boolean,
+        override val failed: Boolean = false,
     ) : ProfileDeleteRequest
+}
+
+internal fun ProfileDeleteRequest.failedCopy(): ProfileDeleteRequest = when (this) {
+    is ProfileDeleteRequest.Vless -> copy(failed = true)
+    is ProfileDeleteRequest.Warp -> copy(failed = true)
 }
 
 sealed interface ProfileSelection {
@@ -91,16 +99,20 @@ internal fun profilesUiState(
 internal fun vlessDeleteRequest(
     settings: TriSettings?,
     keyId: String,
+    selectionOverride: ProfileSelection? = null,
 ): ProfileDeleteRequest.Vless {
-    val state = profilesUiState(settings)
+    val state = profilesUiState(settings, selectionOverride = selectionOverride)
     return ProfileDeleteRequest.Vless(
         keyId = keyId,
         active = state.activeVpn == VpnProfileKind.VLESS && state.activeVlessId == keyId,
     )
 }
 
-internal fun warpDeleteRequest(settings: TriSettings?): ProfileDeleteRequest.Warp {
-    val state = profilesUiState(settings)
+internal fun warpDeleteRequest(
+    settings: TriSettings?,
+    selectionOverride: ProfileSelection? = null,
+): ProfileDeleteRequest.Warp {
+    val state = profilesUiState(settings, selectionOverride = selectionOverride)
     return ProfileDeleteRequest.Warp(active = state.activeVpn == VpnProfileKind.WARP)
 }
 
@@ -142,7 +154,8 @@ class ProfilesViewModel(
     private val vlessSaveStatus = MutableStateFlow(VlessSaveStatus.IDLE)
     private val warpImportStatus = MutableStateFlow(WarpImportStatus.IDLE)
     private val selectionOverride = MutableStateFlow<ProfileSelection?>(null)
-    private val selectionWriteMutex = Mutex()
+    private val profileMutationMutex = Mutex()
+    private val deleteInFlight = MutableStateFlow(false)
     private val _warpImportRejected = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val warpImportRejected: SharedFlow<Unit> = _warpImportRejected
 
@@ -174,24 +187,32 @@ class ProfilesViewModel(
 
     fun saveVless(key: VlessKey, isNew: Boolean) {
         if (!canStartVlessSave(vlessSaveStatus.value)) return
-        val state = profilesUiState(settings.value)
-        val tunnelAction = vlessMutationTunnelAction(
-            state.activeVpn,
-            state.activeVlessId,
-            key.id,
-            deleting = false,
-        )
         vlessSaveStatus.value = VlessSaveStatus.SAVING
         viewModelScope.launch {
-            try {
-                if (isNew) addVlessKey(key) else updateVlessKey(key)
-                applyTunnelAction(tunnelAction)
-                vlessSaveStatus.value = VlessSaveStatus.SAVED
-            } catch (cancelled: CancellationException) {
-                vlessSaveStatus.value = VlessSaveStatus.IDLE
-                throw cancelled
-            } catch (_: Exception) {
-                vlessSaveStatus.value = VlessSaveStatus.ERROR
+            profileMutationMutex.withLock {
+                try {
+                    val state = profilesUiState(settings.value)
+                    val tunnelAction = vlessMutationTunnelAction(
+                        state.activeVpn,
+                        state.activeVlessId,
+                        key.id,
+                        deleting = false,
+                    )
+                    if (!isNew && settings.value?.vlessKeys?.items?.none { it.id == key.id } != false) {
+                        throw IllegalStateException("VLESS profile no longer exists")
+                    }
+                    if (isNew) addVlessKey(key) else updateVlessKey(key)
+                    if (settings.value?.vlessKeys?.items?.none { it == key } != false) {
+                        settings.first { current -> current?.vlessKeys?.items?.any { it == key } == true }
+                    }
+                    applyTunnelAction(tunnelAction)
+                    vlessSaveStatus.value = VlessSaveStatus.SAVED
+                } catch (cancelled: CancellationException) {
+                    vlessSaveStatus.value = VlessSaveStatus.IDLE
+                    throw cancelled
+                } catch (_: Exception) {
+                    vlessSaveStatus.value = VlessSaveStatus.ERROR
+                }
             }
         }
     }
@@ -209,7 +230,8 @@ class ProfilesViewModel(
     }
 
     fun deleteVless(keyId: String) {
-        _pendingDelete.value = vlessDeleteRequest(settings.value, keyId)
+        if (deleteInFlight.value) return
+        _pendingDelete.value = vlessDeleteRequest(settings.value, keyId, selectionOverride.value)
     }
 
     fun selectVless(keyId: String) {
@@ -254,19 +276,24 @@ class ProfilesViewModel(
 
             when (result) {
                 is WarpImportResult.Ok -> {
-                    val tunnelAction = warpMutationTunnelAction(
-                        profilesUiState(settings.value).activeVpn,
-                        deleting = false,
-                    )
-                    try {
-                        setWarpProfile(result.profile)
-                        applyTunnelAction(tunnelAction)
-                        warpImportStatus.value = WarpImportStatus.IDLE
-                        _warpSaved.emit(Unit)
-                    } catch (cancelled: CancellationException) {
-                        throw cancelled
-                    } catch (_: Exception) {
-                        failWarpImport(WarpImportStatus.ERROR)
+                    profileMutationMutex.withLock {
+                        val tunnelAction = warpMutationTunnelAction(
+                            profilesUiState(settings.value).activeVpn,
+                            deleting = false,
+                        )
+                        try {
+                            setWarpProfile(result.profile)
+                            if (settings.value?.warpProfile != result.profile) {
+                                settings.first { it?.warpProfile == result.profile }
+                            }
+                            applyTunnelAction(tunnelAction)
+                            warpImportStatus.value = WarpImportStatus.IDLE
+                            _warpSaved.emit(Unit)
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            failWarpImport(WarpImportStatus.ERROR)
+                        }
                     }
                 }
                 WarpImportResult.NoCompatibleProxies -> {
@@ -280,40 +307,59 @@ class ProfilesViewModel(
     }
 
     fun deleteWarp() {
-        _pendingDelete.value = warpDeleteRequest(settings.value)
+        if (deleteInFlight.value) return
+        _pendingDelete.value = warpDeleteRequest(settings.value, selectionOverride.value)
     }
 
     fun dismissDelete() {
-        _pendingDelete.value = null
+        if (!deleteInFlight.value) _pendingDelete.value = null
     }
 
     fun confirmDelete() {
         val request = _pendingDelete.value ?: return
+        if (deleteInFlight.value) return
+        deleteInFlight.value = true
         _pendingDelete.value = null
 
-        when (request) {
-            is ProfileDeleteRequest.Vless -> {
-                val state = profilesUiState(settings.value)
-                val tunnelAction = vlessMutationTunnelAction(
-                    state.activeVpn,
-                    state.activeVlessId,
-                    request.keyId,
-                    deleting = true,
-                )
-                viewModelScope.launch {
-                    deleteVlessKey(request.keyId)
-                    applyTunnelAction(tunnelAction)
+        viewModelScope.launch {
+            try {
+                profileMutationMutex.withLock {
+                    when (request) {
+                        is ProfileDeleteRequest.Vless -> {
+                            val state = profilesUiState(settings.value)
+                            val tunnelAction = vlessMutationTunnelAction(
+                                state.activeVpn,
+                                state.activeVlessId,
+                                request.keyId,
+                                deleting = true,
+                            )
+                            deleteVlessKey(request.keyId)
+                            if (settings.value?.vlessKeys?.items?.any { it.id == request.keyId } == true) {
+                                settings.first { current ->
+                                    current?.vlessKeys?.items?.none { it.id == request.keyId } != false
+                                }
+                            }
+                            applyTunnelAction(tunnelAction)
+                        }
+                        is ProfileDeleteRequest.Warp -> {
+                            val tunnelAction = warpMutationTunnelAction(
+                                profilesUiState(settings.value).activeVpn,
+                                deleting = true,
+                            )
+                            deleteWarpProfile()
+                            if (settings.value?.warpProfile != null) {
+                                settings.first { it?.warpProfile == null }
+                            }
+                            applyTunnelAction(tunnelAction)
+                        }
+                    }
                 }
-            }
-            is ProfileDeleteRequest.Warp -> {
-                val tunnelAction = warpMutationTunnelAction(
-                    profilesUiState(settings.value).activeVpn,
-                    deleting = true,
-                )
-                viewModelScope.launch {
-                    deleteWarpProfile()
-                    applyTunnelAction(tunnelAction)
-                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                _pendingDelete.value = request.failedCopy()
+            } finally {
+                deleteInFlight.value = false
             }
         }
     }
@@ -328,7 +374,7 @@ class ProfilesViewModel(
         selectionOverride.value = selection
 
         viewModelScope.launch {
-            selectionWriteMutex.withLock {
+            profileMutationMutex.withLock {
                 val desired = selectionOverride.value ?: return@withLock
                 try {
                     if (persistedProfileSelection(settings.value) != desired) {
