@@ -139,9 +139,12 @@ fun HomeScreen(
     val consentLauncher = rememberLauncherForActivityResult(StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) VpnController.startNow(ctx)
     }
+    val canCancelStarting = st == VpnState.Starting && showStarting
     val onMainAction: () -> Unit = {
-        if (st == VpnState.Active) VpnController.stop(ctx)
-        else if (st != VpnState.Starting) VpnController.start(ctx, consentLauncher::launch)
+        when {
+            st == VpnState.Active || canCancelStarting -> VpnController.stop(ctx)
+            st != VpnState.Starting -> VpnController.start(ctx, consentLauncher::launch)
+        }
     }
 
     val protocolRes = when (uiState.protocol) {
@@ -165,7 +168,7 @@ fun HomeScreen(
             Box(Modifier.fillMaxWidth().navigationBarsPadding()) {
                 MainButton(
                     state = visualState,
-                    busy = st == VpnState.Starting,
+                    busy = st == VpnState.Starting && !showStarting,
                     onClick = onMainAction,
                     modifier = Modifier
                         .align(Alignment.Center)
@@ -318,7 +321,7 @@ private fun MainButton(
     )
     val text = when (state) {
         VpnState.Active -> stringResource(R.string.btn_disconnect)
-        VpnState.Starting -> stringResource(R.string.btn_connecting)
+        VpnState.Starting -> stringResource(R.string.btn_cancel_connecting)
         else -> stringResource(R.string.btn_connect)
     }
 
