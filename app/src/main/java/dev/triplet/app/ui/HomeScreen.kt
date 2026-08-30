@@ -141,12 +141,17 @@ fun HomeScreen(
     ).value
 
     val snackbarHostState = remember { SnackbarHostState() }
+    val notificationPermissionTracker = rememberManualNotificationPermissionTracker(
+        vpnState = st,
+        snackbarHostState = snackbarHostState,
+    )
     val scope = rememberCoroutineScope()
     val permissionNotGrantedMessage = stringResource(R.string.err_vpn_permission)
     val consentLauncher = rememberLauncherForActivityResult(StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             VpnController.startNow(ctx)
         } else {
+            notificationPermissionTracker.cancel()
             scope.launch {
                 snackbarHostState.showSnackbar(permissionNotGrantedMessage)
             }
@@ -155,8 +160,18 @@ fun HomeScreen(
     val canCancelStarting = st == VpnState.Starting && showStarting
     val onMainAction: () -> Unit = {
         when {
-            st == VpnState.Active || canCancelStarting -> VpnController.stop(ctx)
-            st != VpnState.Starting -> VpnController.start(ctx, consentLauncher::launch)
+            st == VpnState.Active -> {
+                notificationPermissionTracker.cancel()
+                VpnController.stop(ctx)
+            }
+            canCancelStarting -> {
+                notificationPermissionTracker.cancel()
+                VpnController.stop(ctx)
+            }
+            st != VpnState.Starting -> {
+                notificationPermissionTracker.begin()
+                VpnController.start(ctx, consentLauncher::launch)
+            }
         }
     }
 

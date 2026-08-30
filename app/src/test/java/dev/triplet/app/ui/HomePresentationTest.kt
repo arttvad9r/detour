@@ -58,4 +58,69 @@ class HomePresentationTest {
         assertEquals("00:00:59", formatSessionElapsed(59))
         assertEquals("01:01:01", formatSessionElapsed(3661))
     }
+
+    @Test fun `notification permission is not requested before Android 13`() {
+        assertEquals(
+            NotificationPermissionPrompt.NONE,
+            notificationPermissionPrompt(
+                sdkInt = 32,
+                granted = false,
+                shouldShowRationale = false,
+                directRequestAttempted = false,
+                rationaleShown = false,
+            ),
+        )
+    }
+
+    @Test fun `granted notification permission needs no prompt`() {
+        assertEquals(
+            NotificationPermissionPrompt.NONE,
+            notificationPermissionPrompt(
+                sdkInt = 33,
+                granted = true,
+                shouldShowRationale = false,
+                directRequestAttempted = false,
+                rationaleShown = false,
+            ),
+        )
+    }
+
+    @Test fun `first eligible notification permission prompt requests directly`() {
+        assertEquals(
+            NotificationPermissionPrompt.REQUEST,
+            notificationPermissionPrompt(
+                sdkInt = 33,
+                granted = false,
+                shouldShowRationale = false,
+                directRequestAttempted = false,
+                rationaleShown = false,
+            ),
+        )
+    }
+
+    @Test fun `notification denial with rationale uses contextual explanation`() {
+        assertEquals(
+            NotificationPermissionPrompt.RATIONALE,
+            notificationPermissionPrompt(
+                sdkInt = 33,
+                granted = false,
+                shouldShowRationale = true,
+                directRequestAttempted = true,
+                rationaleShown = false,
+            ),
+        )
+    }
+
+    @Test fun `notification prompt is not repeated after rationale in same session`() {
+        assertEquals(
+            NotificationPermissionPrompt.NONE,
+            notificationPermissionPrompt(
+                sdkInt = 33,
+                granted = false,
+                shouldShowRationale = true,
+                directRequestAttempted = true,
+                rationaleShown = true,
+            ),
+        )
+    }
 }
