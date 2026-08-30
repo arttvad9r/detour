@@ -60,10 +60,13 @@ def main() -> int:
 
     with ZipFile(apk) as archive, tempfile.TemporaryDirectory(prefix="detour-elf-") as temp:
         native_entries = sorted(
-            entry for entry in archive.infolist()
-            if not entry.is_dir()
-            and entry.filename.startswith("lib/")
-            and entry.filename.endswith(".so")
+            (
+                entry for entry in archive.infolist()
+                if not entry.is_dir()
+                and entry.filename.startswith("lib/")
+                and entry.filename.endswith(".so")
+            ),
+            key=lambda entry: entry.filename,
         )
         if not native_entries:
             print("ERROR: APK contains no native shared libraries", file=sys.stderr)
