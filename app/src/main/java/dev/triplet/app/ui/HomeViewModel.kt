@@ -24,12 +24,22 @@ import kotlinx.coroutines.flow.stateIn
 
 enum class HomeProtocol { VLESS_DPI, DPI, VLESS, NONE }
 
+internal data class HomeProfilePresentation(
+    val name: String?,
+    val server: String?,
+    val endpointCount: Int = 0,
+)
+
 data class HomeUiState(
     val vpnState: VpnState = VpnState.Idle,
     val sessionStartedAt: Long? = null,
+    val profileName: String? = null,
     val serverHost: String? = null,
+    val endpointCount: Int = 0,
     val activeVpn: VpnProfileKind = VpnProfileKind.VLESS,
     val protocol: HomeProtocol = HomeProtocol.NONE,
+    val dnsId: String = "google",
+    val dnsCustom: String = "",
 )
 
 fun homeProtocol(routes: EffectiveRoutes): HomeProtocol {
@@ -43,14 +53,24 @@ fun homeProtocol(routes: EffectiveRoutes): HomeProtocol {
     }
 }
 
-internal fun homeServerHost(
+internal fun homeProfilePresentation(
     activeVpn: VpnProfileKind,
     vlessUri: String,
     warpName: String?,
-): String? = when (activeVpn) {
-    VpnProfileKind.VLESS ->
-        (VlessKeyParser.parse(vlessUri) as? ParseResult.Ok)?.profile?.server
-    VpnProfileKind.WARP -> warpName
+    warpEndpointCount: Int,
+): HomeProfilePresentation = when (activeVpn) {
+    VpnProfileKind.VLESS -> {
+        val profile = (VlessKeyParser.parse(vlessUri) as? ParseResult.Ok)?.profile
+        HomeProfilePresentation(
+            name = profile?.name?.ifBlank { profile.server },
+            server = profile?.server,
+        )
+    }
+    VpnProfileKind.WARP -> HomeProfilePresentation(
+        name = warpName,
+        server = null,
+        endpointCount = warpEndpointCount,
+    )
 }
 
 internal fun homeUiState(
@@ -59,16 +79,22 @@ internal fun homeUiState(
     effectiveRoutes: EffectiveRoutes,
 ): HomeUiState {
     val activeVpn = settings?.activeVpn ?: VpnProfileKind.VLESS
+    val profile = homeProfilePresentation(
+        activeVpn = activeVpn,
+        vlessUri = settings?.vlessUri.orEmpty(),
+        warpName = settings?.warpProfile?.name,
+        warpEndpointCount = settings?.warpProfile?.proxies?.size ?: 0,
+    )
     return HomeUiState(
         vpnState = vpnState,
         sessionStartedAt = settings?.sessionStartedAt,
-        serverHost = homeServerHost(
-            activeVpn = activeVpn,
-            vlessUri = settings?.vlessUri.orEmpty(),
-            warpName = settings?.warpProfile?.name,
-        ),
+        profileName = profile.name,
+        serverHost = profile.server,
+        endpointCount = profile.endpointCount,
         activeVpn = activeVpn,
         protocol = homeProtocol(effectiveRoutes),
+        dnsId = settings?.dnsId?.ifBlank { null } ?: "google",
+        dnsCustom = settings?.dnsCustom.orEmpty(),
     )
 }
 

@@ -10,7 +10,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +22,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -37,19 +37,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
+import dev.triplet.app.core.DnsOptions
 import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
@@ -114,12 +115,12 @@ fun HomeScreen(viewModel: HomeViewModel, onOpenSettings: () -> Unit, modifier: M
         previousEngineState = st
     }
 
-    val status = statusStyleFor(c, visualState)
-    val style = StatusStyle(
-        container = animateColorAsState(status.container, tween(Motion.STATE_MS), label = "cardBg").value,
-        content = animateColorAsState(status.content, tween(Motion.COLOR_MS), label = "cardFg").value,
-        border = animateColorAsState(status.border, tween(Motion.STATE_MS), label = "cardBorder").value,
-    )
+    val targetStatus = statusStyleFor(c, visualState)
+    val statusContent = animateColorAsState(
+        targetStatus.content,
+        tween(Motion.COLOR_MS),
+        label = "statusContent",
+    ).value
 
     val consentLauncher = rememberLauncherForActivityResult(StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) VpnController.startNow(ctx)
@@ -134,6 +135,13 @@ fun HomeScreen(viewModel: HomeViewModel, onOpenSettings: () -> Unit, modifier: M
         HomeProtocol.DPI -> R.string.protocol_dpi
         HomeProtocol.VLESS -> if (uiState.activeVpn == VpnProfileKind.WARP) R.string.protocol_warp else R.string.protocol_vless
         HomeProtocol.NONE -> R.string.protocol_none
+    }
+    val dnsValue = when (uiState.dnsId) {
+        "google" -> stringResource(R.string.dns_google)
+        "cloudflare" -> stringResource(R.string.dns_cloudflare)
+        "adguard" -> stringResource(R.string.dns_adguard)
+        DnsOptions.CUSTOM -> uiState.dnsCustom.ifBlank { stringResource(R.string.server_missing) }
+        else -> stringResource(R.string.server_missing)
     }
 
     Scaffold(
@@ -179,20 +187,33 @@ fun HomeScreen(viewModel: HomeViewModel, onOpenSettings: () -> Unit, modifier: M
                 }
             }
 
-            Spacer(Modifier.weight(1f))
-            StatusCard(
-                state = visualState,
-                style = style,
-                sessionStartedAt = uiState.sessionStartedAt,
-                serverHost = uiState.serverHost,
-                protocol = stringResource(protocolRes),
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .padding(horizontal = Spacing.space16)
-                    .widthIn(max = 360.dp)
-                    .fillMaxWidth(),
-            )
-            Spacer(Modifier.weight(1.35f))
+            Box(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = Spacing.space16, vertical = Spacing.space24)
+                        .widthIn(max = 480.dp)
+                        .fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    ConnectionHero(
+                        state = visualState,
+                        statusContent = statusContent,
+                        sessionStartedAt = uiState.sessionStartedAt,
+                    )
+                    Spacer(Modifier.height(Spacing.space24))
+                    ConnectionDetails(
+                        profileName = uiState.profileName,
+                        activeVpn = uiState.activeVpn,
+                        serverHost = uiState.serverHost,
+                        endpointCount = uiState.endpointCount,
+                        protocol = stringResource(protocolRes),
+                        dns = dnsValue,
+                    )
+                }
+            }
         }
     }
 }
@@ -205,30 +226,20 @@ private fun MainButton(
     modifier: Modifier = Modifier,
 ) {
     val c = detourColors
-    val activeMain = state == VpnState.Active
     val container by animateColorAsState(
-        when {
-            activeMain -> c.surfaceSelected
-            state == VpnState.Starting -> c.surface
-            else -> c.accent
-        },
-        tween(Motion.STATE_MS), label = "btnBg",
+        if (state == VpnState.Starting) c.surface else c.accent,
+        tween(Motion.STATE_MS),
+        label = "btnBg",
     )
     val content by animateColorAsState(
-        when {
-            activeMain -> c.accent
-            state == VpnState.Starting -> c.accent
-            else -> c.onAccent
-        },
-        tween(Motion.COLOR_MS), label = "btnFg",
+        if (state == VpnState.Starting) c.accent else c.onAccent,
+        tween(Motion.COLOR_MS),
+        label = "btnFg",
     )
     val borderColor by animateColorAsState(
-        when {
-            activeMain -> c.accentBorder
-            state == VpnState.Starting -> c.accentBorder
-            else -> Color.Transparent
-        },
-        tween(Motion.STATE_MS), label = "btnBorder",
+        if (state == VpnState.Starting) c.accentBorder else Color.Transparent,
+        tween(Motion.STATE_MS),
+        label = "btnBorder",
     )
     val text = when (state) {
         VpnState.Active -> stringResource(R.string.btn_disconnect)
@@ -250,37 +261,38 @@ private fun MainButton(
 }
 
 @Composable
-private fun StatusCard(
+private fun ConnectionHero(
     state: VpnState,
-    style: StatusStyle,
+    statusContent: Color,
     sessionStartedAt: Long?,
-    serverHost: String?,
-    protocol: String,
     modifier: Modifier = Modifier,
 ) {
     val c = detourColors
     val key = visualKey(state)
-    Column(
-        modifier
-            .clip(AppShapes.medium)
-            .background(style.container)
-            .border(1.dp, style.border, AppShapes.medium)
-            .padding(Spacing.space20),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        AnimatedContent(
-            targetState = key,
-            transitionSpec = {
-                fadeIn(tween(Motion.CONTENT_IN_MS)) togetherWith
-                    fadeOut(tween(Motion.CONTENT_OUT_MS))
-            },
-            label = "statusTitle",
-        ) { target ->
+
+    AnimatedContent(
+        targetState = key,
+        modifier = modifier.fillMaxWidth(),
+        transitionSpec = {
+            fadeIn(tween(Motion.CONTENT_IN_MS)) togetherWith
+                fadeOut(tween(Motion.CONTENT_OUT_MS))
+        },
+        label = "connectionHero",
+    ) { target ->
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             Row(
-                Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
             ) {
+                Box(
+                    Modifier
+                        .size(10.dp)
+                        .background(statusContent, CircleShape),
+                )
+                Spacer(Modifier.size(Spacing.space8))
                 val titleRes = when (target) {
                     VisualVpnState.ACTIVE -> R.string.status_active
                     VisualVpnState.STARTING -> R.string.status_starting
@@ -289,66 +301,92 @@ private fun StatusCard(
                 }
                 Text(
                     stringResource(titleRes),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = style.content,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = c.textPrimary,
                 )
                 if (target == VisualVpnState.STARTING) {
-                    Spacer(Modifier.size(10.dp))
+                    Spacer(Modifier.size(Spacing.space8))
                     CircularProgressIndicator(
-                        modifier = Modifier.size(14.dp),
+                        modifier = Modifier.size(16.dp),
                         strokeWidth = 1.5.dp,
-                        color = style.content,
+                        color = statusContent,
                     )
                 }
             }
-        }
 
-        AnimatedContent(
-            targetState = key,
-            transitionSpec = {
-                fadeIn(tween(Motion.CONTENT_IN_MS)) togetherWith
-                    fadeOut(tween(Motion.CONTENT_OUT_MS))
-            },
-            label = "statusSubtitle",
-        ) { target ->
             when (target) {
                 VisualVpnState.FAILED -> Text(
-                    (state as? VpnState.Failed)?.reason ?: "",
+                    (state as? VpnState.Failed)?.reason.orEmpty(),
                     style = MaterialTheme.typography.bodyMedium,
                     color = c.textSecondary,
-                    modifier = Modifier.padding(top = Spacing.space4),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .padding(top = Spacing.space8)
+                        .widthIn(max = 360.dp),
                 )
                 VisualVpnState.IDLE -> Text(
                     stringResource(R.string.state_sub_idle),
                     style = MaterialTheme.typography.bodyLarge,
                     color = c.textSecondary,
-                    modifier = Modifier.padding(top = Spacing.space4),
+                    modifier = Modifier.padding(top = Spacing.space8),
                 )
-                VisualVpnState.STARTING -> Text(
-                    stringResource(R.string.btn_connecting),
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-                    ),
-                    color = style.content,
-                    modifier = Modifier.padding(top = Spacing.space4),
-                )
+                VisualVpnState.STARTING -> Unit
                 VisualVpnState.ACTIVE -> SessionTimer(
                     sessionStartedAt = sessionStartedAt,
-                    color = style.content,
+                    color = statusContent,
                 )
             }
         }
-
-        Spacer(Modifier.height(12.dp))
-        Box(Modifier.fillMaxWidth().height(1.dp).background(c.divider))
-        Spacer(Modifier.height(10.dp))
-
-        InfoRow(stringResource(R.string.row_protocol), protocol)
-        InfoRow(
-            stringResource(R.string.row_server),
-            serverHost ?: stringResource(R.string.server_missing),
-        )
     }
+}
+
+@Composable
+private fun ConnectionDetails(
+    profileName: String?,
+    activeVpn: VpnProfileKind,
+    serverHost: String?,
+    endpointCount: Int,
+    protocol: String,
+    dns: String,
+    modifier: Modifier = Modifier,
+) {
+    DetourCard(modifier) {
+        Column(
+            Modifier.padding(horizontal = Spacing.space16, vertical = Spacing.space12),
+        ) {
+            InfoRow(
+                stringResource(R.string.row_profile),
+                profileName ?: stringResource(R.string.server_missing),
+            )
+            DetailsDivider()
+            if (activeVpn == VpnProfileKind.WARP) {
+                InfoRow(
+                    stringResource(R.string.row_endpoints),
+                    endpointCount.takeIf { it > 0 }?.toString() ?: stringResource(R.string.server_missing),
+                )
+            } else {
+                InfoRow(
+                    stringResource(R.string.row_server),
+                    serverHost ?: stringResource(R.string.server_missing),
+                )
+            }
+            DetailsDivider()
+            InfoRow(stringResource(R.string.row_protocol), protocol)
+            DetailsDivider()
+            InfoRow(stringResource(R.string.row_dns), dns)
+        }
+    }
+}
+
+@Composable
+private fun DetailsDivider() {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = Spacing.space8)
+            .height(1.dp)
+            .background(detourColors.divider),
+    )
 }
 
 @Composable
@@ -363,12 +401,12 @@ private fun SessionTimer(sessionStartedAt: Long?, color: Color) {
     }
     Text(
         formatSessionElapsed(elapsed),
-        style = MaterialTheme.typography.bodyLarge.copy(
+        style = MaterialTheme.typography.titleLarge.copy(
             fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
             fontFeatureSettings = "tnum",
         ),
         color = color,
-        modifier = Modifier.padding(top = Spacing.space4),
+        modifier = Modifier.padding(top = Spacing.space8),
     )
 }
 
@@ -376,7 +414,7 @@ private fun SessionTimer(sessionStartedAt: Long?, color: Color) {
 private fun InfoRow(label: String, value: String) {
     val c = detourColors
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        Modifier.fillMaxWidth().padding(vertical = Spacing.space4),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(

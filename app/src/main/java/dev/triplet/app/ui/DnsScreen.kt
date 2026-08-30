@@ -68,15 +68,16 @@ fun DnsScreen(viewModel: DnsViewModel, onBack: () -> Unit, modifier: Modifier = 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
             DetourCard(Modifier.padding(horizontal = Spacing.space16).selectableGroup()) {
-                DnsOptions.servers.forEach { (id, _) ->
-                    RadioRow(
+                DnsOptions.servers.entries.forEach { (id, server) ->
+                    ChoiceRow(
                         title = stringResource(DNS_LABELS[id] ?: R.string.dns_custom),
+                        subtitle = server,
                         selected = !state.editingCustom && state.selectedDns == id,
                         onClick = { viewModel.chooseKnown(id) },
                     )
-                    GroupDivider(startInset = 46)
+                    GroupDivider(startInset = 56)
                 }
-                RadioRow(
+                ChoiceRow(
                     title = stringResource(R.string.dns_custom),
                     selected = state.editingCustom,
                     onClick = viewModel::editCustom,

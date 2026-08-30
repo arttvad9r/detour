@@ -141,7 +141,7 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
                     exportLauncher.launch("detour-backup.json")
                 }
                 GroupDivider(startInset = 46)
-                ActionRow(stringResource(R.string.backup_import), R.drawable.ic_export, accent = false) {
+                ActionRow(stringResource(R.string.backup_import), R.drawable.ic_import, accent = false) {
                     importLauncher.launch(arrayOf("application/json", "text/*"))
                 }
             }

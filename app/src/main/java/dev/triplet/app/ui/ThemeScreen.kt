@@ -52,13 +52,13 @@ fun ThemeScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Mod
             DetourCard(Modifier.padding(horizontal = Spacing.space16).selectableGroup()) {
                 AppTheme.entries.forEachIndexed { i, t ->
                     val selected = current == t.id
-                    RadioRow(
+                    ChoiceRow(
                         title = stringResource(themeLabel(t)),
                         selected = selected,
                         onClick = { scope.launch { store.setTheme(t.id) } },
                         trailing = { ThemeSwatches(t) },
                     )
-                    if (i < AppTheme.entries.lastIndex) GroupDivider(startInset = 46)
+                    if (i < AppTheme.entries.lastIndex) GroupDivider(startInset = 56)
                 }
             }
 

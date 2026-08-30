@@ -237,7 +237,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                                     viewModel.selectVless(key.id)
                                 }
                                 if (index < shown.vless.lastIndex || shown.warp != null) {
-                                    GroupDivider(startInset = 16)
+                                    GroupDivider(startInset = 52)
                                 }
                             }
                             shown.warp?.let { profile ->
@@ -562,14 +562,14 @@ private fun KeyRow(
             .detourSelectable(
                 selected = selected,
                 onClick = { if (!selected) onClick() },
-                idleColor = if (selected) c.surfaceSelected else Color.Transparent,
-                pressedColor = if (selected) c.surfaceSelected else c.accentSoft,
+                idleColor = if (selected) c.accentSoft else Color.Transparent,
+                pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
                 pressScale = Motion.PRESS_RADIO,
             )
             .padding(start = Spacing.space16, top = 10.dp, bottom = 10.dp, end = Spacing.space8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        RadioDot(selected)
+        SelectionMark(selected)
         Column(Modifier.padding(start = Spacing.space12).weight(1f)) {
             Text(
                 profile?.name?.ifBlank { profile.server } ?: "VLESS",
@@ -621,14 +621,14 @@ private fun WarpRow(
             .detourSelectable(
                 selected = selected,
                 onClick = { if (!selected) onClick() },
-                idleColor = if (selected) c.surfaceSelected else Color.Transparent,
-                pressedColor = if (selected) c.surfaceSelected else c.accentSoft,
+                idleColor = if (selected) c.accentSoft else Color.Transparent,
+                pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
                 pressScale = Motion.PRESS_RADIO,
             )
             .padding(start = Spacing.space16, top = 10.dp, bottom = 10.dp, end = Spacing.space8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        RadioDot(selected)
+        SelectionMark(selected)
         Column(Modifier.padding(start = Spacing.space12).weight(1f)) {
             Text(
                 profile.name,

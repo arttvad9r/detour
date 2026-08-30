@@ -63,13 +63,13 @@ fun DpiScreen(viewModel: DpiViewModel, onBack: () -> Unit, modifier: Modifier = 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
             DetourCard(Modifier.padding(horizontal = Spacing.space16).selectableGroup()) {
-                RadioRow(
+                ChoiceRow(
                     title = stringResource(R.string.preset_recommended),
                     selected = !state.editingCustom && state.preset == DpiPreset.RECOMMENDED,
                     onClick = viewModel::chooseRecommended,
                 )
-                GroupDivider(startInset = 46)
-                RadioRow(
+                GroupDivider(startInset = 56)
+                ChoiceRow(
                     title = stringResource(R.string.preset_custom),
                     selected = state.editingCustom,
                     onClick = viewModel::editCustom,

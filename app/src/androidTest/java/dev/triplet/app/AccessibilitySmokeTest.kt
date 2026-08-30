@@ -4,6 +4,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -36,6 +37,20 @@ class AccessibilitySmokeTest {
 
         rule.onNodeWithContentDescription(label)
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Error, validationError))
+    }
+
+    @Test fun dnsChoicesPreserveSingleSelectionSemantics() {
+        rule.onNodeWithContentDescription(rule.activity.getString(R.string.cd_settings))
+            .performClick()
+        rule.onNodeWithText(rule.activity.getString(R.string.nav_dns))
+            .performClick()
+
+        rule.onNodeWithText(rule.activity.getString(R.string.dns_google))
+            .assertIsSelected()
+
+        rule.onNodeWithText(rule.activity.getString(R.string.dns_custom))
+            .performClick()
+            .assertIsSelected()
     }
 
     @Test fun settingsChevronsAreDecorativeOnly() {

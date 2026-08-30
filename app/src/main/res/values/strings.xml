@@ -2,17 +2,20 @@
     <string name="app_name">Detour</string>
     <string name="notif_channel">Detour VPN</string>
 
-    <string name="status_idle">DISCONNECTED</string>
-    <string name="status_starting">CONNECTING</string>
-    <string name="status_active">ACTIVE</string>
-    <string name="status_failed">CONNECTION FAILED</string>
+    <string name="status_idle">Disconnected</string>
+    <string name="status_starting">Connecting</string>
+    <string name="status_active">Connected</string>
+    <string name="status_failed">Connection failed</string>
     <string name="btn_connect">Connect</string>
     <string name="btn_disconnect">Disconnect</string>
     <string name="btn_connecting">Connecting…</string>
     <string name="action_retry">Retry</string>
     <string name="state_sub_idle">No active session</string>
+    <string name="row_profile">Profile</string>
     <string name="row_protocol">Protocol</string>
     <string name="row_server">Server</string>
+    <string name="row_endpoints">Endpoints</string>
+    <string name="row_dns">DNS</string>
     <string name="server_missing">not set</string>
     <string name="cd_settings">Settings</string>
     <string name="cd_back">Back</string>
@@ -24,6 +27,9 @@
     <string name="protocol_none">—</string>
 
     <string name="settings_title">Settings</string>
+    <string name="settings_section_routing">Routing</string>
+    <string name="settings_section_connection">Connection</string>
+    <string name="settings_section_app">App</string>
     <string name="nav_routes">App routes</string>
     <string name="nav_routes_sub">in tunnel: %1$d</string>
     <string name="nav_key">VPN profiles</string>

@@ -56,31 +56,45 @@ fun SettingsMenuScreen(
         viewModel.refreshRoutes()
     }
 
-    val items = listOf(
-        MenuItem(
-            R.string.nav_routes,
-            { stringResource(R.string.nav_routes_sub, state.routedCount) },
-            R.drawable.ic_routes,
-        ) to onOpenRoutes,
-        MenuItem(
-            R.string.nav_key,
-            {
-                stringResource(
-                    when {
-                        state.hasVless && state.hasWarp -> R.string.nav_key_sub
-                        state.hasVless -> R.string.nav_key_sub_vless
-                        state.hasWarp -> R.string.nav_key_sub_warp
-                        else -> R.string.nav_key_sub_none
-                    },
-                )
-            },
-            R.drawable.ic_lock,
-        ) to onOpenVless,
-        MenuItem(R.string.nav_dpi, { stringResource(R.string.nav_dpi_sub) }, R.drawable.ic_dpi) to onOpenDpi,
-        MenuItem(R.string.nav_dns, { stringResource(R.string.nav_dns_sub) }, R.drawable.ic_globe) to onOpenDns,
-        MenuItem(R.string.nav_backup, { stringResource(R.string.nav_backup_sub) }, R.drawable.ic_export) to onOpenBackup,
-        MenuItem(R.string.nav_theme, { stringResource(themeLabel(theme)) }, R.drawable.ic_theme) to onOpenTheme,
-    )
+    val routes = MenuItem(
+        R.string.nav_routes,
+        { stringResource(R.string.nav_routes_sub, state.routedCount) },
+        R.drawable.ic_routes,
+    ) to onOpenRoutes
+    val profiles = MenuItem(
+        R.string.nav_key,
+        {
+            stringResource(
+                when {
+                    state.hasVless && state.hasWarp -> R.string.nav_key_sub
+                    state.hasVless -> R.string.nav_key_sub_vless
+                    state.hasWarp -> R.string.nav_key_sub_warp
+                    else -> R.string.nav_key_sub_none
+                },
+            )
+        },
+        R.drawable.ic_lock,
+    ) to onOpenVless
+    val dpi = MenuItem(
+        R.string.nav_dpi,
+        { stringResource(R.string.nav_dpi_sub) },
+        R.drawable.ic_dpi,
+    ) to onOpenDpi
+    val dns = MenuItem(
+        R.string.nav_dns,
+        { stringResource(R.string.nav_dns_sub) },
+        R.drawable.ic_globe,
+    ) to onOpenDns
+    val backup = MenuItem(
+        R.string.nav_backup,
+        { stringResource(R.string.nav_backup_sub) },
+        R.drawable.ic_export,
+    ) to onOpenBackup
+    val appearance = MenuItem(
+        R.string.nav_theme,
+        { stringResource(themeLabel(theme)) },
+        R.drawable.ic_theme,
+    ) to onOpenTheme
 
     Column(
         modifier.fillMaxSize()
@@ -94,20 +108,16 @@ fun SettingsMenuScreen(
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
-            DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-                items.forEachIndexed { i, (item, onClick) ->
-                    SettingRow(
-                        title = stringResource(item.titleRes),
-                        subtitle = item.sub(),
-                        iconRes = item.iconRes,
-                        onClick = onClick,
-                    )
-                    if (i < items.lastIndex) GroupDivider()
-                }
-            }
+            SettingsSectionLabel(R.string.settings_section_routing)
+            Spacer(Modifier.height(Spacing.space8))
+            SettingsGroup(listOf(routes, profiles))
 
-            Spacer(Modifier.height(Spacing.space12))
+            Spacer(Modifier.height(Spacing.space20))
+            SettingsSectionLabel(R.string.settings_section_connection)
+            Spacer(Modifier.height(Spacing.space8))
             DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
+                SettingsRows(listOf(dpi, dns))
+                GroupDivider()
                 Row(
                     Modifier.fillMaxWidth()
                         .detourToggleable(
@@ -138,15 +148,50 @@ fun SettingsMenuScreen(
                     )
                 }
             }
-
-            Spacer(Modifier.height(Spacing.space12))
+            Spacer(Modifier.height(Spacing.space8))
             Text(
                 stringResource(R.string.autorestart_note),
                 style = MaterialTheme.typography.bodySmall,
                 color = c.textMuted,
                 modifier = Modifier.padding(horizontal = Spacing.space20),
             )
+
+            Spacer(Modifier.height(Spacing.space20))
+            SettingsSectionLabel(R.string.settings_section_app)
+            Spacer(Modifier.height(Spacing.space8))
+            SettingsGroup(listOf(backup, appearance))
+
             Spacer(Modifier.height(Spacing.space24))
         }
+    }
+}
+
+@Composable
+private fun SettingsSectionLabel(titleRes: Int) {
+    Text(
+        text = stringResource(titleRes),
+        style = MaterialTheme.typography.labelLarge,
+        color = detourColors.textSecondary,
+        modifier = Modifier.padding(horizontal = Spacing.space20),
+    )
+}
+
+@Composable
+private fun SettingsGroup(items: List<Pair<MenuItem, () -> Unit>>) {
+    DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
+        SettingsRows(items)
+    }
+}
+
+@Composable
+private fun SettingsRows(items: List<Pair<MenuItem, () -> Unit>>) {
+    items.forEachIndexed { index, (item, onClick) ->
+        SettingRow(
+            title = stringResource(item.titleRes),
+            subtitle = item.sub(),
+            iconRes = item.iconRes,
+            onClick = onClick,
+        )
+        if (index < items.lastIndex) GroupDivider()
     }
 }
