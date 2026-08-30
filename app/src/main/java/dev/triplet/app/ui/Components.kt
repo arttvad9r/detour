@@ -38,6 +38,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonElevation
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+import androidx.compose.material3.adaptive.navigation3.LocalListDetailSceneScope
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
@@ -619,21 +621,36 @@ fun SegmentedControl(
     }
 }
 
+@OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
-fun ScreenHeader(title: String, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun ScreenHeader(
+    title: String,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    hideBackInListDetail: Boolean = true,
+) {
     val c = detourColors
+    val showBack = !hideBackInListDetail || LocalListDetailSceneScope.current == null
     Row(
-        modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = Spacing.space4, end = Spacing.space20),
+        modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .padding(
+                start = if (showBack) Spacing.space4 else Spacing.space20,
+                end = Spacing.space20,
+            ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        DetourIconButton(onClick = onBack) {
-            Icon(
-                painterResource(R.drawable.ic_back), stringResource(R.string.cd_back),
-                tint = c.textPrimary,
-                modifier = Modifier.size(22.dp),
-            )
+        if (showBack) {
+            DetourIconButton(onClick = onBack) {
+                Icon(
+                    painterResource(R.drawable.ic_back), stringResource(R.string.cd_back),
+                    tint = c.textPrimary,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            Spacer(Modifier.width(Spacing.space4))
         }
-        Spacer(Modifier.width(Spacing.space4))
         Text(title, style = MaterialTheme.typography.titleLarge, color = c.textPrimary)
     }
 }

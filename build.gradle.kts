@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application) apply false
     // AGP 9: kotlin-android plugin is not needed; Kotlin is built into AGP.
     alias(libs.plugins.kotlin.compose) apply false
+    alias(libs.plugins.kotlin.serialization) apply false
 }
 
 val goVersion = providers.exec {

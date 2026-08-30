@@ -104,7 +104,11 @@ fun SettingsMenuScreen(
             .verticalScroll(scrollState)
             .detourHighRefresh(scrollState.isScrollInProgress),
     ) {
-        ScreenHeader(stringResource(R.string.settings_title), onBack)
+        ScreenHeader(
+            title = stringResource(R.string.settings_title),
+            onBack = onBack,
+            hideBackInListDetail = false,
+        )
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
