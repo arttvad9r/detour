@@ -108,7 +108,7 @@ object SettingsBackup {
         require(b.presetId in DpiPreset.entries.map { it.id } || b.presetId == "compatible")
         require(b.themeId in themes)
         require(DnsOptions.isSelectionValid(b.dnsId, b.dnsCustom))
-        require(DpiArgs.isValid(b.dpiCustomArgs) || b.dpiCustomArgs.isBlank())
+        if (b.presetId == DpiPreset.CUSTOM.id) require(DpiArgs.isValid(b.dpiCustomArgs))
     }
 
     private fun validateKeys(keys: VlessKeys) {

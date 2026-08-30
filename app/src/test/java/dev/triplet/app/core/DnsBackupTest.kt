@@ -132,6 +132,22 @@ class SettingsBackupTest {
         assertNull(restored.warpProfile)
     }
 
+    @Test fun `recommended backup preserves dormant legacy custom args`() {
+        val json = """{"v":2,"app":"detour","vlessKeys":{"activeId":null,"items":[]},"preset":"recommended","customArgs":"-a nope","theme":"","dns":"","routes":{}}"""
+        val restored = SettingsBackup.fromJson(json)!!
+        assertEquals("recommended", restored.presetId)
+        assertEquals("-a nope", restored.dpiCustomArgs)
+    }
+
+    @Test fun `active custom backup requires valid nonblank args`() {
+        val invalid = """{"v":2,"app":"detour","vlessKeys":{"activeId":null,"items":[]},"preset":"custom","customArgs":"-a nope","theme":"","dns":"","routes":{}}"""
+        val blank = """{"v":2,"app":"detour","vlessKeys":{"activeId":null,"items":[]},"preset":"custom","customArgs":"","theme":"","dns":"","routes":{}}"""
+        val valid = """{"v":2,"app":"detour","vlessKeys":{"activeId":null,"items":[]},"preset":"custom","customArgs":"-a 1","theme":"","dns":"","routes":{}}"""
+        assertNull(SettingsBackup.fromJson(invalid))
+        assertNull(SettingsBackup.fromJson(blank))
+        assertTrue(SettingsBackup.fromJson(valid) != null)
+    }
+
     @Test fun `v3 rejects WARP selection without profile`() {
         val json = """{"v":3,"app":"detour","vlessKeys":{"activeId":null,"items":[]},"activeVpn":"WARP","preset":"recommended","theme":"lavenda","dns":"google","routes":{}}"""
         assertNull(SettingsBackup.fromJson(json))
