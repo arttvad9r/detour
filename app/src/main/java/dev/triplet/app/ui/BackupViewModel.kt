@@ -34,7 +34,7 @@ internal fun backupFromSettings(settings: TriSettings): SettingsBackup.Backup = 
 )
 
 class BackupViewModel(
-    private val settings: StateFlow<TriSettings?>,
+    private val loadSettings: suspend () -> TriSettings?,
     private val restoreBackup: suspend (SettingsBackup.Backup) -> Unit,
     private val stopTunnelIfRunning: () -> Unit,
 ) : ViewModel() {
@@ -45,7 +45,7 @@ class BackupViewModel(
     val feedback: SharedFlow<BackupFeedback> = _feedback
 
     suspend fun exportJson(): String? {
-        val current = settings.value ?: return null
+        val current = loadSettings() ?: return null
         return withContext(Dispatchers.Default) {
             SettingsBackup.toJson(backupFromSettings(current))
         }
@@ -105,7 +105,7 @@ class BackupViewModel(
                 require(modelClass.isAssignableFrom(BackupViewModel::class.java))
                 @Suppress("UNCHECKED_CAST")
                 return BackupViewModel(
-                    settings = store.settings,
+                    loadSettings = { store.snapshot() },
                     restoreBackup = store::restoreBackup,
                     stopTunnelIfRunning = stopTunnelIfRunning,
                 ) as T
