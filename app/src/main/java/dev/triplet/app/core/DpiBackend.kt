@@ -20,20 +20,37 @@ class DpiBackend(context: Context, private val onUnexpectedExit: () -> Unit = {}
     fun start(strategyArgs: List<String>, port: Int, cancelled: () -> Boolean = { false }): Boolean {
         stop()
         if (!bin.exists()) return false
-        // -U: TCP-only для DPI-маршрута (fail-closed); QUIC режется правилом
-        // с быстрым отказом, приложения сразу уходят на TCP-обход.
-        val cmd = listOf(bin.absolutePath, "-i", "127.0.0.1", "-p", port.toString(), "-U") +
-            strategyArgs
+        // -U: TCP-only for the DPI route (fail-closed); QUIC is rejected by the
+        // mihomo rule so applications immediately retry over TCP. --auth-stdin
+        // keeps the internal SOCKS hop inaccessible to unrelated local apps.
+        val cmd = listOf(
+            bin.absolutePath,
+            "-i", "127.0.0.1",
+            "-p", port.toString(),
+            "-U",
+            "--auth-stdin",
+        ) + strategyArgs
         return try {
             stopping.set(false)
-            // Обязательно уводим stdout/stderr: непрочитанный пайп заполняется
-            // (~64KB) и ciadpi блокируется на записи — выглядит как «повис».
-            proc = ProcessBuilder(cmd)
+            // Always drain stdout/stderr: an unread pipe fills (~64KB) and blocks
+            // ciadpi on write, which otherwise looks like a hung proxy.
+            val process = ProcessBuilder(cmd)
                 .redirectErrorStream(true)
                 .redirectOutput(ProcessBuilder.Redirect.INHERIT)
                 .start()
+            proc = process
+
+            // Credentials are process-ephemeral and never appear in argv or the
+            // environment. Closing stdin after the two lines prevents later data
+            // from being interpreted as credentials by the child.
+            val credentials = ProbeAuth.current()
+            process.outputStream.bufferedWriter(Charsets.UTF_8).use { writer ->
+                writer.append(credentials.username).append('\n')
+                writer.append(credentials.password).append('\n')
+            }
+
             val started = awaitPort(port, timeoutMs = 4000, cancelled = cancelled)
-            if (started) watchExit(proc!!)
+            if (started) watchExit(process)
             started
         } catch (e: Exception) {
             stop()

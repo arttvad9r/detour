@@ -51,6 +51,9 @@ object ConfigGenerator {
             add("- MATCH,REJECT")
         }.joinToString("\n")
 
+        val probeUser = yamlScalar(input.probeCredentials.username)
+        val probePassword = yamlScalar(input.probeCredentials.password)
+
         // mihomo требует единый список proxies; VPN и DPI исходящие объявляются здесь.
         val proxies = buildList {
             when (val vpn = input.vpn) {
@@ -66,6 +69,8 @@ object ConfigGenerator {
                   type: socks5
                   server: 127.0.0.1
                   port: ${input.dpiPort}
+                  username: $probeUser
+                  password: $probePassword
                   udp: false
                 """.trimIndent()
             )
@@ -75,8 +80,6 @@ object ConfigGenerator {
             "\nproxy-groups:\n" + renderWarpGroup(warpProxies.size)
         } else ""
 
-        val probeUser = yamlScalar(input.probeCredentials.username)
-        val probePassword = yamlScalar(input.probeCredentials.password)
         val probes = buildList {
             if (input.vpnApps.isNotEmpty() && input.vpn != null) {
                 val name = if (input.vpn is VpnOutbound.Vless) "PROBE_VLESS" else "PROBE_WARP"

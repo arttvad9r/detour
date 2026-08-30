@@ -8,8 +8,12 @@ CACHE="${BYEDPI_CACHE:-$REPO_ROOT/.cache/byedpi-src}"
 OUT_DIR="$REPO_ROOT/app/src/main/jniLibs"
 BYEDPI_VERSION="v0.17.3"
 BYEDPI_COMMIT="7efde1b1296eaaa187b70e951894dde17527489c"
+PATCHER="$REPO_ROOT/engine/byedpi/patch_auth.py"
+AUTH_SMOKE="$REPO_ROOT/engine/byedpi/auth_smoke.py"
 
 [[ -n "${ANDROID_NDK_HOME:-}" ]] || { echo "ANDROID_NDK_HOME is required (NDK 28.0.13004108)" >&2; exit 127; }
+command -v python3 >/dev/null || { echo "python3 is required" >&2; exit 127; }
+command -v "${HOST_CC:-cc}" >/dev/null || { echo "host C compiler is required" >&2; exit 127; }
 
 TAG="${BYEDPI_TAG:-$BYEDPI_VERSION}"
 echo "byedpi tag: $TAG"
@@ -21,6 +25,19 @@ fi
 git -C "$CACHE" fetch --tags --force origin "$TAG"
 git -C "$CACHE" reset --hard "$BYEDPI_COMMIT"
 git -C "$CACHE" clean -fdx
+
+# Detour exposes this proxy only as an internal loopback hop. Patch the pinned
+# upstream source to require RFC1929 username/password auth. The patcher uses
+# exact anchors and fails the build if the pinned source layout ever drifts.
+python3 "$PATCHER" "$CACHE"
+
+# Exercise the actual patched state machine as a native Linux binary before
+# cross-compiling. This proves NO AUTH / SOCKS4 cannot bypass authentication and
+# that wrong/correct RFC1929 credentials are rejected/accepted respectively.
+make -C "$CACHE" clean >/dev/null 2>&1 || true
+make -C "$CACHE" -j"$(nproc)" CC="${HOST_CC:-cc}" LDFLAGS="" >/dev/null
+python3 "$AUTH_SMOKE" "$CACHE/ciadpi"
+make -C "$CACHE" clean >/dev/null 2>&1 || true
 
 TC="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
 declare -A CLANG=(
