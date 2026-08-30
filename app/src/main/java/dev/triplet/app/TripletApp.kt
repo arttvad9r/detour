@@ -15,6 +15,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
+internal fun shouldRestartVpnForPackageChange(action: String?, replacing: Boolean): Boolean = when (action) {
+    Intent.ACTION_PACKAGE_ADDED -> true
+    Intent.ACTION_PACKAGE_REMOVED -> !replacing
+    else -> false
+}
+
 class TripletApp : Application() {
     lateinit var routesStore: RoutesStore
         private set
@@ -26,14 +32,13 @@ class TripletApp : Application() {
             val packageName = intent.data?.schemeSpecificPart ?: return
             AppInventory.invalidate(packageName)
 
-            // An in-place app update emits REMOVED(replacing=true) followed by
-            // ADDED. Restart only after the replacement exists again, while a
-            // real removal must rebuild the VPN allow-list immediately so its
-            // old numeric UID can never be inherited by another package.
-            if (
-                intent.action == Intent.ACTION_PACKAGE_REMOVED &&
-                intent.getBooleanExtra(Intent.EXTRA_REPLACING, false)
-            ) return
+            // Package/component enablement changes can alter the launchable app
+            // inventory but do not change package UID ownership, so only refresh
+            // cached metadata for PACKAGE_CHANGED without restarting the tunnel.
+            if (!shouldRestartVpnForPackageChange(
+                    intent.action,
+                    intent.getBooleanExtra(Intent.EXTRA_REPLACING, false),
+                )) return
 
             val state = VpnController.state.value
             if (state != VpnState.Active && state != VpnState.Starting) return
@@ -53,6 +58,7 @@ class TripletApp : Application() {
         val packageFilter = IntentFilter().apply {
             addAction(Intent.ACTION_PACKAGE_ADDED)
             addAction(Intent.ACTION_PACKAGE_REMOVED)
+            addAction(Intent.ACTION_PACKAGE_CHANGED)
             addDataScheme("package")
         }
         ContextCompat.registerReceiver(
