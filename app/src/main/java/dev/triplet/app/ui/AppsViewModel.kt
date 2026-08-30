@@ -15,23 +15,46 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+enum class AppsInventoryStatus { LOADING, READY, ERROR }
+
+internal data class AppsInventoryState(
+    val apps: List<AppInfo>? = null,
+    val status: AppsInventoryStatus = if (apps == null) AppsInventoryStatus.LOADING else AppsInventoryStatus.READY,
+)
+
 data class AppsUiState(
     val loadedApps: List<AppInfo>? = null,
     val routes: Map<String, AppRoute> = emptyMap(),
     val showSystemApps: Boolean = false,
     val query: String = "",
+    val inventoryStatus: AppsInventoryStatus = if (loadedApps == null) {
+        AppsInventoryStatus.LOADING
+    } else {
+        AppsInventoryStatus.READY
+    },
 )
 
 internal fun appsUiState(
     settings: TriSettings?,
-    loadedApps: List<AppInfo>?,
+    inventory: AppsInventoryState,
     query: String,
 ): AppsUiState = AppsUiState(
-    loadedApps = loadedApps,
+    loadedApps = inventory.apps,
     routes = settings?.routes.orEmpty(),
     showSystemApps = settings?.showSystemApps ?: false,
     query = query,
+    inventoryStatus = inventory.status,
 )
+
+internal fun appsInventoryRefreshing(previous: AppsInventoryState): AppsInventoryState = previous.copy(
+    status = if (previous.apps == null) AppsInventoryStatus.LOADING else AppsInventoryStatus.READY,
+)
+
+internal fun appsInventoryLoaded(apps: List<AppInfo>): AppsInventoryState =
+    AppsInventoryState(apps, AppsInventoryStatus.READY)
+
+internal fun appsInventoryFailed(previous: AppsInventoryState): AppsInventoryState =
+    previous.copy(status = AppsInventoryStatus.ERROR)
 
 class AppsViewModel(
     private val settings: StateFlow<TriSettings?>,
@@ -41,7 +64,7 @@ class AppsViewModel(
     private val setRoute: suspend (String, AppRoute) -> Unit,
     private val restartTunnel: () -> Unit,
 ) : ViewModel() {
-    private val inventory = MutableStateFlow(initialApps)
+    private val inventory = MutableStateFlow(AppsInventoryState(initialApps))
     private val query = MutableStateFlow("")
     private var refreshJob: Job? = null
 
@@ -53,7 +76,7 @@ class AppsViewModel(
     ).stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = appsUiState(settings.value, initialApps, ""),
+        initialValue = appsUiState(settings.value, inventory.value, ""),
     )
 
     fun setQuery(value: String) {
@@ -62,8 +85,14 @@ class AppsViewModel(
 
     fun refreshInventory() {
         if (refreshJob?.isActive == true) return
+        val previous = inventory.value
+        inventory.value = appsInventoryRefreshing(previous)
         refreshJob = viewModelScope.launch {
-            inventory.value = loadApps()
+            inventory.value = runCatching { loadApps() }
+                .fold(
+                    onSuccess = ::appsInventoryLoaded,
+                    onFailure = { appsInventoryFailed(previous) },
+                )
         }
     }
 

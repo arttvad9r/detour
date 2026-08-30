@@ -9,6 +9,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,9 +29,11 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -52,6 +55,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -93,12 +97,13 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
         tween(Motion.COLOR_MS), label = "searchIcon",
     )
     val showSystem = state.showSystemApps
-    val loadedApps = state.loadedApps.orEmpty()
-    val screenOrder = remember(loadedApps) {
-        AppRouteOrdering.snapshot(loadedApps, state.routes)
+    val loadedApps = state.loadedApps
+    val allApps = loadedApps.orEmpty()
+    val screenOrder = remember(allApps) {
+        AppRouteOrdering.snapshot(allApps, state.routes)
     }
-    val apps = remember(loadedApps, screenOrder, state.query, showSystem) {
-        val ordered = AppRouteOrdering.apply(loadedApps, screenOrder)
+    val apps = remember(allApps, screenOrder, state.query, showSystem) {
+        val ordered = AppRouteOrdering.apply(allApps, screenOrder)
         ordered
             .filter { showSystem || !it.isSystem }
             .filter {
@@ -204,6 +209,21 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
             )
         }
 
+        if (state.inventoryStatus == AppsInventoryStatus.ERROR && loadedApps != null) {
+            InventoryErrorBanner(
+                onRetry = viewModel::refreshInventory,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .widthIn(max = AppsContentMaxWidth)
+                    .fillMaxWidth()
+                    .padding(
+                        start = Spacing.space16,
+                        end = Spacing.space16,
+                        bottom = Spacing.space8,
+                    ),
+            )
+        }
+
         DetourCard(
             Modifier
                 .align(Alignment.CenterHorizontally)
@@ -212,48 +232,132 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
                 .weight(1f)
                 .padding(horizontal = Spacing.space16),
         ) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .detourHighRefresh(listState.isScrollInProgress || listMotionActive),
-            ) {
-                itemsIndexed(apps, key = { _, app -> app.packageName }) { i, app ->
-                    val current = state.routes[app.packageName] ?: AppRoute.DIRECT
-                    val shape = when {
-                        apps.size == 1 -> AppShapes.small
-                        i == 0 -> RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp)
-                        i == apps.lastIndex -> RoundedCornerShape(bottomStart = 14.dp, bottomEnd = 14.dp)
-                        else -> RoundedCornerShape(0.dp)
-                    }
-                    Column(
-                        Modifier
-                            .animateItem(
-                                fadeInSpec = null,
-                                fadeOutSpec = null,
-                                placementSpec = spring(
-                                    dampingRatio = Motion.SPRING_DAMPING,
-                                    stiffness = Motion.SPRING_STIFFNESS_SOFT,
-                                ),
-                            )
+            when {
+                state.inventoryStatus == AppsInventoryStatus.LOADING && loadedApps == null -> {
+                    AppsStateMessage(
+                        text = stringResource(R.string.routes_loading),
+                        loading = true,
+                    )
+                }
+                state.inventoryStatus == AppsInventoryStatus.ERROR && loadedApps == null -> {
+                    AppsStateMessage(
+                        text = stringResource(R.string.routes_load_error),
+                        onRetry = viewModel::refreshInventory,
+                    )
+                }
+                loadedApps?.isEmpty() == true -> {
+                    AppsStateMessage(stringResource(R.string.routes_empty))
+                }
+                loadedApps != null && apps.isEmpty() -> {
+                    AppsStateMessage(stringResource(R.string.routes_no_results))
+                }
+                else -> {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
                             .fillMaxWidth()
-                            .clip(shape),
+                            .detourHighRefresh(listState.isScrollInProgress || listMotionActive),
                     ) {
-                        AppRow(app, current) { route ->
-                            viewModel.setAppRoute(app.packageName, route)
+                        itemsIndexed(apps, key = { _, app -> app.packageName }) { i, app ->
+                            val current = state.routes[app.packageName] ?: AppRoute.DIRECT
+                            val shape = when {
+                                apps.size == 1 -> AppShapes.small
+                                i == 0 -> RoundedCornerShape(topStart = 14.dp, topEnd = 14.dp)
+                                i == apps.lastIndex -> RoundedCornerShape(bottomStart = 14.dp, bottomEnd = 14.dp)
+                                else -> RoundedCornerShape(0.dp)
+                            }
+                            Column(
+                                Modifier
+                                    .animateItem(
+                                        fadeInSpec = null,
+                                        fadeOutSpec = null,
+                                        placementSpec = spring(
+                                            dampingRatio = Motion.SPRING_DAMPING,
+                                            stiffness = Motion.SPRING_STIFFNESS_SOFT,
+                                        ),
+                                    )
+                                    .fillMaxWidth()
+                                    .clip(shape),
+                            ) {
+                                AppRow(app, current) { route ->
+                                    viewModel.setAppRoute(app.packageName, route)
+                                }
+                                if (i < apps.lastIndex) {
+                                    Box(
+                                        Modifier.fillMaxWidth()
+                                            .padding(start = 52.dp)
+                                            .height(1.dp)
+                                            .background(c.divider),
+                                    )
+                                }
+                            }
                         }
-                        if (i < apps.lastIndex) {
-                            Box(
-                                Modifier.fillMaxWidth()
-                                    .padding(start = 52.dp)
-                                    .height(1.dp)
-                                    .background(c.divider),
-                            )
-                        }
+                        item { Spacer(Modifier.height(Spacing.space24)) }
                     }
                 }
-                item { Spacer(Modifier.height(Spacing.space24)) }
             }
+        }
+    }
+}
+
+@Composable
+private fun AppsStateMessage(
+    text: String,
+    loading: Boolean = false,
+    onRetry: (() -> Unit)? = null,
+) {
+    val c = detourColors
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(Spacing.space24),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        if (loading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(24.dp),
+                strokeWidth = 2.dp,
+                color = c.accent,
+            )
+            Spacer(Modifier.height(Spacing.space12))
+        }
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = c.textSecondary,
+            textAlign = TextAlign.Center,
+        )
+        if (onRetry != null) {
+            Spacer(Modifier.height(Spacing.space8))
+            TextButton(onClick = onRetry) {
+                Text(stringResource(R.string.action_retry))
+            }
+        }
+    }
+}
+
+@Composable
+private fun InventoryErrorBanner(
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val c = detourColors
+    Row(
+        modifier
+            .clip(AppShapes.small)
+            .background(c.errorSoft)
+            .padding(start = Spacing.space16, end = Spacing.space4, top = Spacing.space4, bottom = Spacing.space4),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = stringResource(R.string.routes_refresh_error),
+            style = MaterialTheme.typography.bodySmall,
+            color = c.textPrimary,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onRetry) {
+            Text(stringResource(R.string.action_retry), color = c.error)
         }
     }
 }
