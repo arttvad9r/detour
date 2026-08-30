@@ -34,7 +34,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,6 +62,14 @@ private fun visualKey(state: VpnState): VisualVpnState = when (state) {
     VpnState.Starting -> VisualVpnState.STARTING
     VpnState.Active -> VisualVpnState.ACTIVE
     is VpnState.Failed -> VisualVpnState.FAILED
+}
+
+internal fun formatSessionElapsed(seconds: Int): String {
+    val safe = seconds.coerceAtLeast(0)
+    val h = safe / 3600
+    val m = (safe % 3600) / 60
+    val sec = safe % 60
+    return "%02d:%02d:%02d".format(h, m, sec)
 }
 
 @Composable
@@ -113,23 +120,6 @@ fun HomeScreen(viewModel: HomeViewModel, onOpenSettings: () -> Unit, modifier: M
         content = animateColorAsState(status.content, tween(Motion.COLOR_MS), label = "cardFg").value,
         border = animateColorAsState(status.border, tween(Motion.STATE_MS), label = "cardBorder").value,
     )
-
-    var elapsed by rememberSaveable { mutableIntStateOf(0) }
-    LaunchedEffect(st, uiState.sessionStartedAt) {
-        if (st == VpnState.Active) {
-            val started = uiState.sessionStartedAt ?: System.currentTimeMillis()
-            while (true) {
-                elapsed = ((System.currentTimeMillis() - started) / 1000L).coerceAtLeast(0).toInt()
-                delay(1000)
-            }
-        } else elapsed = 0
-    }
-    val timerText = remember(elapsed) {
-        val h = elapsed / 3600
-        val m = (elapsed % 3600) / 60
-        val sec = elapsed % 60
-        "%02d:%02d:%02d".format(h, m, sec)
-    }
 
     val consentLauncher = rememberLauncherForActivityResult(StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) VpnController.startNow(ctx)
@@ -193,7 +183,7 @@ fun HomeScreen(viewModel: HomeViewModel, onOpenSettings: () -> Unit, modifier: M
             StatusCard(
                 state = visualState,
                 style = style,
-                timerText = timerText,
+                sessionStartedAt = uiState.sessionStartedAt,
                 serverHost = uiState.serverHost,
                 protocol = stringResource(protocolRes),
                 modifier = Modifier
@@ -263,7 +253,7 @@ private fun MainButton(
 private fun StatusCard(
     state: VpnState,
     style: StatusStyle,
-    timerText: String,
+    sessionStartedAt: Long?,
     serverHost: String?,
     protocol: String,
     modifier: Modifier = Modifier,
@@ -342,14 +332,9 @@ private fun StatusCard(
                     color = style.content,
                     modifier = Modifier.padding(top = Spacing.space4),
                 )
-                VisualVpnState.ACTIVE -> Text(
-                    timerText,
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-                        fontFeatureSettings = "tnum",
-                    ),
+                VisualVpnState.ACTIVE -> SessionTimer(
+                    sessionStartedAt = sessionStartedAt,
                     color = style.content,
-                    modifier = Modifier.padding(top = Spacing.space4),
                 )
             }
         }
@@ -364,6 +349,27 @@ private fun StatusCard(
             serverHost ?: stringResource(R.string.server_missing),
         )
     }
+}
+
+@Composable
+private fun SessionTimer(sessionStartedAt: Long?, color: Color) {
+    var elapsed by remember(sessionStartedAt) { mutableIntStateOf(0) }
+    LaunchedEffect(sessionStartedAt) {
+        val started = sessionStartedAt ?: System.currentTimeMillis()
+        while (true) {
+            elapsed = ((System.currentTimeMillis() - started) / 1000L).coerceAtLeast(0).toInt()
+            delay(1000)
+        }
+    }
+    Text(
+        formatSessionElapsed(elapsed),
+        style = MaterialTheme.typography.bodyLarge.copy(
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+            fontFeatureSettings = "tnum",
+        ),
+        color = color,
+        modifier = Modifier.padding(top = Spacing.space4),
+    )
 }
 
 @Composable

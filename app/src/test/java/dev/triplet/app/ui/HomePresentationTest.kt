@@ -37,4 +37,10 @@ class HomePresentationTest {
         assertEquals("example.com", homeServerHost(VpnProfileKind.VLESS, vless, "Warp"))
         assertEquals("Warp", homeServerHost(VpnProfileKind.WARP, vless, "Warp"))
     }
+
+    @Test fun `session elapsed formatting is stable and clamps negatives`() {
+        assertEquals("00:00:00", formatSessionElapsed(-1))
+        assertEquals("00:00:59", formatSessionElapsed(59))
+        assertEquals("01:01:01", formatSessionElapsed(3661))
+    }
 }
