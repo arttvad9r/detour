@@ -43,6 +43,52 @@ class ProfilesViewModelStateTest {
         assertNull(state.warpProfile)
     }
 
+    @Test fun `VLESS delete request reports whether the profile is active`() {
+        val key = VlessKey("active", "Server", "vless://example")
+        val settings = TriSettings(
+            vlessKeys = VlessKeys(listOf(key), key.id),
+            warpProfile = null,
+            activeVpn = VpnProfileKind.VLESS,
+            preset = DpiPreset.RECOMMENDED,
+            dpiCustomArgs = "",
+            autoConnect = false,
+            themeId = "",
+            dnsId = "google",
+            dnsCustom = "",
+            routes = emptyMap(),
+            showSystemApps = false,
+            sessionStartedAt = null,
+        )
+
+        assertEquals(
+            ProfileDeleteRequest.Vless(key.id, active = true),
+            vlessDeleteRequest(settings, key.id),
+        )
+        assertEquals(
+            ProfileDeleteRequest.Vless("other", active = false),
+            vlessDeleteRequest(settings, "other"),
+        )
+    }
+
+    @Test fun `WARP delete request reports active tunnel`() {
+        val settings = TriSettings(
+            vlessKeys = VlessKeys(emptyList(), null),
+            warpProfile = null,
+            activeVpn = VpnProfileKind.WARP,
+            preset = DpiPreset.RECOMMENDED,
+            dpiCustomArgs = "",
+            autoConnect = false,
+            themeId = "",
+            dnsId = "google",
+            dnsCustom = "",
+            routes = emptyMap(),
+            showSystemApps = false,
+            sessionStartedAt = null,
+        )
+
+        assertEquals(ProfileDeleteRequest.Warp(active = true), warpDeleteRequest(settings))
+    }
+
     @Test fun `null settings map to safe empty profile state`() {
         assertEquals(ProfilesUiState(), profilesUiState(null))
     }

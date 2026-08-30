@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.NavKey
@@ -48,6 +49,7 @@ import dev.triplet.app.ui.DpiViewModel
 import dev.triplet.app.ui.HomeScreen
 import dev.triplet.app.ui.HomeViewModel
 import dev.triplet.app.ui.Motion
+import dev.triplet.app.ui.ProfileDeleteConfirmationDialog
 import dev.triplet.app.ui.ProfilesViewModel
 import dev.triplet.app.ui.SettingsMenuScreen
 import dev.triplet.app.ui.SettingsSection
@@ -289,7 +291,15 @@ internal fun DetourNavigation(
                         },
                     ),
                 )
+                val pendingDelete by profilesViewModel.pendingDelete.collectAsStateWithLifecycle()
                 VlessKeyScreen(profilesViewModel, onBack = popBack)
+                pendingDelete?.let { request ->
+                    ProfileDeleteConfirmationDialog(
+                        request = request,
+                        onConfirm = profilesViewModel::confirmDelete,
+                        onDismiss = profilesViewModel::dismissDelete,
+                    )
+                }
             }
 
             entry<AppDestination.Dpi>(metadata = ListDetailSceneStrategy.detailPane()) {

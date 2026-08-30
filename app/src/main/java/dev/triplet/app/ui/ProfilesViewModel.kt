@@ -24,6 +24,19 @@ import kotlinx.coroutines.withContext
 
 enum class WarpImportStatus { IDLE, IMPORTING, NO_COMPATIBLE_PROXIES, ERROR }
 
+sealed interface ProfileDeleteRequest {
+    val active: Boolean
+
+    data class Vless(
+        val keyId: String,
+        override val active: Boolean,
+    ) : ProfileDeleteRequest
+
+    data class Warp(
+        override val active: Boolean,
+    ) : ProfileDeleteRequest
+}
+
 data class ProfilesUiState(
     val vlessItems: List<VlessKey> = emptyList(),
     val activeVlessId: String? = null,
@@ -42,6 +55,22 @@ internal fun profilesUiState(
     activeVpn = settings?.activeVpn ?: VpnProfileKind.VLESS,
     warpImportStatus = warpImportStatus,
 )
+
+internal fun vlessDeleteRequest(
+    settings: TriSettings?,
+    keyId: String,
+): ProfileDeleteRequest.Vless {
+    val state = profilesUiState(settings)
+    return ProfileDeleteRequest.Vless(
+        keyId = keyId,
+        active = state.activeVpn == VpnProfileKind.VLESS && state.activeVlessId == keyId,
+    )
+}
+
+internal fun warpDeleteRequest(settings: TriSettings?): ProfileDeleteRequest.Warp {
+    val state = profilesUiState(settings)
+    return ProfileDeleteRequest.Warp(active = state.activeVpn == VpnProfileKind.WARP)
+}
 
 internal enum class ProfileTunnelAction { NONE, RESTART, STOP }
 enum class ProfileSavedKind { VLESS, WARP }
@@ -83,6 +112,9 @@ class ProfilesViewModel(
     private val _warpImportRejected = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val warpImportRejected: SharedFlow<Unit> = _warpImportRejected
 
+    private val _pendingDelete = MutableStateFlow<ProfileDeleteRequest?>(null)
+    val pendingDelete: StateFlow<ProfileDeleteRequest?> = _pendingDelete
+
     val uiState: StateFlow<ProfilesUiState> = combine(
         settings,
         warpImportStatus,
@@ -109,17 +141,7 @@ class ProfilesViewModel(
     }
 
     fun deleteVless(keyId: String) {
-        val state = profilesUiState(settings.value)
-        val tunnelAction = vlessMutationTunnelAction(
-            state.activeVpn,
-            state.activeVlessId,
-            keyId,
-            deleting = true,
-        )
-        viewModelScope.launch {
-            deleteVlessKey(keyId)
-            applyTunnelAction(tunnelAction)
-        }
+        _pendingDelete.value = vlessDeleteRequest(settings.value, keyId)
     }
 
     fun selectVless(keyId: String) {
@@ -207,13 +229,41 @@ class ProfilesViewModel(
     }
 
     fun deleteWarp() {
-        val tunnelAction = warpMutationTunnelAction(
-            profilesUiState(settings.value).activeVpn,
-            deleting = true,
-        )
-        viewModelScope.launch {
-            deleteWarpProfile()
-            applyTunnelAction(tunnelAction)
+        _pendingDelete.value = warpDeleteRequest(settings.value)
+    }
+
+    fun dismissDelete() {
+        _pendingDelete.value = null
+    }
+
+    fun confirmDelete() {
+        val request = _pendingDelete.value ?: return
+        _pendingDelete.value = null
+
+        when (request) {
+            is ProfileDeleteRequest.Vless -> {
+                val state = profilesUiState(settings.value)
+                val tunnelAction = vlessMutationTunnelAction(
+                    state.activeVpn,
+                    state.activeVlessId,
+                    request.keyId,
+                    deleting = true,
+                )
+                viewModelScope.launch {
+                    deleteVlessKey(request.keyId)
+                    applyTunnelAction(tunnelAction)
+                }
+            }
+            is ProfileDeleteRequest.Warp -> {
+                val tunnelAction = warpMutationTunnelAction(
+                    profilesUiState(settings.value).activeVpn,
+                    deleting = true,
+                )
+                viewModelScope.launch {
+                    deleteWarpProfile()
+                    applyTunnelAction(tunnelAction)
+                }
+            }
         }
     }
 
