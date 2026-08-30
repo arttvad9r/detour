@@ -285,8 +285,6 @@ fun SettingRow(
                     Text(
                         value, style = MaterialTheme.typography.bodySmall,
                         color = c.textSecondary,
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         modifier = Modifier.padding(top = 1.dp),
                     )
                 }
@@ -611,7 +609,6 @@ fun SegmentedControl(
                         fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
                         color = fg,
                         textAlign = TextAlign.Center,
-                        maxLines = 1,
                     )
                 }
             }
