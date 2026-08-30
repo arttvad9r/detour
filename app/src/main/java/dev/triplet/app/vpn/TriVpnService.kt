@@ -302,7 +302,7 @@ class TriVpnService : VpnService() {
     /** Only the non-empty effective allow-list is ever passed here. */
     private fun openTun(allowed: Set<String>): Int {
         val builder = Builder()
-            .setSession("Detour")
+            .setSession(getString(R.string.app_name))
             .setMtu(ConfigGenerator.MTU)
         builder.addAddress(ConfigGenerator.INET4.substringBefore('/'),
             ConfigGenerator.INET4.substringAfter('/').toInt())

@@ -45,7 +45,7 @@ internal class VpnForegroundNotifier(private val service: VpnService) {
         )
         val notification: Notification = NotificationCompat.Builder(service, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_lock)
-            .setContentTitle("Detour")
+            .setContentTitle(service.getString(R.string.app_name))
             .setContentText(text)
             .setContentIntent(content)
             .setOngoing(true)
