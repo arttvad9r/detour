@@ -1,0 +1,4 @@
+<resources>
+    <string name="backup_exporting">Экспорт…</string>
+    <string name="backup_importing">Импорт…</string>
+</resources>

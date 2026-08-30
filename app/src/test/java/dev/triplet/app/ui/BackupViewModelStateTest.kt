@@ -8,6 +8,7 @@ import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.data.TriSettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -40,5 +41,52 @@ class BackupViewModelStateTest {
         assertEquals(mapOf("com.example" to "VPN"), backup.routes)
         assertTrue(backup.showSystemApps)
         assertFalse(backup.routes.containsKey("sessionStartedAt"))
+    }
+
+    @Test fun `backup operation blocks overlap and clears after completion`() {
+        val viewModel = BackupViewModel(
+            loadSettings = { null },
+            restoreBackup = {},
+            stopTunnelIfRunning = {},
+        )
+
+        assertTrue(viewModel.beginExport())
+        assertEquals(BackupOperation.EXPORT, viewModel.operation.value)
+        assertFalse(viewModel.beginImport())
+
+        viewModel.reportExport(success = true)
+
+        assertNull(viewModel.operation.value)
+        assertEquals(BackupStatus.EXPORTED, viewModel.status.value)
+        assertTrue(viewModel.beginImport())
+        assertEquals(BackupOperation.IMPORT, viewModel.operation.value)
+    }
+
+    @Test fun `backup error clears an active operation`() {
+        val viewModel = BackupViewModel(
+            loadSettings = { null },
+            restoreBackup = {},
+            stopTunnelIfRunning = {},
+        )
+
+        assertTrue(viewModel.beginImport())
+        viewModel.reportError()
+
+        assertNull(viewModel.operation.value)
+        assertEquals(BackupStatus.ERROR, viewModel.status.value)
+    }
+
+    @Test fun `cancelled screen operation clears busy state without result feedback`() {
+        val viewModel = BackupViewModel(
+            loadSettings = { null },
+            restoreBackup = {},
+            stopTunnelIfRunning = {},
+        )
+
+        assertTrue(viewModel.beginExport())
+        viewModel.cancelOperation(BackupOperation.EXPORT)
+
+        assertNull(viewModel.operation.value)
+        assertNull(viewModel.status.value)
     }
 }

@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -36,11 +37,15 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
 import dev.triplet.app.core.SettingsBackup
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -52,6 +57,7 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
     val scope = rememberCoroutineScope()
     val c = detourColors
     val status by viewModel.status.collectAsStateWithLifecycle()
+    val operation by viewModel.operation.collectAsStateWithLifecycle()
     val scrollState = rememberScrollState()
 
     LaunchedEffect(viewModel) {
@@ -69,34 +75,55 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri: Uri? ->
-        if (uri == null) return@rememberLauncherForActivityResult
+        if (uri == null || !viewModel.beginExport()) return@rememberLauncherForActivityResult
         scope.launch {
-            val json = viewModel.exportJson() ?: return@launch
-            val success = runCatching {
-                withContext(Dispatchers.IO) {
-                    val output = requireNotNull(ctx.contentResolver.openOutputStream(uri))
-                    output.use { it.write(json.toByteArray(Charsets.UTF_8)) }
+            try {
+                val json = viewModel.exportJson()
+                if (json == null) {
+                    viewModel.reportError()
+                    return@launch
                 }
-            }.isSuccess
-            viewModel.reportExport(success)
+                val success = try {
+                    withContext(Dispatchers.IO) {
+                        val output = requireNotNull(ctx.contentResolver.openOutputStream(uri))
+                        output.use { it.write(json.toByteArray(Charsets.UTF_8)) }
+                    }
+                    true
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    false
+                }
+                viewModel.reportExport(success)
+            } finally {
+                viewModel.cancelOperation(BackupOperation.EXPORT)
+            }
         }
     }
 
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
-        if (uri == null) return@rememberLauncherForActivityResult
+        if (uri == null || !viewModel.beginImport()) return@rememberLauncherForActivityResult
         scope.launch {
-            val raw = runCatching {
-                withContext(Dispatchers.IO) {
-                    val input = requireNotNull(ctx.contentResolver.openInputStream(uri))
-                    input.use { readLimited(it, SettingsBackup.MAX_BYTES) }
+            var handedOff = false
+            try {
+                val raw = try {
+                    withContext(Dispatchers.IO) {
+                        val input = requireNotNull(ctx.contentResolver.openInputStream(uri))
+                        input.use { readLimited(it, SettingsBackup.MAX_BYTES) }
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    viewModel.reportError()
+                    return@launch
                 }
-            }.getOrElse {
-                viewModel.reportError()
-                return@launch
+                viewModel.importJson(raw)
+                handedOff = true
+            } finally {
+                if (!handedOff) viewModel.cancelOperation(BackupOperation.IMPORT)
             }
-            viewModel.importJson(raw)
         }
     }
 
@@ -108,6 +135,7 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
         null -> ""
     }
     val statusIsError = status == BackupStatus.BAD_FILE || status == BackupStatus.ERROR
+    val busy = operation != null
 
     Column(
         modifier.fillMaxSize()
@@ -137,11 +165,29 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
 
             Spacer(Modifier.height(Spacing.space12))
             DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-                ActionRow(stringResource(R.string.backup_export), R.drawable.ic_export, accent = true) {
+                ActionRow(
+                    label = stringResource(
+                        if (operation == BackupOperation.EXPORT) R.string.backup_exporting
+                        else R.string.backup_export,
+                    ),
+                    iconRes = R.drawable.ic_export,
+                    accent = true,
+                    enabled = !busy,
+                    loading = operation == BackupOperation.EXPORT,
+                ) {
                     exportLauncher.launch("detour-backup.json")
                 }
                 GroupDivider(startInset = 46)
-                ActionRow(stringResource(R.string.backup_import), R.drawable.ic_import, accent = false) {
+                ActionRow(
+                    label = stringResource(
+                        if (operation == BackupOperation.IMPORT) R.string.backup_importing
+                        else R.string.backup_import,
+                    ),
+                    iconRes = R.drawable.ic_import,
+                    accent = false,
+                    enabled = !busy,
+                    loading = operation == BackupOperation.IMPORT,
+                ) {
                     importLauncher.launch(arrayOf("application/json", "text/*"))
                 }
             }
@@ -181,19 +227,39 @@ private fun readLimited(input: java.io.InputStream, maxBytes: Int): String? {
 }
 
 @Composable
-private fun ActionRow(label: String, iconRes: Int, accent: Boolean, onClick: () -> Unit) {
+private fun ActionRow(
+    label: String,
+    iconRes: Int,
+    accent: Boolean,
+    enabled: Boolean,
+    loading: Boolean,
+    onClick: () -> Unit,
+) {
     val c = detourColors
-    val tint = if (accent) c.accent else c.textSecondary
+    val tint = when {
+        !enabled -> c.textMuted
+        accent -> c.accent
+        else -> c.textSecondary
+    }
+    val row = Modifier
+        .fillMaxWidth()
+        .heightIn(min = 56.dp)
+    val interactiveRow = if (enabled) {
+        row.detourClickable(
+            onClick = onClick,
+            role = Role.Button,
+            pressedColor = c.surfaceSelected.copy(alpha = 0.38f),
+            pressScale = Motion.PRESS_ROW,
+        )
+    } else {
+        row.semantics {
+            disabled()
+            role = Role.Button
+        }
+    }
+
     Row(
-        Modifier.fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .detourClickable(
-                onClick = onClick,
-                role = Role.Button,
-                pressedColor = c.surfaceSelected.copy(alpha = 0.38f),
-                pressScale = Motion.PRESS_ROW,
-            )
-            .padding(horizontal = Spacing.space16),
+        interactiveRow.padding(horizontal = Spacing.space16),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
@@ -205,8 +271,15 @@ private fun ActionRow(label: String, iconRes: Int, accent: Boolean, onClick: () 
             label,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Medium,
-            color = c.textPrimary,
-            modifier = Modifier.padding(start = Spacing.space12),
+            color = if (enabled) c.textPrimary else c.textMuted,
+            modifier = Modifier.padding(start = Spacing.space12).weight(1f),
         )
+        if (loading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                strokeWidth = 2.dp,
+                color = c.accent,
+            )
+        }
     }
 }

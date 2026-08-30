@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import dev.triplet.app.core.SettingsBackup
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.data.TriSettings
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +18,7 @@ import kotlinx.coroutines.withContext
 
 enum class BackupStatus { EXPORTED, BAD_FILE, IMPORTED, ERROR }
 enum class BackupFeedback { CONFIRM, REJECT }
+enum class BackupOperation { EXPORT, IMPORT }
 
 internal fun backupFromSettings(settings: TriSettings): SettingsBackup.Backup = SettingsBackup.Backup(
     vlessUri = settings.vlessUri,
@@ -41,51 +43,82 @@ class BackupViewModel(
     private val _status = MutableStateFlow<BackupStatus?>(null)
     val status: StateFlow<BackupStatus?> = _status.asStateFlow()
 
+    private val _operation = MutableStateFlow<BackupOperation?>(null)
+    val operation: StateFlow<BackupOperation?> = _operation.asStateFlow()
+
     private val _feedback = MutableSharedFlow<BackupFeedback>(extraBufferCapacity = 1)
     val feedback: SharedFlow<BackupFeedback> = _feedback
 
-    suspend fun exportJson(): String? {
+    fun beginExport(): Boolean = beginOperation(BackupOperation.EXPORT)
+
+    fun beginImport(): Boolean = beginOperation(BackupOperation.IMPORT)
+
+    fun cancelOperation(value: BackupOperation) {
+        if (_operation.value == value) _operation.value = null
+    }
+
+    suspend fun exportJson(): String? = try {
         val current = loadSettings() ?: return null
-        return withContext(Dispatchers.Default) {
+        withContext(Dispatchers.Default) {
             SettingsBackup.toJson(backupFromSettings(current))
         }
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
+        null
     }
 
     fun reportExport(success: Boolean) {
-        setStatus(if (success) BackupStatus.EXPORTED else BackupStatus.ERROR)
+        complete(if (success) BackupStatus.EXPORTED else BackupStatus.ERROR)
     }
 
     fun importJson(raw: String?) {
         if (raw == null) {
-            setStatus(BackupStatus.BAD_FILE)
+            complete(BackupStatus.BAD_FILE)
             return
         }
         viewModelScope.launch {
-            val backup = withContext(Dispatchers.Default) {
-                SettingsBackup.fromJson(raw)
-            }
-            if (backup == null) {
-                setStatus(BackupStatus.BAD_FILE)
+            val backup = try {
+                withContext(Dispatchers.Default) {
+                    SettingsBackup.fromJson(raw)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                complete(BackupStatus.ERROR)
                 return@launch
             }
-            runCatching {
+            if (backup == null) {
+                complete(BackupStatus.BAD_FILE)
+                return@launch
+            }
+            try {
                 restoreBackup(backup)
                 // Restoring intentionally disables auto-connect. Any live tunnel
                 // still represents the old snapshot, so stop it after commit.
                 stopTunnelIfRunning()
-            }.onSuccess {
-                setStatus(BackupStatus.IMPORTED)
-            }.onFailure {
-                setStatus(BackupStatus.ERROR)
+                complete(BackupStatus.IMPORTED)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                complete(BackupStatus.ERROR)
             }
         }
     }
 
     fun reportError() {
-        setStatus(BackupStatus.ERROR)
+        complete(BackupStatus.ERROR)
     }
 
-    private fun setStatus(value: BackupStatus) {
+    private fun beginOperation(value: BackupOperation): Boolean {
+        if (_operation.value != null) return false
+        _status.value = null
+        _operation.value = value
+        return true
+    }
+
+    private fun complete(value: BackupStatus) {
+        _operation.value = null
         _status.value = value
         _feedback.tryEmit(
             if (value == BackupStatus.EXPORTED || value == BackupStatus.IMPORTED) {
