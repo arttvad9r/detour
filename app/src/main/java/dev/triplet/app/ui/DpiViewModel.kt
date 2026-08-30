@@ -14,8 +14,11 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 enum class DpiSaveState { IDLE, SAVING, ERROR }
 
@@ -37,14 +40,15 @@ internal fun dpiUiState(
     customDraft: String?,
     editingOverride: Boolean?,
     saveState: DpiSaveState = DpiSaveState.IDLE,
+    presetOverride: DpiPreset? = null,
 ): DpiUiState {
     val persistedCustom = settings?.dpiCustomArgs.orEmpty()
     val customField = customDraft ?: persistedCustom
-    val preset = settings?.preset ?: DpiPreset.RECOMMENDED
+    val preset = presetOverride ?: settings?.preset ?: DpiPreset.RECOMMENDED
     return DpiUiState(
         preset = preset,
         customField = customField,
-        editingCustom = editingOverride ?: (settings?.preset == DpiPreset.CUSTOM),
+        editingCustom = editingOverride ?: (preset == DpiPreset.CUSTOM),
         customInvalid = customField.isNotBlank() && !DpiArgs.isValid(customField),
         customChanged = preset != DpiPreset.CUSTOM || customField.trim() != persistedCustom.trim(),
         saveState = saveState,
@@ -59,7 +63,9 @@ class DpiViewModel(
 ) : ViewModel() {
     private val customDraft = MutableStateFlow<String?>(null)
     private val editingOverride = MutableStateFlow<Boolean?>(null)
+    private val presetOverride = MutableStateFlow<DpiPreset?>(null)
     private val saveState = MutableStateFlow(DpiSaveState.IDLE)
+    private val writeMutex = Mutex()
     private val _customSaved = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val customSaved: SharedFlow<Unit> = _customSaved
 
@@ -68,8 +74,16 @@ class DpiViewModel(
         customDraft,
         editingOverride,
         saveState,
-        ::dpiUiState,
-    ).stateIn(
+        presetOverride,
+    ) { currentSettings, currentDraft, currentEditingOverride, currentSaveState, currentPresetOverride ->
+        dpiUiState(
+            currentSettings,
+            currentDraft,
+            currentEditingOverride,
+            currentSaveState,
+            currentPresetOverride,
+        )
+    }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = dpiUiState(settings.value, null, null),
@@ -86,12 +100,34 @@ class DpiViewModel(
 
     fun chooseRecommended() {
         if (saveState.value == DpiSaveState.SAVING) return
-        editingOverride.value = false
         saveState.value = DpiSaveState.IDLE
-        if (settings.value?.preset == DpiPreset.RECOMMENDED) return
+        editingOverride.value = null
+
+        val currentIntent = presetOverride.value ?: settings.value?.preset ?: DpiPreset.RECOMMENDED
+        if (currentIntent == DpiPreset.RECOMMENDED) return
+        presetOverride.value = DpiPreset.RECOMMENDED
+
         viewModelScope.launch {
-            setPreset(DpiPreset.RECOMMENDED)
-            restartTunnel()
+            writeMutex.withLock {
+                val desired = presetOverride.value ?: return@withLock
+                if (desired != DpiPreset.RECOMMENDED) return@withLock
+                try {
+                    if (settings.value?.preset != desired) {
+                        setPreset(desired)
+                        if (settings.value?.preset != desired) {
+                            settings.first { it?.preset == desired }
+                        }
+                        restartTunnel()
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    if (presetOverride.value == desired) presetOverride.value = null
+                    return@withLock
+                }
+
+                if (presetOverride.value == desired) presetOverride.value = null
+            }
         }
     }
 
@@ -101,23 +137,43 @@ class DpiViewModel(
         val current = settings.value
         if (current?.preset == DpiPreset.CUSTOM && current.dpiCustomArgs.trim() == value) return
         if (saveState.value == DpiSaveState.SAVING) return
+
+        editingOverride.value = true
+        presetOverride.value = DpiPreset.CUSTOM
         saveState.value = DpiSaveState.SAVING
         viewModelScope.launch {
-            try {
-                // Persist the validated draft before activating CUSTOM so a process
-                // death between writes cannot expose an invalid custom preset.
-                setCustomArgs(value)
-                setPreset(DpiPreset.CUSTOM)
-                if (customDraft.value?.trim() == value) customDraft.value = value
-                editingOverride.value = true
-                restartTunnel()
-                saveState.value = DpiSaveState.IDLE
-                _customSaved.emit(Unit)
-            } catch (cancelled: CancellationException) {
-                saveState.value = DpiSaveState.IDLE
-                throw cancelled
-            } catch (_: Exception) {
-                saveState.value = DpiSaveState.ERROR
+            writeMutex.withLock {
+                try {
+                    // Persist the validated draft before activating CUSTOM so a process
+                    // death between writes cannot expose an invalid custom preset.
+                    setCustomArgs(value)
+                    setPreset(DpiPreset.CUSTOM)
+                    if (
+                        settings.value?.preset != DpiPreset.CUSTOM ||
+                        settings.value?.dpiCustomArgs?.trim() != value
+                    ) {
+                        settings.first {
+                            it?.preset == DpiPreset.CUSTOM &&
+                                it.dpiCustomArgs.trim() == value
+                        }
+                    }
+                    restartTunnel()
+
+                    if (customDraft.value?.trim() == value) {
+                        customDraft.value = null
+                        if (editingOverride.value == true) editingOverride.value = null
+                    }
+                    if (presetOverride.value == DpiPreset.CUSTOM) presetOverride.value = null
+                    saveState.value = DpiSaveState.IDLE
+                    _customSaved.emit(Unit)
+                } catch (cancelled: CancellationException) {
+                    if (presetOverride.value == DpiPreset.CUSTOM) presetOverride.value = null
+                    saveState.value = DpiSaveState.IDLE
+                    throw cancelled
+                } catch (_: Exception) {
+                    if (presetOverride.value == DpiPreset.CUSTOM) presetOverride.value = null
+                    saveState.value = DpiSaveState.ERROR
+                }
             }
         }
     }
