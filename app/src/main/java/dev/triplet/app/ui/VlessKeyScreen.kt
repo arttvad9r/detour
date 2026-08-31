@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -74,6 +75,8 @@ import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.core.WarpProfile
 import kotlinx.coroutines.launch
 import java.util.UUID
+
+private const val PROFILES_SCREEN_TEST_TAG = "profiles_screen"
 
 private data class ProfileSnapshot(
     val vless: List<VlessKey>,
@@ -156,7 +159,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
     }
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.testTag(PROFILES_SCREEN_TEST_TAG).fillMaxSize(),
         containerColor = c.background,
         floatingActionButton = {
             ProfileAddFab(

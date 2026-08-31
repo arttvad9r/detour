@@ -16,6 +16,18 @@ class BaselineProfileGenerator {
         packageName = TARGET_PACKAGE,
         includeInStartupProfile = true,
     ) {
+        pressHome()
         startActivityAndWait()
+        waitForHomeProfileRow()
+    }
+
+    @Test
+    fun openProfiles() = rule.collect(
+        packageName = TARGET_PACKAGE,
+    ) {
+        pressHome()
+        startActivityAndWait()
+        waitForHomeProfileRow()
+        openProfilesFromHome()
     }
 }

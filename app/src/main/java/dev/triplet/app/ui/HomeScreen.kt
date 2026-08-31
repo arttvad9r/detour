@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -63,6 +64,8 @@ import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+private const val HOME_PROFILE_ROW_TEST_TAG = "home_profile_row"
 
 private enum class VisualVpnState { IDLE, STARTING, ACTIVE, FAILED }
 
@@ -466,6 +469,7 @@ private fun ConnectionDetails(
             InfoRow(
                 stringResource(R.string.row_profile),
                 profileName ?: stringResource(R.string.server_missing),
+                modifier = Modifier.testTag(HOME_PROFILE_ROW_TEST_TAG),
                 onClick = onOpenProfiles,
             )
             DetailsDivider()
@@ -528,11 +532,12 @@ private fun SessionTimer(sessionStartedAt: Long?, color: Color) {
 private fun InfoRow(
     label: String,
     value: String,
+    modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
 ) {
     val c = detourColors
     val rowModifier = if (onClick != null) {
-        Modifier
+        modifier
             .fillMaxWidth()
             .heightIn(min = 48.dp)
             .detourClickable(
@@ -542,7 +547,7 @@ private fun InfoRow(
                 pressScale = Motion.PRESS_ROW,
             )
     } else {
-        Modifier.fillMaxWidth()
+        modifier.fillMaxWidth()
     }
     Row(
         rowModifier.padding(vertical = Spacing.space4),

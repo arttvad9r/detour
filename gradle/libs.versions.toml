@@ -13,7 +13,7 @@ json = "20260814"
 snakeyaml = "2.6"
 androidxTestExtJunit = "1.3.0"
 androidxTestRunner = "1.7.0"
-benchmark = "1.4.1"
+benchmark = "1.5.0-rc02"
 baselineProfilePlugin = "1.5.0-rc02"
 profileInstaller = "1.4.1"
 

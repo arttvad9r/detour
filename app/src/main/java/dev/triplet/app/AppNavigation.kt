@@ -26,6 +26,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -180,6 +182,7 @@ internal fun DetourNavigation(
     NavDisplay(
         backStack = backStack,
         modifier = modifier
+            .semantics { testTagsAsResourceId = true }
             .fillMaxSize()
             .detourHighRefresh(navMotionActive),
         entryDecorators = listOf(

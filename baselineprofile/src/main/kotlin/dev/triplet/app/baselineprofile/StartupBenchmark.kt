@@ -1,6 +1,7 @@
 package dev.triplet.app.baselineprofile
 
 import androidx.benchmark.macro.CompilationMode
+import androidx.benchmark.macro.FrameTimingMetric
 import androidx.benchmark.macro.StartupMode
 import androidx.benchmark.macro.StartupTimingMetric
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
@@ -26,5 +27,21 @@ class StartupBenchmark {
         },
     ) {
         startActivityAndWait()
+    }
+
+    @Test
+    fun openProfilesNoCompilation() = benchmarkRule.measureRepeated(
+        packageName = TARGET_PACKAGE,
+        metrics = listOf(FrameTimingMetric()),
+        compilationMode = CompilationMode.None(),
+        iterations = 5,
+        setupBlock = {
+            pressHome()
+            killProcess()
+            startActivityAndWait()
+            waitForHomeProfileRow()
+        },
+    ) {
+        openProfilesFromHome()
     }
 }
