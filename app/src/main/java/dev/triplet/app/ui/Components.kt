@@ -16,7 +16,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -26,7 +25,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -476,73 +474,52 @@ fun SegmentedControl(
     val c = detourColors
     val haptics = LocalHapticFeedback.current
     if (options.isEmpty()) return
-    BoxWithConstraints(
+
+    Row(
         modifier
             .fillMaxWidth()
+            .height(IntrinsicSize.Min)
             .heightIn(min = 48.dp)
             .clip(AppShapes.extraSmall)
             .background(c.surfaceSoft)
-            .border(1.dp, c.border, AppShapes.extraSmall),
+            .border(1.dp, c.border, AppShapes.extraSmall)
+            .selectableGroup(),
     ) {
-        val segmentWidth = maxWidth / options.size
-        val selectedOffset by animateDpAsState(
-            targetValue = segmentWidth * selected.coerceIn(0, options.lastIndex),
-            animationSpec = spring(
-                dampingRatio = Motion.SPRING_DAMPING,
-                stiffness = Motion.SPRING_STIFFNESS_SOFT,
-            ),
-            label = "segmentOffset",
-        )
-        Box(Modifier.matchParentSize()) {
-            Box(
+        options.forEachIndexed { i, label ->
+            val on = i == selected
+            val fg by animateColorAsState(
+                if (on) c.textPrimary else c.textSecondary,
+                tween(Motion.COLOR_MS), label = "segFg",
+            )
+            Row(
                 Modifier
-                    .offset(x = selectedOffset)
-                    .width(segmentWidth)
+                    .weight(1f)
                     .fillMaxHeight()
                     .padding(1.dp)
                     .clip(AppShapes.extraSmall)
-                    .background(c.accentSoft),
-            )
-        }
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .height(IntrinsicSize.Min)
-                .heightIn(min = 48.dp)
-                .selectableGroup(),
-        ) {
-            options.forEachIndexed { i, label ->
-                val on = i == selected
-                val fg by animateColorAsState(
-                    if (on) c.textPrimary else c.textSecondary,
-                    tween(Motion.COLOR_MS), label = "segFg",
-                )
-                Row(
-                    Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .detourSelectable(
-                            selected = on,
-                            onClick = {
-                                if (i != selected) {
-                                    haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                                    onSelect(i)
-                                }
-                            },
-                            pressScale = Motion.PRESS_RADIO,
-                        )
-                        .padding(horizontal = Spacing.space8, vertical = Spacing.space8),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
-                ) {
-                    Text(
-                        label,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
-                        color = fg,
-                        textAlign = TextAlign.Center,
+                    .detourSelectable(
+                        selected = on,
+                        onClick = {
+                            if (i != selected) {
+                                haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                onSelect(i)
+                            }
+                        },
+                        idleColor = if (on) c.accentSoft else Color.Transparent,
+                        pressedColor = if (on) c.accentSoft else c.surfaceSelected,
+                        pressScale = Motion.PRESS_RADIO,
                     )
-                }
+                    .padding(horizontal = Spacing.space8, vertical = Spacing.space8),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
+            ) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
+                    color = fg,
+                    textAlign = TextAlign.Center,
+                )
             }
         }
     }
