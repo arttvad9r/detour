@@ -340,6 +340,16 @@ internal fun DetourNavigation(
                 val backupViewModel = viewModel<BackupViewModel>(
                     factory = BackupViewModel.factory(
                         store = store,
+                        readBackupDocument = { uri ->
+                            withContext(Dispatchers.IO) {
+                                readBackupDocument(appContext, uri)
+                            }
+                        },
+                        writeBackupDocument = { uri, json ->
+                            withContext(Dispatchers.IO) {
+                                writeBackupDocument(appContext, uri, json)
+                            }
+                        },
                         stopTunnelIfRunning = {
                             if (
                                 VpnController.state.value == VpnState.Active ||

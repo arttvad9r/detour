@@ -1,6 +1,5 @@
 package dev.triplet.app.ui
 
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -28,11 +27,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -44,17 +41,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
-import dev.triplet.app.core.SettingsBackup
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @Composable
 fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
-    val ctx = LocalContext.current
     val haptics = LocalHapticFeedback.current
-    val scope = rememberCoroutineScope()
     val c = detourColors
     val status by viewModel.status.collectAsStateWithLifecycle()
     val operation by viewModel.operation.collectAsStateWithLifecycle()
@@ -74,57 +64,14 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
-    ) { uri: Uri? ->
-        if (uri == null || !viewModel.beginExport()) return@rememberLauncherForActivityResult
-        scope.launch {
-            try {
-                val json = viewModel.exportJson()
-                if (json == null) {
-                    viewModel.reportError()
-                    return@launch
-                }
-                val success = try {
-                    withContext(Dispatchers.IO) {
-                        val output = requireNotNull(ctx.contentResolver.openOutputStream(uri))
-                        output.use { it.write(json.toByteArray(Charsets.UTF_8)) }
-                    }
-                    true
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    false
-                }
-                viewModel.reportExport(success)
-            } finally {
-                viewModel.cancelOperation(BackupOperation.EXPORT)
-            }
-        }
+    ) { uri ->
+        uri?.let { viewModel.exportDocument(it.toString()) }
     }
 
     val importLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        if (uri == null || !viewModel.beginImport()) return@rememberLauncherForActivityResult
-        scope.launch {
-            var handedOff = false
-            try {
-                val raw = try {
-                    withContext(Dispatchers.IO) {
-                        val input = requireNotNull(ctx.contentResolver.openInputStream(uri))
-                        input.use { readLimited(it, SettingsBackup.MAX_BYTES) }
-                    }
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    viewModel.reportError()
-                    return@launch
-                }
-                viewModel.importJson(raw)
-                handedOff = true
-            } finally {
-                if (!handedOff) viewModel.cancelOperation(BackupOperation.IMPORT)
-            }
-        }
+    ) { uri ->
+        uri?.let { viewModel.importDocument(it.toString()) }
     }
 
     val statusText = when (status) {
@@ -210,20 +157,6 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
             Spacer(Modifier.height(Spacing.space24))
         }
     }
-}
-
-private fun readLimited(input: java.io.InputStream, maxBytes: Int): String? {
-    val out = java.io.ByteArrayOutputStream()
-    val buffer = ByteArray(8192)
-    var total = 0
-    while (true) {
-        val count = input.read(buffer)
-        if (count < 0) break
-        total += count
-        if (total > maxBytes) return null
-        out.write(buffer, 0, count)
-    }
-    return out.toString(Charsets.UTF_8.name())
 }
 
 @Composable

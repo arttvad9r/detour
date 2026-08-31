@@ -28,6 +28,8 @@ class BackupExportSnapshotTest {
         )
         val viewModel = BackupViewModel(
             loadSettings = { committed },
+            readBackupDocument = { null },
+            writeBackupDocument = { _, _ -> },
             restoreBackup = {},
             stopTunnelIfRunning = {},
         )

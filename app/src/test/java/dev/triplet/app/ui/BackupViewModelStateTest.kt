@@ -44,11 +44,7 @@ class BackupViewModelStateTest {
     }
 
     @Test fun `backup operation blocks overlap and clears after completion`() {
-        val viewModel = BackupViewModel(
-            loadSettings = { null },
-            restoreBackup = {},
-            stopTunnelIfRunning = {},
-        )
+        val viewModel = viewModel()
 
         assertTrue(viewModel.beginExport())
         assertEquals(BackupOperation.EXPORT, viewModel.operation.value)
@@ -63,11 +59,7 @@ class BackupViewModelStateTest {
     }
 
     @Test fun `backup error clears an active operation`() {
-        val viewModel = BackupViewModel(
-            loadSettings = { null },
-            restoreBackup = {},
-            stopTunnelIfRunning = {},
-        )
+        val viewModel = viewModel()
 
         assertTrue(viewModel.beginImport())
         viewModel.reportError()
@@ -76,12 +68,8 @@ class BackupViewModelStateTest {
         assertEquals(BackupStatus.ERROR, viewModel.status.value)
     }
 
-    @Test fun `cancelled screen operation clears busy state without result feedback`() {
-        val viewModel = BackupViewModel(
-            loadSettings = { null },
-            restoreBackup = {},
-            stopTunnelIfRunning = {},
-        )
+    @Test fun `cancelled operation clears busy state without result feedback`() {
+        val viewModel = viewModel()
 
         assertTrue(viewModel.beginExport())
         viewModel.cancelOperation(BackupOperation.EXPORT)
@@ -89,4 +77,12 @@ class BackupViewModelStateTest {
         assertNull(viewModel.operation.value)
         assertNull(viewModel.status.value)
     }
+
+    private fun viewModel() = BackupViewModel(
+        loadSettings = { null },
+        readBackupDocument = { null },
+        writeBackupDocument = { _, _ -> },
+        restoreBackup = {},
+        stopTunnelIfRunning = {},
+    )
 }

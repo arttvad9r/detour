@@ -37,6 +37,8 @@ internal fun backupFromSettings(settings: TriSettings): SettingsBackup.Backup = 
 
 class BackupViewModel(
     private val loadSettings: suspend () -> TriSettings?,
+    private val readBackupDocument: suspend (String) -> String?,
+    private val writeBackupDocument: suspend (String, String) -> Unit,
     private val restoreBackup: suspend (SettingsBackup.Backup) -> Unit,
     private val stopTunnelIfRunning: () -> Unit,
 ) : ViewModel() {
@@ -49,15 +51,65 @@ class BackupViewModel(
     private val _feedback = MutableSharedFlow<BackupFeedback>(extraBufferCapacity = 1)
     val feedback: SharedFlow<BackupFeedback> = _feedback
 
-    fun beginExport(): Boolean = beginOperation(BackupOperation.EXPORT)
+    fun exportDocument(uri: String) {
+        if (!beginExport()) return
+        viewModelScope.launch {
+            try {
+                val json = exportJson()
+                if (json == null) {
+                    reportError()
+                    return@launch
+                }
+                writeBackupDocument(uri, json)
+                reportExport(success = true)
+            } catch (cancelled: CancellationException) {
+                cancelOperation(BackupOperation.EXPORT)
+                throw cancelled
+            } catch (_: Exception) {
+                reportExport(success = false)
+            }
+        }
+    }
 
-    fun beginImport(): Boolean = beginOperation(BackupOperation.IMPORT)
+    fun importDocument(uri: String) {
+        if (!beginImport()) return
+        viewModelScope.launch {
+            try {
+                val raw = readBackupDocument(uri)
+                if (raw == null) {
+                    complete(BackupStatus.BAD_FILE)
+                    return@launch
+                }
+                val backup = withContext(Dispatchers.Default) {
+                    SettingsBackup.fromJson(raw)
+                }
+                if (backup == null) {
+                    complete(BackupStatus.BAD_FILE)
+                    return@launch
+                }
+                restoreBackup(backup)
+                // Restoring intentionally disables auto-connect. Any live tunnel
+                // still represents the old snapshot, so stop it after commit.
+                stopTunnelIfRunning()
+                complete(BackupStatus.IMPORTED)
+            } catch (cancelled: CancellationException) {
+                cancelOperation(BackupOperation.IMPORT)
+                throw cancelled
+            } catch (_: Exception) {
+                reportError()
+            }
+        }
+    }
 
-    fun cancelOperation(value: BackupOperation) {
+    internal fun beginExport(): Boolean = beginOperation(BackupOperation.EXPORT)
+
+    internal fun beginImport(): Boolean = beginOperation(BackupOperation.IMPORT)
+
+    internal fun cancelOperation(value: BackupOperation) {
         if (_operation.value == value) _operation.value = null
     }
 
-    suspend fun exportJson(): String? = try {
+    internal suspend fun exportJson(): String? = try {
         val current = loadSettings() ?: return null
         withContext(Dispatchers.Default) {
             SettingsBackup.toJson(backupFromSettings(current))
@@ -68,45 +120,11 @@ class BackupViewModel(
         null
     }
 
-    fun reportExport(success: Boolean) {
+    internal fun reportExport(success: Boolean) {
         complete(if (success) BackupStatus.EXPORTED else BackupStatus.ERROR)
     }
 
-    fun importJson(raw: String?) {
-        if (raw == null) {
-            complete(BackupStatus.BAD_FILE)
-            return
-        }
-        viewModelScope.launch {
-            val backup = try {
-                withContext(Dispatchers.Default) {
-                    SettingsBackup.fromJson(raw)
-                }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                complete(BackupStatus.ERROR)
-                return@launch
-            }
-            if (backup == null) {
-                complete(BackupStatus.BAD_FILE)
-                return@launch
-            }
-            try {
-                restoreBackup(backup)
-                // Restoring intentionally disables auto-connect. Any live tunnel
-                // still represents the old snapshot, so stop it after commit.
-                stopTunnelIfRunning()
-                complete(BackupStatus.IMPORTED)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                complete(BackupStatus.ERROR)
-            }
-        }
-    }
-
-    fun reportError() {
+    internal fun reportError() {
         complete(BackupStatus.ERROR)
     }
 
@@ -132,6 +150,8 @@ class BackupViewModel(
     companion object {
         fun factory(
             store: RoutesStore,
+            readBackupDocument: suspend (String) -> String?,
+            writeBackupDocument: suspend (String, String) -> Unit,
             stopTunnelIfRunning: () -> Unit,
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -139,6 +159,8 @@ class BackupViewModel(
                 @Suppress("UNCHECKED_CAST")
                 return BackupViewModel(
                     loadSettings = { store.snapshot() },
+                    readBackupDocument = readBackupDocument,
+                    writeBackupDocument = writeBackupDocument,
                     restoreBackup = store::restoreBackup,
                     stopTunnelIfRunning = stopTunnelIfRunning,
                 ) as T
