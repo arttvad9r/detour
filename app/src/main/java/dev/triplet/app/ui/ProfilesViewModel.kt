@@ -31,6 +31,9 @@ enum class VlessSaveStatus { IDLE, SAVING, SAVED, ERROR }
 internal fun canStartVlessSave(status: VlessSaveStatus): Boolean =
     status == VlessSaveStatus.IDLE || status == VlessSaveStatus.ERROR
 
+internal fun canStartWarpImport(status: WarpImportStatus): Boolean =
+    status != WarpImportStatus.IMPORTING
+
 sealed interface ProfileDeleteRequest {
     val active: Boolean
     val failed: Boolean
@@ -142,6 +145,7 @@ class ProfilesViewModel(
     private val updateVlessKey: suspend (VlessKey) -> Unit,
     private val deleteVlessKey: suspend (String) -> Unit,
     private val setActiveVlessKey: suspend (String) -> Unit,
+    private val loadWarpConfig: suspend (String) -> String?,
     private val setWarpProfile: suspend (WarpProfile) -> Unit,
     private val deleteWarpProfile: suspend () -> Unit,
     private val setActiveVpn: suspend (VpnProfileKind) -> Unit,
@@ -238,50 +242,23 @@ class ProfilesViewModel(
         selectProfile(ProfileSelection.Vless(keyId))
     }
 
-    fun beginWarpImport(): Boolean {
-        if (warpImportStatus.value == WarpImportStatus.IMPORTING) return false
+    fun importWarpDocument(uri: String) {
+        if (!canStartWarpImport(warpImportStatus.value)) return
         warpImportStatus.value = WarpImportStatus.IMPORTING
-        return true
-    }
-
-    fun cancelWarpImport() {
-        if (warpImportStatus.value == WarpImportStatus.IMPORTING) {
-            warpImportStatus.value = WarpImportStatus.IDLE
-        }
-    }
-
-    fun reportWarpImportReadError() {
-        if (warpImportStatus.value == WarpImportStatus.IMPORTING) {
-            failWarpImport(WarpImportStatus.ERROR)
-        }
-    }
-
-    fun importWarp(raw: String?) {
-        if (warpImportStatus.value != WarpImportStatus.IMPORTING) return
-        if (raw == null) {
-            failWarpImport(WarpImportStatus.ERROR)
-            return
-        }
         viewModelScope.launch {
-            val result = try {
-                withContext(Dispatchers.Default) {
-                    WarpConfigImporter.parse(raw)
+            try {
+                val raw = loadWarpConfig(uri)
+                if (raw == null) {
+                    failWarpImport(WarpImportStatus.ERROR)
+                    return@launch
                 }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                failWarpImport(WarpImportStatus.ERROR)
-                return@launch
-            }
-
-            when (result) {
-                is WarpImportResult.Ok -> {
-                    profileMutationMutex.withLock {
-                        val tunnelAction = warpMutationTunnelAction(
-                            profilesUiState(settings.value).activeVpn,
-                            deleting = false,
-                        )
-                        try {
+                when (val result = withContext(Dispatchers.Default) { WarpConfigImporter.parse(raw) }) {
+                    is WarpImportResult.Ok -> {
+                        profileMutationMutex.withLock {
+                            val tunnelAction = warpMutationTunnelAction(
+                                profilesUiState(settings.value).activeVpn,
+                                deleting = false,
+                            )
                             setWarpProfile(result.profile)
                             if (settings.value?.warpProfile != result.profile) {
                                 settings.first { it?.warpProfile == result.profile }
@@ -289,19 +266,22 @@ class ProfilesViewModel(
                             applyTunnelAction(tunnelAction)
                             warpImportStatus.value = WarpImportStatus.IDLE
                             _warpSaved.emit(Unit)
-                        } catch (cancelled: CancellationException) {
-                            throw cancelled
-                        } catch (_: Exception) {
-                            failWarpImport(WarpImportStatus.ERROR)
                         }
                     }
+                    WarpImportResult.NoCompatibleProxies -> {
+                        failWarpImport(WarpImportStatus.NO_COMPATIBLE_PROXIES)
+                    }
+                    WarpImportResult.Invalid -> {
+                        failWarpImport(WarpImportStatus.ERROR)
+                    }
                 }
-                WarpImportResult.NoCompatibleProxies -> {
-                    failWarpImport(WarpImportStatus.NO_COMPATIBLE_PROXIES)
+            } catch (cancelled: CancellationException) {
+                if (warpImportStatus.value == WarpImportStatus.IMPORTING) {
+                    warpImportStatus.value = WarpImportStatus.IDLE
                 }
-                WarpImportResult.Invalid -> {
-                    failWarpImport(WarpImportStatus.ERROR)
-                }
+                throw cancelled
+            } catch (_: Exception) {
+                failWarpImport(WarpImportStatus.ERROR)
             }
         }
     }
@@ -415,6 +395,7 @@ class ProfilesViewModel(
     companion object {
         fun factory(
             store: RoutesStore,
+            loadWarpConfig: suspend (String) -> String?,
             restartTunnel: () -> Unit,
             stopTunnelIfRunning: () -> Unit,
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
@@ -427,6 +408,7 @@ class ProfilesViewModel(
                     updateVlessKey = store::updateVlessKey,
                     deleteVlessKey = store::deleteVlessKey,
                     setActiveVlessKey = store::setActiveVlessKey,
+                    loadWarpConfig = loadWarpConfig,
                     setWarpProfile = { store.setWarpProfile(it) },
                     deleteWarpProfile = store::deleteWarpProfile,
                     setActiveVpn = store::setActiveVpn,

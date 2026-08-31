@@ -1,6 +1,5 @@
 package dev.triplet.app.ui
 
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -57,7 +56,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalClipboard
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -73,12 +71,8 @@ import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.VlessKey
 import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.core.VpnProfileKind
-import dev.triplet.app.core.WarpConfigImporter
 import dev.triplet.app.core.WarpProfile
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.UUID
 
 private data class ProfileSnapshot(
@@ -91,7 +85,6 @@ private enum class ProfileSheetMode { PICKER, VLESS_EDITOR }
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
-    val ctx = LocalContext.current
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val c = detourColors
@@ -158,27 +151,8 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
         }
     }
 
-    val warpLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-        if (uri == null || !viewModel.beginWarpImport()) return@rememberLauncherForActivityResult
-        scope.launch {
-            var handedOff = false
-            try {
-                val raw = try {
-                    withContext(Dispatchers.IO) {
-                        readWarpConfig(ctx, uri)
-                    }
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    viewModel.reportWarpImportReadError()
-                    return@launch
-                }
-                viewModel.importWarp(raw)
-                handedOff = true
-            } finally {
-                if (!handedOff) viewModel.cancelWarpImport()
-            }
-        }
+    val warpLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { viewModel.importWarpDocument(it.toString()) }
     }
 
     Scaffold(
@@ -727,22 +701,5 @@ private fun WarpRow(
                 }
             }
         }
-    }
-}
-
-private fun readWarpConfig(context: android.content.Context, uri: Uri): String? {
-    val input = context.contentResolver.openInputStream(uri) ?: return null
-    input.use {
-        val out = java.io.ByteArrayOutputStream()
-        val buffer = ByteArray(8192)
-        var total = 0
-        while (true) {
-            val count = it.read(buffer)
-            if (count < 0) break
-            total += count
-            if (total > WarpConfigImporter.MAX_CHARS) return null
-            out.write(buffer, 0, count)
-        }
-        return out.toString(Charsets.UTF_8.name())
     }
 }

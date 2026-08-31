@@ -282,6 +282,11 @@ internal fun DetourNavigation(
                 val profilesViewModel = viewModel<ProfilesViewModel>(
                     factory = ProfilesViewModel.factory(
                         store = store,
+                        loadWarpConfig = { uri ->
+                            withContext(Dispatchers.IO) {
+                                readWarpDocument(appContext, uri)
+                            }
+                        },
                         restartTunnel = { VpnController.restartIfActive(appContext) },
                         stopTunnelIfRunning = {
                             if (
