@@ -19,13 +19,14 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -492,16 +493,24 @@ fun SegmentedControl(
             ),
             label = "segmentOffset",
         )
-        Box(
+        Box(Modifier.matchParentSize()) {
+            Box(
+                Modifier
+                    .offset(x = selectedOffset)
+                    .width(segmentWidth)
+                    .fillMaxHeight()
+                    .padding(1.dp)
+                    .clip(AppShapes.extraSmall)
+                    .background(c.accentSoft),
+            )
+        }
+        Row(
             Modifier
-                .offset(x = selectedOffset)
-                .width(segmentWidth)
-                .fillMaxHeight()
-                .padding(1.dp)
-                .clip(AppShapes.extraSmall)
-                .background(c.accentSoft),
-        )
-        Row(Modifier.fillMaxSize().selectableGroup()) {
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min)
+                .heightIn(min = 48.dp)
+                .selectableGroup(),
+        ) {
             options.forEachIndexed { i, label ->
                 val on = i == selected
                 val fg by animateColorAsState(
@@ -511,7 +520,7 @@ fun SegmentedControl(
                 Row(
                     Modifier
                         .weight(1f)
-                        .fillMaxSize()
+                        .fillMaxHeight()
                         .detourSelectable(
                             selected = on,
                             onClick = {
@@ -521,7 +530,8 @@ fun SegmentedControl(
                                 }
                             },
                             pressScale = Motion.PRESS_RADIO,
-                        ),
+                        )
+                        .padding(horizontal = Spacing.space8, vertical = Spacing.space8),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = androidx.compose.foundation.layout.Arrangement.Center,
                 ) {
