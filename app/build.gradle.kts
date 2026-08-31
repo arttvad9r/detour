@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.androidx.baselineprofile)
     // AGP 9 built-in Kotlin; explicit org.jetbrains.kotlin.android plugin must NOT be applied.
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
@@ -81,6 +82,14 @@ android {
             }
             signingConfigs.findByName("release")?.let { signingConfig = it }
         }
+        create("nonMinifiedRelease") {
+            // The Baseline Profile plugin derives this build type from release.
+            // AGP 9.3's optimization flag otherwise remains enabled and runs R8,
+            // which produces unusable obfuscated source profile rules.
+            optimization {
+                enable = false
+            }
+        }
     }
 
     // Бинарник ByeDPI должен лежать распакованным файлом в nativeLibraryDir.
@@ -106,6 +115,11 @@ android {
     }
 }
 
+baselineProfile {
+    automaticGenerationDuringBuild = false
+    saveInSrc = true
+}
+
 // AGP 9 built-in Kotlin targets Java 17 via compileOptions above (no kotlin-android plugin).
 dependencies {
     testImplementation(libs.org.json)
@@ -123,9 +137,12 @@ dependencies {
     implementation(libs.androidx.compose.material3.adaptive)
     implementation(libs.androidx.compose.material3.adaptive.navigation3)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.profileinstaller)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.snakeyaml)
     testImplementation(libs.junit)
+
+    baselineProfile(project(":baselineprofile"))
 
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.test.ext.junit)
