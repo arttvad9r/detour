@@ -505,7 +505,7 @@ fun SegmentedControl(
             options.forEachIndexed { i, label ->
                 val on = i == selected
                 val fg by animateColorAsState(
-                    if (on) c.accent else c.textSecondary,
+                    if (on) c.textPrimary else c.textSecondary,
                     tween(Motion.COLOR_MS), label = "segFg",
                 )
                 Row(

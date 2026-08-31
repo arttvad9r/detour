@@ -15,11 +15,33 @@ class ThemeContrastTest {
             val muted = composite(theme.colors.textMuted, surface)
             assertTrue(
                 "${theme.id} secondary contrast=${contrast(secondary, surface)}",
-                contrast(secondary, surface) >= 4.5,
+                contrast(secondary, surface) >= MIN_TEXT_CONTRAST,
             )
             assertTrue(
                 "${theme.id} muted contrast=${contrast(muted, surface)}",
-                contrast(muted, surface) >= 4.5,
+                contrast(muted, surface) >= MIN_TEXT_CONTRAST,
+            )
+        }
+    }
+
+    @Test fun `selected and error small text keep readable contrast`() {
+        AppTheme.entries.forEach { theme ->
+            val colors = theme.colors
+            val selectedRow = composite(colors.accentSoft, colors.surface)
+            val selectedSecondary = composite(colors.textSecondary, selectedRow)
+            val selectedSegment = composite(colors.accentSoft, colors.surfaceSoft)
+
+            assertTrue(
+                "${theme.id} selected secondary contrast=${contrast(selectedSecondary, selectedRow)}",
+                contrast(selectedSecondary, selectedRow) >= MIN_TEXT_CONTRAST,
+            )
+            assertTrue(
+                "${theme.id} selected segment contrast=${contrast(colors.textPrimary, selectedSegment)}",
+                contrast(colors.textPrimary, selectedSegment) >= MIN_TEXT_CONTRAST,
+            )
+            assertTrue(
+                "${theme.id} error contrast=${contrast(colors.error, colors.background)}",
+                contrast(colors.error, colors.background) >= MIN_TEXT_CONTRAST,
             )
         }
     }
@@ -49,5 +71,9 @@ class ThemeContrastTest {
         return 0.2126 * channel(color.red) +
             0.7152 * channel(color.green) +
             0.0722 * channel(color.blue)
+    }
+
+    private companion object {
+        const val MIN_TEXT_CONTRAST = 4.5
     }
 }
