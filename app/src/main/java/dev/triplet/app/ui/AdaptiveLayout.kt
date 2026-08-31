@@ -24,11 +24,13 @@ fun DetourContentColumn(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Box(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         contentAlignment = Alignment.TopCenter,
     ) {
         Column(
-            modifier = modifier.widthIn(max = maxWidth).fillMaxWidth(),
+            modifier = Modifier
+                .widthIn(max = maxWidth)
+                .fillMaxWidth(),
             content = content,
         )
     }
