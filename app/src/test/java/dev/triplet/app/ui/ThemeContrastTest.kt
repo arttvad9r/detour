@@ -10,18 +10,42 @@ import kotlin.math.pow
 class ThemeContrastTest {
     @Test fun `secondary and muted text keep readable contrast on cards`() {
         AppTheme.entries.forEach { theme ->
-            val surface = theme.colors.surface
-            val secondary = composite(theme.colors.textSecondary, surface)
-            val muted = composite(theme.colors.textMuted, surface)
-            assertTrue(
-                "${theme.id} secondary contrast=${contrast(secondary, surface)}",
-                contrast(secondary, surface) >= 4.5,
-            )
-            assertTrue(
-                "${theme.id} muted contrast=${contrast(muted, surface)}",
-                contrast(muted, surface) >= 4.5,
-            )
+            val c = theme.colors
+            assertContrast(theme, "secondary/surface", c.textSecondary, c.surface)
+            assertContrast(theme, "muted/surface", c.textMuted, c.surface)
         }
+    }
+
+    @Test fun `secondary text keeps readable contrast on selected rows`() {
+        AppTheme.entries.forEach { theme ->
+            val c = theme.colors
+            val selectedRow = composite(c.accentSoft, c.surface)
+            assertContrast(theme, "secondary/selected-row", c.textSecondary, selectedRow)
+        }
+    }
+
+    @Test fun `selected segment text keeps readable contrast`() {
+        AppTheme.entries.forEach { theme ->
+            val c = theme.colors
+            val selectedSegment = composite(c.accentSoft, c.surfaceSoft)
+            assertContrast(theme, "primary/selected-segment", c.textPrimary, selectedSegment)
+        }
+    }
+
+    @Test fun `error text keeps readable contrast on screen background`() {
+        AppTheme.entries.forEach { theme ->
+            val c = theme.colors
+            assertContrast(theme, "error/background", c.error, c.background)
+        }
+    }
+
+    private fun assertContrast(theme: AppTheme, pair: String, foreground: Color, background: Color) {
+        val effectiveForeground = composite(foreground, background)
+        val ratio = contrast(effectiveForeground, background)
+        assertTrue(
+            "${theme.id} $pair contrast=$ratio",
+            ratio >= MIN_TEXT_CONTRAST,
+        )
     }
 
     private fun composite(foreground: Color, background: Color): Color {
@@ -49,5 +73,9 @@ class ThemeContrastTest {
         return 0.2126 * channel(color.red) +
             0.7152 * channel(color.green) +
             0.0722 * channel(color.blue)
+    }
+
+    private companion object {
+        const val MIN_TEXT_CONTRAST = 4.5
     }
 }
