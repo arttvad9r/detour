@@ -24,6 +24,34 @@ class ThemeContrastTest {
         }
     }
 
+    @Test fun `small text keeps readable contrast in selected and status states`() {
+        AppTheme.entries.forEach { theme ->
+            val colors = theme.colors
+            val selectedSurface = composite(colors.accentSoft, colors.surface)
+            val selectedSecondary = composite(colors.textSecondary, selectedSurface)
+            val selectedPrimary = composite(colors.textPrimary, selectedSurface)
+            val accent = composite(colors.accent, colors.surface)
+            val error = composite(colors.error, colors.surface)
+
+            assertTrue(
+                "${theme.id} selected secondary contrast=${contrast(selectedSecondary, selectedSurface)}",
+                contrast(selectedSecondary, selectedSurface) >= 4.5,
+            )
+            assertTrue(
+                "${theme.id} selected primary contrast=${contrast(selectedPrimary, selectedSurface)}",
+                contrast(selectedPrimary, selectedSurface) >= 4.5,
+            )
+            assertTrue(
+                "${theme.id} accent contrast=${contrast(accent, colors.surface)}",
+                contrast(accent, colors.surface) >= 4.5,
+            )
+            assertTrue(
+                "${theme.id} error contrast=${contrast(error, colors.surface)}",
+                contrast(error, colors.surface) >= 4.5,
+            )
+        }
+    }
+
     private fun composite(foreground: Color, background: Color): Color {
         if (foreground.alpha >= 0.999f) return foreground
         val a = foreground.alpha
