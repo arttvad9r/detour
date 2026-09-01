@@ -55,10 +55,12 @@ object SubscriptionProviderStateParser {
             val nodes = buildList {
                 for (index in 0 until proxies.length()) {
                     val proxy = proxies.optJSONObject(index) ?: continue
-                    val name = safeRemoteLabel(proxy.optString("name"), MAX_NODE_NAME_CHARS) ?: continue
-                    val type = safeRemoteLabel(proxy.optString("type"), MAX_NODE_TYPE_CHARS) ?: "unknown"
+                    // Summary counters describe the provider itself, even when an
+                    // unsafe remote label is intentionally omitted from the UI list.
                     val alive = proxy.optBoolean("alive", false)
                     if (alive) aliveCount++
+                    val name = safeRemoteLabel(proxy.optString("name"), MAX_NODE_NAME_CHARS) ?: continue
+                    val type = safeRemoteLabel(proxy.optString("type"), MAX_NODE_TYPE_CHARS) ?: "unknown"
                     if (size >= MAX_VISIBLE_NODES) continue
                     val history = proxy.optJSONArray("history")
                     val lastDelay = history

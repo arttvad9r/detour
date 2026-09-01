@@ -257,6 +257,11 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                     }
                 }
 
+                if (activeVpn == VpnProfileKind.SUBSCRIPTION) {
+                    Spacer(Modifier.height(Spacing.space16))
+                    SubscriptionRuntimeSection()
+                }
+
                 AnimatedVisibility(
                     visible = warpImportStatus != WarpImportStatus.IDLE,
                     enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)),

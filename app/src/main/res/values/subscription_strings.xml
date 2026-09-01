@@ -1,0 +1,15 @@
+<resources>
+    <string name="subscription_runtime_title">Subscription servers</string>
+    <string name="subscription_runtime_disconnected">Connect the VPN to load servers from this subscription.</string>
+    <string name="subscription_runtime_loading">Loading subscription servers…</string>
+    <string name="subscription_runtime_unavailable">Provider data is not available yet.</string>
+    <string name="subscription_runtime_summary">%1$d of %2$d servers available</string>
+    <string name="subscription_runtime_updated">Updated: %1$s</string>
+    <string name="subscription_runtime_refresh">Refresh</string>
+    <string name="subscription_runtime_refreshing">Refreshing…</string>
+    <string name="subscription_runtime_refresh_error">Could not refresh the subscription. The current tunnel was not changed.</string>
+    <string name="subscription_node_online">Online</string>
+    <string name="subscription_node_offline">Offline</string>
+    <string name="subscription_node_delay">%1$d ms</string>
+    <string name="subscription_nodes_more">+%1$d more servers</string>
+</resources>

@@ -18,7 +18,7 @@ class SubscriptionConfigGeneratorTest {
         val yaml = ConfigGenerator.build(input)
 
         assertTrue(yaml.contains("proxy-providers:\n  DETOUR_SUBSCRIPTION:"))
-        assertTrue(yaml.contains("url: https://subscription.example/opaque-token"))
+        assertTrue(yaml.contains("url: \"https://subscription.example/opaque-token\""))
         assertTrue(yaml.contains("- name: SUBSCRIPTION\n  type: fallback"))
         assertTrue(yaml.contains("use:\n    - DETOUR_SUBSCRIPTION"))
         assertTrue(yaml.contains("- UID,10101,SUBSCRIPTION"))
