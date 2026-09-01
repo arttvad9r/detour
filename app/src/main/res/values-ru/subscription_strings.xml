@@ -1,4 +1,7 @@
 <resources>
+    <string name="subscription_profile_section">Подписки</string>
+    <string name="subscription_profile_kind">HTTPS-подписка</string>
+    <string name="subscription_profile_host">HTTPS-подписка · %1$s</string>
     <string name="subscription_runtime_title">Серверы подписки</string>
     <string name="subscription_runtime_disconnected">Подключите VPN, чтобы загрузить серверы этой подписки.</string>
     <string name="subscription_runtime_loading">Загрузка серверов подписки…</string>
