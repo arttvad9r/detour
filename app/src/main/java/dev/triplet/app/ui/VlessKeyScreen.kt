@@ -224,7 +224,8 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                                 .selectableGroup(),
                         ) {
                             shown.vless.forEachIndexed { index, key ->
-                                val selected = activeVpn == VpnProfileKind.VLESS && key.id == activeVlessId
+                                val selected =
+                                    activeVpn != VpnProfileKind.WARP && key.id == activeVlessId
                                 KeyRow(
                                     key = key,
                                     selected = selected,
