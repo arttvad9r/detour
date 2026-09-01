@@ -215,6 +215,7 @@ class TriVpnService : VpnService() {
         try {
             val tunFd = openTun(vpnUids.keys)
             fd = tunFd
+            ServiceLog.i("engine: tun established fd=$tunFd")
             val yaml = ConfigGenerator.build(
                 RoutingInput(
                     tunFd = tunFd, apiLevel = Build.VERSION.SDK_INT,
@@ -224,8 +225,10 @@ class TriVpnService : VpnService() {
                     probeCredentials = probeCredentials,
                 ),
             )
+            ServiceLog.i("engine: config built bytes=${yaml.length}")
             val logPath = File(cacheDir, "mihomo.log").absolutePath
             Engine.start(yaml, logPath)
+            ServiceLog.i("engine: start returned")
             engineAdopted = true
             check(Engine.ready()) { "engine TUN is not ready" }
         } catch (e: Exception) {
@@ -331,10 +334,10 @@ class TriVpnService : VpnService() {
 
         builder.addRoute("0.0.0.0", 0)
         // Capture IPv6 too; mihomo explicitly rejects it before the fallback rule.
-        builder.addRoute("::", 0)
+        // Keep this TUN IPv4-only; the engine rejects IPv6 in ConfigGenerator.
 
         if (Build.VERSION.SDK_INT >= 33) {
-            ConfigGenerator.LAN_PREFIXES.forEach { prefix ->
+            ConfigGenerator.ANDROID_EXCLUDED_PREFIXES.forEach { prefix ->
                 builder.excludeRoute(toPrefix(prefix))
             }
         }

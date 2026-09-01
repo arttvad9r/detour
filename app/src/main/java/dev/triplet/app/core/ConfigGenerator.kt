@@ -14,7 +14,12 @@ object ConfigGenerator {
         "192.168.0.0/16", "198.18.0.0/15", "224.0.0.0/3",
     )
 
-    private val ROUTE_ADDRESS = listOf("0.0.0.0/1", "128.0.0.0/1", "::/0")
+    val ANDROID_EXCLUDED_PREFIXES = LAN_PREFIXES - "127.0.0.0/8"
+
+    // The Android TUN is intentionally IPv4-only. Passing an IPv6 route to
+    // gVisor while ipv6=false makes Engine.start fail with EFAULT on some
+    // Android kernels.
+    private val ROUTE_ADDRESS = listOf("0.0.0.0/1", "128.0.0.0/1")
     private const val WARP_GROUP = "WARP"
     private const val MAX_WARP_PROXIES = 128
 
@@ -125,6 +130,7 @@ tun:
   mtu: $MTU
   inet4-address:
     - $INET4
+  inet6-address: []
   route-address:${items(ROUTE_ADDRESS)}
   route-exclude-address:$excludeLan
   dns-hijack:

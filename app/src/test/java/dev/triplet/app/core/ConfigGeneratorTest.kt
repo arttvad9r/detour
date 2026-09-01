@@ -155,11 +155,11 @@ class ConfigGeneratorTest {
         assertFalse(yaml.contains(",WARP"))
     }
 
-    @Test fun `ipv6 is captured and explicitly rejected`() {
+    @Test fun `ipv6 is disabled and explicitly rejected`() {
         val yaml = ConfigGenerator.build(input())
         assertTrue(yaml.contains("ipv6: false"))
-        assertFalse(yaml.contains("inet6-address"))
-        assertTrue(yaml.contains("- ::/0"))
+        assertTrue(yaml.contains("inet6-address: []"))
+        assertFalse(yaml.contains("    - ::/0"))
         assertTrue(yaml.contains("- IP-CIDR6,::/0,REJECT,no-resolve"))
     }
 
@@ -202,10 +202,10 @@ class ConfigGeneratorTest {
             |  mtu: 1500
             |  inet4-address:
             |    - 172.19.0.1/30
+            |  inet6-address: []
             |  route-address:
             |    - 0.0.0.0/1
             |    - 128.0.0.0/1
-            |    - ::/0
             |  route-exclude-address:
             |    - 0.0.0.0/8
             |    - 10.0.0.0/8
