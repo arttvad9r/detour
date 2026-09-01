@@ -134,81 +134,92 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
             .statusBarsPadding()
             .navigationBarsPadding(),
     ) {
-        ScreenHeader(stringResource(R.string.routes_title), onBack)
+        DetourBrandedHeader(stringResource(R.string.routes_title), onBack)
         Spacer(Modifier.height(Spacing.space4))
 
-        Row(
+        DetourCard(
             Modifier
                 .align(Alignment.CenterHorizontally)
                 .widthIn(max = AppsContentMaxWidth)
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.space16)
-                .heightIn(min = 56.dp)
-                .clip(AppShapes.small)
-                .background(c.surface)
-                .border(1.dp, searchBorder, AppShapes.small)
-                .padding(horizontal = Spacing.space12),
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(horizontal = Spacing.space16),
         ) {
-            Icon(
-                painterResource(R.drawable.ic_search), null,
-                tint = searchIcon,
-                modifier = Modifier.size(18.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-            Box(Modifier.weight(1f)) {
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = state.query.isEmpty(),
-                    enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)),
-                    exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)),
-                ) {
-                    Text(
-                        searchHint,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = c.textMuted,
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.space12, vertical = Spacing.space8)
+                    .heightIn(min = 52.dp)
+                    .clip(AppShapes.extraSmall)
+                    .background(c.surfaceSoft)
+                    .border(1.dp, searchBorder, AppShapes.extraSmall)
+                    .padding(horizontal = Spacing.space12),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    painterResource(R.drawable.ic_search), null,
+                    tint = searchIcon,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(Spacing.space8))
+                Box(Modifier.weight(1f)) {
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = state.query.isEmpty(),
+                        enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)),
+                        exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)),
+                    ) {
+                        Text(
+                            searchHint,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = c.textMuted,
+                        )
+                    }
+                    BasicTextField(
+                        value = state.query,
+                        onValueChange = viewModel::setQuery,
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = c.textPrimary),
+                        cursorBrush = SolidColor(c.accent),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .onFocusChanged { searchFocused = it.isFocused }
+                            .semantics { contentDescription = searchHint },
                     )
                 }
-                BasicTextField(
-                    value = state.query,
-                    onValueChange = viewModel::setQuery,
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = c.textPrimary),
-                    cursorBrush = SolidColor(c.accent),
+            }
+
+            GroupDivider(startInset = 16)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .detourToggleable(
+                        value = showSystem,
+                        onValueChange = ::setShowSystemFromRow,
+                        pressedColor = c.surfaceSelected.copy(alpha = 0.32f),
+                        pressScale = Motion.PRESS_ROW,
+                    )
+                    .heightIn(min = 60.dp)
+                    .padding(start = Spacing.space16, end = Spacing.space12),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                DetourIconTile(R.drawable.ic_routes)
+                Text(
+                    stringResource(R.string.show_system),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Medium,
+                    color = c.textPrimary,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .onFocusChanged { searchFocused = it.isFocused }
-                        .semantics { contentDescription = searchHint },
+                        .padding(start = Spacing.space12)
+                        .weight(1f),
+                )
+                DetourSwitch(
+                    checked = showSystem,
+                    onCheckedChange = null,
+                    compact = true,
                 )
             }
         }
 
-        Row(
-            Modifier
-                .align(Alignment.CenterHorizontally)
-                .widthIn(max = AppsContentMaxWidth)
-                .fillMaxWidth()
-                .padding(horizontal = Spacing.space16, vertical = Spacing.space8)
-                .detourToggleable(
-                    value = showSystem,
-                    onValueChange = ::setShowSystemFromRow,
-                    pressedColor = c.surfaceSelected.copy(alpha = 0.32f),
-                    pressScale = Motion.PRESS_ROW,
-                ),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                stringResource(R.string.show_system),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                color = c.textPrimary,
-                modifier = Modifier.weight(1f),
-            )
-            DetourSwitch(
-                checked = showSystem,
-                onCheckedChange = null,
-            )
-        }
-
+        Spacer(Modifier.height(Spacing.space12))
         if (state.inventoryStatus == AppsInventoryStatus.ERROR && loadedApps != null) {
             InventoryErrorBanner(
                 onRetry = viewModel::refreshInventory,
@@ -414,7 +425,7 @@ private fun AppRow(
                 )
             }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Spacing.space8))
         SegmentedControl(
             options = AppRoute.entries.map { stringResource(routeLabel(it)) },
             selected = AppRoute.entries.indexOf(current),
