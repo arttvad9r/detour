@@ -14,6 +14,8 @@ import dev.triplet.app.vpn.resolveEffectiveRoutes
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -26,28 +28,35 @@ class DetourTile : TileService() {
     private var routed = 0
 
     override fun onStartListening() {
+        cancelListeningJobs()
         val scope = CoroutineScope(Dispatchers.Main.immediate)
         jobs = listOf(
             scope.launch { VpnController.state.collect { update(it) } },
             scope.launch {
-                store.settings.collect { s ->
-                    val routes = s?.routes.orEmpty()
-                    routed = if (routes.isEmpty()) {
-                        0
-                    } else {
-                        withContext(Dispatchers.IO) {
-                            resolveEffectiveRoutes(packageManager, routes).packages.size
+                store.settings
+                    .map { it?.routes.orEmpty() }
+                    .distinctUntilChanged()
+                    .collect { routes ->
+                        routed = if (routes.isEmpty()) {
+                            0
+                        } else {
+                            withContext(Dispatchers.IO) {
+                                resolveEffectiveRoutes(packageManager, routes).packages.size
+                            }
                         }
+                        update(VpnController.state.value)
                     }
-                    update(VpnController.state.value)
-                }
             },
         )
     }
 
     override fun onStopListening() {
-        jobs.forEach { it.cancel() }
-        jobs = emptyList()
+        cancelListeningJobs()
+    }
+
+    override fun onDestroy() {
+        cancelListeningJobs()
+        super.onDestroy()
     }
 
     override fun onClick() {
@@ -72,6 +81,11 @@ class DetourTile : TileService() {
             }
         }
         update(VpnController.state.value)
+    }
+
+    private fun cancelListeningJobs() {
+        jobs.forEach { it.cancel() }
+        jobs = emptyList()
     }
 
     private fun update(state: VpnState) {

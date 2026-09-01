@@ -1,5 +1,9 @@
 package dev.triplet.app.vpn
 
+import dev.triplet.app.core.AppRoute
+import dev.triplet.app.core.ParseResult
+import dev.triplet.app.core.VlessKeyParser
+import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.data.TriSettings
 
 fun canAutoConnect(
@@ -11,4 +15,40 @@ fun canAutoConnect(
     if (!settings.autoConnect || !vpnPermissionGranted) return false
     if (effective.isEmpty) return false
     return effective.vpnPackages.isEmpty() || activeVpnValid
+}
+
+internal fun autoConnectProfileValid(settings: TriSettings): Boolean = when (settings.activeVpn) {
+    VpnProfileKind.VLESS -> settings.vlessKeys.active?.uri?.let {
+        VlessKeyParser.parse(it) is ParseResult.Ok
+    } == true
+    VpnProfileKind.WARP -> settings.warpProfile != null
+}
+
+class AutoConnectCoordinator(
+    private val loadSettings: suspend () -> TriSettings,
+    private val resolveRoutes: suspend (Map<String, AppRoute>) -> EffectiveRoutes,
+    private val vpnPermissionGranted: () -> Boolean,
+    private val currentVpnState: () -> VpnState,
+    private val startVpn: () -> Unit,
+) {
+    suspend fun runOnce(): Boolean {
+        val settings = loadSettings()
+        if (!settings.autoConnect) return false
+        if (currentVpnState() != VpnState.Idle) return false
+        if (!vpnPermissionGranted()) return false
+
+        val effective = resolveRoutes(settings.routes)
+        if (effective.isEmpty) return false
+        val activeVpnValid = effective.vpnPackages.isEmpty() || autoConnectProfileValid(settings)
+        val shouldStart = canAutoConnect(
+            settings = settings,
+            vpnPermissionGranted = true,
+            effective = effective,
+            activeVpnValid = activeVpnValid,
+        )
+        // Re-check after route resolution so another start path cannot race this one.
+        if (!shouldStart || currentVpnState() != VpnState.Idle) return false
+        startVpn()
+        return true
+    }
 }

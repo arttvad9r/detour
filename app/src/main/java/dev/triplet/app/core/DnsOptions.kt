@@ -27,10 +27,13 @@ object DnsOptions {
         }.getOrDefault(false)
     }
 
-    fun resolve(id: String, custom: String): String = when {
-        id == CUSTOM && isValid(custom) -> custom.trim()
-        servers.containsKey(id) -> servers.getValue(id)
-        else -> DEFAULT_SERVER
+    fun resolve(id: String, custom: String): String {
+        // An absent selection predates the DNS picker and means the historical
+        // default. A nonblank unknown/corrupt id must not silently change the
+        // user's resolver to Google.
+        val selection = id.ifBlank { "google" }
+        require(isSelectionValid(selection, custom)) { "invalid DNS selection" }
+        return if (selection == CUSTOM) custom.trim() else servers.getValue(selection)
     }
 
     fun isSelectionValid(id: String, custom: String): Boolean =

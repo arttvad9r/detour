@@ -1,7 +1,10 @@
 plugins {
     alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.android.test) apply false
+    alias(libs.plugins.androidx.baselineprofile) apply false
     // AGP 9: kotlin-android plugin is not needed; Kotlin is built into AGP.
     alias(libs.plugins.kotlin.compose) apply false
+    alias(libs.plugins.kotlin.serialization) apply false
 }
 
 val goVersion = providers.exec {
@@ -17,7 +20,7 @@ tasks.register<Exec>("buildMihomoAar") {
 }
 
 tasks.register<Exec>("buildByeDpi") {
-    inputs.file("engine/byedpi/build.sh")
+    inputs.files("engine/byedpi/build.sh", "engine/byedpi/apply_socks_auth.py")
     // A different NDK may produce different binaries even with the same script.
     inputs.property("androidNdkHome", providers.environmentVariable("ANDROID_NDK_HOME").orElse(""))
     outputs.dir("app/src/main/jniLibs")

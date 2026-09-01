@@ -1,0 +1,7 @@
+<resources>
+    <string name="routes_loading">Загрузка приложений…</string>
+    <string name="routes_load_error">Не удалось загрузить список приложений.</string>
+    <string name="routes_refresh_error">Не удалось обновить приложения. Показан последний загруженный список.</string>
+    <string name="routes_empty">Не найдено приложений для запуска.</string>
+    <string name="routes_no_results">Нет приложений, подходящих под текущие фильтры.</string>
+</resources>

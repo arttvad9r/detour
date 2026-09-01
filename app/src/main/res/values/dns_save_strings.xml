@@ -1,0 +1,4 @@
+<resources>
+    <string name="dns_saving">Saving…</string>
+    <string name="dns_save_error">Couldn’t save the DNS setting. Try again.</string>
+</resources>

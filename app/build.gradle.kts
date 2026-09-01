@@ -1,7 +1,9 @@
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.androidx.baselineprofile)
     // AGP 9 built-in Kotlin; explicit org.jetbrains.kotlin.android plugin must NOT be applied.
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 val releaseAbi = providers.gradleProperty("detourReleaseAbi").orNull
@@ -47,10 +49,11 @@ android {
         versionName = versionNameOverride ?: "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Normal builds keep both ABIs for emulator/device coverage. Distribution
-        // release builds may opt into one ABI without changing debug/androidTest packaging.
-        releaseAbi?.let { abi ->
-            ndk { abiFilters += abi }
+        // Package only ABIs for which Detour ships both native engines. Normal
+        // builds keep arm64 + x86_64 for device/emulator coverage; distribution
+        // releases may narrow this to one supported ABI.
+        ndk {
+            abiFilters += releaseAbi?.let { setOf(it) } ?: supportedReleaseAbis
         }
     }
 
@@ -79,6 +82,14 @@ android {
             }
             signingConfigs.findByName("release")?.let { signingConfig = it }
         }
+        create("nonMinifiedRelease") {
+            // The Baseline Profile plugin derives this build type from release.
+            // AGP 9.3's optimization flag otherwise remains enabled and runs R8,
+            // which produces unusable obfuscated source profile rules.
+            optimization {
+                enable = false
+            }
+        }
     }
 
     // Бинарник ByeDPI должен лежать распакованным файлом в nativeLibraryDir.
@@ -104,24 +115,42 @@ android {
     }
 }
 
+baselineProfile {
+    automaticGenerationDuringBuild = false
+    saveInSrc = true
+}
+
 // AGP 9 built-in Kotlin targets Java 17 via compileOptions above (no kotlin-android plugin).
 dependencies {
     testImplementation(libs.org.json)
     implementation(files("../engine/libs/engine.aar"))
     implementation(libs.androidx.core)
     implementation(libs.androidx.activity.compose)
-    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.navigation3.runtime)
+    implementation(libs.androidx.navigation3.ui)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.viewmodel.navigation3)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material3.adaptive)
+    implementation(libs.androidx.compose.material3.adaptive.navigation3)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.profileinstaller)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.snakeyaml)
     testImplementation(libs.junit)
 
+    baselineProfile(project(":baselineprofile"))
+
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
+    // Compose UI testing still brings Espresso 3.5.0 transitively. Pin the
+    // AndroidX Test stable release that replaced InputManager.getInstance()
+    // reflection and is compatible with current Android platform releases.
+    androidTestImplementation(libs.androidx.test.espresso.core)
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
-    androidTestDebugImplementation(libs.androidx.compose.ui.test.manifest)
+    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

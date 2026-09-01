@@ -1,17 +1,20 @@
 <resources>
     <string name="app_name">Detour</string>
     <string name="notif_channel">Detour VPN</string>
-    <string name="status_idle">ОТКЛЮЧЕНО</string>
-    <string name="status_starting">ПОДКЛЮЧЕНИЕ</string>
-    <string name="status_active">АКТИВНО</string>
-    <string name="status_failed">ОШИБКА ПОДКЛЮЧЕНИЯ</string>
+    <string name="status_idle">Отключено</string>
+    <string name="status_starting">Подключение</string>
+    <string name="status_active">Подключено</string>
+    <string name="status_failed">Ошибка подключения</string>
     <string name="btn_connect">Подключить</string>
     <string name="btn_disconnect">Отключить</string>
     <string name="btn_connecting">Подключение…</string>
     <string name="action_retry">Повторить</string>
     <string name="state_sub_idle">Нет активной сессии</string>
+    <string name="row_profile">Профиль</string>
     <string name="row_protocol">Протокол</string>
     <string name="row_server">Сервер</string>
+    <string name="row_endpoints">Точки подключения</string>
+    <string name="row_dns">DNS</string>
     <string name="server_missing">не задан</string>
     <string name="cd_settings">Настройки</string>
     <string name="cd_back">Назад</string>
@@ -22,6 +25,9 @@
     <string name="protocol_warp">WARP</string>
     <string name="protocol_none">—</string>
     <string name="settings_title">Настройки</string>
+    <string name="settings_section_routing">Маршрутизация</string>
+    <string name="settings_section_connection">Подключение</string>
+    <string name="settings_section_app">Приложение</string>
     <string name="nav_routes">Маршруты приложений</string>
     <string name="nav_routes_sub">в туннеле: %1$d</string>
     <string name="nav_key">VPN-профили</string>

@@ -6,6 +6,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CACHE="${BYEDPI_CACHE:-$REPO_ROOT/.cache/byedpi-src}"
 OUT_DIR="$REPO_ROOT/app/src/main/jniLibs"
+AUTH_TRANSFORM="$REPO_ROOT/engine/byedpi/apply_socks_auth.py"
 BYEDPI_VERSION="v0.17.3"
 BYEDPI_COMMIT="7efde1b1296eaaa187b70e951894dde17527489c"
 
@@ -21,6 +22,16 @@ fi
 git -C "$CACHE" fetch --tags --force origin "$TAG"
 git -C "$CACHE" reset --hard "$BYEDPI_COMMIT"
 git -C "$CACHE" clean -fdx
+ACTUAL_COMMIT="$(git -C "$CACHE" rev-parse HEAD)"
+[[ "$ACTUAL_COMMIT" == "$BYEDPI_COMMIT" ]] || {
+  echo "unexpected ByeDPI source: $ACTUAL_COMMIT" >&2
+  exit 1
+}
+python3 "$AUTH_TRANSFORM" "$CACHE"
+git -C "$CACHE" diff --check
+grep -q -- "--socks5-auth-stdin" "$CACHE/main.c"
+grep -q "S_AUTH_USERPASS" "$CACHE/proxy.h"
+echo "detour socks auth transform applied to $BYEDPI_COMMIT"
 
 TC="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
 declare -A CLANG=(

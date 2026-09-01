@@ -25,6 +25,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.error
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -72,6 +75,11 @@ fun DetourInputField(
     } else {
         baseTextStyle.copy(color = c.textPrimary)
     }
+    val fieldHeightModifier = if (singleLine) {
+        Modifier.heightIn(min = minHeight)
+    } else {
+        Modifier.heightIn(min = minHeight, max = maxHeight)
+    }
 
     Column(modifier.fillMaxWidth()) {
         Text(
@@ -86,7 +94,11 @@ fun DetourInputField(
             onValueChange = onValueChange,
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = minHeight, max = maxHeight)
+                .then(fieldHeightModifier)
+                .semantics {
+                    contentDescription = label
+                    error?.let { message -> this.error(message) }
+                }
                 .onFocusChanged { focused = it.isFocused }
                 .background(c.surface, AppShapes.small)
                 .border(1.dp, borderColor, AppShapes.small)

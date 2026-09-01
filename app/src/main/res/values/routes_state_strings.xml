@@ -1,0 +1,7 @@
+<resources>
+    <string name="routes_loading">Loading apps…</string>
+    <string name="routes_load_error">Couldn’t load the app list.</string>
+    <string name="routes_refresh_error">Couldn’t refresh apps. Showing the last loaded list.</string>
+    <string name="routes_empty">No launchable apps found.</string>
+    <string name="routes_no_results">No apps match the current filters.</string>
+</resources>

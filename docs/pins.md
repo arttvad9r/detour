@@ -30,6 +30,8 @@ With a host-supplied TUN file descriptor, the Android `VpnService.Builder` must 
 
 The build produces the dynamic-bionic `ciadpi` executable and packages it through Android `jniLibs` under a `.so` filename so it is delivered with the APK. `DpiBackend` executes it as a child process and exposes its loopback SOCKS listener to the embedded engine.
 
+Detour applies a build-time source transform to the exact pinned ByeDPI commit so the internal SOCKS listener requires SOCKS5 RFC1929 username/password authentication. The process-ephemeral credentials are supplied to the child over stdin rather than argv or environment, and the transform uses exact single-match anchors so source drift fails the build instead of producing a partially patched binary. Loopback binding is therefore not treated as an authentication boundary by itself.
+
 ## Toolchain
 
 The CI/release contract currently pins:

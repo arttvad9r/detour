@@ -31,6 +31,8 @@ object ConfigGenerator {
             val recommended = all.filter { it.name.contains("⭐") }
             recommended.ifEmpty { all }.take(MAX_WARP_PROXIES)
         }.orEmpty()
+        val loopbackUser = yamlScalar(input.probeCredentials.username)
+        val loopbackPassword = yamlScalar(input.probeCredentials.password)
 
         // Приложения атрибутируются по UID (резолвится host-side через VpnService).
         val attr = { pkg: String -> "UID,${input.vpnUids[pkg]}" }
@@ -66,6 +68,8 @@ object ConfigGenerator {
                   type: socks5
                   server: 127.0.0.1
                   port: ${input.dpiPort}
+                  username: $loopbackUser
+                  password: $loopbackPassword
                   udp: false
                 """.trimIndent()
             )
@@ -82,14 +86,20 @@ object ConfigGenerator {
   type: mixed
   listen: 127.0.0.1
   port: 10810
-  proxy: $vpnTag""")
+  proxy: $vpnTag
+  users:
+    - username: $loopbackUser
+      password: $loopbackPassword""")
             }
             if (input.dpiApps.isNotEmpty()) {
                 add("""- name: PROBE_DPI
   type: mixed
   listen: 127.0.0.1
   port: 10811
-  proxy: DPI""")
+  proxy: DPI
+  users:
+    - username: $loopbackUser
+      password: $loopbackPassword""")
             }
         }.joinToString("\n")
 

@@ -18,6 +18,20 @@ class DnsValidationTest {
         assertFalse(DnsOptions.isValid("9.9.9.9\n#bad"))
     }
 
+    @Test fun `blank selection keeps historical google default`() {
+        assertEquals(DnsOptions.DEFAULT_SERVER, DnsOptions.resolve("", ""))
+    }
+
+    @Test fun `unknown selection and invalid custom fail closed`() {
+        val unknown = runCatching { DnsOptions.resolve("removed-provider", "") }.exceptionOrNull()
+        val invalidCustom = runCatching {
+            DnsOptions.resolve(DnsOptions.CUSTOM, "not-a-resolver")
+        }.exceptionOrNull()
+
+        assertTrue(unknown is IllegalArgumentException)
+        assertTrue(invalidCustom is IllegalArgumentException)
+    }
+
     @Test fun `hostname DoH gets bootstrap but IP DoH does not`() {
         assertEquals("8.8.8.8", DnsOptions.bootstrapServer("https://dns.adguard-dns.io/dns-query"))
         assertNull(DnsOptions.bootstrapServer("https://1.1.1.1/dns-query"))

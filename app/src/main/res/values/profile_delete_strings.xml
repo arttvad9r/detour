@@ -1,0 +1,6 @@
+<resources>
+    <string name="profile_delete_title">Delete VPN profile?</string>
+    <string name="profile_delete_message">This profile will be removed permanently. This action cannot be undone.</string>
+    <string name="profile_delete_active_message">This profile is active. Deleting it will stop the current tunnel and cannot be undone.</string>
+    <string name="profile_delete_error">Could not complete profile deletion. Try again.</string>
+</resources>

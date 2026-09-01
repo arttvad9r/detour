@@ -32,8 +32,15 @@ jobs:
           MAJOR="${BASH_REMATCH[1]}"
           MINOR="${BASH_REMATCH[2]}"
           PATCH="${BASH_REMATCH[3]}"
-          if (( 10#$MINOR > 999 || 10#$PATCH > 999 )); then
-            echo "MINOR and PATCH must be <= 999 for Android versionCode mapping" >&2
+          # Bound decimal widths before Bash arithmetic. Otherwise a malicious or
+          # accidental tag with hundreds of digits can overflow the shell integer
+          # while evaluating 10#VALUE and potentially wrap into a valid-looking code.
+          if (( ${#MAJOR} > 4 || ${#MINOR} > 3 || ${#PATCH} > 3 )); then
+            echo "Release version components exceed Android versionCode bounds" >&2
+            exit 1
+          fi
+          if (( 10#$MAJOR > 2100 || 10#$MINOR > 999 || 10#$PATCH > 999 )); then
+            echo "MAJOR must be <= 2100; MINOR and PATCH must be <= 999" >&2
             exit 1
           fi
 
@@ -91,9 +98,17 @@ jobs:
       - name: Install Go tooling
         run: |
           go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20260821190718-4776eadac327
+          go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           export PATH="$(go env GOPATH)/bin:$PATH"
           gomobile init
+      - name: Verify app tests and lint
+        run: >-
+          ./gradlew
+          :app:testDebugUnitTest
+          :app:lintDebug
+          :app:assembleDebug
+          :app:assembleDebugAndroidTest
       - name: Restore release keystore
         shell: bash
         env:
@@ -114,6 +129,8 @@ jobs:
           -PdetourReleaseAbi=arm64-v8a
           -PdetourVersionName="$VERSION_NAME"
           -PdetourVersionCode="$VERSION_CODE"
+      - name: Verify embedded engine vulnerabilities
+        run: bash engine/vulnscan.sh
       - name: Verify release APK
         shell: bash
         run: |
@@ -125,6 +142,9 @@ jobs:
           fi
 
           "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
+          "$ANDROID_SDK_ROOT/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$APK"
+          python3 tools/check_elf_alignment.py "$APK" \
+            --readelf "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
           python3 tools/apk_size_report.py "$APK" \
             --report app/build/reports/apk-size-release.json \
             --max-bytes 31457280 \
@@ -138,7 +158,7 @@ jobs:
           echo "RELEASE_APK=$ARTIFACT" >> "$GITHUB_ENV"
           echo "RELEASE_SHA256=$ARTIFACT.sha256" >> "$GITHUB_ENV"
       - name: Upload signed release artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: detour-${{ env.VERSION_NAME }}-arm64
           if-no-files-found: error
@@ -161,4 +181,3 @@ jobs:
               --verify-tag \
               --generate-notes \
               --title "Detour $VERSION_NAME"
-          fi

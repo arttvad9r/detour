@@ -1,0 +1,129 @@
+package dev.triplet.app.ui
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.DeviceConfigurationOverride
+import androidx.compose.ui.test.FontScale
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.unit.dp
+import dev.triplet.app.R
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+
+class FontScaleLayoutTest {
+    @get:Rule
+    val rule = createComposeRule()
+
+    @Test fun settingRowGrowsAtTwoHundredPercentFontScale() {
+        rule.setContent {
+            TestTheme {
+                Box {
+                    TaggedSettingRow("setting-normal")
+                    DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(2f)) {
+                        TaggedSettingRow("setting-large")
+                    }
+                }
+            }
+        }
+
+        assertGrows("setting-normal", "setting-large")
+    }
+
+    @Test fun segmentedControlGrowsAtTwoHundredPercentFontScale() {
+        rule.setContent {
+            TestTheme {
+                Box {
+                    TaggedSegmentedControl("segments-normal")
+                    DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(2f)) {
+                        TaggedSegmentedControl("segments-large")
+                    }
+                }
+            }
+        }
+
+        assertGrows("segments-normal", "segments-large")
+    }
+
+    @Test fun singleLineInputGrowsAtTwoHundredPercentFontScale() {
+        rule.setContent {
+            TestTheme {
+                Box {
+                    TaggedInput("input-normal")
+                    DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(2f)) {
+                        TaggedInput("input-large")
+                    }
+                }
+            }
+        }
+
+        assertGrows("input-normal", "input-large")
+    }
+
+    private fun assertGrows(normalTag: String, largeTag: String) {
+        rule.waitForIdle()
+        val normal = rule.onNodeWithTag(normalTag).assertIsDisplayed()
+            .fetchSemanticsNode().boundsInRoot.height
+        val large = rule.onNodeWithTag(largeTag).assertIsDisplayed()
+            .fetchSemanticsNode().boundsInRoot.height
+
+        assertTrue("Expected $largeTag ($large px) to grow beyond $normalTag ($normal px)", large > normal)
+    }
+}
+
+@Composable
+private fun TaggedSettingRow(tag: String) {
+    Box(Modifier.width(320.dp).testTag(tag)) {
+        SettingRow(
+            title = "Applications routed through VPN",
+            subtitle = "Selected routes and exclusions remain visible at large text sizes",
+            iconRes = R.drawable.ic_routes,
+            onClick = {},
+        )
+    }
+}
+
+@Composable
+private fun TaggedSegmentedControl(tag: String) {
+    SegmentedControl(
+        options = listOf("Recommended routing mode", "Custom routing mode"),
+        selected = 0,
+        onSelect = {},
+        modifier = Modifier.width(320.dp).testTag(tag),
+    )
+}
+
+@Composable
+private fun TaggedInput(tag: String) {
+    DetourInputField(
+        value = "https://dns.example/dns-query",
+        onValueChange = {},
+        label = "Custom DNS resolver endpoint",
+        placeholder = "https://example/dns-query",
+        helper = "HTTPS resolver address used by the tunnel",
+        modifier = Modifier.width(320.dp).testTag(tag),
+    )
+}
+
+@Composable
+private fun TestTheme(content: @Composable () -> Unit) {
+    val theme = AppTheme.CATPPUCCIN_LATTE
+    CompositionLocalProvider(
+        LocalDetourTheme provides theme,
+        LocalDetourColors provides theme.colors,
+    ) {
+        MaterialTheme(
+            colorScheme = colorSchemeFor(theme.colors, theme.dark),
+            typography = AppTypography,
+            shapes = AppShapes,
+            content = content,
+        )
+    }
+}

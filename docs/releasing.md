@@ -9,7 +9,7 @@ The tag controls both Android version fields for the release build:
 - `versionName = MAJOR.MINOR.PATCH`;
 - `versionCode = MAJOR * 1,000,000 + MINOR * 1,000 + PATCH`.
 
-`MINOR` and `PATCH` must be at most 999. The computed `versionCode` must be a positive Android-compatible integer. Normal development builds keep the fallback `0.1.0` / `1` values unless Gradle overrides are supplied explicitly.
+`MAJOR` must be at most 2100, while `MINOR` and `PATCH` must be at most 999. The computed `versionCode` must still be a positive Android-compatible integer no greater than 2,100,000,000, so not every `MAJOR = 2100` combination is valid. Normal development builds keep the fallback `0.1.0` / `1` values unless Gradle overrides are supplied explicitly.
 
 A release tag must point to a commit that is contained in `master`. The workflow refuses to publish tags from an unrelated branch.
 
@@ -42,12 +42,14 @@ The `Release` workflow then:
 1. validates the tag and derives `versionName` / `versionCode`;
 2. validates that all signing secrets are present;
 3. rebuilds the pinned native engine and ByeDPI binaries;
-4. builds a signed `arm64-v8a` release APK;
-5. verifies the APK signature with Android `apksigner`;
-6. enforces the exact `arm64-v8a` ABI set and the 30 MiB APK budget;
-7. writes a SHA-256 checksum;
-8. uploads the APK, checksum and size report as a workflow artifact;
-9. creates or updates the matching GitHub Release and attaches the APK and checksum.
+4. runs debug unit tests and lint, builds the debug APK, and compiles the instrumentation-test APK;
+5. builds a signed `arm64-v8a` release APK;
+6. runs the pinned engine tests plus source and shipped-binary `govulncheck` scans against the exact Mihomo AAR produced for the release;
+7. verifies the APK signature with Android `apksigner`;
+8. enforces the exact `arm64-v8a` ABI set and the 30 MiB APK budget;
+9. writes a SHA-256 checksum;
+10. uploads the APK, checksum and size report as a workflow artifact;
+11. creates or updates the matching GitHub Release and attaches the APK and checksum.
 
 The published APK is named `detour-MAJOR.MINOR.PATCH-arm64.apk`.
 
@@ -67,4 +69,4 @@ export DETOUR_RELEASE_KEY_PASSWORD='...'
   -PdetourVersionCode=1000
 ```
 
-Run `apksigner verify --verbose --print-certs` on the resulting APK before distributing a locally produced build.
+Run `bash engine/vulnscan.sh` with the pinned `govulncheck` tool available, then run `apksigner verify --verbose --print-certs` on the resulting APK before distributing a locally produced build.

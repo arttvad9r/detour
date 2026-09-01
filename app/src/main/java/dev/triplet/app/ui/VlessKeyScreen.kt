@@ -1,6 +1,5 @@
 package dev.triplet.app.ui
 
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -31,6 +30,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FabPosition
 import androidx.compose.material3.FloatingActionButton
@@ -38,14 +38,16 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -54,8 +56,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalClipboard
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -64,21 +66,17 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.VlessKey
 import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.core.VpnProfileKind
-import dev.triplet.app.core.WarpConfigImporter
-import dev.triplet.app.core.WarpImportResult
 import dev.triplet.app.core.WarpProfile
-import dev.triplet.app.data.RoutesStore
-import dev.triplet.app.vpn.VpnController
-import dev.triplet.app.vpn.VpnState
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.UUID
+
+private const val PROFILES_SCREEN_TEST_TAG = "profiles_screen"
 
 private data class ProfileSnapshot(
     val vless: List<VlessKey>,
@@ -87,52 +85,61 @@ private data class ProfileSnapshot(
 
 private enum class ProfileSheetMode { PICKER, VLESS_EDITOR }
 
-internal enum class ProfileTunnelAction { NONE, RESTART, STOP }
-
-internal fun vlessMutationTunnelAction(
-    activeVpn: VpnProfileKind,
-    activeVlessId: String?,
-    keyId: String,
-    deleting: Boolean,
-): ProfileTunnelAction {
-    if (activeVpn != VpnProfileKind.VLESS || activeVlessId != keyId) return ProfileTunnelAction.NONE
-    return if (deleting) ProfileTunnelAction.STOP else ProfileTunnelAction.RESTART
-}
-
-internal fun warpMutationTunnelAction(
-    activeVpn: VpnProfileKind,
-    deleting: Boolean,
-): ProfileTunnelAction {
-    if (activeVpn != VpnProfileKind.WARP) return ProfileTunnelAction.NONE
-    return if (deleting) ProfileTunnelAction.STOP else ProfileTunnelAction.RESTART
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = Modifier) {
-    val ctx = LocalContext.current
+fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val c = detourColors
-    val settings by store.settings.collectAsState()
-    val keys = settings?.vlessKeys
-    val vlessItems = keys?.items.orEmpty()
-    val warpProfile = settings?.warpProfile
-    val activeVpn = settings?.activeVpn ?: VpnProfileKind.VLESS
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val vlessItems = state.vlessItems
+    val warpProfile = state.warpProfile
+    val activeVpn = state.activeVpn
+    val activeVlessId = state.activeVlessId
+    val warpImportStatus = state.warpImportStatus
+    val warpImporting = warpImportStatus == WarpImportStatus.IMPORTING
+    val vlessSaveStatus = state.vlessSaveStatus
+    val vlessSaving = vlessSaveStatus == VlessSaveStatus.SAVING
     val addDescription = stringResource(R.string.profile_add_title)
     val vlessTitle = stringResource(R.string.profile_add_vless)
 
     var editingId by rememberSaveable { androidx.compose.runtime.mutableStateOf<String?>(null) }
     var showSheet by rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
-    var sheetMode by remember { androidx.compose.runtime.mutableStateOf(ProfileSheetMode.PICKER) }
+    var sheetMode by rememberSaveable { androidx.compose.runtime.mutableStateOf(ProfileSheetMode.PICKER) }
     var field by rememberSaveable { androidx.compose.runtime.mutableStateOf("") }
-    var warpStatus by rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
     val parse = remember(field) {
         field.trim().takeIf { it.isNotBlank() }?.let(VlessKeyParser::parse)
     }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val currentVlessSaving = rememberUpdatedState(vlessSaving)
+    val confirmSheetValueChange = remember {
+        { target: SheetValue -> !currentVlessSaving.value || target != SheetValue.Hidden }
+    }
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = confirmSheetValueChange,
+    )
+
+    LaunchedEffect(vlessSaveStatus, sheetState) {
+        if (vlessSaveStatus == VlessSaveStatus.SAVED) {
+            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+            runCatching { sheetState.hide() }
+            showSheet = false
+            viewModel.acknowledgeVlessSave()
+        }
+    }
+    LaunchedEffect(viewModel) {
+        viewModel.warpSaved.collect {
+            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+        }
+    }
+    LaunchedEffect(viewModel) {
+        viewModel.warpImportRejected.collect {
+            haptics.performHapticFeedback(HapticFeedbackType.Reject)
+        }
+    }
 
     fun beginVlessEdit(key: VlessKey?) {
+        viewModel.clearVlessSaveError()
         editingId = key?.id
         field = key?.uri ?: ""
         sheetMode = ProfileSheetMode.VLESS_EDITOR
@@ -147,56 +154,19 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
         }
     }
 
-    fun applyTunnelAction(action: ProfileTunnelAction) {
-        when (action) {
-            ProfileTunnelAction.NONE -> Unit
-            ProfileTunnelAction.RESTART -> VpnController.restartIfActive(ctx)
-            ProfileTunnelAction.STOP -> if (
-                VpnController.state.value == VpnState.Active ||
-                VpnController.state.value == VpnState.Starting
-            ) {
-                VpnController.stop(ctx)
-            }
-        }
-    }
-
-    val warpLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            val result = runCatching {
-                withContext(Dispatchers.IO) {
-                    val raw = readWarpConfig(ctx, uri) ?: return@withContext WarpImportResult.Invalid
-                    WarpConfigImporter.parse(raw)
-                }
-            }.getOrElse { WarpImportResult.Invalid }
-            when (result) {
-                is WarpImportResult.Ok -> {
-                    val tunnelAction = warpMutationTunnelAction(activeVpn, deleting = false)
-                    store.setWarpProfile(result.profile)
-                    applyTunnelAction(tunnelAction)
-                    warpStatus = 0
-                    haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                }
-                WarpImportResult.NoCompatibleProxies -> {
-                    warpStatus = 2
-                    haptics.performHapticFeedback(HapticFeedbackType.Reject)
-                }
-                WarpImportResult.Invalid -> {
-                    warpStatus = 3
-                    haptics.performHapticFeedback(HapticFeedbackType.Reject)
-                }
-            }
-        }
+    val warpLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { viewModel.importWarpDocument(it.toString()) }
     }
 
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.testTag(PROFILES_SCREEN_TEST_TAG).fillMaxSize(),
         containerColor = c.background,
         floatingActionButton = {
             ProfileAddFab(
-                visible = !showSheet,
+                visible = !showSheet && !warpImporting,
                 addDescription = addDescription,
                 onClick = {
+                    viewModel.clearVlessSaveError()
                     editingId = null
                     field = ""
                     sheetMode = ProfileSheetMode.PICKER
@@ -212,128 +182,133 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                 .verticalScroll(rememberScrollState()),
         ) {
             ScreenHeader(stringResource(R.string.key_title), onBack)
-            Spacer(Modifier.height(Spacing.space8))
 
-            Text(
-                stringResource(R.string.key_list_title),
-                style = MaterialTheme.typography.titleSmall,
-                color = c.textPrimary,
-                modifier = Modifier.padding(horizontal = Spacing.space16),
-            )
-            Spacer(Modifier.height(Spacing.space8))
+            DetourContentColumn {
+                Spacer(Modifier.height(Spacing.space8))
+                Text(
+                    stringResource(R.string.key_list_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = c.textPrimary,
+                    modifier = Modifier.padding(horizontal = Spacing.space16),
+                )
+                Spacer(Modifier.height(Spacing.space8))
 
-            val snapshot = ProfileSnapshot(vlessItems, warpProfile)
-            AnimatedContent(
-                targetState = snapshot,
-                transitionSpec = {
-                    fadeIn(
-                        tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
-                    ) togetherWith fadeOut(
-                        tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
-                    )
-                },
-                label = "profileList",
-            ) { shown ->
-                if (shown.vless.isEmpty() && shown.warp == null) {
-                    Text(
-                        stringResource(R.string.profile_empty),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = c.textMuted,
-                        modifier = Modifier.padding(
-                            start = Spacing.space20,
-                            end = Spacing.space20,
-                            top = Spacing.space2,
-                            bottom = Spacing.space12,
-                        ),
-                    )
-                } else {
-                    DetourCard(
-                        Modifier
-                            .padding(horizontal = Spacing.space16)
-                            .selectableGroup(),
-                    ) {
-                        shown.vless.forEachIndexed { index, key ->
-                            val selected = activeVpn == VpnProfileKind.VLESS && key.id == keys?.activeId
-                            KeyRow(
-                                key = key,
-                                selected = selected,
-                                onEdit = { beginVlessEdit(key) },
-                                onDelete = {
-                                    val tunnelAction = vlessMutationTunnelAction(
-                                        activeVpn,
-                                        keys?.activeId,
-                                        key.id,
-                                        deleting = true,
-                                    )
-                                    scope.launch {
-                                        store.deleteVlessKey(key.id)
-                                        applyTunnelAction(tunnelAction)
-                                    }
-                                },
-                            ) {
-                                haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                                scope.launch {
-                                    store.setActiveVlessKey(key.id)
-                                    VpnController.restartIfActive(ctx)
+                val snapshot = ProfileSnapshot(vlessItems, warpProfile)
+                AnimatedContent(
+                    targetState = snapshot,
+                    transitionSpec = {
+                        fadeIn(
+                            tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
+                        ) togetherWith fadeOut(
+                            tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
+                        )
+                    },
+                    label = "profileList",
+                ) { shown ->
+                    if (shown.vless.isEmpty() && shown.warp == null) {
+                        Text(
+                            stringResource(R.string.profile_empty),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = c.textMuted,
+                            modifier = Modifier.padding(
+                                start = Spacing.space20,
+                                end = Spacing.space20,
+                                top = Spacing.space2,
+                                bottom = Spacing.space12,
+                            ),
+                        )
+                    } else {
+                        DetourCard(
+                            Modifier
+                                .padding(horizontal = Spacing.space16)
+                                .selectableGroup(),
+                        ) {
+                            shown.vless.forEachIndexed { index, key ->
+                                val selected = activeVpn == VpnProfileKind.VLESS && key.id == activeVlessId
+                                KeyRow(
+                                    key = key,
+                                    selected = selected,
+                                    onEdit = { beginVlessEdit(key) },
+                                    onDelete = { viewModel.deleteVless(key.id) },
+                                ) {
+                                    haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                    viewModel.selectVless(key.id)
+                                }
+                                if (index < shown.vless.lastIndex || shown.warp != null) {
+                                    GroupDivider(startInset = 52)
                                 }
                             }
-                            if (index < shown.vless.lastIndex || shown.warp != null) {
-                                GroupDivider(startInset = 16)
+                            shown.warp?.let { profile ->
+                                val selected = activeVpn == VpnProfileKind.WARP
+                                WarpRow(
+                                    profile = profile,
+                                    selected = selected,
+                                    importing = warpImporting,
+                                    onEdit = { warpLauncher.launch(arrayOf("*/*")) },
+                                    onDelete = viewModel::deleteWarp,
+                                    onClick = {
+                                        haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                        viewModel.selectWarp()
+                                    },
+                                )
                             }
-                        }
-                        shown.warp?.let { profile ->
-                            val selected = activeVpn == VpnProfileKind.WARP
-                            WarpRow(
-                                profile = profile,
-                                selected = selected,
-                                onEdit = {
-                                    warpStatus = 0
-                                    warpLauncher.launch(arrayOf("*/*"))
-                                },
-                                onDelete = {
-                                    val tunnelAction = warpMutationTunnelAction(activeVpn, deleting = true)
-                                    scope.launch {
-                                        store.deleteWarpProfile()
-                                        applyTunnelAction(tunnelAction)
-                                    }
-                                },
-                                onClick = {
-                                    haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                                    scope.launch {
-                                        store.setActiveVpn(VpnProfileKind.WARP)
-                                        VpnController.restartIfActive(ctx)
-                                    }
-                                },
-                            )
                         }
                     }
                 }
-            }
 
-            AnimatedVisibility(
-                visible = warpStatus != 0,
-                enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)),
-                exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)),
-            ) {
-                Column {
-                    Spacer(Modifier.height(Spacing.space8))
-                    Text(
-                        text = stringResource(
-                            if (warpStatus == 2) R.string.warp_invalid else R.string.warp_import_error,
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = c.error,
-                        modifier = Modifier.padding(horizontal = Spacing.space20),
-                    )
+                AnimatedVisibility(
+                    visible = warpImportStatus != WarpImportStatus.IDLE,
+                    enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)),
+                    exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)),
+                ) {
+                    Column {
+                        Spacer(Modifier.height(Spacing.space8))
+                        when (warpImportStatus) {
+                            WarpImportStatus.IMPORTING -> {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = Spacing.space20),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = c.accent,
+                                    )
+                                    Spacer(Modifier.size(Spacing.space8))
+                                    Text(
+                                        text = stringResource(R.string.warp_importing),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = c.textSecondary,
+                                    )
+                                }
+                            }
+                            WarpImportStatus.NO_COMPATIBLE_PROXIES,
+                            WarpImportStatus.ERROR -> {
+                                Text(
+                                    text = stringResource(
+                                        if (warpImportStatus == WarpImportStatus.NO_COMPATIBLE_PROXIES) {
+                                            R.string.warp_invalid
+                                        } else {
+                                            R.string.warp_import_error
+                                        },
+                                    ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = c.error,
+                                    modifier = Modifier.padding(horizontal = Spacing.space20),
+                                )
+                            }
+                            WarpImportStatus.IDLE -> Unit
+                        }
+                    }
                 }
+                Spacer(Modifier.height(Spacing.space24))
             }
-            Spacer(Modifier.height(Spacing.space24))
         }
     }
 
     if (showSheet) {
         ModalBottomSheet(
-            onDismissRequest = { showSheet = false },
+            onDismissRequest = { if (!vlessSaving) showSheet = false },
             sheetState = sheetState,
             containerColor = c.surface,
             contentColor = c.textPrimary,
@@ -403,7 +378,6 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                                 ),
                             ) {
                                 dismissSheet {
-                                    warpStatus = 0
                                     warpLauncher.launch(arrayOf("*/*"))
                                 }
                             }
@@ -436,12 +410,17 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                             DetourInputField(
                                 value = field,
                                 onValueChange = { value ->
+                                    viewModel.clearVlessSaveError()
                                     field = value.replace("\r", "").replace("\n", "")
                                 },
                                 label = stringResource(R.string.key_uri),
                                 placeholder = stringResource(R.string.key_placeholder),
                                 helper = stringResource(R.string.key_input_hint),
-                                error = if (parse is ParseResult.Err) stringResource(R.string.key_invalid) else null,
+                                error = when {
+                                    parse is ParseResult.Err -> stringResource(R.string.key_invalid)
+                                    vlessSaveStatus == VlessSaveStatus.ERROR -> stringResource(R.string.vless_save_error)
+                                    else -> null
+                                },
                                 success = (parse as? ParseResult.Ok)?.let { result ->
                                     stringResource(
                                         R.string.key_detected_server,
@@ -460,6 +439,7 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                                 onClick = {
                                     scope.launch {
                                         clipboard.getClipEntry()?.clipData?.getItemAt(0)?.text?.toString()?.let {
+                                            viewModel.clearVlessSaveError()
                                             field = it.trim().replace("\r", "").replace("\n", "")
                                         }
                                     }
@@ -484,12 +464,15 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                                             dismissSheet()
                                         }
                                     },
+                                    enabled = !vlessSaving,
                                     style = ButtonStyle.SECONDARY,
                                     modifier = Modifier.weight(1f),
                                 )
                                 DetourButton(
-                                    text = stringResource(R.string.btn_save),
-                                    enabled = parse is ParseResult.Ok,
+                                    text = stringResource(
+                                        if (vlessSaving) R.string.vless_saving else R.string.btn_save,
+                                    ),
+                                    enabled = parse is ParseResult.Ok && !vlessSaving,
                                     onClick = {
                                         val value = field.trim()
                                         val parsedProfile = (parse as? ParseResult.Ok)?.profile
@@ -498,19 +481,7 @@ fun VlessKeyScreen(store: RoutesStore, onBack: () -> Unit, modifier: Modifier = 
                                             parsedProfile?.name?.ifBlank { parsedProfile.server } ?: vlessTitle,
                                             value,
                                         )
-                                        val tunnelAction = vlessMutationTunnelAction(
-                                            activeVpn,
-                                            keys?.activeId,
-                                            key.id,
-                                            deleting = false,
-                                        )
-                                        scope.launch {
-                                            if (editingId == null) store.addVlessKey(key) else store.updateVlessKey(key)
-                                            applyTunnelAction(tunnelAction)
-                                            haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                                            runCatching { sheetState.hide() }
-                                            showSheet = false
-                                        }
+                                        viewModel.saveVless(key, isNew = editingId == null)
                                     },
                                     modifier = Modifier.weight(1f),
                                 )
@@ -623,14 +594,14 @@ private fun KeyRow(
             .detourSelectable(
                 selected = selected,
                 onClick = { if (!selected) onClick() },
-                idleColor = if (selected) c.surfaceSelected else Color.Transparent,
-                pressedColor = if (selected) c.surfaceSelected else c.accentSoft,
+                idleColor = if (selected) c.accentSoft else Color.Transparent,
+                pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
                 pressScale = Motion.PRESS_RADIO,
             )
             .padding(start = Spacing.space16, top = 10.dp, bottom = 10.dp, end = Spacing.space8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        RadioDot(selected)
+        SelectionMark(selected)
         Column(Modifier.padding(start = Spacing.space12).weight(1f)) {
             Text(
                 profile?.name?.ifBlank { profile.server } ?: "VLESS",
@@ -672,6 +643,7 @@ private fun KeyRow(
 private fun WarpRow(
     profile: WarpProfile,
     selected: Boolean,
+    importing: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onClick: () -> Unit,
@@ -682,14 +654,14 @@ private fun WarpRow(
             .detourSelectable(
                 selected = selected,
                 onClick = { if (!selected) onClick() },
-                idleColor = if (selected) c.surfaceSelected else Color.Transparent,
-                pressedColor = if (selected) c.surfaceSelected else c.accentSoft,
+                idleColor = if (selected) c.accentSoft else Color.Transparent,
+                pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
                 pressScale = Motion.PRESS_RADIO,
             )
             .padding(start = Spacing.space16, top = 10.dp, bottom = 10.dp, end = Spacing.space8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        RadioDot(selected)
+        SelectionMark(selected)
         Column(Modifier.padding(start = Spacing.space12).weight(1f)) {
             Text(
                 profile.name,
@@ -706,40 +678,31 @@ private fun WarpRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Row(horizontalArrangement = Arrangement.End) {
-            DetourIconButton(onClick = onEdit, size = 36) {
-                Icon(
-                    painterResource(R.drawable.ic_edit),
-                    contentDescription = stringResource(R.string.warp_replace),
-                    tint = c.textSecondary,
-                    modifier = Modifier.size(18.dp),
-                )
-            }
-            DetourIconButton(onClick = onDelete, size = 36) {
-                Icon(
-                    painterResource(R.drawable.ic_delete),
-                    contentDescription = stringResource(R.string.warp_delete),
-                    tint = c.error,
-                    modifier = Modifier.size(18.dp),
-                )
+        if (importing) {
+            CircularProgressIndicator(
+                modifier = Modifier.padding(horizontal = Spacing.space12).size(18.dp),
+                strokeWidth = 2.dp,
+                color = c.accent,
+            )
+        } else {
+            Row(horizontalArrangement = Arrangement.End) {
+                DetourIconButton(onClick = onEdit, size = 36) {
+                    Icon(
+                        painterResource(R.drawable.ic_edit),
+                        contentDescription = stringResource(R.string.warp_replace),
+                        tint = c.textSecondary,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                DetourIconButton(onClick = onDelete, size = 36) {
+                    Icon(
+                        painterResource(R.drawable.ic_delete),
+                        contentDescription = stringResource(R.string.warp_delete),
+                        tint = c.error,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
             }
         }
-    }
-}
-
-private fun readWarpConfig(context: android.content.Context, uri: Uri): String? {
-    val input = context.contentResolver.openInputStream(uri) ?: return null
-    input.use {
-        val out = java.io.ByteArrayOutputStream()
-        val buffer = ByteArray(8192)
-        var total = 0
-        while (true) {
-            val count = it.read(buffer)
-            if (count < 0) break
-            total += count
-            if (total > WarpConfigImporter.MAX_CHARS) return null
-            out.write(buffer, 0, count)
-        }
-        return out.toString(Charsets.UTF_8.name())
     }
 }

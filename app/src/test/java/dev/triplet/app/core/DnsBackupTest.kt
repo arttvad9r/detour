@@ -3,6 +3,7 @@ package dev.triplet.app.core
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -15,10 +16,14 @@ class DnsOptionsTest {
     @Test fun `custom is used only for custom id`() {
         assertEquals("9.9.9.9", DnsOptions.resolve("custom", " 9.9.9.9 "))
         assertEquals("8.8.8.8", DnsOptions.resolve("google", "9.9.9.9"))
-        assertEquals("8.8.8.8", DnsOptions.resolve("custom", "  "))
+        assertThrows(IllegalArgumentException::class.java) {
+            DnsOptions.resolve("custom", "  ")
+        }
     }
-    @Test fun `unknown id falls back to default`() {
-        assertEquals("8.8.8.8", DnsOptions.resolve("bogus", ""))
+    @Test fun `unknown id fails closed`() {
+        assertThrows(IllegalArgumentException::class.java) {
+            DnsOptions.resolve("bogus", "")
+        }
     }
     @Test fun `unknown selection is rejected`() {
         assertFalse(DnsOptions.isSelectionValid("bogus", ""))
@@ -130,6 +135,22 @@ class SettingsBackupTest {
         assertEquals("google", restored.dnsId)
         assertEquals(VpnProfileKind.VLESS, restored.activeVpn)
         assertNull(restored.warpProfile)
+    }
+
+    @Test fun `recommended backup preserves dormant legacy custom args`() {
+        val json = """{"v":2,"app":"detour","vlessKeys":{"activeId":null,"items":[]},"preset":"recommended","customArgs":"-a nope","theme":"","dns":"","routes":{}}"""
+        val restored = SettingsBackup.fromJson(json)!!
+        assertEquals("recommended", restored.presetId)
+        assertEquals("-a nope", restored.dpiCustomArgs)
+    }
+
+    @Test fun `active custom backup requires valid nonblank args`() {
+        val invalid = """{"v":2,"app":"detour","vlessKeys":{"activeId":null,"items":[]},"preset":"custom","customArgs":"-a nope","theme":"","dns":"","routes":{}}"""
+        val blank = """{"v":2,"app":"detour","vlessKeys":{"activeId":null,"items":[]},"preset":"custom","customArgs":"","theme":"","dns":"","routes":{}}"""
+        val valid = """{"v":2,"app":"detour","vlessKeys":{"activeId":null,"items":[]},"preset":"custom","customArgs":"-a 1","theme":"","dns":"","routes":{}}"""
+        assertNull(SettingsBackup.fromJson(invalid))
+        assertNull(SettingsBackup.fromJson(blank))
+        assertTrue(SettingsBackup.fromJson(valid) != null)
     }
 
     @Test fun `v3 rejects WARP selection without profile`() {

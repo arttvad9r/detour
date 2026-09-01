@@ -10,7 +10,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,66 +18,56 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.window.core.layout.WindowSizeClass
+import androidx.window.core.layout.WindowSizeClass.Companion.WIDTH_DP_EXPANDED_LOWER_BOUND
 import dev.triplet.app.R
-import dev.triplet.app.core.ParseResult
-import dev.triplet.app.core.VlessKeyParser
+import dev.triplet.app.core.DnsOptions
 import dev.triplet.app.core.VpnProfileKind
-import dev.triplet.app.data.RoutesStore
-import dev.triplet.app.vpn.EffectiveRoutes
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
-import dev.triplet.app.vpn.resolveEffectiveRoutes
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 
-enum class HomeProtocol { VLESS_DPI, DPI, VLESS, NONE }
+private const val HOME_PROFILE_ROW_TEST_TAG = "home_profile_row"
+
 private enum class VisualVpnState { IDLE, STARTING, ACTIVE, FAILED }
-
-fun homeProtocol(routes: EffectiveRoutes): HomeProtocol {
-    val dpi = routes.dpiPackages.isNotEmpty()
-    val vpn = routes.vpnPackages.isNotEmpty()
-    return when {
-        dpi && vpn -> HomeProtocol.VLESS_DPI
-        dpi -> HomeProtocol.DPI
-        vpn -> HomeProtocol.VLESS
-        else -> HomeProtocol.NONE
-    }
-}
 
 private fun visualKey(state: VpnState): VisualVpnState = when (state) {
     VpnState.Idle -> VisualVpnState.IDLE
@@ -87,36 +76,34 @@ private fun visualKey(state: VpnState): VisualVpnState = when (state) {
     is VpnState.Failed -> VisualVpnState.FAILED
 }
 
+internal fun formatSessionElapsed(seconds: Int): String {
+    val safe = seconds.coerceAtLeast(0)
+    val h = safe / 3600
+    val m = (safe % 3600) / 60
+    val sec = safe % 60
+    return "%02d:%02d:%02d".format(h, m, sec)
+}
+
+internal fun homeUsesSplitLayout(windowSizeClass: WindowSizeClass): Boolean =
+    windowSizeClass.isWidthAtLeastBreakpoint(WIDTH_DP_EXPANDED_LOWER_BOUND)
+
 @Composable
-fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
-    val state by VpnController.state.collectAsState()
+fun HomeScreen(
+    viewModel: HomeViewModel,
+    onOpenSettings: () -> Unit,
+    onOpenProfiles: () -> Unit,
+    onOpenDns: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val ctx = LocalContext.current
     val haptics = LocalHapticFeedback.current
-    val st = state
+    val st = uiState.vpnState
     val c = detourColors
-    val settings by store.settings.collectAsState()
-    val persistedRoutes = settings?.routes.orEmpty()
-    var routeRevision by remember { mutableIntStateOf(0) }
-    DisposableEffect(ctx) {
-        val owner = ctx as? LifecycleOwner
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) routeRevision++
-        }
-        owner?.lifecycle?.addObserver(observer)
-        onDispose { owner?.lifecycle?.removeObserver(observer) }
-    }
-    val effectiveRoutes by produceState(
-        initialValue = EffectiveRoutes(emptySet(), emptySet()),
-        key1 = persistedRoutes,
-        key2 = routeRevision,
-    ) {
-        value = if (persistedRoutes.isEmpty()) {
-            EffectiveRoutes(emptySet(), emptySet())
-        } else {
-            withContext(Dispatchers.IO) {
-                resolveEffectiveRoutes(ctx.packageManager, persistedRoutes)
-            }
-        }
+    val splitLayout = homeUsesSplitLayout(currentWindowAdaptiveInfoV2().windowSizeClass)
+
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.refreshRoutes()
     }
 
     var showStarting by remember { mutableStateOf(false) }
@@ -127,7 +114,7 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
         if (st == VpnState.Starting) {
             showStarting = false
             delay(Motion.DEFERRED_BUSY_MS)
-            if (VpnController.state.value == VpnState.Starting) showStarting = true
+            if (viewModel.uiState.value.vpnState == VpnState.Starting) showStarting = true
         } else {
             showStarting = false
             lastSettledState = st
@@ -149,65 +136,77 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
         previousEngineState = st
     }
 
-    val status = statusStyleFor(c, visualState)
-    val style = StatusStyle(
-        container = animateColorAsState(status.container, tween(Motion.STATE_MS), label = "cardBg").value,
-        content = animateColorAsState(status.content, tween(Motion.COLOR_MS), label = "cardFg").value,
-        border = animateColorAsState(status.border, tween(Motion.STATE_MS), label = "cardBorder").value,
-    )
+    val targetStatus = statusStyleFor(c, visualState)
+    val statusContent = animateColorAsState(
+        targetStatus.content,
+        tween(Motion.COLOR_MS),
+        label = "statusContent",
+    ).value
 
-    var elapsed by rememberSaveable { mutableIntStateOf(0) }
-    LaunchedEffect(st, settings?.sessionStartedAt) {
-        if (st == VpnState.Active) {
-            val started = settings?.sessionStartedAt ?: System.currentTimeMillis()
-            while (true) {
-                elapsed = ((System.currentTimeMillis() - started) / 1000L).coerceAtLeast(0).toInt()
-                delay(1000)
+    val snackbarHostState = remember { SnackbarHostState() }
+    val notificationPermissionTracker = rememberManualNotificationPermissionTracker(
+        vpnState = st,
+        snackbarHostState = snackbarHostState,
+    )
+    val scope = rememberCoroutineScope()
+    val permissionNotGrantedMessage = stringResource(R.string.err_vpn_permission)
+    val consentLauncher = rememberLauncherForActivityResult(StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            VpnController.startNow(ctx)
+        } else {
+            notificationPermissionTracker.cancel()
+            scope.launch {
+                snackbarHostState.showSnackbar(permissionNotGrantedMessage)
             }
-        } else elapsed = 0
+        }
     }
-    val timerText = remember(elapsed) {
-        val h = elapsed / 3600
-        val m = (elapsed % 3600) / 60
-        val sec = elapsed % 60
-        "%02d:%02d:%02d".format(h, m, sec)
-    }
-    val serverHost = remember(settings?.vlessUri, settings?.warpProfile, settings?.activeVpn) {
-        when (settings?.activeVpn ?: VpnProfileKind.VLESS) {
-            VpnProfileKind.VLESS ->
-                (VlessKeyParser.parse(settings?.vlessUri ?: "") as? ParseResult.Ok)?.profile?.server
-            VpnProfileKind.WARP -> settings?.warpProfile?.name
+    val canCancelStarting = st == VpnState.Starting && showStarting
+    val onMainAction: () -> Unit = {
+        when {
+            st == VpnState.Active -> {
+                notificationPermissionTracker.cancel()
+                VpnController.stop(ctx)
+            }
+            canCancelStarting -> {
+                notificationPermissionTracker.cancel()
+                VpnController.stop(ctx)
+            }
+            st != VpnState.Starting -> {
+                notificationPermissionTracker.begin()
+                VpnController.start(ctx, consentLauncher::launch)
+            }
         }
     }
 
-    val consentLauncher = rememberLauncherForActivityResult(StartActivityForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) VpnController.startNow(ctx)
-    }
-    val onMainAction: () -> Unit = {
-        if (st == VpnState.Active) VpnController.stop(ctx)
-        else if (st != VpnState.Starting) VpnController.start(ctx, consentLauncher::launch)
-    }
-
-    val activeVpn = settings?.activeVpn ?: VpnProfileKind.VLESS
-    val protocolRes = when (homeProtocol(effectiveRoutes)) {
-        HomeProtocol.VLESS_DPI -> if (activeVpn == VpnProfileKind.WARP) R.string.protocol_warp_dpi else R.string.protocol_vless_dpi
+    val protocolRes = when (uiState.protocol) {
+        HomeProtocol.VLESS_DPI -> if (uiState.activeVpn == VpnProfileKind.WARP) R.string.protocol_warp_dpi else R.string.protocol_vless_dpi
         HomeProtocol.DPI -> R.string.protocol_dpi
-        HomeProtocol.VLESS -> if (activeVpn == VpnProfileKind.WARP) R.string.protocol_warp else R.string.protocol_vless
+        HomeProtocol.VLESS -> if (uiState.activeVpn == VpnProfileKind.WARP) R.string.protocol_warp else R.string.protocol_vless
         HomeProtocol.NONE -> R.string.protocol_none
+    }
+    val dnsValue = when (uiState.dnsId) {
+        "google" -> stringResource(R.string.dns_google)
+        "cloudflare" -> stringResource(R.string.dns_cloudflare)
+        "adguard" -> stringResource(R.string.dns_adguard)
+        DnsOptions.CUSTOM -> uiState.dnsCustom.ifBlank { stringResource(R.string.server_missing) }
+        else -> stringResource(R.string.server_missing)
     }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = c.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             Box(Modifier.fillMaxWidth().navigationBarsPadding()) {
                 MainButton(
                     state = visualState,
-                    busy = st == VpnState.Starting,
+                    busy = st == VpnState.Starting && !showStarting,
                     onClick = onMainAction,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = Spacing.space16, vertical = Spacing.space20),
+                        .align(Alignment.Center)
+                        .padding(horizontal = Spacing.space16, vertical = Spacing.space20)
+                        .widthIn(max = 480.dp)
+                        .fillMaxWidth(),
                 )
             }
         },
@@ -237,20 +236,94 @@ fun HomeScreen(store: RoutesStore, onOpenSettings: () -> Unit, modifier: Modifie
                 }
             }
 
-            Spacer(Modifier.weight(1f))
-            StatusCard(
-                state = visualState,
-                style = style,
-                timerText = timerText,
-                serverHost = serverHost,
-                protocol = stringResource(protocolRes),
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .fillMaxWidth()
-                    .padding(horizontal = Spacing.space16)
-                    .widthIn(max = 360.dp),
+            Box(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                contentAlignment = Alignment.Center,
+            ) {
+                HomeConnectionContent(
+                    splitLayout = splitLayout,
+                    state = visualState,
+                    statusContent = statusContent,
+                    sessionStartedAt = uiState.sessionStartedAt,
+                    profileName = uiState.profileName,
+                    activeVpn = uiState.activeVpn,
+                    serverHost = uiState.serverHost,
+                    endpointCount = uiState.endpointCount,
+                    protocol = stringResource(protocolRes),
+                    dns = dnsValue,
+                    onOpenProfiles = onOpenProfiles,
+                    onOpenDns = onOpenDns,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeConnectionContent(
+    splitLayout: Boolean,
+    state: VpnState,
+    statusContent: Color,
+    sessionStartedAt: Long?,
+    profileName: String?,
+    activeVpn: VpnProfileKind,
+    serverHost: String?,
+    endpointCount: Int,
+    protocol: String,
+    dns: String,
+    onOpenProfiles: () -> Unit,
+    onOpenDns: () -> Unit,
+) {
+    val contentModifier = Modifier
+        .padding(horizontal = Spacing.space16, vertical = Spacing.space24)
+        .widthIn(max = if (splitLayout) 960.dp else 480.dp)
+        .fillMaxWidth()
+
+    if (splitLayout) {
+        Row(
+            modifier = contentModifier,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.space32),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ConnectionHero(
+                state = state,
+                statusContent = statusContent,
+                sessionStartedAt = sessionStartedAt,
+                modifier = Modifier.weight(1f),
             )
-            Spacer(Modifier.weight(1.35f))
+            ConnectionDetails(
+                profileName = profileName,
+                activeVpn = activeVpn,
+                serverHost = serverHost,
+                endpointCount = endpointCount,
+                protocol = protocol,
+                dns = dns,
+                onOpenProfiles = onOpenProfiles,
+                onOpenDns = onOpenDns,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    } else {
+        Column(
+            modifier = contentModifier,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            ConnectionHero(
+                state = state,
+                statusContent = statusContent,
+                sessionStartedAt = sessionStartedAt,
+            )
+            Spacer(Modifier.height(Spacing.space24))
+            ConnectionDetails(
+                profileName = profileName,
+                activeVpn = activeVpn,
+                serverHost = serverHost,
+                endpointCount = endpointCount,
+                protocol = protocol,
+                dns = dns,
+                onOpenProfiles = onOpenProfiles,
+                onOpenDns = onOpenDns,
+            )
         }
     }
 }
@@ -263,34 +336,24 @@ private fun MainButton(
     modifier: Modifier = Modifier,
 ) {
     val c = detourColors
-    val activeMain = state == VpnState.Active
     val container by animateColorAsState(
-        when {
-            activeMain -> c.surfaceSelected
-            state == VpnState.Starting -> c.surface
-            else -> c.accent
-        },
-        tween(Motion.STATE_MS), label = "btnBg",
+        if (state == VpnState.Starting) c.surface else c.accent,
+        tween(Motion.STATE_MS),
+        label = "btnBg",
     )
     val content by animateColorAsState(
-        when {
-            activeMain -> c.accent
-            state == VpnState.Starting -> c.accent
-            else -> c.onAccent
-        },
-        tween(Motion.COLOR_MS), label = "btnFg",
+        if (state == VpnState.Starting) c.accent else c.onAccent,
+        tween(Motion.COLOR_MS),
+        label = "btnFg",
     )
     val borderColor by animateColorAsState(
-        when {
-            activeMain -> c.accentBorder
-            state == VpnState.Starting -> c.accentBorder
-            else -> Color.Transparent
-        },
-        tween(Motion.STATE_MS), label = "btnBorder",
+        if (state == VpnState.Starting) c.accentBorder else Color.Transparent,
+        tween(Motion.STATE_MS),
+        label = "btnBorder",
     )
     val text = when (state) {
         VpnState.Active -> stringResource(R.string.btn_disconnect)
-        VpnState.Starting -> stringResource(R.string.btn_connecting)
+        VpnState.Starting -> stringResource(R.string.btn_cancel_connecting)
         else -> stringResource(R.string.btn_connect)
     }
 
@@ -308,37 +371,38 @@ private fun MainButton(
 }
 
 @Composable
-private fun StatusCard(
+private fun ConnectionHero(
     state: VpnState,
-    style: StatusStyle,
-    timerText: String,
-    serverHost: String?,
-    protocol: String,
+    statusContent: Color,
+    sessionStartedAt: Long?,
     modifier: Modifier = Modifier,
 ) {
     val c = detourColors
     val key = visualKey(state)
-    Column(
-        modifier
-            .clip(AppShapes.medium)
-            .background(style.container)
-            .border(1.dp, style.border, AppShapes.medium)
-            .padding(Spacing.space20),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        AnimatedContent(
-            targetState = key,
-            transitionSpec = {
-                fadeIn(tween(Motion.CONTENT_IN_MS)) togetherWith
-                    fadeOut(tween(Motion.CONTENT_OUT_MS))
-            },
-            label = "statusTitle",
-        ) { target ->
+
+    AnimatedContent(
+        targetState = key,
+        modifier = modifier.fillMaxWidth(),
+        transitionSpec = {
+            fadeIn(tween(Motion.CONTENT_IN_MS)) togetherWith
+                fadeOut(tween(Motion.CONTENT_OUT_MS))
+        },
+        label = "connectionHero",
+    ) { target ->
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
             Row(
-                Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
             ) {
+                Box(
+                    Modifier
+                        .size(10.dp)
+                        .background(statusContent, CircleShape),
+                )
+                Spacer(Modifier.size(Spacing.space8))
                 val titleRes = when (target) {
                     VisualVpnState.ACTIVE -> R.string.status_active
                     VisualVpnState.STARTING -> R.string.status_starting
@@ -347,78 +411,146 @@ private fun StatusCard(
                 }
                 Text(
                     stringResource(titleRes),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = style.content,
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = c.textPrimary,
                 )
                 if (target == VisualVpnState.STARTING) {
-                    Spacer(Modifier.size(10.dp))
+                    Spacer(Modifier.size(Spacing.space8))
                     CircularProgressIndicator(
-                        modifier = Modifier.size(14.dp),
+                        modifier = Modifier.size(16.dp),
                         strokeWidth = 1.5.dp,
-                        color = style.content,
+                        color = statusContent,
                     )
                 }
             }
-        }
 
-        AnimatedContent(
-            targetState = key,
-            transitionSpec = {
-                fadeIn(tween(Motion.CONTENT_IN_MS)) togetherWith
-                    fadeOut(tween(Motion.CONTENT_OUT_MS))
-            },
-            label = "statusSubtitle",
-        ) { target ->
             when (target) {
                 VisualVpnState.FAILED -> Text(
-                    (state as? VpnState.Failed)?.reason ?: "",
+                    (state as? VpnState.Failed)?.reason.orEmpty(),
                     style = MaterialTheme.typography.bodyMedium,
                     color = c.textSecondary,
-                    modifier = Modifier.padding(top = Spacing.space4),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .padding(top = Spacing.space8)
+                        .widthIn(max = 360.dp),
                 )
                 VisualVpnState.IDLE -> Text(
                     stringResource(R.string.state_sub_idle),
                     style = MaterialTheme.typography.bodyLarge,
                     color = c.textSecondary,
-                    modifier = Modifier.padding(top = Spacing.space4),
+                    modifier = Modifier.padding(top = Spacing.space8),
                 )
-                VisualVpnState.STARTING -> Text(
-                    stringResource(R.string.btn_connecting),
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-                    ),
-                    color = style.content,
-                    modifier = Modifier.padding(top = Spacing.space4),
-                )
-                VisualVpnState.ACTIVE -> Text(
-                    timerText,
-                    style = MaterialTheme.typography.bodyLarge.copy(
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
-                        fontFeatureSettings = "tnum",
-                    ),
-                    color = style.content,
-                    modifier = Modifier.padding(top = Spacing.space4),
+                VisualVpnState.STARTING -> Unit
+                VisualVpnState.ACTIVE -> SessionTimer(
+                    sessionStartedAt = sessionStartedAt,
+                    color = statusContent,
                 )
             }
         }
-
-        Spacer(Modifier.height(12.dp))
-        Box(Modifier.fillMaxWidth().height(1.dp).background(c.divider))
-        Spacer(Modifier.height(10.dp))
-
-        InfoRow(stringResource(R.string.row_protocol), protocol)
-        InfoRow(
-            stringResource(R.string.row_server),
-            serverHost ?: stringResource(R.string.server_missing),
-        )
     }
 }
 
 @Composable
-private fun InfoRow(label: String, value: String) {
+private fun ConnectionDetails(
+    profileName: String?,
+    activeVpn: VpnProfileKind,
+    serverHost: String?,
+    endpointCount: Int,
+    protocol: String,
+    dns: String,
+    onOpenProfiles: () -> Unit,
+    onOpenDns: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    DetourCard(modifier) {
+        Column(
+            Modifier.padding(horizontal = Spacing.space16, vertical = Spacing.space12),
+        ) {
+            InfoRow(
+                stringResource(R.string.row_profile),
+                profileName ?: stringResource(R.string.server_missing),
+                modifier = Modifier.testTag(HOME_PROFILE_ROW_TEST_TAG),
+                onClick = onOpenProfiles,
+            )
+            DetailsDivider()
+            if (activeVpn == VpnProfileKind.WARP) {
+                InfoRow(
+                    stringResource(R.string.row_endpoints),
+                    endpointCount.takeIf { it > 0 }?.toString() ?: stringResource(R.string.server_missing),
+                )
+            } else {
+                InfoRow(
+                    stringResource(R.string.row_server),
+                    serverHost ?: stringResource(R.string.server_missing),
+                )
+            }
+            DetailsDivider()
+            InfoRow(stringResource(R.string.row_protocol), protocol)
+            DetailsDivider()
+            InfoRow(
+                stringResource(R.string.row_dns),
+                dns,
+                onClick = onOpenDns,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DetailsDivider() {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = Spacing.space8)
+            .height(1.dp)
+            .background(detourColors.divider),
+    )
+}
+
+@Composable
+private fun SessionTimer(sessionStartedAt: Long?, color: Color) {
+    var elapsed by remember(sessionStartedAt) { mutableIntStateOf(0) }
+    LaunchedEffect(sessionStartedAt) {
+        val started = sessionStartedAt ?: System.currentTimeMillis()
+        while (true) {
+            elapsed = ((System.currentTimeMillis() - started) / 1000L).coerceAtLeast(0).toInt()
+            delay(1000)
+        }
+    }
+    Text(
+        formatSessionElapsed(elapsed),
+        style = MaterialTheme.typography.titleLarge.copy(
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+            fontFeatureSettings = "tnum",
+        ),
+        color = color,
+        modifier = Modifier.padding(top = Spacing.space8),
+    )
+}
+
+@Composable
+private fun InfoRow(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+) {
     val c = detourColors
+    val rowModifier = if (onClick != null) {
+        modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .detourClickable(
+                onClick = onClick,
+                role = androidx.compose.ui.semantics.Role.Button,
+                pressedColor = c.surfaceSelected.copy(alpha = 0.38f),
+                pressScale = Motion.PRESS_ROW,
+            )
+    } else {
+        modifier.fillMaxWidth()
+    }
     Row(
-        Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        rowModifier.padding(vertical = Spacing.space4),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -429,6 +561,7 @@ private fun InfoRow(label: String, value: String) {
         )
         AnimatedContent(
             targetState = value,
+            modifier = Modifier.weight(1f),
             transitionSpec = {
                 fadeIn(tween(Motion.CONTENT_IN_MS)) togetherWith
                     fadeOut(tween(Motion.CONTENT_OUT_MS))
@@ -444,5 +577,6 @@ private fun InfoRow(label: String, value: String) {
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        if (onClick != null) Chevron()
     }
 }

@@ -117,12 +117,15 @@ class ConfigGeneratorTest {
         assertTrue(dpiIdx > quicIdx)
     }
 
-    @Test fun `dpi socks outbound targets loopback port`() {
-        val yaml = ConfigGenerator.build(input())
-        assertTrue(yaml.contains("- name: DPI"))
-        assertTrue(yaml.contains("type: socks5"))
-        assertTrue(yaml.contains("server: 127.0.0.1"))
-        assertTrue(yaml.contains("port: 10808"))
+    @Test fun `dpi socks outbound targets authenticated loopback port`() {
+        val routing = input()
+        val yaml = ConfigGenerator.build(routing)
+        val dpiBlock = yaml.substringAfter("- name: DPI").substringBefore("listeners:")
+        assertTrue(dpiBlock.contains("type: socks5"))
+        assertTrue(dpiBlock.contains("server: 127.0.0.1"))
+        assertTrue(dpiBlock.contains("port: 10808"))
+        assertTrue(dpiBlock.contains("username: ${routing.probeCredentials.username}"))
+        assertTrue(dpiBlock.contains("password: ${routing.probeCredentials.password}"))
     }
 
     @Test fun `last rule rejects unknown ownership`() {
@@ -165,14 +168,18 @@ class ConfigGeneratorTest {
         assertFalse(yaml.contains("mixed-port:"))
     }
 
-    @Test fun `health probes are pinned to their outbounds`() {
-        val yaml = ConfigGenerator.build(input())
+    @Test fun `health probes are pinned and authenticated`() {
+        val routing = input()
+        val yaml = ConfigGenerator.build(routing)
         assertTrue(yaml.contains("name: PROBE_VLESS"))
         assertTrue(yaml.contains("port: 10810"))
         assertTrue(yaml.contains("proxy: VLESS"))
         assertTrue(yaml.contains("name: PROBE_DPI"))
         assertTrue(yaml.contains("port: 10811"))
         assertTrue(yaml.contains("proxy: DPI"))
+        assertTrue(yaml.contains("username: ${routing.probeCredentials.username}"))
+        assertTrue(yaml.contains("password: ${routing.probeCredentials.password}"))
+        assertEquals(2, Regex("\\n  users:\\n").findAll(yaml).count())
     }
 
     @Test fun `whole vless output matches golden yaml`() {
@@ -237,6 +244,8 @@ class ConfigGeneratorTest {
             |  type: socks5
             |  server: 127.0.0.1
             |  port: 10808
+            |  username: ${ProbeAuth.current().username}
+            |  password: ${ProbeAuth.current().password}
             |  udp: false
             |listeners:
             |- name: PROBE_VLESS
@@ -244,11 +253,17 @@ class ConfigGeneratorTest {
             |  listen: 127.0.0.1
             |  port: 10810
             |  proxy: VLESS
+            |  users:
+            |    - username: ${ProbeAuth.current().username}
+            |      password: ${ProbeAuth.current().password}
             |- name: PROBE_DPI
             |  type: mixed
             |  listen: 127.0.0.1
             |  port: 10811
             |  proxy: DPI
+            |  users:
+            |    - username: ${ProbeAuth.current().username}
+            |      password: ${ProbeAuth.current().password}
             |rules:
             |- IP-CIDR6,::/0,REJECT,no-resolve
             |- UID,10101,VLESS
