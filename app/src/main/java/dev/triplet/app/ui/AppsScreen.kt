@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -71,6 +72,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 private val AppsContentMaxWidth = 840.dp
+private val AppRowWideBreakpoint = 700.dp
 
 @Composable
 fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
@@ -99,6 +101,13 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
     val showSystem = state.showSystemApps
     val loadedApps = state.loadedApps
     val allApps = loadedApps.orEmpty()
+    val routeCounts = remember(allApps, state.routes) {
+        AppRoute.entries.associateWith { route ->
+            allApps.count { app ->
+                (state.routes[app.packageName] ?: AppRoute.DIRECT) == route
+            }
+        }
+    }
     val screenOrder = remember(allApps) {
         AppRouteOrdering.snapshot(allApps, state.routes)
     }
@@ -217,6 +226,11 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
                     compact = true,
                 )
             }
+
+            if (loadedApps != null) {
+                GroupDivider(startInset = 16)
+                RouteDistributionRow(routeCounts)
+            }
         }
 
         Spacer(Modifier.height(Spacing.space12))
@@ -296,7 +310,7 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
                                 if (i < apps.lastIndex) {
                                     Box(
                                         Modifier.fillMaxWidth()
-                                            .padding(start = 52.dp)
+                                            .padding(start = 64.dp)
                                             .height(1.dp)
                                             .background(c.divider),
                                     )
@@ -308,6 +322,75 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RouteDistributionRow(counts: Map<AppRoute, Int>) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.space12, vertical = Spacing.space10),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.space8),
+    ) {
+        AppRoute.entries.forEach { route ->
+            RouteCountTile(
+                route = route,
+                count = counts[route] ?: 0,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun RouteCountTile(
+    route: AppRoute,
+    count: Int,
+    modifier: Modifier = Modifier,
+) {
+    val c = detourColors
+    val iconRes = when (route) {
+        AppRoute.DIRECT -> R.drawable.ic_globe
+        AppRoute.VPN -> R.drawable.ic_lock
+        AppRoute.DPI -> R.drawable.ic_dpi
+    }
+
+    Column(
+        modifier = modifier
+            .heightIn(min = 58.dp)
+            .background(c.surfaceSoft, AppShapes.extraSmall)
+            .border(1.dp, c.border.copy(alpha = 0.72f), AppShapes.extraSmall)
+            .padding(horizontal = Spacing.space8, vertical = Spacing.space8),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Icon(
+                painter = painterResource(iconRes),
+                contentDescription = null,
+                tint = c.accent,
+                modifier = Modifier.size(15.dp),
+            )
+            Text(
+                text = stringResource(routeLabel(route)),
+                style = MaterialTheme.typography.labelSmall,
+                color = c.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = Spacing.space4),
+            )
+        }
+        Text(
+            text = count.toString(),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = c.textPrimary,
+            modifier = Modifier.padding(top = Spacing.space2),
+        )
     }
 }
 
@@ -358,14 +441,23 @@ private fun InventoryErrorBanner(
         modifier
             .clip(AppShapes.small)
             .background(c.errorSoft)
+            .border(1.dp, c.error.copy(alpha = 0.28f), AppShapes.small)
             .padding(start = Spacing.space16, end = Spacing.space4, top = Spacing.space4, bottom = Spacing.space4),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_warning),
+            contentDescription = null,
+            tint = c.error,
+            modifier = Modifier.size(18.dp),
+        )
         Text(
             text = stringResource(R.string.routes_refresh_error),
             style = MaterialTheme.typography.bodySmall,
             color = c.textPrimary,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier
+                .padding(start = Spacing.space8)
+                .weight(1f),
         )
         TextButton(onClick = onRetry) {
             Text(stringResource(R.string.action_retry), color = c.error)
@@ -380,7 +472,6 @@ private fun AppRow(
     onSelect: (AppRoute) -> Unit,
 ) {
     val ctx = LocalContext.current
-    val c = detourColors
     val bmp by produceState<Bitmap?>(
         initialValue = AppInventory.peekIcon(app.packageName),
         key1 = app.packageName,
@@ -392,46 +483,111 @@ private fun AppRow(
         }
     }
 
-    Column(Modifier.fillMaxWidth().padding(horizontal = Spacing.space16, vertical = Spacing.space12)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            val icon = bmp
-            if (icon != null) {
+    BoxWithConstraints(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
+    ) {
+        val wide = maxWidth >= AppRowWideBreakpoint
+        if (wide) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                AppIdentity(
+                    app = app,
+                    bitmap = bmp,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(Spacing.space16))
+                AppRouteSelector(
+                    current = current,
+                    onSelect = onSelect,
+                    modifier = Modifier.width(320.dp),
+                )
+            }
+        } else {
+            Column(Modifier.fillMaxWidth()) {
+                AppIdentity(app = app, bitmap = bmp)
+                Spacer(Modifier.height(Spacing.space10))
+                AppRouteSelector(current = current, onSelect = onSelect)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppIdentity(
+    app: AppInfo,
+    bitmap: Bitmap?,
+    modifier: Modifier = Modifier,
+) {
+    val c = detourColors
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .background(c.surfaceSoft, AppShapes.extraSmall)
+                .border(1.dp, c.border.copy(alpha = 0.72f), AppShapes.extraSmall),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (bitmap != null) {
                 Image(
-                    icon.asImageBitmap(), null,
-                    modifier = Modifier.size(26.dp).clip(AppShapes.extraSmall),
+                    bitmap.asImageBitmap(),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(AppShapes.extraSmall),
                 )
             } else {
                 Icon(
-                    painterResource(R.drawable.ic_routes), null,
-                    modifier = Modifier.size(22.dp),
+                    painter = painterResource(R.drawable.ic_routes),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
                     tint = c.textMuted,
                 )
             }
-            Column(Modifier.padding(start = 10.dp).weight(1f)) {
-                Text(
-                    app.label,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    color = c.textPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    app.packageName,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = c.textMuted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
         }
-        Spacer(Modifier.height(Spacing.space8))
-        SegmentedControl(
-            options = AppRoute.entries.map { stringResource(routeLabel(it)) },
-            selected = AppRoute.entries.indexOf(current),
-            onSelect = { idx -> onSelect(AppRoute.entries[idx]) },
-        )
+        Column(
+            Modifier
+                .padding(start = Spacing.space12)
+                .weight(1f),
+        ) {
+            Text(
+                app.label,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = c.textPrimary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                app.packageName,
+                style = MaterialTheme.typography.labelSmall,
+                color = c.textMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = Spacing.space2),
+            )
+        }
     }
+}
+
+@Composable
+private fun AppRouteSelector(
+    current: AppRoute,
+    onSelect: (AppRoute) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SegmentedControl(
+        options = AppRoute.entries.map { stringResource(routeLabel(it)) },
+        selected = AppRoute.entries.indexOf(current),
+        onSelect = { idx -> onSelect(AppRoute.entries[idx]) },
+        modifier = modifier,
+    )
 }
 
 fun routeLabel(r: AppRoute): Int = when (r) {
