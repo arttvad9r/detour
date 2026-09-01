@@ -73,7 +73,7 @@ fun DnsScreen(viewModel: DnsViewModel, onBack: () -> Unit, modifier: Modifier = 
             .verticalScroll(scrollState)
             .detourHighRefresh(spatialMotionActive),
     ) {
-        ScreenHeader(stringResource(R.string.dns_title), onBack)
+        DetourBrandedHeader(stringResource(R.string.dns_title), onBack)
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
