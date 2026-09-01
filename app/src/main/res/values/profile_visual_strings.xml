@@ -2,4 +2,6 @@
     <string name="profile_selected">Selected</string>
     <string name="profile_server_label">Server</string>
     <string name="profile_type_label">Type</string>
+    <string name="profile_reality">Reality</string>
+    <string name="profile_amneziawg">AmneziaWG</string>
 </resources>
