@@ -18,7 +18,7 @@ class SubscriptionProviderStateParserTest {
               "subscriptionInfo":{"Upload":100,"Download":200,"Total":1000,"Expire":1900000000},
               "proxies":[
                 {"name":"DE-1","type":"Vless","alive":true,"history":[{"delay":87}]},
-                {"name":"NL-1","type":"Vless","alive":false,"history":[{"delay":0}]}
+                {"name":"NL-1","type":"Vless","alive":false,"history":[]}
               ]
             }
             """.trimIndent(),
@@ -33,6 +33,25 @@ class SubscriptionProviderStateParserTest {
         assertNull(state.nodes[1].delayMs)
         assertEquals(1000L, state.usage?.totalBytes)
         assertEquals("2026-09-01T20:00:00Z", state.updatedAt)
+    }
+
+    @Test fun `remote labels with control characters are not exposed`() {
+        val state = SubscriptionProviderStateParser.parse(
+            """
+            {
+              "name":"DETOUR_SUBSCRIPTION",
+              "proxies":[
+                {"name":"safe","type":"Vless","alive":true},
+                {"name":"bad\\u0001name","type":"Vless","alive":true}
+              ]
+            }
+            """.trimIndent(),
+        )
+
+        assertTrue(state.available)
+        assertEquals(2, state.totalNodes)
+        assertEquals(2, state.aliveNodes)
+        assertEquals(listOf("safe"), state.nodes.map { it.name })
     }
 
     @Test fun `blank or unrelated provider is unavailable`() {

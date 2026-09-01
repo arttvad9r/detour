@@ -12,6 +12,56 @@ func TestReadyIsFalseBeforeStart(t *testing.T) {
 	}
 }
 
+func TestSubscriptionProviderRuntimeApiIsSafeBeforeStart(t *testing.T) {
+	if got := SubscriptionProviderState(); got != "" {
+		t.Fatalf("inactive provider state must be empty, got %q", got)
+	}
+	if err := RefreshSubscriptionProvider(); err == nil {
+		t.Fatal("refresh must fail while engine is not ready")
+	}
+}
+
+func TestMihomoAcceptsSubscriptionProviderConfig(t *testing.T) {
+	const yaml = `
+mode: rule
+ipv6: false
+proxies:
+- name: DPI
+  type: socks5
+  server: 127.0.0.1
+  port: 10808
+proxy-providers:
+  DETOUR_SUBSCRIPTION:
+    type: http
+    url: https://subscription.example/opaque-token
+    interval: 3600
+    size-limit: 4194304
+    health-check:
+      enable: true
+      url: https://www.gstatic.com/generate_204
+      interval: 300
+      timeout: 5000
+      lazy: false
+      expected-status: 204
+proxy-groups:
+- name: SUBSCRIPTION
+  type: fallback
+  url: https://www.gstatic.com/generate_204
+  interval: 300
+  lazy: false
+  timeout: 5000
+  max-failed-times: 2
+  expected-status: 204
+  use:
+    - DETOUR_SUBSCRIPTION
+rules:
+- MATCH,SUBSCRIPTION
+`
+	if _, err := config.Parse([]byte(yaml)); err != nil {
+		t.Fatalf("mihomo rejected subscription provider schema: %v", err)
+	}
+}
+
 func TestMihomoAcceptsAmneziaWarpConfig(t *testing.T) {
 	const yaml = `
 mode: rule
