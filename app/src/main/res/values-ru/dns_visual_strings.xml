@@ -1,0 +1,8 @@
+<resources>
+    <string name="dns_google_subtitle">Google Public DNS · обычный DNS</string>
+    <string name="dns_cloudflare_subtitle">Cloudflare · DNS over HTTPS</string>
+    <string name="dns_adguard_subtitle">AdGuard DNS · DNS over HTTPS</string>
+    <string name="dns_custom_subtitle">IP-адрес или HTTPS DoH URL</string>
+    <string name="dns_info">HTTPS DoH-резолверы шифруются. DNS по IP использует обычные DNS-запросы внутри туннеля Detour.</string>
+    <string name="dns_selected">Выбранный резолвер</string>
+</resources>
