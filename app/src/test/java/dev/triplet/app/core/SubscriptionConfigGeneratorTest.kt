@@ -5,7 +5,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SubscriptionConfigGeneratorTest {
-    @Test fun `subscription uses dedicated outbound provider and fallback group`() {
+    @Test fun `subscription uses dedicated provider and manual selector group`() {
         val input = RoutingInput(
             tunFd = 7,
             apiLevel = 33,
@@ -17,14 +17,16 @@ class SubscriptionConfigGeneratorTest {
 
         val yaml = ConfigGenerator.build(input)
 
+        assertTrue(yaml.contains("profile:\n  store-selected: true"))
         assertTrue(yaml.contains("proxy-providers:\n  DETOUR_SUBSCRIPTION:"))
         assertTrue(yaml.contains("url: \"https://subscription.example/opaque-token\""))
-        assertTrue(yaml.contains("- name: SUBSCRIPTION\n  type: fallback"))
+        assertTrue(yaml.contains("- name: SUBSCRIPTION\n  type: select"))
         assertTrue(yaml.contains("use:\n    - DETOUR_SUBSCRIPTION"))
         assertTrue(yaml.contains("- UID,10101,SUBSCRIPTION"))
         assertTrue(yaml.contains("name: PROBE_SUBSCRIPTION"))
         assertTrue(yaml.contains("proxy: SUBSCRIPTION"))
         assertFalse(yaml.contains("type: vless"))
+        assertFalse(yaml.contains("- name: SUBSCRIPTION\n  type: fallback"))
     }
 
     @Test(expected = IllegalArgumentException::class)
