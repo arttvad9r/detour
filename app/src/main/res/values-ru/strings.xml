@@ -24,6 +24,8 @@
     <string name="protocol_vless">VLESS</string>
     <string name="protocol_warp">WARP</string>
     <string name="protocol_none">—</string>
+    <string name="home_device">Устройство</string>
+    <string name="home_internet">Интернет</string>
     <string name="settings_title">Настройки</string>
     <string name="settings_section_routing">Маршрутизация</string>
     <string name="settings_section_connection">Подключение</string>
@@ -37,7 +39,13 @@
     <string name="nav_key_sub_warp">WARP / AmneziaWG</string>
     <string name="nav_theme">Оформление</string>
     <string name="theme_title">Оформление</string>
-    <string name="theme_hint">Тема применяется сразу ко всему приложению</string>
+    <string name="theme_hint">Фирменные темы Detour основаны на фиолетовой палитре иконки. Темы сообщества остаются доступны.</string>
+    <string name="theme_detour_light">Detour Light</string>
+    <string name="theme_detour_dark">Detour Dark</string>
+    <string name="theme_catppuccin_latte">Catppuccin Latte</string>
+    <string name="theme_catppuccin_mocha">Catppuccin Mocha</string>
+    <string name="theme_gruvbox_dark">Gruvbox Dark</string>
+    <string name="theme_dracula">Dracula</string>
     <string name="auto_connect">Подключаться при запуске</string>
     <string name="nav_dns">DNS</string>
     <string name="nav_dns_sub">резолвер для туннеля</string>
