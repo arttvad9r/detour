@@ -6,6 +6,7 @@
 package engine
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/netip"
 	"os"
@@ -22,7 +23,10 @@ import (
 	"github.com/metacubex/mihomo/listener"
 	LC "github.com/metacubex/mihomo/listener/config"
 	"github.com/metacubex/mihomo/log"
+	"github.com/metacubex/mihomo/tunnel"
 )
+
+const subscriptionProviderName = "DETOUR_SUBSCRIPTION"
 
 // ProcessResolver resolves the owning app of a TUN connection host-side.
 // Return "" if unknown. Non-empty response MUST be "<uid> <packageName>".
@@ -97,6 +101,42 @@ func Ready() bool {
 	readyMu.RLock()
 	defer readyMu.RUnlock()
 	return ready
+}
+
+// SubscriptionProviderState returns mihomo's API-safe provider JSON for the
+// Detour subscription provider. The provider serializer intentionally contains
+// node/runtime metadata but not the secret subscription URL.
+// An empty string means the subscription provider is not active.
+func SubscriptionProviderState() string {
+	if !Ready() {
+		return ""
+	}
+	provider, ok := tunnel.Providers()[subscriptionProviderName]
+	if !ok {
+		return ""
+	}
+	payload, err := json.Marshal(provider)
+	if err != nil {
+		return ""
+	}
+	return string(payload)
+}
+
+// RefreshSubscriptionProvider forces a remote provider update, then refreshes
+// its health state. Callers must run this away from Android's main thread.
+func RefreshSubscriptionProvider() error {
+	if !Ready() {
+		return fmt.Errorf("engine is not ready")
+	}
+	provider, ok := tunnel.Providers()[subscriptionProviderName]
+	if !ok {
+		return fmt.Errorf("subscription provider is not active")
+	}
+	if err := provider.Update(); err != nil {
+		return err
+	}
+	provider.HealthCheck()
+	return nil
 }
 
 // Stop shuts down the mihomo runtime.
