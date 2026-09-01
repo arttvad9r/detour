@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+import androidx.compose.material3.adaptive.navigation3.LocalListDetailSceneScope
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,29 +58,37 @@ fun DetourBrandWordmark(modifier: Modifier = Modifier) {
     }
 }
 
+@OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
 fun DetourBrandedHeader(
     title: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    hideBackInListDetail: Boolean = true,
 ) {
     val c = detourColors
+    val showBack = !hideBackInListDetail || LocalListDetailSceneScope.current == null
     Row(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 64.dp)
-            .padding(start = Spacing.space4, end = Spacing.space20),
+            .padding(
+                start = if (showBack) Spacing.space4 else Spacing.space20,
+                end = Spacing.space20,
+            ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        DetourIconButton(onClick = onBack) {
-            Icon(
-                painter = painterResource(R.drawable.ic_back),
-                contentDescription = stringResource(R.string.cd_back),
-                tint = c.textPrimary,
-                modifier = Modifier.size(22.dp),
-            )
+        if (showBack) {
+            DetourIconButton(onClick = onBack) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_back),
+                    contentDescription = stringResource(R.string.cd_back),
+                    tint = c.textPrimary,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            Spacer(Modifier.width(Spacing.space4))
         }
-        Spacer(Modifier.width(Spacing.space4))
         DetourBrandMark(size = 28.dp)
         Spacer(Modifier.width(Spacing.space8))
         Text(
