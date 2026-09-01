@@ -47,7 +47,55 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           export PATH="$(go env GOPATH)/bin:$PATH"
           gomobile init
-      - run: ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest :app:assembleRelease :baselineprofile:assemble
+      - name: Build debug, tests and benchmark producer
+        run: >-
+          ./gradlew
+          :app:testDebugUnitTest
+          :app:lintDebug
+          :app:assembleDebug
+          :app:assembleDebugAndroidTest
+          :baselineprofile:assemble
+      - run: bash engine/vulnscan.sh
+      - name: Generate Baseline Profile and run instrumentation on Android 16
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+        timeout-minutes: 20
+        shell: bash
+        env:
+          DETOUR_GENERATE_BASELINE_PROFILE: '1'
+        run: bash tools/run_android_instrumentation_emulator.sh 36
+      - name: Verify generated Baseline Profile
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROFILE="$(find app/src -type f -path '*/generated/baselineProfiles/baseline-prof.txt' -print -quit)"
+          if [[ -z "$PROFILE" || ! -s "$PROFILE" ]]; then
+            echo "Generated baseline-prof.txt not found" >&2
+            exit 1
+          fi
+          echo "Baseline Profile: $PROFILE ($(wc -l < "$PROFILE") rules)"
+      - name: Upload generated Baseline Profile
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: baseline-profile
+          if-no-files-found: error
+          retention-days: 14
+          path: app/src/**/generated/baselineProfiles/baseline-prof.txt
+      - name: Build universal release APK
+        run: ./gradlew :app:assembleRelease
+      - name: Verify Baseline Profile packaging
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit)"
+          if [[ -z "$APK" ]]; then
+            echo "Release APK not found" >&2
+            exit 1
+          fi
+          unzip -Z1 "$APK" | grep -Fxq 'assets/dexopt/baseline.prof'
+          echo "Verified packaged Baseline Profile in $APK"
       - name: Report universal release APK size
         run: >-
           python3 tools/apk_size_report.py app/build/outputs/apk/release
@@ -57,7 +105,6 @@ jobs:
         run: >-
           python3 tools/check_elf_alignment.py app/build/outputs/apk/release
           --readelf "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
-      - run: bash engine/vulnscan.sh
       - name: Generate disposable CI release keystore
         shell: bash
         run: |
@@ -111,11 +158,6 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           path: app/build/reports/apk-size*.json
-      - name: Run instrumentation tests on Android 16 emulator
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
-        timeout-minutes: 15
-        shell: bash
-        run: bash tools/run_android_instrumentation_emulator.sh 36
       - name: Run instrumentation tests on Android 17 emulator
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
         timeout-minutes: 15
