@@ -330,7 +330,7 @@ private fun RouteDistributionRow(counts: Map<AppRoute, Int>) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = Spacing.space12, vertical = Spacing.space10),
+            .padding(horizontal = Spacing.space12, vertical = Spacing.space12),
         horizontalArrangement = Arrangement.spacedBy(Spacing.space8),
     ) {
         AppRoute.entries.forEach { route ->
@@ -509,7 +509,7 @@ private fun AppRow(
         } else {
             Column(Modifier.fillMaxWidth()) {
                 AppIdentity(app = app, bitmap = bmp)
-                Spacer(Modifier.height(Spacing.space10))
+                Spacer(Modifier.height(Spacing.space12))
                 AppRouteSelector(current = current, onSelect = onSelect)
             }
         }
