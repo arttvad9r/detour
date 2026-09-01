@@ -9,7 +9,6 @@
     <string name="btn_connect">Connect</string>
     <string name="btn_disconnect">Disconnect</string>
     <string name="btn_connecting">Connecting…</string>
-    <string name="btn_cancel_connecting">Cancel</string>
     <string name="action_retry">Retry</string>
     <string name="state_sub_idle">No active session</string>
     <string name="row_profile">Profile</string>
@@ -45,10 +44,6 @@
     <string name="theme_hint">Detour themes use the violet palette from the app icon. Community palettes remain available.</string>
     <string name="theme_detour_light">Detour Light</string>
     <string name="theme_detour_dark">Detour Dark</string>
-    <string name="theme_catppuccin_latte">Catppuccin Latte</string>
-    <string name="theme_catppuccin_mocha">Catppuccin Mocha</string>
-    <string name="theme_gruvbox_dark">Gruvbox Dark</string>
-    <string name="theme_dracula">Dracula</string>
     <string name="auto_connect">Connect on launch</string>
     <string name="nav_dns">DNS</string>
     <string name="nav_dns_sub">resolver for the tunnel</string>
