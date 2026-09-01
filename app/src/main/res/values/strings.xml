@@ -9,6 +9,7 @@
     <string name="btn_connect">Connect</string>
     <string name="btn_disconnect">Disconnect</string>
     <string name="btn_connecting">Connecting…</string>
+    <string name="btn_cancel_connecting">Cancel</string>
     <string name="action_retry">Retry</string>
     <string name="state_sub_idle">No active session</string>
     <string name="row_profile">Profile</string>
