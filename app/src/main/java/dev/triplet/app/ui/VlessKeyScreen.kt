@@ -119,6 +119,35 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
         confirmValueChange = confirmSheetValueChange,
     )
 
+    val activeVless = remember(vlessItems, activeVlessId) {
+        vlessItems.firstOrNull { it.id == activeVlessId }
+    }
+    val activeVlessProfile = remember(activeVless?.uri) {
+        activeVless?.let { key ->
+            (VlessKeyParser.parse(key.uri) as? ParseResult.Ok)?.profile
+        }
+    }
+    val summaryIcon = when (activeVpn) {
+        VpnProfileKind.VLESS -> R.drawable.ic_lock
+        VpnProfileKind.WARP -> R.drawable.ic_globe
+        else -> R.drawable.ic_lock
+    }
+    val summaryTitle = when (activeVpn) {
+        VpnProfileKind.VLESS -> stringResource(R.string.profile_add_vless)
+        VpnProfileKind.WARP -> stringResource(R.string.profile_add_warp)
+        else -> stringResource(R.string.key_title)
+    }
+    val summarySubtitle = when (activeVpn) {
+        VpnProfileKind.VLESS -> activeVlessProfile?.let { profile ->
+            val name = profile.name.ifBlank { profile.server }
+            "$name · ${profile.server}:${profile.port}"
+        } ?: stringResource(R.string.nav_key_sub_none)
+        VpnProfileKind.WARP -> warpProfile?.let { profile ->
+            "${profile.name} · ${stringResource(R.string.warp_subtitle, profile.proxies.size)}"
+        } ?: stringResource(R.string.nav_key_sub_none)
+        else -> stringResource(R.string.nav_key_sub_none)
+    }
+
     LaunchedEffect(vlessSaveStatus, sheetState) {
         if (vlessSaveStatus == VlessSaveStatus.SAVED) {
             haptics.performHapticFeedback(HapticFeedbackType.Confirm)
@@ -176,22 +205,24 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
         },
         floatingActionButtonPosition = FabPosition.Center,
     ) { innerPadding ->
+        val scrollState = rememberScrollState()
         Column(
             Modifier.fillMaxSize()
                 .padding(innerPadding)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(scrollState)
+                .detourHighRefresh(scrollState.isScrollInProgress),
         ) {
-            ScreenHeader(stringResource(R.string.key_title), onBack)
+            DetourBrandedHeader(stringResource(R.string.key_title), onBack)
 
             DetourContentColumn {
                 Spacer(Modifier.height(Spacing.space8))
-                Text(
-                    stringResource(R.string.key_list_title),
-                    style = MaterialTheme.typography.titleSmall,
-                    color = c.textPrimary,
+                DetourFeatureSummary(
+                    iconRes = summaryIcon,
+                    title = summaryTitle,
+                    subtitle = summarySubtitle,
                     modifier = Modifier.padding(horizontal = Spacing.space16),
                 )
-                Spacer(Modifier.height(Spacing.space8))
+                Spacer(Modifier.height(Spacing.space16))
 
                 val snapshot = ProfileSnapshot(vlessItems, warpProfile)
                 AnimatedContent(
@@ -206,51 +237,76 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                     label = "profileList",
                 ) { shown ->
                     if (shown.vless.isEmpty() && shown.warp == null) {
-                        Text(
-                            stringResource(R.string.profile_empty),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = c.textMuted,
-                            modifier = Modifier.padding(
-                                start = Spacing.space20,
-                                end = Spacing.space20,
-                                top = Spacing.space2,
-                                bottom = Spacing.space12,
-                            ),
-                        )
+                        DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(Spacing.space16),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                DetourIconTile(R.drawable.ic_lock)
+                                Text(
+                                    stringResource(R.string.profile_empty),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = c.textSecondary,
+                                    modifier = Modifier
+                                        .padding(start = Spacing.space12)
+                                        .weight(1f),
+                                )
+                            }
+                        }
                     } else {
-                        DetourCard(
-                            Modifier
-                                .padding(horizontal = Spacing.space16)
-                                .selectableGroup(),
-                        ) {
-                            shown.vless.forEachIndexed { index, key ->
-                                val selected = activeVpn == VpnProfileKind.VLESS && key.id == activeVlessId
-                                KeyRow(
-                                    key = key,
-                                    selected = selected,
-                                    onEdit = { beginVlessEdit(key) },
-                                    onDelete = { viewModel.deleteVless(key.id) },
+                        Column {
+                            if (shown.vless.isNotEmpty()) {
+                                ProfileSectionTitle(stringResource(R.string.profile_add_vless))
+                                Spacer(Modifier.height(Spacing.space8))
+                                DetourCard(
+                                    Modifier
+                                        .padding(horizontal = Spacing.space16)
+                                        .selectableGroup(),
                                 ) {
-                                    haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                                    viewModel.selectVless(key.id)
-                                }
-                                if (index < shown.vless.lastIndex || shown.warp != null) {
-                                    GroupDivider(startInset = 52)
+                                    shown.vless.forEachIndexed { index, key ->
+                                        val selected = activeVpn == VpnProfileKind.VLESS && key.id == activeVlessId
+                                        KeyRow(
+                                            key = key,
+                                            selected = selected,
+                                            onEdit = { beginVlessEdit(key) },
+                                            onDelete = { viewModel.deleteVless(key.id) },
+                                        ) {
+                                            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                            viewModel.selectVless(key.id)
+                                        }
+                                        if (index < shown.vless.lastIndex) {
+                                            GroupDivider(startInset = 70)
+                                        }
+                                    }
                                 }
                             }
+
                             shown.warp?.let { profile ->
-                                val selected = activeVpn == VpnProfileKind.WARP
-                                WarpRow(
-                                    profile = profile,
-                                    selected = selected,
-                                    importing = warpImporting,
-                                    onEdit = { warpLauncher.launch(arrayOf("*/*")) },
-                                    onDelete = viewModel::deleteWarp,
-                                    onClick = {
-                                        haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                                        viewModel.selectWarp()
-                                    },
-                                )
+                                if (shown.vless.isNotEmpty()) {
+                                    Spacer(Modifier.height(Spacing.space16))
+                                }
+                                ProfileSectionTitle(stringResource(R.string.warp_section_title))
+                                Spacer(Modifier.height(Spacing.space8))
+                                DetourCard(
+                                    Modifier
+                                        .padding(horizontal = Spacing.space16)
+                                        .selectableGroup(),
+                                ) {
+                                    val selected = activeVpn == VpnProfileKind.WARP
+                                    WarpRow(
+                                        profile = profile,
+                                        selected = selected,
+                                        importing = warpImporting,
+                                        onEdit = { warpLauncher.launch(arrayOf("*/*")) },
+                                        onDelete = viewModel::deleteWarp,
+                                        onClick = {
+                                            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                            viewModel.selectWarp()
+                                        },
+                                    )
+                                }
                             }
                         }
                     }
@@ -262,7 +318,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                     exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)),
                 ) {
                     Column {
-                        Spacer(Modifier.height(Spacing.space8))
+                        Spacer(Modifier.height(Spacing.space12))
                         when (warpImportStatus) {
                             WarpImportStatus.IMPORTING -> {
                                 Row(
@@ -310,7 +366,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
         ModalBottomSheet(
             onDismissRequest = { if (!vlessSaving) showSheet = false },
             sheetState = sheetState,
-            containerColor = c.surface,
+            containerColor = c.background,
             contentColor = c.textPrimary,
         ) {
             AnimatedContent(
@@ -348,45 +404,61 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
             ) { mode ->
                 when (mode) {
                     ProfileSheetMode.PICKER -> {
-                        Column {
-                            Text(
-                                stringResource(R.string.profile_add_title),
-                                style = MaterialTheme.typography.titleMedium,
-                                color = c.textPrimary,
-                                modifier = Modifier.padding(
-                                    start = Spacing.space20,
-                                    end = Spacing.space20,
-                                    top = Spacing.space8,
-                                    bottom = Spacing.space12,
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = Spacing.space16),
+                        ) {
+                            Row(
+                                Modifier.padding(
+                                    start = Spacing.space4,
+                                    end = Spacing.space4,
+                                    top = Spacing.space4,
+                                    bottom = Spacing.space16,
                                 ),
-                            )
-                            GroupDivider(startInset = 20)
-                            ProfileTypeRow(
-                                title = stringResource(R.string.profile_add_vless),
-                                subtitle = stringResource(R.string.profile_add_vless_sub),
+                                verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                editingId = null
-                                field = ""
-                                sheetMode = ProfileSheetMode.VLESS_EDITOR
+                                DetourBrandMark(size = 28.dp)
+                                Text(
+                                    stringResource(R.string.profile_add_title),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = c.textPrimary,
+                                    modifier = Modifier.padding(start = Spacing.space12),
+                                )
                             }
-                            GroupDivider(startInset = 20)
-                            ProfileTypeRow(
-                                title = stringResource(R.string.profile_add_warp),
-                                subtitle = stringResource(
-                                    if (warpProfile == null) R.string.profile_add_warp_sub
-                                    else R.string.profile_replace_warp_sub,
-                                ),
-                            ) {
-                                dismissSheet {
-                                    warpLauncher.launch(arrayOf("*/*"))
+                            DetourCard {
+                                ProfileTypeRow(
+                                    title = stringResource(R.string.profile_add_vless),
+                                    subtitle = stringResource(R.string.profile_add_vless_sub),
+                                    iconRes = R.drawable.ic_lock,
+                                ) {
+                                    editingId = null
+                                    field = ""
+                                    sheetMode = ProfileSheetMode.VLESS_EDITOR
+                                }
+                                GroupDivider(startInset = 70)
+                                ProfileTypeRow(
+                                    title = stringResource(R.string.profile_add_warp),
+                                    subtitle = stringResource(
+                                        if (warpProfile == null) R.string.profile_add_warp_sub
+                                        else R.string.profile_replace_warp_sub,
+                                    ),
+                                    iconRes = R.drawable.ic_globe,
+                                ) {
+                                    dismissSheet {
+                                        warpLauncher.launch(arrayOf("*/*"))
+                                    }
                                 }
                             }
                             Spacer(Modifier.height(Spacing.space8))
                             TextButton(
                                 onClick = { dismissSheet() },
-                                modifier = Modifier.align(Alignment.End).padding(end = Spacing.space12),
+                                modifier = Modifier.align(Alignment.End),
                             ) {
-                                Text(stringResource(R.string.key_cancel))
+                                Text(
+                                    stringResource(R.string.key_cancel),
+                                    color = c.textSecondary,
+                                )
                             }
                             Spacer(Modifier.navigationBarsPadding().height(Spacing.space8))
                         }
@@ -399,14 +471,23 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                                 .imePadding()
                                 .padding(horizontal = Spacing.space20),
                         ) {
-                            Text(
-                                stringResource(
-                                    if (editingId == null) R.string.vless_add_title else R.string.vless_edit_title,
-                                ),
-                                style = MaterialTheme.typography.titleMedium,
-                                color = c.textPrimary,
-                                modifier = Modifier.padding(top = Spacing.space8, bottom = Spacing.space16),
-                            )
+                            Row(
+                                Modifier.padding(top = Spacing.space4, bottom = Spacing.space16),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                DetourIconTile(
+                                    iconRes = R.drawable.ic_lock,
+                                    selected = true,
+                                )
+                                Text(
+                                    stringResource(
+                                        if (editingId == null) R.string.vless_add_title else R.string.vless_edit_title,
+                                    ),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = c.textPrimary,
+                                    modifier = Modifier.padding(start = Spacing.space12),
+                                )
+                            }
                             DetourInputField(
                                 value = field,
                                 onValueChange = { value ->
@@ -496,6 +577,16 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
 }
 
 @Composable
+private fun ProfileSectionTitle(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelLarge,
+        color = detourColors.textSecondary,
+        modifier = Modifier.padding(horizontal = Spacing.space20),
+    )
+}
+
+@Composable
 private fun ProfileAddFab(
     visible: Boolean,
     addDescription: String,
@@ -539,15 +630,32 @@ private fun ProfileAddFab(
                     contentDescription = addDescription
                     role = Role.Button
                 },
-            shape = AppShapes.small,
+            shape = PillShape,
             containerColor = c.accent,
             contentColor = c.onAccent,
-        ) { Text("+", style = MaterialTheme.typography.headlineSmall) }
+        ) {
+            Row(
+                Modifier.padding(horizontal = Spacing.space16),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("+", style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.size(Spacing.space8))
+                Text(
+                    stringResource(R.string.key_add),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun ProfileTypeRow(title: String, subtitle: String, onClick: () -> Unit) {
+private fun ProfileTypeRow(
+    title: String,
+    subtitle: String,
+    iconRes: Int,
+    onClick: () -> Unit,
+) {
     val c = detourColors
     Row(
         Modifier.fillMaxWidth()
@@ -557,10 +665,15 @@ private fun ProfileTypeRow(title: String, subtitle: String, onClick: () -> Unit)
                 pressedColor = c.surfaceSelected.copy(alpha = 0.42f),
                 pressScale = Motion.PRESS_ROW,
             )
-            .padding(horizontal = Spacing.space20, vertical = 12.dp),
+            .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f)) {
+        DetourIconTile(iconRes = iconRes, selected = true)
+        Column(
+            Modifier
+                .padding(start = Spacing.space12)
+                .weight(1f),
+        ) {
             Text(
                 title,
                 style = MaterialTheme.typography.titleSmall,
@@ -570,7 +683,7 @@ private fun ProfileTypeRow(title: String, subtitle: String, onClick: () -> Unit)
                 subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = c.textSecondary,
-                modifier = Modifier.padding(top = 2.dp),
+                modifier = Modifier.padding(top = Spacing.space2),
             )
         }
         Chevron()
@@ -598,10 +711,13 @@ private fun KeyRow(
                 pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
                 pressScale = Motion.PRESS_RADIO,
             )
-            .padding(start = Spacing.space16, top = 10.dp, bottom = 10.dp, end = Spacing.space8),
+            .padding(start = Spacing.space16, top = Spacing.space12, bottom = Spacing.space12, end = Spacing.space8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SelectionMark(selected)
+        DetourIconTile(
+            iconRes = R.drawable.ic_lock,
+            selected = selected,
+        )
         Column(Modifier.padding(start = Spacing.space12).weight(1f)) {
             Text(
                 profile?.name?.ifBlank { profile.server } ?: "VLESS",
@@ -616,6 +732,12 @@ private fun KeyRow(
                 color = c.textSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (selected) {
+            SelectionMark(
+                selected = true,
+                modifier = Modifier.padding(horizontal = Spacing.space4),
             )
         }
         Row(horizontalArrangement = Arrangement.End) {
@@ -658,10 +780,13 @@ private fun WarpRow(
                 pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
                 pressScale = Motion.PRESS_RADIO,
             )
-            .padding(start = Spacing.space16, top = 10.dp, bottom = 10.dp, end = Spacing.space8),
+            .padding(start = Spacing.space16, top = Spacing.space12, bottom = Spacing.space12, end = Spacing.space8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        SelectionMark(selected)
+        DetourIconTile(
+            iconRes = R.drawable.ic_globe,
+            selected = selected,
+        )
         Column(Modifier.padding(start = Spacing.space12).weight(1f)) {
             Text(
                 profile.name,
@@ -685,6 +810,12 @@ private fun WarpRow(
                 color = c.accent,
             )
         } else {
+            if (selected) {
+                SelectionMark(
+                    selected = true,
+                    modifier = Modifier.padding(horizontal = Spacing.space4),
+                )
+            }
             Row(horizontalArrangement = Arrangement.End) {
                 DetourIconButton(onClick = onEdit, size = 36) {
                     Icon(
