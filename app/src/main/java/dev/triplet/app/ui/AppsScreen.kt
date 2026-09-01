@@ -101,14 +101,7 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
     val showSystem = state.showSystemApps
     val loadedApps = state.loadedApps
     val allApps = loadedApps.orEmpty()
-    val routeCounts = remember(allApps, state.routes) {
-        AppRoute.entries.associateWith { route ->
-            allApps.count { app ->
-                (state.routes[app.packageName] ?: AppRoute.DIRECT) == route
-            }
-        }
-    }
-    val screenOrder = remember(allApps) {
+    val screenOrder = remember(allApps, state.routes) {
         AppRouteOrdering.snapshot(allApps, state.routes)
     }
     val apps = remember(allApps, screenOrder, state.query, showSystem) {
@@ -120,6 +113,13 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
                     it.label.contains(state.query, ignoreCase = true) ||
                     it.packageName.contains(state.query, ignoreCase = true)
             }
+    }
+    val routeCounts = remember(apps, state.routes) {
+        AppRoute.entries.associateWith { route ->
+            apps.count { app ->
+                (state.routes[app.packageName] ?: AppRoute.DIRECT) == route
+            }
+        }
     }
     val appKeys = remember(apps) { apps.map { it.packageName } }
     val listState = rememberLazyListState()
@@ -227,7 +227,7 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
                 )
             }
 
-            if (loadedApps != null) {
+            if (loadedApps != null && apps.isNotEmpty()) {
                 GroupDivider(startInset = 16)
                 RouteDistributionRow(routeCounts)
             }
