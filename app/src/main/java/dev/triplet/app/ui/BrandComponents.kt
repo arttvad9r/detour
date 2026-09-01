@@ -4,7 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -74,6 +76,49 @@ fun DetourIconTile(
             contentDescription = null,
             tint = if (selected) c.accent else c.textSecondary,
             modifier = Modifier.size(20.dp),
+        )
+    }
+}
+
+@Composable
+fun DetourFeatureSummary(
+    iconRes: Int,
+    title: String,
+    subtitle: String? = null,
+    modifier: Modifier = Modifier,
+) {
+    val c = detourColors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(c.surface, AppShapes.medium)
+            .border(1.dp, c.border, AppShapes.medium)
+            .padding(Spacing.space16),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        DetourIconTile(iconRes = iconRes, selected = true)
+        Column(
+            modifier = Modifier
+                .padding(start = Spacing.space12)
+                .weight(1f),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = c.textPrimary,
+            )
+            if (!subtitle.isNullOrBlank()) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = c.textSecondary,
+                    modifier = Modifier.padding(top = Spacing.space2),
+                )
+            }
+        }
+        DetourBrandMark(
+            tint = c.accent.copy(alpha = 0.48f),
+            modifier = Modifier.size(28.dp),
         )
     }
 }
