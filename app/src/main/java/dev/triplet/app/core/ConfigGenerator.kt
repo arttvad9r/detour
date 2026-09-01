@@ -29,9 +29,10 @@ object ConfigGenerator {
         require(input.vpnUids.keys.containsAll(input.vpnApps + input.dpiApps)) {
             "missing uid resolution for routed packages"
         }
-        val subscriptionUrl = (input.vpn as? VpnOutbound.Vless)?.profile?.subscriptionUrl
-        val vpnTag = when (val vpn = input.vpn) {
-            is VpnOutbound.Vless -> if (vpn.profile.isSubscription) SUBSCRIPTION_GROUP else "VLESS"
+        val subscriptionUrl = (input.vpn as? VpnOutbound.Subscription)?.url
+        val vpnTag = when (input.vpn) {
+            is VpnOutbound.Vless -> "VLESS"
+            is VpnOutbound.Subscription -> SUBSCRIPTION_GROUP
             is VpnOutbound.Warp -> WARP_GROUP
             null -> null
         }
@@ -65,7 +66,8 @@ object ConfigGenerator {
         // отдельно через proxy-providers и не создаёт фиктивный VLESS outbound.
         val proxies = buildList {
             when (val vpn = input.vpn) {
-                is VpnOutbound.Vless -> if (!vpn.profile.isSubscription) add(renderVless(vpn.profile))
+                is VpnOutbound.Vless -> add(renderVless(vpn.profile))
+                is VpnOutbound.Subscription -> Unit
                 is VpnOutbound.Warp -> warpProxies.forEachIndexed { index, proxy ->
                     add(renderWarp(proxy, index))
                 }
@@ -87,18 +89,19 @@ object ConfigGenerator {
         val proxyProviders = subscriptionUrl?.let { url ->
             "\nproxy-providers:\n" + renderSubscriptionProvider(url)
         }.orEmpty()
-        val proxyGroups = when {
-            input.vpn is VpnOutbound.Warp -> "\nproxy-groups:\n" + renderWarpGroup(warpProxies.size)
-            subscriptionUrl != null -> "\nproxy-groups:\n" + renderSubscriptionGroup()
+        val proxyGroups = when (input.vpn) {
+            is VpnOutbound.Warp -> "\nproxy-groups:\n" + renderWarpGroup(warpProxies.size)
+            is VpnOutbound.Subscription -> "\nproxy-groups:\n" + renderSubscriptionGroup()
             else -> ""
         }
 
         val probes = buildList {
             if (input.vpnApps.isNotEmpty() && input.vpn != null) {
-                val name = when {
-                    subscriptionUrl != null -> "PROBE_SUBSCRIPTION"
-                    input.vpn is VpnOutbound.Vless -> "PROBE_VLESS"
-                    else -> "PROBE_WARP"
+                val name = when (input.vpn) {
+                    is VpnOutbound.Subscription -> "PROBE_SUBSCRIPTION"
+                    is VpnOutbound.Vless -> "PROBE_VLESS"
+                    is VpnOutbound.Warp -> "PROBE_WARP"
+                    null -> error("unreachable")
                 }
                 add("""- name: $name
   type: mixed
@@ -182,6 +185,8 @@ $rules""".trim()
     }
 
     private fun renderSubscriptionProvider(url: String): String = buildString {
+        val parsed = VlessKeyParser.parse(url) as? ParseResult.Ok
+        require(parsed?.profile?.isSubscription == true) { "invalid subscription URL" }
         append("  $SUBSCRIPTION_PROVIDER:\n")
         append("    type: http\n")
         append("    url: ${yamlScalar(url)}\n")
