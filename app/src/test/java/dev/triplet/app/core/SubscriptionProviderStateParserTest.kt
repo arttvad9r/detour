@@ -42,7 +42,7 @@ class SubscriptionProviderStateParserTest {
               "name":"DETOUR_SUBSCRIPTION",
               "proxies":[
                 {"name":"safe","type":"Vless","alive":true},
-                {"name":"bad\\u0001name","type":"Vless","alive":true}
+                {"name":"bad\u0001name","type":"Vless","alive":true}
               ]
             }
             """.trimIndent(),
