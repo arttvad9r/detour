@@ -8,7 +8,6 @@
     <string name="btn_connect">Подключить</string>
     <string name="btn_disconnect">Отключить</string>
     <string name="btn_connecting">Подключение…</string>
-    <string name="btn_cancel_connecting">Отмена</string>
     <string name="action_retry">Повторить</string>
     <string name="state_sub_idle">Нет активной сессии</string>
     <string name="row_profile">Профиль</string>
@@ -43,10 +42,6 @@
     <string name="theme_hint">Фирменные темы Detour основаны на фиолетовой палитре иконки. Темы сообщества остаются доступны.</string>
     <string name="theme_detour_light">Detour Light</string>
     <string name="theme_detour_dark">Detour Dark</string>
-    <string name="theme_catppuccin_latte">Catppuccin Latte</string>
-    <string name="theme_catppuccin_mocha">Catppuccin Mocha</string>
-    <string name="theme_gruvbox_dark">Gruvbox Dark</string>
-    <string name="theme_dracula">Dracula</string>
     <string name="auto_connect">Подключаться при запуске</string>
     <string name="nav_dns">DNS</string>
     <string name="nav_dns_sub">резолвер для туннеля</string>
