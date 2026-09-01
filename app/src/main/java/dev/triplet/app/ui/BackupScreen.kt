@@ -21,7 +21,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -31,7 +30,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.disabled
@@ -96,21 +94,26 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
-            Text(
-                stringResource(R.string.backup_note),
-                style = MaterialTheme.typography.bodySmall,
-                color = c.textSecondary,
+            DetourFeatureSummary(
+                iconRes = R.drawable.ic_export,
+                title = stringResource(R.string.backup_title),
+                subtitle = stringResource(R.string.backup_note),
                 modifier = Modifier.padding(horizontal = Spacing.space16),
             )
-            Spacer(Modifier.height(Spacing.space4))
+
+            Spacer(Modifier.height(Spacing.space12))
             Text(
                 stringResource(R.string.backup_warning),
                 style = MaterialTheme.typography.bodySmall,
                 color = c.textSecondary,
-                modifier = Modifier.padding(horizontal = Spacing.space16, vertical = Spacing.space4),
+                modifier = Modifier
+                    .padding(horizontal = Spacing.space16)
+                    .fillMaxWidth()
+                    .background(c.surfaceSoft, AppShapes.small)
+                    .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
             )
 
-            Spacer(Modifier.height(Spacing.space12))
+            Spacer(Modifier.height(Spacing.space16))
             DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
                 ActionRow(
                     label = stringResource(
@@ -124,7 +127,7 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
                 ) {
                     exportLauncher.launch("detour-backup.json")
                 }
-                GroupDivider(startInset = 46)
+                GroupDivider(startInset = 66)
                 ActionRow(
                     label = stringResource(
                         if (operation == BackupOperation.IMPORT) R.string.backup_importing
@@ -150,7 +153,14 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
                         statusText,
                         style = MaterialTheme.typography.bodySmall,
                         color = if (statusIsError) c.error else c.accent,
-                        modifier = Modifier.padding(horizontal = Spacing.space16),
+                        modifier = Modifier
+                            .padding(horizontal = Spacing.space16)
+                            .fillMaxWidth()
+                            .background(
+                                if (statusIsError) c.errorSoft else c.accentSoft,
+                                AppShapes.small,
+                            )
+                            .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
                     )
                 }
             }
@@ -169,14 +179,9 @@ private fun ActionRow(
     onClick: () -> Unit,
 ) {
     val c = detourColors
-    val tint = when {
-        !enabled -> c.textMuted
-        accent -> c.accent
-        else -> c.textSecondary
-    }
     val row = Modifier
         .fillMaxWidth()
-        .heightIn(min = 56.dp)
+        .heightIn(min = 68.dp)
     val interactiveRow = if (enabled) {
         row.detourClickable(
             onClick = onClick,
@@ -192,13 +197,12 @@ private fun ActionRow(
     }
 
     Row(
-        interactiveRow.padding(horizontal = Spacing.space16),
+        interactiveRow.padding(horizontal = Spacing.space16, vertical = Spacing.space8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            painterResource(iconRes), null,
-            tint = tint,
-            modifier = Modifier.size(18.dp),
+        DetourIconTile(
+            iconRes = iconRes,
+            selected = accent && enabled,
         )
         Text(
             label,
