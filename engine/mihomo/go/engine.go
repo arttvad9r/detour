@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -16,6 +17,7 @@ import (
 	"github.com/metacubex/mihomo/common/observable"
 	"github.com/metacubex/mihomo/component/process"
 	"github.com/metacubex/mihomo/config"
+	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/hub/executor"
 	"github.com/metacubex/mihomo/listener"
 	LC "github.com/metacubex/mihomo/listener/config"
@@ -67,6 +69,14 @@ func Start(configYAML string, logPath string) (err error) {
 		}
 	}()
 	if logPath != "" {
+		// Embedded mihomo has no CLI -d flag. Use the app-private log directory as
+		// HomeDir so HTTP proxy-providers can persist their cache inside Android's
+		// sandbox and satisfy mihomo's safe-path checks.
+		homeDir := filepath.Dir(logPath)
+		if mkdirErr := os.MkdirAll(homeDir, 0o700); mkdirErr != nil {
+			return mkdirErr
+		}
+		C.SetHomeDir(homeDir)
 		log.SetLevel(log.DEBUG)
 		subscribeLogs(logPath)
 	}

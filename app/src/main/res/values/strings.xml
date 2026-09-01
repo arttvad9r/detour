@@ -33,9 +33,9 @@
     <string name="nav_routes">App routes</string>
     <string name="nav_routes_sub">in tunnel: %1$d</string>
     <string name="nav_key">VPN profiles</string>
-    <string name="nav_key_sub">VLESS + WARP</string>
+    <string name="nav_key_sub">VLESS / subscription + WARP</string>
     <string name="nav_key_sub_none">not configured</string>
-    <string name="nav_key_sub_vless">VLESS</string>
+    <string name="nav_key_sub_vless">VLESS / subscription</string>
     <string name="nav_key_sub_warp">WARP / AmneziaWG</string>
     <string name="nav_theme">Appearance</string>
     <string name="theme_title">Appearance</string>
@@ -73,25 +73,25 @@
     <string name="route_dpi">DPI</string>
 
     <string name="key_title">VPN profiles</string>
-    <string name="key_invalid">Could not parse the link. Check that it starts with vless:// and was pasted in full.</string>
+    <string name="key_invalid">Could not parse the link. Paste a complete VLESS Reality link or HTTPS subscription URL.</string>
     <string name="btn_save">Save</string>
     <string name="key_edit">Edit</string>
     <string name="key_cancel">Cancel</string>
     <string name="key_paste">Paste from clipboard</string>
     <string name="key_list_title">Profiles</string>
-    <string name="key_empty">No VLESS keys added</string>
+    <string name="key_empty">No VPN links added</string>
     <string name="key_add">Add</string>
     <string name="key_delete">Delete</string>
-    <string name="key_uri">VLESS link</string>
-    <string name="key_input_hint">Paste the complete link — server and parameters are detected automatically.</string>
-    <string name="key_placeholder">vless://uuid@server:443?security=reality&amp;…</string>
+    <string name="key_uri">VPN link</string>
+    <string name="key_input_hint">Paste a VLESS Reality link or HTTPS subscription URL. Subscriptions are loaded and refreshed by mihomo.</string>
+    <string name="key_placeholder">vless://… or https://subscription.example/…</string>
     <string name="key_detected_server">Link recognized · %1$s:%2$d</string>
-    <string name="vless_add_title">Add VLESS profile</string>
-    <string name="vless_edit_title">Edit VLESS profile</string>
+    <string name="vless_add_title">Add VPN link</string>
+    <string name="vless_edit_title">Edit VPN link</string>
     <string name="profile_empty">No VPN profiles yet. Tap + to add one.</string>
     <string name="profile_add_title">Add VPN profile</string>
-    <string name="profile_add_vless">VLESS</string>
-    <string name="profile_add_vless_sub">Add a VLESS link</string>
+    <string name="profile_add_vless">VLESS / subscription</string>
+    <string name="profile_add_vless_sub">Add a VLESS Reality link or HTTPS subscription URL</string>
     <string name="profile_add_warp">WARP / AmneziaWG</string>
     <string name="profile_add_warp_sub">Import YAML or CONF</string>
     <string name="profile_replace_warp_sub">Import a new YAML or CONF and replace the current one</string>
