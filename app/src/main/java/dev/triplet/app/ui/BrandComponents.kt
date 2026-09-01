@@ -6,9 +6,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -18,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.triplet.app.R
@@ -48,6 +52,39 @@ fun DetourBrandWordmark(modifier: Modifier = Modifier) {
             text = "Detour",
             style = MaterialTheme.typography.headlineSmall,
             color = detourColors.textPrimary,
+        )
+    }
+}
+
+@Composable
+fun DetourBrandedHeader(
+    title: String,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val c = detourColors
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .padding(start = Spacing.space4, end = Spacing.space20),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        DetourIconButton(onClick = onBack) {
+            Icon(
+                painter = painterResource(R.drawable.ic_back),
+                contentDescription = stringResource(R.string.cd_back),
+                tint = c.textPrimary,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        Spacer(Modifier.width(Spacing.space4))
+        DetourBrandMark(size = 28.dp)
+        Spacer(Modifier.width(Spacing.space8))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            color = c.textPrimary,
         )
     }
 }
