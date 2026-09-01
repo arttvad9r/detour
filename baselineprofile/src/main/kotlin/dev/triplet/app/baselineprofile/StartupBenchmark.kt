@@ -1,5 +1,6 @@
 package dev.triplet.app.baselineprofile
 
+import androidx.benchmark.macro.BaselineProfileMode
 import androidx.benchmark.macro.CompilationMode
 import androidx.benchmark.macro.FrameTimingMetric
 import androidx.benchmark.macro.StartupMode
@@ -16,10 +17,29 @@ class StartupBenchmark {
     val benchmarkRule = MacrobenchmarkRule()
 
     @Test
-    fun coldStartupNoCompilation() = benchmarkRule.measureRepeated(
+    fun coldStartupNoCompilation() = measureColdStartup(CompilationMode.None())
+
+    @Test
+    fun coldStartupWithBaselineProfile() = measureColdStartup(
+        CompilationMode.Partial(
+            baselineProfileMode = BaselineProfileMode.Require,
+        ),
+    )
+
+    @Test
+    fun openProfilesNoCompilation() = measureOpenProfiles(CompilationMode.None())
+
+    @Test
+    fun openProfilesWithBaselineProfile() = measureOpenProfiles(
+        CompilationMode.Partial(
+            baselineProfileMode = BaselineProfileMode.Require,
+        ),
+    )
+
+    private fun measureColdStartup(compilationMode: CompilationMode) = benchmarkRule.measureRepeated(
         packageName = TARGET_PACKAGE,
         metrics = listOf(StartupTimingMetric()),
-        compilationMode = CompilationMode.None(),
+        compilationMode = compilationMode,
         startupMode = StartupMode.COLD,
         iterations = 5,
         setupBlock = {
@@ -29,11 +49,10 @@ class StartupBenchmark {
         startActivityAndWait()
     }
 
-    @Test
-    fun openProfilesNoCompilation() = benchmarkRule.measureRepeated(
+    private fun measureOpenProfiles(compilationMode: CompilationMode) = benchmarkRule.measureRepeated(
         packageName = TARGET_PACKAGE,
         metrics = listOf(FrameTimingMetric()),
-        compilationMode = CompilationMode.None(),
+        compilationMode = compilationMode,
         iterations = 5,
         setupBlock = {
             pressHome()

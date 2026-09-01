@@ -60,6 +60,7 @@ jobs:
           echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
           echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
           echo "APK_NAME=detour-$VERSION_NAME-arm64.apk" >> "$GITHUB_ENV"
+          echo "AAB_NAME=detour-$VERSION_NAME.aab" >> "$GITHUB_ENV"
       - name: Validate signing secrets
         shell: bash
         env:
@@ -118,49 +119,77 @@ jobs:
           KEYSTORE_PATH="$RUNNER_TEMP/detour-release.keystore"
           printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
           chmod 600 "$KEYSTORE_PATH"
-      - name: Build signed arm64 release APK
+      - name: Build signed release artifacts
         env:
           DETOUR_RELEASE_KEYSTORE: ${{ runner.temp }}/detour-release.keystore
           DETOUR_RELEASE_STORE_PASSWORD: ${{ secrets.DETOUR_RELEASE_STORE_PASSWORD }}
           DETOUR_RELEASE_KEY_ALIAS: ${{ secrets.DETOUR_RELEASE_KEY_ALIAS }}
           DETOUR_RELEASE_KEY_PASSWORD: ${{ secrets.DETOUR_RELEASE_KEY_PASSWORD }}
-        run: >-
-          ./gradlew :app:assembleRelease
-          -PdetourReleaseAbi=arm64-v8a
-          -PdetourVersionName="$VERSION_NAME"
-          -PdetourVersionCode="$VERSION_CODE"
+        run: |
+          ./gradlew :app:assembleRelease \
+            -PdetourReleaseAbi=arm64-v8a \
+            -PdetourVersionName="$VERSION_NAME" \
+            -PdetourVersionCode="$VERSION_CODE"
+          ./gradlew :app:bundleRelease \
+            -PdetourVersionName="$VERSION_NAME" \
+            -PdetourVersionCode="$VERSION_CODE"
       - name: Verify embedded engine vulnerabilities
         run: bash engine/vulnscan.sh
-      - name: Verify release APK
+      - name: Verify release artifacts
         shell: bash
         run: |
           set -euo pipefail
           APK="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit)"
-          if [[ -z "$APK" ]]; then
-            echo "Release APK not found" >&2
+          AAB="$(find app/build/outputs/bundle/release -maxdepth 1 -type f -name '*.aab' -print -quit)"
+          if [[ -z "$APK" || -z "$AAB" ]]; then
+            echo "Signed release APK or AAB not found" >&2
             exit 1
           fi
 
           "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
+          bash tools/verify_aab_signature.sh "$AAB"
           "$ANDROID_SDK_ROOT/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$APK"
           python3 tools/check_elf_alignment.py "$APK" \
             --readelf "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
+          python3 tools/verify_baseline_profile.py "$APK"
+          python3 tools/verify_baseline_profile.py "$AAB"
           python3 tools/apk_size_report.py "$APK" \
             --report app/build/reports/apk-size-release.json \
             --max-bytes 31457280 \
             --expected-abi arm64-v8a
 
+          python3 - "$AAB" <<'PY'
+          import sys
+          from zipfile import ZipFile
+
+          expected = ["arm64-v8a", "x86_64"]
+          with ZipFile(sys.argv[1]) as archive:
+              abis = sorted({
+                  path.split("/")[2]
+                  for path in archive.namelist()
+                  if path.startswith("base/lib/") and path.endswith(".so") and len(path.split("/")) >= 4
+              })
+          if abis != expected:
+              raise SystemExit(f"AAB ABI set {abis} does not match expected {expected}")
+          print(f"Verified AAB ABI set: {', '.join(abis)}")
+          PY
+
           ARTIFACT_DIR="app/build/release-artifacts"
           mkdir -p "$ARTIFACT_DIR"
-          ARTIFACT="$ARTIFACT_DIR/$APK_NAME"
-          cp "$APK" "$ARTIFACT"
-          sha256sum "$ARTIFACT" > "$ARTIFACT.sha256"
-          echo "RELEASE_APK=$ARTIFACT" >> "$GITHUB_ENV"
-          echo "RELEASE_SHA256=$ARTIFACT.sha256" >> "$GITHUB_ENV"
-      - name: Upload signed release artifact
+          APK_ARTIFACT="$ARTIFACT_DIR/$APK_NAME"
+          AAB_ARTIFACT="$ARTIFACT_DIR/$AAB_NAME"
+          cp "$APK" "$APK_ARTIFACT"
+          cp "$AAB" "$AAB_ARTIFACT"
+          sha256sum "$APK_ARTIFACT" > "$APK_ARTIFACT.sha256"
+          sha256sum "$AAB_ARTIFACT" > "$AAB_ARTIFACT.sha256"
+          echo "RELEASE_APK=$APK_ARTIFACT" >> "$GITHUB_ENV"
+          echo "RELEASE_APK_SHA256=$APK_ARTIFACT.sha256" >> "$GITHUB_ENV"
+          echo "RELEASE_AAB=$AAB_ARTIFACT" >> "$GITHUB_ENV"
+          echo "RELEASE_AAB_SHA256=$AAB_ARTIFACT.sha256" >> "$GITHUB_ENV"
+      - name: Upload signed release artifacts
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
-          name: detour-${{ env.VERSION_NAME }}-arm64
+          name: detour-${{ env.VERSION_NAME }}-release
           if-no-files-found: error
           retention-days: 30
           path: |
@@ -173,11 +202,16 @@ jobs:
         run: |
           set -euo pipefail
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$RELEASE_APK" "$RELEASE_SHA256" --clobber
+            gh release upload "$GITHUB_REF_NAME" \
+              "$RELEASE_APK" "$RELEASE_APK_SHA256" \
+              "$RELEASE_AAB" "$RELEASE_AAB_SHA256" \
+              --clobber
           else
             gh release create "$GITHUB_REF_NAME" \
               "$RELEASE_APK" \
-              "$RELEASE_SHA256" \
+              "$RELEASE_APK_SHA256" \
+              "$RELEASE_AAB" \
+              "$RELEASE_AAB_SHA256" \
               --verify-tag \
               --generate-notes \
               --title "Detour $VERSION_NAME"

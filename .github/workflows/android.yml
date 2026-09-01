@@ -47,7 +47,54 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           export PATH="$(go env GOPATH)/bin:$PATH"
           gomobile init
-      - run: ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest :app:assembleRelease :baselineprofile:assemble
+      - name: Build debug, tests and benchmark producer
+        run: >-
+          ./gradlew
+          :app:testDebugUnitTest
+          :app:lintDebug
+          :app:assembleDebug
+          :app:assembleDebugAndroidTest
+          :baselineprofile:assemble
+      - run: bash engine/vulnscan.sh
+      - name: Generate Baseline Profile and run instrumentation on Android 16
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+        timeout-minutes: 20
+        shell: bash
+        env:
+          DETOUR_GENERATE_BASELINE_PROFILE: '1'
+        run: bash tools/run_android_instrumentation_emulator.sh 36
+      - name: Verify generated Baseline Profile
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROFILE="$(find app/src -type f -path '*/generated/baselineProfiles/baseline-prof.txt' -print -quit)"
+          if [[ -z "$PROFILE" || ! -s "$PROFILE" ]]; then
+            echo "Generated baseline-prof.txt not found" >&2
+            exit 1
+          fi
+          echo "Baseline Profile: $PROFILE ($(wc -l < "$PROFILE") rules)"
+      - name: Upload generated Baseline Profile
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: baseline-profile
+          if-no-files-found: error
+          retention-days: 14
+          path: app/src/**/generated/baselineProfiles/baseline-prof.txt
+      - name: Build universal release APK
+        run: ./gradlew :app:assembleRelease
+      - name: Verify APK Baseline Profile
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit)"
+          if [[ -z "$APK" ]]; then
+            echo "Release APK not found" >&2
+            exit 1
+          fi
+          python3 tools/verify_baseline_profile.py "$APK"
       - name: Report universal release APK size
         run: >-
           python3 tools/apk_size_report.py app/build/outputs/apk/release
@@ -57,7 +104,6 @@ jobs:
         run: >-
           python3 tools/check_elf_alignment.py app/build/outputs/apk/release
           --readelf "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
-      - run: bash engine/vulnscan.sh
       - name: Generate disposable CI release keystore
         shell: bash
         run: |
@@ -74,35 +120,57 @@ jobs:
             -validity 1 \
             -noprompt
           chmod 600 "$CI_KEYSTORE"
-      - name: Build CI-signed arm64 release APK
+      - name: Build CI-signed release artifacts
         env:
           DETOUR_RELEASE_KEYSTORE: ${{ runner.temp }}/detour-ci-release.keystore
           DETOUR_RELEASE_STORE_PASSWORD: detour-ci-password
           DETOUR_RELEASE_KEY_ALIAS: detour-ci
           DETOUR_RELEASE_KEY_PASSWORD: detour-ci-password
         run: |
-          rm -rf app/build/outputs/apk/release
+          rm -rf app/build/outputs/apk/release app/build/outputs/bundle/release
           ./gradlew :app:assembleRelease \
             -PdetourReleaseAbi=arm64-v8a \
             -PdetourVersionName=0.1.0-ci \
             -PdetourVersionCode=1001
-      - name: Verify CI-signed arm64 release APK
+          ./gradlew :app:bundleRelease \
+            -PdetourVersionName=0.1.0-ci \
+            -PdetourVersionCode=1001
+      - name: Verify CI-signed release artifacts
         shell: bash
         run: |
           set -euo pipefail
           APK="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit)"
-          if [[ -z "$APK" ]]; then
-            echo "Release APK not found" >&2
+          AAB="$(find app/build/outputs/bundle/release -maxdepth 1 -type f -name '*.aab' -print -quit)"
+          if [[ -z "$APK" || -z "$AAB" ]]; then
+            echo "Signed APK or AAB not found" >&2
             exit 1
           fi
           "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" verify --verbose "$APK"
+          bash tools/verify_aab_signature.sh "$AAB"
           "$ANDROID_SDK_ROOT/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$APK"
           python3 tools/check_elf_alignment.py "$APK" \
             --readelf "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
+          python3 tools/verify_baseline_profile.py "$APK"
+          python3 tools/verify_baseline_profile.py "$AAB"
           python3 tools/apk_size_report.py "$APK" \
             --report app/build/reports/apk-size-arm64.json \
             --max-bytes 31457280 \
             --expected-abi arm64-v8a
+          python3 - "$AAB" <<'PY'
+          import sys
+          from zipfile import ZipFile
+
+          expected = ["arm64-v8a", "x86_64"]
+          with ZipFile(sys.argv[1]) as archive:
+              abis = sorted({
+                  path.split("/")[2]
+                  for path in archive.namelist()
+                  if path.startswith("base/lib/") and path.endswith(".so") and len(path.split("/")) >= 4
+              })
+          if abis != expected:
+              raise SystemExit(f"AAB ABI set {abis} does not match expected {expected}")
+          print(f"Verified AAB ABI set: {', '.join(abis)}")
+          PY
       - name: Upload APK size reports
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -111,11 +179,6 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           path: app/build/reports/apk-size*.json
-      - name: Run instrumentation tests on Android 16 emulator
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
-        timeout-minutes: 15
-        shell: bash
-        run: bash tools/run_android_instrumentation_emulator.sh 36
       - name: Run instrumentation tests on Android 17 emulator
         if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
         timeout-minutes: 15

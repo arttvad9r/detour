@@ -51,10 +51,10 @@ Gradle builds the native artifacts required by the app before packaging. Generat
 
 ## Verification
 
-Run the same core gate as GitHub Actions:
+Run the same core release-like build gate as GitHub Actions:
 
 ```bash
-./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest :app:assembleRelease
+./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest :app:assembleRelease :app:bundleRelease :baselineprofile:assemble
 bash engine/vulnscan.sh
 ```
 
@@ -64,12 +64,13 @@ bash engine/vulnscan.sh
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-Device-only checks for routing, VPN lifecycle, navigation motion and adaptive refresh are listed in [docs/testing.md](docs/testing.md).
+Device-only checks for routing, VPN lifecycle, navigation motion, Baseline Profile generation, Android 17 / 16 KB compatibility and adaptive refresh are listed in [docs/testing.md](docs/testing.md).
 
 ## Documentation
 
 - [Architecture](docs/architecture.md) — Android/VPN/engine boundaries and runtime flow.
 - [Testing](docs/testing.md) — CI contract and current device smoke checklist.
+- [Releasing](docs/releasing.md) — signed APK/AAB artifacts, versioning, checksums and release gates.
 - [Native pins](docs/pins.md) — exact Mihomo/ByeDPI revisions and Android embedding notes.
 - [WARP profiles](docs/warp-profiles.md) — supported WARP/AmneziaWG import behavior.
 

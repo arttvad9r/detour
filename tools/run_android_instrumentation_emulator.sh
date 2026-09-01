@@ -125,6 +125,20 @@ adb -s "$EMULATOR_SERIAL" shell settings put global window_animation_scale 0
 adb -s "$EMULATOR_SERIAL" shell settings put global transition_animation_scale 0
 adb -s "$EMULATOR_SERIAL" shell settings put global animator_duration_scale 0
 
+if [[ "${DETOUR_GENERATE_BASELINE_PROFILE:-0}" == "1" ]]; then
+  echo "Generating Baseline Profile on API $ACTUAL_API"
+  ANDROID_SERIAL="$EMULATOR_SERIAL" ./gradlew :app:generateBaselineProfile \
+    -Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.enabledRules=BaselineProfile
+
+  BASELINE_PROFILE="$(find app/src -type f -path '*/generated/baselineProfiles/baseline-prof.txt' -print -quit)"
+  if [[ -z "$BASELINE_PROFILE" || ! -s "$BASELINE_PROFILE" ]]; then
+    echo "Baseline Profile generation completed without a non-empty baseline-prof.txt" >&2
+    find app/src -path '*baselineProfile*' -o -path '*baselineProfiles*' -print >&2 || true
+    exit 1
+  fi
+  echo "Generated Baseline Profile: $BASELINE_PROFILE ($(wc -l < "$BASELINE_PROFILE") rules)"
+fi
+
 set +e
 ANDROID_SERIAL="$EMULATOR_SERIAL" ./gradlew :app:connectedDebugAndroidTest --stacktrace 2>&1 | tee "$INSTRUMENTATION_LOG"
 TEST_EXIT=${PIPESTATUS[0]}
