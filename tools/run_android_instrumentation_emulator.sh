@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-API_LEVEL="${1:?usage: run_android_instrumentation_emulator.sh <api-level> [system-image]}"
+API_LEVEL="${1:?usage: run_android_instrumentation_emulator.sh <api-level> [system-image] [expected-page-size]}"
 SYSTEM_IMAGE="${2:-system-images;android-${API_LEVEL};google_apis;x86_64}"
+EXPECTED_PAGE_SIZE="${3:-}"
 AVD_NAME="detour-ci-api${API_LEVEL}"
 EMULATOR="$ANDROID_SDK_ROOT/emulator/emulator"
 EMULATOR_SERIAL="emulator-5554"
@@ -107,6 +108,15 @@ ACTUAL_API="$(adb -s "$EMULATOR_SERIAL" shell getprop ro.build.version.sdk | tr 
 if [[ "$ACTUAL_API" != "$API_LEVEL" ]]; then
   echo "Expected API $API_LEVEL emulator, got API $ACTUAL_API" >&2
   exit 1
+fi
+
+if [[ -n "$EXPECTED_PAGE_SIZE" ]]; then
+  ACTUAL_PAGE_SIZE="$(adb -s "$EMULATOR_SERIAL" shell getconf PAGE_SIZE | tr -d '\r')"
+  if [[ "$ACTUAL_PAGE_SIZE" != "$EXPECTED_PAGE_SIZE" ]]; then
+    echo "Expected page size $EXPECTED_PAGE_SIZE, got $ACTUAL_PAGE_SIZE" >&2
+    exit 1
+  fi
+  echo "Verified runtime page size: $ACTUAL_PAGE_SIZE bytes"
 fi
 
 echo "Running instrumentation on Android $(adb -s "$EMULATOR_SERIAL" shell getprop ro.build.version.release | tr -d '\r') / API $ACTUAL_API"
