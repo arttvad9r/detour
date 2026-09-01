@@ -177,6 +177,13 @@ internal fun DetourNavigation(
         backStack.add(destination)
     }
 
+    fun openFromHome(destination: AppDestination) {
+        require(destination.isSettingsDetail())
+        if (backStack.lastOrNull() == destination) return
+        while (backStack.size > 1) backStack.removeLastOrNull()
+        backStack.add(destination)
+    }
+
     val popBack: () -> Unit = { backStack.removeLastOrNull() }
 
     NavDisplay(
@@ -232,8 +239,8 @@ internal fun DetourNavigation(
                 HomeScreen(
                     viewModel = homeViewModel,
                     onOpenSettings = { backStack.add(AppDestination.Settings) },
-                    onOpenProfiles = { openSettingsDetail(AppDestination.Vless) },
-                    onOpenDns = { openSettingsDetail(AppDestination.Dns) },
+                    onOpenProfiles = { openFromHome(AppDestination.Vless) },
+                    onOpenDns = { openFromHome(AppDestination.Dns) },
                 )
             }
 
