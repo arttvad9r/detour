@@ -127,7 +127,7 @@ adb -s "$EMULATOR_SERIAL" shell settings put global animator_duration_scale 0
 
 if [[ "${DETOUR_GENERATE_BASELINE_PROFILE:-0}" == "1" ]]; then
   echo "Generating Baseline Profile on API $ACTUAL_API"
-  ./gradlew :app:generateBaselineProfile \
+  ANDROID_SERIAL="$EMULATOR_SERIAL" ./gradlew :app:generateBaselineProfile \
     -Pandroid.testInstrumentationRunnerArguments.androidx.benchmark.enabledRules=BaselineProfile
 
   BASELINE_PROFILE="$(find app/src -type f -path '*/generated/baselineProfiles/baseline-prof.txt' -print -quit)"
