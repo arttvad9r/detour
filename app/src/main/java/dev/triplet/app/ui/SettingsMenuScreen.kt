@@ -11,12 +11,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,7 +22,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -121,7 +117,7 @@ internal fun SettingsMenuScreen(
             .verticalScroll(scrollState)
             .detourHighRefresh(scrollState.isScrollInProgress),
     ) {
-        SettingsBrandHeader(onBack)
+        DetourBrandedHeader(stringResource(R.string.settings_title), onBack)
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space12))
@@ -180,34 +176,6 @@ internal fun SettingsMenuScreen(
             )
             Spacer(Modifier.height(Spacing.space24))
         }
-    }
-}
-
-@Composable
-private fun SettingsBrandHeader(onBack: () -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .heightIn(min = 64.dp)
-            .padding(start = Spacing.space4, end = Spacing.space20),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        DetourIconButton(onClick = onBack) {
-            Icon(
-                painter = painterResource(R.drawable.ic_back),
-                contentDescription = stringResource(R.string.cd_back),
-                tint = detourColors.textPrimary,
-                modifier = Modifier.size(22.dp),
-            )
-        }
-        Spacer(Modifier.width(Spacing.space4))
-        DetourBrandMark()
-        Spacer(Modifier.width(Spacing.space8))
-        Text(
-            stringResource(R.string.settings_title),
-            style = MaterialTheme.typography.titleLarge,
-            color = detourColors.textPrimary,
-        )
     }
 }
 
