@@ -7,6 +7,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,6 +23,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.disabled
@@ -39,6 +43,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
+
+private enum class BackupNoticeTone { INFO, SUCCESS, ERROR }
 
 @Composable
 fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
@@ -102,15 +108,11 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
             )
 
             Spacer(Modifier.height(Spacing.space12))
-            Text(
-                stringResource(R.string.backup_warning),
-                style = MaterialTheme.typography.bodySmall,
-                color = c.textSecondary,
-                modifier = Modifier
-                    .padding(horizontal = Spacing.space16)
-                    .fillMaxWidth()
-                    .background(c.surfaceSoft, AppShapes.small)
-                    .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
+            BackupNotice(
+                text = stringResource(R.string.backup_warning),
+                iconRes = R.drawable.ic_lock,
+                tone = BackupNoticeTone.INFO,
+                modifier = Modifier.padding(horizontal = Spacing.space16),
             )
 
             Spacer(Modifier.height(Spacing.space16))
@@ -149,23 +151,72 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
             ) {
                 Column {
                     Spacer(Modifier.height(Spacing.space12))
-                    Text(
-                        statusText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (statusIsError) c.error else c.accent,
-                        modifier = Modifier
-                            .padding(horizontal = Spacing.space16)
-                            .fillMaxWidth()
-                            .background(
-                                if (statusIsError) c.errorSoft else c.accentSoft,
-                                AppShapes.small,
-                            )
-                            .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
+                    BackupNotice(
+                        text = statusText,
+                        iconRes = if (statusIsError) R.drawable.ic_warning else R.drawable.ic_check,
+                        tone = if (statusIsError) BackupNoticeTone.ERROR else BackupNoticeTone.SUCCESS,
+                        modifier = Modifier.padding(horizontal = Spacing.space16),
                     )
                 }
             }
             Spacer(Modifier.height(Spacing.space24))
         }
+    }
+}
+
+@Composable
+private fun BackupNotice(
+    text: String,
+    iconRes: Int,
+    tone: BackupNoticeTone,
+    modifier: Modifier = Modifier,
+) {
+    val c = detourColors
+    val container = when (tone) {
+        BackupNoticeTone.INFO -> c.surfaceSoft
+        BackupNoticeTone.SUCCESS -> c.activeSoft
+        BackupNoticeTone.ERROR -> c.errorSoft
+    }
+    val border = when (tone) {
+        BackupNoticeTone.INFO -> c.border
+        BackupNoticeTone.SUCCESS -> c.activeBorder
+        BackupNoticeTone.ERROR -> c.error.copy(alpha = 0.34f)
+    }
+    val iconTint = when (tone) {
+        BackupNoticeTone.INFO -> c.accent
+        BackupNoticeTone.SUCCESS -> c.activeStrong
+        BackupNoticeTone.ERROR -> c.error
+    }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(container, AppShapes.small)
+            .border(1.dp, border, AppShapes.small)
+            .padding(horizontal = Spacing.space12, vertical = Spacing.space12),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .background(c.surface.copy(alpha = 0.72f), AppShapes.extraSmall),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(iconRes),
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = c.textPrimary,
+            modifier = Modifier
+                .padding(start = Spacing.space12)
+                .weight(1f),
+        )
     }
 }
 
@@ -182,15 +233,20 @@ private fun ActionRow(
     val row = Modifier
         .fillMaxWidth()
         .heightIn(min = 68.dp)
+    val tonedRow = if (accent && enabled) {
+        row.background(c.accentSoft.copy(alpha = 0.58f))
+    } else {
+        row
+    }
     val interactiveRow = if (enabled) {
-        row.detourClickable(
+        tonedRow.detourClickable(
             onClick = onClick,
             role = Role.Button,
             pressedColor = c.surfaceSelected.copy(alpha = 0.38f),
             pressScale = Motion.PRESS_ROW,
         )
     } else {
-        row.semantics {
+        tonedRow.semantics {
             disabled()
             role = Role.Button
         }
