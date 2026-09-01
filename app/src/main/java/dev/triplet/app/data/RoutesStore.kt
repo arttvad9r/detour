@@ -32,10 +32,21 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.io.IOException
 
-private fun VlessKeys.activeKind(): VpnProfileKind? {
-    val active = active ?: return null
-    val parsed = VlessKeyParser.parse(active.uri) as? ParseResult.Ok ?: return null
+internal fun profileKindForUri(uri: String): VpnProfileKind? {
+    val parsed = VlessKeyParser.parse(uri) as? ParseResult.Ok ?: return null
     return if (parsed.profile.isSubscription) VpnProfileKind.SUBSCRIPTION else VpnProfileKind.VLESS
+}
+
+internal fun VlessKeys.activeProfileKind(): VpnProfileKind? =
+    active?.let { profileKindForUri(it.uri) }
+
+internal fun vpnKindAfterVlessUpdate(
+    current: VlessKeys,
+    updated: VlessKey,
+    selectedKind: VpnProfileKind,
+): VpnProfileKind {
+    if (selectedKind == VpnProfileKind.WARP || current.activeId != updated.id) return selectedKind
+    return requireNotNull(profileKindForUri(updated.uri)) { "invalid VPN profile" }
 }
 
 data class TriSettings(
@@ -54,7 +65,7 @@ data class TriSettings(
 ) {
     val vlessUri: String get() = vlessKeys.active?.uri ?: ""
     val activeVpnConfigured: Boolean get() = when (activeVpn) {
-        VpnProfileKind.VLESS, VpnProfileKind.SUBSCRIPTION -> vlessKeys.activeKind() == activeVpn
+        VpnProfileKind.VLESS, VpnProfileKind.SUBSCRIPTION -> vlessKeys.activeProfileKind() == activeVpn
         VpnProfileKind.WARP -> warpProfile?.proxies?.isNotEmpty() == true
     }
 }
@@ -208,7 +219,7 @@ class RoutesStore(context: Context) {
         require(current.items.any { it.id == id }) { "VPN profile is not configured" }
         val next = current.copy(activeId = id)
         validateVlessKeys(next)
-        val kind = next.activeKind() ?: throw IllegalArgumentException("invalid VPN profile")
+        val kind = next.activeProfileKind() ?: throw IllegalArgumentException("invalid VPN profile")
         writeVlessKeys(prefs, next)
         prefs[RoutesMapping.vpnKindKey()] = kind.name
     }
@@ -216,8 +227,17 @@ class RoutesStore(context: Context) {
         // Adding a profile must not silently change the selected endpoint.
         editVless { current -> VlessKeys(current.items + key, current.activeId) }
     }
-    suspend fun updateVlessKey(key: VlessKey) {
-        editVless { current -> VlessKeys(current.items.map { if (it.id == key.id) key else it }, current.activeId) }
+    suspend fun updateVlessKey(key: VlessKey) = store.edit { prefs ->
+        val current = readVlessKeys(prefs)
+        require(current.items.any { it.id == key.id }) { "VPN profile is not configured" }
+        val selectedKind = VpnProfileKind.fromStored(prefs[RoutesMapping.vpnKindKey()])
+        val nextKind = vpnKindAfterVlessUpdate(current, key, selectedKind)
+        val next = VlessKeys(current.items.map { if (it.id == key.id) key else it }, current.activeId)
+        validateVlessKeys(next)
+        writeVlessKeys(prefs, next)
+        if (selectedKind != VpnProfileKind.WARP && current.activeId == key.id) {
+            prefs[RoutesMapping.vpnKindKey()] = nextKind.name
+        }
     }
     suspend fun deleteVlessKey(id: String) {
         editVless { current -> current.delete(id) }
@@ -238,7 +258,7 @@ class RoutesStore(context: Context) {
     suspend fun setActiveVpn(kind: VpnProfileKind) = store.edit { prefs ->
         when (kind) {
             VpnProfileKind.VLESS, VpnProfileKind.SUBSCRIPTION -> require(
-                readVlessKeys(prefs).activeKind() == kind,
+                readVlessKeys(prefs).activeProfileKind() == kind,
             ) { "$kind profile is not configured" }
             VpnProfileKind.WARP -> require(
                 readWarpProfile(prefs) != null,
