@@ -136,6 +136,8 @@ mode: rule
 log-level: info
 ipv6: false
 find-process-mode: strict
+profile:
+  store-selected: true
 tun:
   enable: true
   stack: gvisor
@@ -204,13 +206,7 @@ $rules""".trim()
     private fun renderSubscriptionGroup(): String =
         """
         - name: $SUBSCRIPTION_GROUP
-          type: fallback
-          url: https://www.gstatic.com/generate_204
-          interval: 300
-          lazy: false
-          timeout: 5000
-          max-failed-times: 2
-          expected-status: 204
+          type: select
           use:
             - $SUBSCRIPTION_PROVIDER
         """.trimIndent()
