@@ -25,10 +25,28 @@ class VlessKeyParserTest {
         assertEquals("chrome", p.fingerprint)
         assertEquals("xtls-rprx-vision", p.flow)
         assertEquals("MyServer", p.name)
+        assertTrue(!p.isSubscription)
     }
 
-    @Test fun `rejects wrong scheme`() {
-        assertTrue(VlessKeyParser.parse("https://example.com") is ParseResult.Err)
+    @Test fun `parses https subscription without exposing token as name`() {
+        val r = VlessKeyParser.parse("https://subscription.example/opaque-token")
+        assertTrue(r is ParseResult.Ok)
+        val p = (r as ParseResult.Ok).profile
+        assertTrue(p.isSubscription)
+        assertEquals("https://subscription.example/opaque-token", p.subscriptionUrl)
+        assertEquals("subscription.example", p.server)
+        assertEquals(443, p.port)
+        assertEquals("subscription.example", p.name)
+    }
+
+    @Test fun `rejects insecure subscription and unrelated schemes`() {
+        assertTrue(VlessKeyParser.parse("http://subscription.example/secret") is ParseResult.Err)
+        assertTrue(VlessKeyParser.parse("trojan://example.com") is ParseResult.Err)
+    }
+
+    @Test fun `rejects subscription fragments and invalid hosts`() {
+        assertTrue(VlessKeyParser.parse("https://subscription.example/key#ignored") is ParseResult.Err)
+        assertTrue(VlessKeyParser.parse("https:///missing-host") is ParseResult.Err)
     }
 
     @Test fun `rejects unsupported transport`() {

@@ -18,8 +18,13 @@ fun canAutoConnect(
 }
 
 internal fun autoConnectProfileValid(settings: TriSettings): Boolean = when (settings.activeVpn) {
-    VpnProfileKind.VLESS -> settings.vlessKeys.active?.uri?.let {
-        VlessKeyParser.parse(it) is ParseResult.Ok
+    VpnProfileKind.VLESS -> settings.vlessKeys.active?.uri?.let { uri ->
+        val parsed = VlessKeyParser.parse(uri) as? ParseResult.Ok
+        parsed?.profile?.isSubscription == false
+    } == true
+    VpnProfileKind.SUBSCRIPTION -> settings.vlessKeys.active?.uri?.let { uri ->
+        val parsed = VlessKeyParser.parse(uri) as? ParseResult.Ok
+        parsed?.profile?.isSubscription == true
     } == true
     VpnProfileKind.WARP -> settings.warpProfile != null
 }

@@ -21,14 +21,18 @@ object ConfigGenerator {
     // Android kernels.
     private val ROUTE_ADDRESS = listOf("0.0.0.0/1", "128.0.0.0/1")
     private const val WARP_GROUP = "WARP"
+    private const val SUBSCRIPTION_GROUP = "SUBSCRIPTION"
+    private const val SUBSCRIPTION_PROVIDER = "DETOUR_SUBSCRIPTION"
     private const val MAX_WARP_PROXIES = 128
 
     fun build(input: RoutingInput): String {
         require(input.vpnUids.keys.containsAll(input.vpnApps + input.dpiApps)) {
             "missing uid resolution for routed packages"
         }
+        val subscriptionUrl = (input.vpn as? VpnOutbound.Subscription)?.url
         val vpnTag = when (input.vpn) {
             is VpnOutbound.Vless -> "VLESS"
+            is VpnOutbound.Subscription -> SUBSCRIPTION_GROUP
             is VpnOutbound.Warp -> WARP_GROUP
             null -> null
         }
@@ -58,10 +62,12 @@ object ConfigGenerator {
             add("- MATCH,REJECT")
         }.joinToString("\n")
 
-        // mihomo требует единый список proxies; VPN и DPI исходящие объявляются здесь.
+        // mihomo требует единый список proxies; subscription provider подключается
+        // отдельно через proxy-providers и не создаёт фиктивный VLESS outbound.
         val proxies = buildList {
             when (val vpn = input.vpn) {
                 is VpnOutbound.Vless -> add(renderVless(vpn.profile))
+                is VpnOutbound.Subscription -> Unit
                 is VpnOutbound.Warp -> warpProxies.forEachIndexed { index, proxy ->
                     add(renderWarp(proxy, index))
                 }
@@ -80,13 +86,23 @@ object ConfigGenerator {
             )
         }.joinToString("\n")
 
-        val proxyGroups = if (input.vpn is VpnOutbound.Warp) {
-            "\nproxy-groups:\n" + renderWarpGroup(warpProxies.size)
-        } else ""
+        val proxyProviders = subscriptionUrl?.let { url ->
+            "\nproxy-providers:\n" + renderSubscriptionProvider(url)
+        }.orEmpty()
+        val proxyGroups = when (input.vpn) {
+            is VpnOutbound.Warp -> "\nproxy-groups:\n" + renderWarpGroup(warpProxies.size)
+            is VpnOutbound.Subscription -> "\nproxy-groups:\n" + renderSubscriptionGroup()
+            else -> ""
+        }
 
         val probes = buildList {
             if (input.vpnApps.isNotEmpty() && input.vpn != null) {
-                val name = if (input.vpn is VpnOutbound.Vless) "PROBE_VLESS" else "PROBE_WARP"
+                val name = when (input.vpn) {
+                    is VpnOutbound.Subscription -> "PROBE_SUBSCRIPTION"
+                    is VpnOutbound.Vless -> "PROBE_VLESS"
+                    is VpnOutbound.Warp -> "PROBE_WARP"
+                    null -> error("unreachable")
+                }
                 add("""- name: $name
   type: mixed
   listen: 127.0.0.1
@@ -141,15 +157,16 @@ dns:
   nameserver:
     - ${yamlScalar(input.nameserver)}
 proxies:
-$proxies$proxyGroups
+$proxies$proxyProviders$proxyGroups
 listeners:
 $probes
 rules:
 $rules""".trim()
     }
 
-    private fun renderVless(p: VlessProfile): String =
-        """
+    private fun renderVless(p: VlessProfile): String {
+        require(!p.isSubscription) { "subscription cannot be rendered as a VLESS proxy" }
+        return """
         - name: VLESS
           type: vless
           server: ${yamlScalar(p.server)}
@@ -164,6 +181,38 @@ $rules""".trim()
           reality-opts:
             public-key: ${yamlScalar(p.publicKey)}
             short-id: ${yamlScalar(p.shortId)}
+        """.trimIndent()
+    }
+
+    private fun renderSubscriptionProvider(url: String): String = buildString {
+        val parsed = VlessKeyParser.parse(url) as? ParseResult.Ok
+        require(parsed?.profile?.isSubscription == true) { "invalid subscription URL" }
+        append("  $SUBSCRIPTION_PROVIDER:\n")
+        append("    type: http\n")
+        append("    url: ${yamlScalar(url)}\n")
+        append("    interval: 3600\n")
+        append("    size-limit: 4194304\n")
+        append("    health-check:\n")
+        append("      enable: true\n")
+        append("      url: https://www.gstatic.com/generate_204\n")
+        append("      interval: 300\n")
+        append("      timeout: 5000\n")
+        append("      lazy: false\n")
+        append("      expected-status: 204")
+    }
+
+    private fun renderSubscriptionGroup(): String =
+        """
+        - name: $SUBSCRIPTION_GROUP
+          type: fallback
+          url: https://www.gstatic.com/generate_204
+          interval: 300
+          lazy: false
+          timeout: 5000
+          max-failed-times: 2
+          expected-status: 204
+          use:
+            - $SUBSCRIPTION_PROVIDER
         """.trimIndent()
 
     private fun renderWarp(p: WarpProxy, index: Int): String {

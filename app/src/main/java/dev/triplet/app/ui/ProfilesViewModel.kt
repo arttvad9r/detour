@@ -3,7 +3,9 @@ package dev.triplet.app.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.VlessKey
+import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.core.WarpConfigImporter
 import dev.triplet.app.core.WarpImportResult
@@ -69,8 +71,16 @@ data class ProfilesUiState(
     val vlessSaveStatus: VlessSaveStatus = VlessSaveStatus.IDLE,
 )
 
+private fun selectedKeyKind(settings: TriSettings?, keyId: String): VpnProfileKind {
+    val uri = settings?.vlessKeys?.items?.firstOrNull { it.id == keyId }?.uri
+        ?: return VpnProfileKind.VLESS
+    val parsed = VlessKeyParser.parse(uri) as? ParseResult.Ok ?: return VpnProfileKind.VLESS
+    return if (parsed.profile.isSubscription) VpnProfileKind.SUBSCRIPTION else VpnProfileKind.VLESS
+}
+
 internal fun persistedProfileSelection(settings: TriSettings?): ProfileSelection? = when (settings?.activeVpn) {
-    VpnProfileKind.VLESS -> settings.vlessKeys.activeId?.let(ProfileSelection::Vless)
+    VpnProfileKind.VLESS, VpnProfileKind.SUBSCRIPTION ->
+        settings.vlessKeys.activeId?.let(ProfileSelection::Vless)
     VpnProfileKind.WARP -> ProfileSelection.Warp
     null -> null
 }
@@ -90,7 +100,7 @@ internal fun profilesUiState(
         },
         warpProfile = settings?.warpProfile,
         activeVpn = when (selection) {
-            is ProfileSelection.Vless -> VpnProfileKind.VLESS
+            is ProfileSelection.Vless -> selectedKeyKind(settings, selection.keyId)
             ProfileSelection.Warp -> VpnProfileKind.WARP
             null -> settings?.activeVpn ?: VpnProfileKind.VLESS
         },
@@ -107,7 +117,7 @@ internal fun vlessDeleteRequest(
     val state = profilesUiState(settings, selectionOverride = selectionOverride)
     return ProfileDeleteRequest.Vless(
         keyId = keyId,
-        active = state.activeVpn == VpnProfileKind.VLESS && state.activeVlessId == keyId,
+        active = state.activeVpn != VpnProfileKind.WARP && state.activeVlessId == keyId,
     )
 }
 
@@ -127,7 +137,7 @@ internal fun vlessMutationTunnelAction(
     keyId: String,
     deleting: Boolean,
 ): ProfileTunnelAction {
-    if (activeVpn != VpnProfileKind.VLESS || activeVlessId != keyId) return ProfileTunnelAction.NONE
+    if (activeVpn == VpnProfileKind.WARP || activeVlessId != keyId) return ProfileTunnelAction.NONE
     return if (deleting) ProfileTunnelAction.STOP else ProfileTunnelAction.RESTART
 }
 

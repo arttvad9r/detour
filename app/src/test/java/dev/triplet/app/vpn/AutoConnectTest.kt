@@ -14,6 +14,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class AutoConnectTest {
+    private val validVlessUri =
+        "vless://b831381d-6324-4d53-ad4f-8cda48b30811@example.com:443" +
+            "?type=tcp&security=reality&fp=chrome&sni=translate.yandex.com" +
+            "&pbk=SbVKOEMjK0sIlbwg4akyBg5mL5KZwwB-ed4eEE7YnRc&sid=6ba85179" +
+            "&flow=xtls-rprx-vision#MyServer"
+
     private val warp = WarpProfile(
         id = "warp",
         name = "WARP",
@@ -33,7 +39,7 @@ class AutoConnectTest {
         activeVpn: VpnProfileKind = VpnProfileKind.VLESS,
         warpProfile: WarpProfile? = null,
     ) = TriSettings(
-        vlessKeys = if (key) VlessKeys(listOf(VlessKey("a", "a", "uri")), "a") else VlessKeys(emptyList(), null),
+        vlessKeys = if (key) VlessKeys(listOf(VlessKey("a", "a", validVlessUri)), "a") else VlessKeys(emptyList(), null),
         warpProfile = warpProfile,
         activeVpn = activeVpn,
         preset = DpiPreset.RECOMMENDED, dpiCustomArgs = "", autoConnect = true,

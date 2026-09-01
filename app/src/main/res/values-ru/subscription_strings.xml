@@ -1,0 +1,15 @@
+<resources>
+    <string name="subscription_runtime_title">Серверы подписки</string>
+    <string name="subscription_runtime_disconnected">Подключите VPN, чтобы загрузить серверы этой подписки.</string>
+    <string name="subscription_runtime_loading">Загрузка серверов подписки…</string>
+    <string name="subscription_runtime_unavailable">Данные провайдера пока недоступны.</string>
+    <string name="subscription_runtime_summary">Доступно серверов: %1$d из %2$d</string>
+    <string name="subscription_runtime_updated">Обновлено: %1$s</string>
+    <string name="subscription_runtime_refresh">Обновить</string>
+    <string name="subscription_runtime_refreshing">Обновление…</string>
+    <string name="subscription_runtime_refresh_error">Не удалось обновить подписку. Текущий туннель не изменён.</string>
+    <string name="subscription_node_online">Доступен</string>
+    <string name="subscription_node_offline">Недоступен</string>
+    <string name="subscription_node_delay">%1$d мс</string>
+    <string name="subscription_nodes_more">Ещё серверов: %1$d</string>
+</resources>
