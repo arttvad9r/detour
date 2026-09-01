@@ -66,7 +66,7 @@ fun DpiScreen(viewModel: DpiViewModel, onBack: () -> Unit, modifier: Modifier = 
             .verticalScroll(scrollState)
             .detourHighRefresh(spatialMotionActive),
     ) {
-        ScreenHeader(stringResource(R.string.dpi_title), onBack)
+        DetourBrandedHeader(stringResource(R.string.dpi_title), onBack)
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
