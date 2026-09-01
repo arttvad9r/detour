@@ -371,17 +371,5 @@ internal fun DetourNavigation(
 
 @Composable
 private fun SettingsDetailPlaceholder() {
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(detourColors.background)
-            .padding(32.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = stringResource(R.string.settings_select_section),
-            style = MaterialTheme.typography.bodyLarge,
-            color = detourColors.textMuted,
-        )
-    }
+    dev.triplet.app.ui.SettingsDetailEmptyState()
 }
