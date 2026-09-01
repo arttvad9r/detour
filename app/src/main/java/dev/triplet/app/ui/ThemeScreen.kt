@@ -8,20 +8,25 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -41,10 +46,40 @@ fun ThemeScreen(viewModel: ThemeViewModel, onBack: () -> Unit, modifier: Modifie
             .verticalScroll(scrollState)
             .detourHighRefresh(scrollState.isScrollInProgress),
     ) {
-        ScreenHeader(stringResource(R.string.theme_title), onBack)
+        ThemeBrandHeader(onBack)
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
+            DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(Spacing.space16),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    DetourBrandMark()
+                    Column(
+                        Modifier
+                            .padding(start = Spacing.space12)
+                            .weight(1f),
+                    ) {
+                        Text(
+                            "Detour",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = c.textPrimary,
+                        )
+                        Text(
+                            stringResource(themeLabel(LocalDetourTheme.current)),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = c.textSecondary,
+                            modifier = Modifier.padding(top = Spacing.space2),
+                        )
+                    }
+                    ThemePalettePreview(LocalDetourTheme.current)
+                }
+            }
+
+            Spacer(Modifier.height(Spacing.space12))
             DetourCard(Modifier.padding(horizontal = Spacing.space16).selectableGroup()) {
                 AppTheme.entries.forEachIndexed { i, theme ->
                     ChoiceRow(
@@ -62,10 +97,38 @@ fun ThemeScreen(viewModel: ThemeViewModel, onBack: () -> Unit, modifier: Modifie
                 stringResource(R.string.theme_hint),
                 style = MaterialTheme.typography.bodySmall,
                 color = c.textMuted,
-                modifier = Modifier.padding(horizontal = Spacing.space16),
+                modifier = Modifier.padding(horizontal = Spacing.space20),
             )
             Spacer(Modifier.height(Spacing.space24))
         }
+    }
+}
+
+@Composable
+private fun ThemeBrandHeader(onBack: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .padding(start = Spacing.space4, end = Spacing.space20),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        DetourIconButton(onClick = onBack) {
+            Icon(
+                painter = painterResource(R.drawable.ic_back),
+                contentDescription = stringResource(R.string.cd_back),
+                tint = detourColors.textPrimary,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        Spacer(Modifier.width(Spacing.space4))
+        DetourBrandMark()
+        Spacer(Modifier.width(Spacing.space8))
+        Text(
+            stringResource(R.string.theme_title),
+            style = MaterialTheme.typography.titleLarge,
+            color = detourColors.textPrimary,
+        )
     }
 }
 
