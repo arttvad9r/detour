@@ -8,6 +8,7 @@
     <string name="btn_connect">Подключить</string>
     <string name="btn_disconnect">Отключить</string>
     <string name="btn_connecting">Подключение…</string>
+    <string name="btn_cancel_connecting">Отмена</string>
     <string name="action_retry">Повторить</string>
     <string name="state_sub_idle">Нет активной сессии</string>
     <string name="row_profile">Профиль</string>
