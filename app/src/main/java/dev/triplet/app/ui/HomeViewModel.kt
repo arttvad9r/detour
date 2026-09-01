@@ -59,7 +59,9 @@ internal fun homeProfilePresentation(
     warpName: String?,
     warpEndpointCount: Int,
 ): HomeProfilePresentation = when (activeVpn) {
-    VpnProfileKind.VLESS -> {
+    VpnProfileKind.VLESS,
+    VpnProfileKind.SUBSCRIPTION,
+    -> {
         val profile = (VlessKeyParser.parse(vlessUri) as? ParseResult.Ok)?.profile
         HomeProfilePresentation(
             name = profile?.name?.ifBlank { profile.server },
