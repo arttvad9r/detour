@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,8 +29,8 @@ import androidx.compose.ui.unit.dp
 import dev.triplet.app.R
 
 /**
- * Single-choice list row with radio semantics and a modern selected check.
- * Selection is conveyed by both the tonal surface and a non-color icon.
+ * Single-choice list row with radio semantics and a branded square selection mark.
+ * Selection is conveyed by both the tonal surface and a non-color check icon.
  */
 @Composable
 fun ChoiceRow(
@@ -58,7 +59,7 @@ fun ChoiceRow(
                 pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
                 pressScale = Motion.PRESS_RADIO,
             )
-            .heightIn(min = 56.dp)
+            .heightIn(min = 60.dp)
             .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -89,7 +90,12 @@ fun SelectionMark(selected: Boolean, modifier: Modifier = Modifier) {
         modifier = modifier
             .size(24.dp)
             .background(
-                color = if (selected) c.accent else Color.Transparent,
+                color = if (selected) c.accent else c.surfaceSoft,
+                shape = AppShapes.extraSmall,
+            )
+            .border(
+                width = 1.dp,
+                color = if (selected) c.accent else c.border,
                 shape = AppShapes.extraSmall,
             ),
         contentAlignment = Alignment.Center,
