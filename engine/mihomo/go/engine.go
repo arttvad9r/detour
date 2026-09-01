@@ -7,10 +7,12 @@ package engine
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/netip"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -27,6 +29,8 @@ import (
 )
 
 const subscriptionProviderName = "DETOUR_SUBSCRIPTION"
+
+var sensitiveURLPattern = regexp.MustCompile(`https?://[^\t\r\n "'<>]+`)
 
 // ProcessResolver resolves the owning app of a TUN connection host-side.
 // Return "" if unknown. Non-empty response MUST be "<uid> <packageName>".
@@ -69,6 +73,7 @@ func Start(configYAML string, logPath string) (err error) {
 	readyMu.Unlock()
 	defer func() {
 		if err != nil {
+			err = redactError(err)
 			unsubscribeLogs()
 		}
 	}()
@@ -126,14 +131,14 @@ func SubscriptionProviderState() string {
 // its health state. Callers must run this away from Android's main thread.
 func RefreshSubscriptionProvider() error {
 	if !Ready() {
-		return fmt.Errorf("engine is not ready")
+		return errors.New("engine is not ready")
 	}
 	provider, ok := tunnel.Providers()[subscriptionProviderName]
 	if !ok {
-		return fmt.Errorf("subscription provider is not active")
+		return errors.New("subscription provider is not active")
 	}
 	if err := provider.Update(); err != nil {
-		return err
+		return redactError(err)
 	}
 	provider.HealthCheck()
 	return nil
@@ -158,6 +163,17 @@ var (
 	logSub observable.Subscription[log.Event]
 )
 
+func redactSensitiveURLs(value string) string {
+	return sensitiveURLPattern.ReplaceAllString(value, "[redacted-url]")
+}
+
+func redactError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return errors.New(redactSensitiveURLs(err.Error()))
+}
+
 func subscribeLogs(path string) {
 	logMu.Lock()
 	defer logMu.Unlock()
@@ -172,7 +188,7 @@ func subscribeLogs(path string) {
 	go func() {
 		defer f.Close()
 		for e := range sub {
-			_, _ = fmt.Fprintf(f, "%s %s\n", e.Type(), e.Payload)
+			_, _ = fmt.Fprintf(f, "%s %s\n", e.Type(), redactSensitiveURLs(e.Payload))
 		}
 	}()
 }

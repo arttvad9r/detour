@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/metacubex/mihomo/config"
@@ -18,6 +20,22 @@ func TestSubscriptionProviderRuntimeApiIsSafeBeforeStart(t *testing.T) {
 	}
 	if err := RefreshSubscriptionProvider(); err == nil {
 		t.Fatal("refresh must fail while engine is not ready")
+	}
+}
+
+func TestSensitiveURLsAreRedactedFromLogsAndErrors(t *testing.T) {
+	const secretURL = "https://subscription.example/opaque-token?user=secret"
+	message := `Get "` + secretURL + `": dial tcp: network unreachable`
+	redacted := redactSensitiveURLs(message)
+	if strings.Contains(redacted, secretURL) || strings.Contains(redacted, "opaque-token") {
+		t.Fatalf("secret URL leaked after redaction: %s", redacted)
+	}
+	if !strings.Contains(redacted, "[redacted-url]") {
+		t.Fatalf("redaction marker missing: %s", redacted)
+	}
+	redactedErr := redactError(errors.New(message))
+	if redactedErr == nil || strings.Contains(redactedErr.Error(), "opaque-token") {
+		t.Fatalf("secret URL leaked through error: %v", redactedErr)
 	}
 }
 
