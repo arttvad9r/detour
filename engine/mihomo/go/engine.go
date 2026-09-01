@@ -9,16 +9,24 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"net/netip"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/metacubex/mihomo/adapter/outboundgroup"
+	"github.com/metacubex/mihomo/common/convert"
+	mihomoYaml "github.com/metacubex/mihomo/common/yaml"
 	"github.com/metacubex/mihomo/common/observable"
 	"github.com/metacubex/mihomo/component/process"
+	"github.com/metacubex/mihomo/component/profile/cachefile"
 	"github.com/metacubex/mihomo/config"
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/hub/executor"
@@ -28,7 +36,12 @@ import (
 	"github.com/metacubex/mihomo/tunnel"
 )
 
-const subscriptionProviderName = "DETOUR_SUBSCRIPTION"
+const (
+	subscriptionProviderName = "DETOUR_SUBSCRIPTION"
+	subscriptionGroupName    = "SUBSCRIPTION"
+	maxSubscriptionBodyBytes = 4 * 1024 * 1024
+	maxSubscriptionNodes     = 256
+)
 
 var sensitiveURLPattern = regexp.MustCompile(`https?://[^\t\r\n "'<>]+`)
 
@@ -142,6 +155,172 @@ func RefreshSubscriptionProvider() error {
 	}
 	provider.HealthCheck()
 	return nil
+}
+
+// FetchSubscriptionCatalog downloads and parses an HTTPS subscription without
+// requiring the VPN engine to be running. Parsing intentionally follows the
+// same YAML/V2Ray conversion path as mihomo's HTTP proxy-provider so the list
+// shown by Android matches the nodes the runtime can later consume.
+func FetchSubscriptionCatalog(subscriptionURL string) string {
+	parsed, err := parseSubscriptionURL(subscriptionURL)
+	if err != nil {
+		return ""
+	}
+	client := &http.Client{
+		Timeout: 15 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 5 {
+				return errors.New("too many subscription redirects")
+			}
+			if req.URL.Scheme != "https" || req.URL.Host == "" || req.URL.User != nil {
+				return errors.New("unsafe subscription redirect")
+			}
+			return nil
+		},
+	}
+	req, err := http.NewRequest(http.MethodGet, parsed.String(), nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("User-Agent", "Detour")
+	resp, err := client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return ""
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxSubscriptionBodyBytes+1))
+	if err != nil || len(body) == 0 || len(body) > maxSubscriptionBodyBytes {
+		return ""
+	}
+
+	type proxySchema struct {
+		Proxies []map[string]any `yaml:"proxies"`
+	}
+	schema := &proxySchema{}
+	if err := mihomoYaml.Unmarshal(body, schema); err != nil {
+		proxies, convertErr := convert.ConvertsV2Ray(body)
+		if convertErr != nil {
+			return ""
+		}
+		schema.Proxies = proxies
+	}
+	if len(schema.Proxies) == 0 {
+		return ""
+	}
+
+	type catalogNode struct {
+		Name string `json:"name"`
+		Type string `json:"type"`
+	}
+	nodes := make([]catalogNode, 0, min(len(schema.Proxies), maxSubscriptionNodes))
+	seen := make(map[string]struct{}, len(schema.Proxies))
+	for _, proxy := range schema.Proxies {
+		name, ok := safeCatalogLabel(proxy["name"], 256)
+		if !ok {
+			continue
+		}
+		if _, duplicate := seen[name]; duplicate {
+			continue
+		}
+		proxyType, ok := safeCatalogLabel(proxy["type"], 64)
+		if !ok {
+			proxyType = "unknown"
+		}
+		seen[name] = struct{}{}
+		nodes = append(nodes, catalogNode{Name: name, Type: proxyType})
+		if len(nodes) >= maxSubscriptionNodes {
+			break
+		}
+	}
+	if len(nodes) == 0 {
+		return ""
+	}
+	payload, err := json.Marshal(map[string]any{"nodes": nodes})
+	if err != nil {
+		return ""
+	}
+	return string(payload)
+}
+
+// SelectSubscriptionNode selects a node in the live selector when connected,
+// and always writes the choice into mihomo's selected-group cache. Writing the
+// cache while disconnected makes the selection effective on the next Start.
+func SelectSubscriptionNode(name string, homeDir string) error {
+	name = strings.TrimSpace(name)
+	if name == "" || len(name) > 256 || strings.IndexFunc(name, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0 {
+		return errors.New("invalid subscription node")
+	}
+	if homeDir != "" {
+		if err := os.MkdirAll(homeDir, 0o700); err != nil {
+			return err
+		}
+		C.SetHomeDir(homeDir)
+	}
+	if Ready() {
+		proxy, ok := tunnel.Proxies()[subscriptionGroupName]
+		if !ok {
+			return errors.New("subscription selector is not active")
+		}
+		selector, ok := proxy.Adapter().(outboundgroup.SelectAble)
+		if !ok {
+			return errors.New("subscription group is not selectable")
+		}
+		if err := selector.Set(name); err != nil {
+			return redactError(err)
+		}
+	}
+	cachefile.Cache().SetSelected(subscriptionGroupName, name)
+	return nil
+}
+
+// SubscriptionSelectedNode returns the live selected node, or the cached node
+// while disconnected. homeDir must be the same app-private directory used by Start.
+func SubscriptionSelectedNode(homeDir string) string {
+	if homeDir != "" {
+		if err := os.MkdirAll(homeDir, 0o700); err == nil {
+			C.SetHomeDir(homeDir)
+		}
+	}
+	if Ready() {
+		if proxy, ok := tunnel.Proxies()[subscriptionGroupName]; ok {
+			if selector, ok := proxy.Adapter().(*outboundgroup.Selector); ok {
+				return selector.Now()
+			}
+		}
+	}
+	if selected := cachefile.Cache().SelectedMap(); selected != nil {
+		return selected[subscriptionGroupName]
+	}
+	return ""
+}
+
+func parseSubscriptionURL(value string) (*url.URL, error) {
+	if len(value) == 0 || len(value) > 8*1024 {
+		return nil, errors.New("invalid subscription URL")
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil {
+		return nil, errors.New("invalid subscription URL")
+	}
+	return parsed, nil
+}
+
+func safeCatalogLabel(value any, maxChars int) (string, bool) {
+	text, ok := value.(string)
+	if !ok {
+		return "", false
+	}
+	text = strings.TrimSpace(text)
+	if text == "" || len([]rune(text)) > maxChars {
+		return "", false
+	}
+	if strings.IndexFunc(text, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0 {
+		return "", false
+	}
+	return text, true
 }
 
 // Stop shuts down the mihomo runtime.
