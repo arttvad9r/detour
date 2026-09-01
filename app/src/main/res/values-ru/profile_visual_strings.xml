@@ -2,4 +2,6 @@
     <string name="profile_selected">Выбран</string>
     <string name="profile_server_label">Сервер</string>
     <string name="profile_type_label">Тип</string>
+    <string name="profile_reality">Reality</string>
+    <string name="profile_amneziawg">AmneziaWG</string>
 </resources>
