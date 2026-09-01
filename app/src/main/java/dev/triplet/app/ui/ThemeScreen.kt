@@ -78,6 +78,8 @@ fun ThemeScreen(viewModel: ThemeViewModel, onBack: () -> Unit, modifier: Modifie
             }
 
             Spacer(Modifier.height(Spacing.space16))
+            ThemeSectionLabel(R.string.theme_section_detour)
+            Spacer(Modifier.height(Spacing.space8))
             ThemeChoiceCard(
                 themes = officialThemes,
                 selectedThemeId = state.selectedThemeId,
@@ -91,8 +93,10 @@ fun ThemeScreen(viewModel: ThemeViewModel, onBack: () -> Unit, modifier: Modifie
                 color = c.textMuted,
                 modifier = Modifier.padding(horizontal = Spacing.space20),
             )
-            Spacer(Modifier.height(Spacing.space12))
 
+            Spacer(Modifier.height(Spacing.space16))
+            ThemeSectionLabel(R.string.theme_section_community)
+            Spacer(Modifier.height(Spacing.space8))
             ThemeChoiceCard(
                 themes = communityThemes,
                 selectedThemeId = state.selectedThemeId,
@@ -101,6 +105,16 @@ fun ThemeScreen(viewModel: ThemeViewModel, onBack: () -> Unit, modifier: Modifie
             Spacer(Modifier.height(Spacing.space24))
         }
     }
+}
+
+@Composable
+private fun ThemeSectionLabel(titleRes: Int) {
+    Text(
+        text = stringResource(titleRes),
+        style = MaterialTheme.typography.labelLarge,
+        color = detourColors.textSecondary,
+        modifier = Modifier.padding(horizontal = Spacing.space20),
+    )
 }
 
 @Composable
