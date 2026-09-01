@@ -1,0 +1,5 @@
+<resources>
+    <string name="profile_selected">Выбран</string>
+    <string name="profile_server_label">Сервер</string>
+    <string name="profile_type_label">Тип</string>
+</resources>
