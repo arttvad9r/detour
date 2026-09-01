@@ -146,7 +146,7 @@ internal fun SettingsMenuScreen(
                         .padding(start = Spacing.space16, end = Spacing.space12),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    DetourIconTile(R.drawable.ic_routes)
+                    DetourIconTile(R.drawable.ic_power)
                     Text(
                         stringResource(R.string.auto_connect),
                         style = MaterialTheme.typography.titleSmall,
