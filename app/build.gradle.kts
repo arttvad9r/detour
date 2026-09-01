@@ -147,6 +147,10 @@ dependencies {
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
+    // Compose UI testing still brings Espresso 3.5.0 transitively. Pin the
+    // AndroidX Test stable release that replaced InputManager.getInstance()
+    // reflection and is compatible with current Android platform releases.
+    androidTestImplementation(libs.androidx.test.espresso.core)
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
