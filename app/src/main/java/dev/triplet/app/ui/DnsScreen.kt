@@ -47,6 +47,16 @@ fun DnsScreen(viewModel: DnsViewModel, onBack: () -> Unit, modifier: Modifier = 
     val customVisibility = remember { MutableTransitionState(state.editingCustom) }
     customVisibility.targetState = state.editingCustom
     val spatialMotionActive = scrollState.isScrollInProgress || !customVisibility.isIdle
+    val selectedLabel = if (state.editingCustom) {
+        stringResource(R.string.dns_custom)
+    } else {
+        stringResource(DNS_LABELS[state.selectedDns] ?: R.string.dns_custom)
+    }
+    val selectedDetail = if (state.editingCustom) {
+        state.customField.takeIf { it.isNotBlank() } ?: stringResource(R.string.dns_custom_hint_https)
+    } else {
+        DnsOptions.servers[state.selectedDns]
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.customSaved.collect {
@@ -67,6 +77,14 @@ fun DnsScreen(viewModel: DnsViewModel, onBack: () -> Unit, modifier: Modifier = 
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
+            DetourFeatureSummary(
+                iconRes = R.drawable.ic_globe,
+                title = selectedLabel,
+                subtitle = selectedDetail,
+                modifier = Modifier.padding(horizontal = Spacing.space16),
+            )
+
+            Spacer(Modifier.height(Spacing.space16))
             DetourCard(Modifier.padding(horizontal = Spacing.space16).selectableGroup()) {
                 DnsOptions.servers.entries.forEach { (id, server) ->
                     ChoiceRow(
