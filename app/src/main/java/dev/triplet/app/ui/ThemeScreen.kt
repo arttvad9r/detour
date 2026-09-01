@@ -33,6 +33,8 @@ fun ThemeScreen(viewModel: ThemeViewModel, onBack: () -> Unit, modifier: Modifie
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val c = detourColors
     val scrollState = rememberScrollState()
+    val officialThemes = listOf(AppTheme.DETOUR_LIGHT, AppTheme.DETOUR_DARK)
+    val communityThemes = AppTheme.entries.filterNot { it in officialThemes }
 
     Column(
         modifier.fillMaxSize()
@@ -60,7 +62,7 @@ fun ThemeScreen(viewModel: ThemeViewModel, onBack: () -> Unit, modifier: Modifie
                             .weight(1f),
                     ) {
                         Text(
-                            "Detour",
+                            stringResource(R.string.app_name),
                             style = MaterialTheme.typography.titleMedium,
                             color = c.textPrimary,
                         )
@@ -75,18 +77,12 @@ fun ThemeScreen(viewModel: ThemeViewModel, onBack: () -> Unit, modifier: Modifie
                 }
             }
 
-            Spacer(Modifier.height(Spacing.space12))
-            DetourCard(Modifier.padding(horizontal = Spacing.space16).selectableGroup()) {
-                AppTheme.entries.forEachIndexed { i, theme ->
-                    ChoiceRow(
-                        title = stringResource(themeLabel(theme)),
-                        selected = state.selectedThemeId == theme.id,
-                        onClick = { viewModel.selectTheme(theme.id) },
-                        trailing = { ThemePalettePreview(theme) },
-                    )
-                    if (i < AppTheme.entries.lastIndex) GroupDivider(startInset = 56)
-                }
-            }
+            Spacer(Modifier.height(Spacing.space16))
+            ThemeChoiceCard(
+                themes = officialThemes,
+                selectedThemeId = state.selectedThemeId,
+                onSelect = viewModel::selectTheme,
+            )
 
             Spacer(Modifier.height(Spacing.space12))
             Text(
@@ -95,7 +91,38 @@ fun ThemeScreen(viewModel: ThemeViewModel, onBack: () -> Unit, modifier: Modifie
                 color = c.textMuted,
                 modifier = Modifier.padding(horizontal = Spacing.space20),
             )
+            Spacer(Modifier.height(Spacing.space12))
+
+            ThemeChoiceCard(
+                themes = communityThemes,
+                selectedThemeId = state.selectedThemeId,
+                onSelect = viewModel::selectTheme,
+            )
             Spacer(Modifier.height(Spacing.space24))
+        }
+    }
+}
+
+@Composable
+private fun ThemeChoiceCard(
+    themes: List<AppTheme>,
+    selectedThemeId: String,
+    onSelect: (String) -> Unit,
+) {
+    if (themes.isEmpty()) return
+    DetourCard(
+        Modifier
+            .padding(horizontal = Spacing.space16)
+            .selectableGroup(),
+    ) {
+        themes.forEachIndexed { index, theme ->
+            ChoiceRow(
+                title = stringResource(themeLabel(theme)),
+                selected = selectedThemeId == theme.id,
+                onClick = { onSelect(theme.id) },
+                trailing = { ThemePalettePreview(theme) },
+            )
+            if (index < themes.lastIndex) GroupDivider(startInset = 56)
         }
     }
 }
