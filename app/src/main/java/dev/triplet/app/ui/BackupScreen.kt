@@ -90,7 +90,7 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
             .verticalScroll(scrollState)
             .detourHighRefresh(scrollState.isScrollInProgress),
     ) {
-        ScreenHeader(stringResource(R.string.backup_title), onBack)
+        DetourBrandedHeader(stringResource(R.string.backup_title), onBack)
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
