@@ -123,6 +123,7 @@ jobs:
         run: >-
           bash tools/run_android_instrumentation_emulator.sh 37
           'system-images;android-37.0;google_apis_ps16k;x86_64'
+          16384
       - name: Upload instrumentation diagnostics
         if: ${{ always() && (github.event_name == 'pull_request' || github.ref == 'refs/heads/master') }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
