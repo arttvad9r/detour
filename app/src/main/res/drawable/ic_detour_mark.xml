@@ -2,34 +2,45 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="48dp"
     android:height="48dp"
-    android:viewportWidth="48"
-    android:viewportHeight="48">
-    <path
-        android:pathData="M24,4 L40,10 L40,22 C40,34 33.5,41 24,46 C14.5,41 8,34 8,22 L8,10 Z"
-        android:fillColor="#00000000"
-        android:strokeColor="#FF000000"
-        android:strokeWidth="2.2"
-        android:strokeLineJoin="round" />
-    <path
-        android:pathData="M18,28 L27.5,18.5 M19,31.5 L32.5,33"
-        android:fillColor="#00000000"
-        android:strokeColor="#FF000000"
-        android:strokeWidth="2.6"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round" />
-    <path
-        android:pathData="M29.5,14.5 a4,4 0,1 0,0.01 0 z"
-        android:fillColor="#00000000"
-        android:strokeColor="#FF000000"
-        android:strokeWidth="2.4" />
-    <path
-        android:pathData="M15.5,27 a4,4 0,1 0,0.01 0 z"
-        android:fillColor="#00000000"
-        android:strokeColor="#FF000000"
-        android:strokeWidth="2.4" />
-    <path
-        android:pathData="M35,31 a4,4 0,1 0,0.01 0 z"
-        android:fillColor="#00000000"
-        android:strokeColor="#FF000000"
-        android:strokeWidth="2.4" />
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Standalone form of the real launcher foreground mark. -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="1.5"
+        android:scaleY="1.5">
+        <path
+            android:pathData="M54,23 L77,32 L77,50 C77,68 67,79 54,86 C41,79 31,68 31,50 L31,32 Z"
+            android:fillColor="#00000000"
+            android:strokeColor="#FF000000"
+            android:strokeAlpha="0.34"
+            android:strokeWidth="3.5"
+            android:strokeLineJoin="round" />
+
+        <path
+            android:pathData="M46,58 L60,44 M48,63 L66,66"
+            android:fillColor="#00000000"
+            android:strokeColor="#FF000000"
+            android:strokeWidth="5.5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+
+        <path
+            android:pathData="M64,34 a6,6 0,1 0,0.01 0 z"
+            android:fillColor="#00000000"
+            android:strokeColor="#FF000000"
+            android:strokeWidth="4.5" />
+        <path
+            android:pathData="M42,56 a6,6 0,1 0,0.01 0 z"
+            android:fillColor="#00000000"
+            android:strokeColor="#FF000000"
+            android:strokeWidth="4.5" />
+        <path
+            android:pathData="M72,61 a6,6 0,1 0,0.01 0 z"
+            android:fillColor="#00000000"
+            android:strokeColor="#FF000000"
+            android:strokeWidth="4.5" />
+    </group>
 </vector>
