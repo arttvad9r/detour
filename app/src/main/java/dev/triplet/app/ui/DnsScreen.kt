@@ -93,6 +93,14 @@ fun DnsScreen(viewModel: DnsViewModel, onBack: () -> Unit, modifier: Modifier = 
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
+            DetourFeatureSummary(
+                iconRes = R.drawable.ic_globe,
+                title = stringResource(R.string.dns_hint_title),
+                subtitle = stringResource(R.string.dns_info),
+                modifier = Modifier.padding(horizontal = Spacing.space16),
+            )
+
+            Spacer(Modifier.height(Spacing.space12))
             DetourCard(
                 Modifier
                     .padding(horizontal = Spacing.space16)
@@ -151,11 +159,6 @@ fun DnsScreen(viewModel: DnsViewModel, onBack: () -> Unit, modifier: Modifier = 
                     }
                 }
             }
-
-            Spacer(Modifier.height(Spacing.space16))
-            DnsInfoNotice(
-                modifier = Modifier.padding(horizontal = Spacing.space16),
-            )
 
             if (state.editingCustom) {
                 Spacer(Modifier.height(Spacing.space16))
@@ -256,41 +259,6 @@ private fun DnsProviderRow(
         SelectionMark(
             selected = selected,
             modifier = Modifier.padding(start = Spacing.space8),
-        )
-    }
-}
-
-@Composable
-private fun DnsInfoNotice(modifier: Modifier = Modifier) {
-    val c = detourColors
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(c.accentSoft.copy(alpha = 0.55f), AppShapes.medium)
-            .border(1.dp, c.accentBorder.copy(alpha = 0.42f), AppShapes.medium)
-            .padding(Spacing.space12),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .background(c.surface, AppShapes.extraSmall),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = "i",
-                style = MaterialTheme.typography.titleSmall,
-                color = c.accent,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-        Text(
-            text = stringResource(R.string.dns_info),
-            style = MaterialTheme.typography.bodySmall,
-            color = c.textSecondary,
-            modifier = Modifier
-                .padding(start = Spacing.space12)
-                .weight(1f),
         )
     }
 }
