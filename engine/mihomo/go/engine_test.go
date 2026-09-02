@@ -23,6 +23,28 @@ func TestSubscriptionProviderRuntimeApiIsSafeBeforeStart(t *testing.T) {
 	}
 }
 
+func TestSubscriptionSelectionIgnoresInternalEmptyFallback(t *testing.T) {
+	tests := []struct {
+		name     string
+		live     string
+		fallback string
+		cached   string
+		want     string
+	}{
+		{name: "live provider node wins", live: "Germany - 3", fallback: "COMPATIBLE", cached: "Russia - 1", want: "Germany - 3"},
+		{name: "empty fallback uses cached choice", live: "COMPATIBLE", fallback: "COMPATIBLE", cached: "Germany - 3", want: "Germany - 3"},
+		{name: "blank live uses cached choice", live: "", fallback: "COMPATIBLE", cached: "Germany - 3", want: "Germany - 3"},
+		{name: "fallback without cache stays blank", live: "COMPATIBLE", fallback: "COMPATIBLE", cached: "", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := resolveSubscriptionSelection(tt.live, tt.fallback, tt.cached); got != tt.want {
+				t.Fatalf("resolveSubscriptionSelection() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestSensitiveURLsAreRedactedFromLogsAndErrors(t *testing.T) {
 	const secretURL = "https://subscription.example/opaque-token?user=secret"
 	message := `Get "` + secretURL + `": dial tcp: network unreachable`
@@ -63,13 +85,7 @@ proxy-providers:
       expected-status: 204
 proxy-groups:
 - name: SUBSCRIPTION
-  type: fallback
-  url: https://www.gstatic.com/generate_204
-  interval: 300
-  lazy: false
-  timeout: 5000
-  max-failed-times: 2
-  expected-status: 204
+  type: select
   use:
     - DETOUR_SUBSCRIPTION
 rules:
