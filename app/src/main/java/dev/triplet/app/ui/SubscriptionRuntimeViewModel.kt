@@ -34,6 +34,7 @@ data class SubscriptionRuntimeUiState(
     val catalogStatus: SubscriptionCatalogStatus = SubscriptionCatalogStatus.IDLE,
     val selectedNode: String? = null,
     val selectionStatus: SubscriptionSelectionStatus = SubscriptionSelectionStatus.IDLE,
+    val latencyTesting: Boolean = false,
 )
 
 class SubscriptionRuntimeViewModel : ViewModel() {
@@ -73,6 +74,7 @@ class SubscriptionRuntimeViewModel : ViewModel() {
             _uiState.value = _uiState.value.copy(
                 provider = SubscriptionProviderState.Unavailable,
                 status = SubscriptionRuntimeStatus.IDLE,
+                latencyTesting = false,
             )
         }
     }
@@ -86,7 +88,11 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                 operationMutex.withLock {
                     try {
                         _uiState.value = _uiState.value.copy(status = SubscriptionRuntimeStatus.REFRESHING)
-                        withContext(Dispatchers.IO) { Engine.refreshSubscriptionProvider() }
+                        withContext(Dispatchers.IO) {
+                            val path = Engine.prepareSubscriptionProvider(url, boundCacheDir)
+                            check(path.isNotBlank()) { "subscription could not be prepared" }
+                            Engine.refreshSubscriptionProvider()
+                        }
                         val provider = pollProvider()
                         val selected = withContext(Dispatchers.IO) {
                             Engine.subscriptionSelectedNode(boundCacheDir)
@@ -102,6 +108,30 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                     } catch (_: Exception) {
                         _uiState.value = _uiState.value.copy(status = SubscriptionRuntimeStatus.ERROR)
                     }
+                }
+            }
+        }
+    }
+
+    fun testLatency() {
+        if (_uiState.value.latencyTesting || !_uiState.value.provider.available) return
+        viewModelScope.launch {
+            operationMutex.withLock {
+                try {
+                    _uiState.value = _uiState.value.copy(latencyTesting = true)
+                    withContext(Dispatchers.IO) { Engine.healthCheckSubscriptionProvider() }
+                    val provider = withContext(Dispatchers.IO) {
+                        SubscriptionProviderStateParser.parse(Engine.subscriptionProviderState())
+                    }
+                    _uiState.value = _uiState.value.copy(
+                        provider = provider,
+                        latencyTesting = false,
+                    )
+                } catch (cancelled: CancellationException) {
+                    _uiState.value = _uiState.value.copy(latencyTesting = false)
+                    throw cancelled
+                } catch (_: Exception) {
+                    _uiState.value = _uiState.value.copy(latencyTesting = false)
                 }
             }
         }
@@ -222,7 +252,8 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                 for (index in 0 until minOf(nodes.length(), MAX_CATALOG_NODES)) {
                     val node = nodes.optJSONObject(index) ?: continue
                     val name = safeLabel(node.optString("name"), 256) ?: continue
-                    val type = safeLabel(node.optString("type"), 64) ?: "unknown"
+                    val type = safeLabel(node.optString("type"), 64) ?: continue
+                    if (!type.equals("vless", ignoreCase = true)) continue
                     add(SubscriptionCatalogNode(name, type))
                 }
             }.distinctBy { it.name }
