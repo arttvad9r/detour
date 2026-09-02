@@ -1,23 +1,37 @@
 package engine
 
 import (
+    "context"
+    "encoding/json"
     "errors"
     "io"
     "net/http"
     "os"
     "path/filepath"
     "strings"
+    "sync"
     "time"
 
+    "github.com/metacubex/mihomo/adapter"
     "github.com/metacubex/mihomo/common/convert"
     mihomoYaml "github.com/metacubex/mihomo/common/yaml"
     "github.com/metacubex/mihomo/tunnel"
 )
 
-const subscriptionProviderFileName = "detour-subscription.yaml"
+const (
+    subscriptionProviderFileName = "detour-subscription.yaml"
+    subscriptionLatencyTestURL   = "https://www.gstatic.com/generate_204"
+    subscriptionLatencyTimeout   = 5 * time.Second
+    subscriptionLatencyParallel  = 10
+)
 
 type preparedProxySchema struct {
     Proxies []map[string]any `yaml:"proxies"`
+}
+
+type subscriptionLatencyNode struct {
+    Name    string `json:"name"`
+    DelayMs int    `json:"delayMs,omitempty"`
 }
 
 // PrepareSubscriptionProvider downloads an HTTPS V2Ray subscription, converts
@@ -49,9 +63,9 @@ func PrepareSubscriptionProvider(subscriptionURL string, homeDir string) string 
     return finalPath
 }
 
-// HealthCheckSubscriptionProvider runs one explicit URL test for every node.
-// Mihomo's provider health check is synchronous, so callers can read provider
-// state immediately afterwards to obtain current delays.
+// HealthCheckSubscriptionProvider runs one explicit URL test for every node in
+// the currently active provider. It is retained for runtime diagnostics; the UI
+// uses TestSubscriptionCatalogLatency so latency can also be measured offline.
 func HealthCheckSubscriptionProvider() error {
     if !Ready() {
         return errors.New("engine is not ready")
@@ -62,6 +76,62 @@ func HealthCheckSubscriptionProvider() error {
     }
     provider.HealthCheck()
     return nil
+}
+
+// TestSubscriptionCatalogLatency downloads and normalizes the subscription,
+// builds each VLESS adapter independently and runs Mihomo URLTest directly.
+// No TUN/runtime is created and the selected subscription node is not changed,
+// so this works before connecting just like a server-list latency test.
+// The returned JSON contains all safe node names; delayMs is omitted on failure.
+func TestSubscriptionCatalogLatency(subscriptionURL string) string {
+    proxies, err := fetchPreparedSubscriptionProxies(subscriptionURL)
+    if err != nil || len(proxies) == 0 {
+        return ""
+    }
+
+    results := make([]subscriptionLatencyNode, len(proxies))
+    semaphore := make(chan struct{}, subscriptionLatencyParallel)
+    var wg sync.WaitGroup
+
+    for index, mapping := range proxies {
+        name, ok := safeCatalogLabel(mapping["name"], 256)
+        if !ok {
+            continue
+        }
+        results[index].Name = name
+        wg.Add(1)
+        go func(i int, proxyMapping map[string]any) {
+            defer wg.Done()
+            semaphore <- struct{}{}
+            defer func() { <-semaphore }()
+
+            proxy, parseErr := adapter.ParseProxy(proxyMapping)
+            if parseErr != nil {
+                return
+            }
+            defer proxy.Close()
+
+            ctx, cancel := context.WithTimeout(context.Background(), subscriptionLatencyTimeout)
+            defer cancel()
+            delay, testErr := proxy.URLTest(ctx, subscriptionLatencyTestURL, nil)
+            if testErr == nil && delay > 0 {
+                results[i].DelayMs = int(delay)
+            }
+        }(index, mapping)
+    }
+    wg.Wait()
+
+    compact := results[:0]
+    for _, result := range results {
+        if result.Name != "" {
+            compact = append(compact, result)
+        }
+    }
+    payload, err := json.Marshal(map[string]any{"nodes": compact})
+    if err != nil {
+        return ""
+    }
+    return string(payload)
 }
 
 func fetchPreparedSubscriptionProxies(subscriptionURL string) ([]map[string]any, error) {
