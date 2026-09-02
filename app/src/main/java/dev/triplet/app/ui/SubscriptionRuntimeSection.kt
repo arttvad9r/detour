@@ -37,7 +37,7 @@ import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
 
-private const val MAX_SUBSCRIPTION_NODE_ROWS = 128
+private const val MAX_SUBSCRIPTION_NODE_ROWS = 256
 
 @Composable
 internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
