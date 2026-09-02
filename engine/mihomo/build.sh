@@ -117,6 +117,10 @@ PYEOF
 
 export PATH="$PATH:$(go env GOPATH)/bin"
 export GOFLAGS="-mod=mod -tags=with_gvisor"
+# Run bridge unit tests against the exact pinned Mihomo source after Detour's
+# embedding patches have been applied. This keeps subscription/runtime tests in
+# the same source environment that is subsequently packaged into the AAR.
+go test ./...
 # -libname dropped: current gomobile no longer supports it; output defaults to <package>.aar == engine.aar
 gomobile bind -target android/arm64,android/amd64 -androidapi 24 -javapkg=dev.triplet.engine .
 
