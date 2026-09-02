@@ -1,0 +1,4 @@
+<resources>
+    <string name="home_apps_count">Приложения: %1$d</string>
+    <string name="home_apps_selected">Выбрано приложений: %1$d</string>
+</resources>
