@@ -36,13 +36,13 @@ class StatusStyleTest {
         }
     }
 
-    @Test fun `subscription home protocol is not mislabeled as vless`() {
+    @Test fun `subscription home protocol uses vless labels`() {
         assertEquals(
-            R.string.protocol_subscription,
+            R.string.protocol_vless,
             homeProtocolLabelRes(HomeProtocol.VLESS, VpnProfileKind.SUBSCRIPTION),
         )
         assertEquals(
-            R.string.protocol_subscription_dpi,
+            R.string.protocol_vless_dpi,
             homeProtocolLabelRes(HomeProtocol.VLESS_DPI, VpnProfileKind.SUBSCRIPTION),
         )
     }
