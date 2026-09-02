@@ -221,28 +221,23 @@ private fun ActionRow(
     val c = detourColors
     val row = Modifier
         .fillMaxWidth()
-        .heightIn(min = 68.dp)
-    val tonedRow = if (accent && enabled) {
-        row.background(c.accentSoft.copy(alpha = 0.58f))
-    } else {
-        row
-    }
+        .heightIn(min = 56.dp)
     val interactiveRow = if (enabled) {
-        tonedRow.detourClickable(
+        row.detourClickable(
             onClick = onClick,
             role = Role.Button,
             pressedColor = c.surfaceSelected.copy(alpha = 0.38f),
             pressScale = Motion.PRESS_ROW,
         )
     } else {
-        tonedRow.semantics {
+        row.semantics {
             disabled()
             role = Role.Button
         }
     }
 
     Row(
-        interactiveRow.padding(horizontal = Spacing.space16, vertical = Spacing.space8),
+        interactiveRow.padding(horizontal = Spacing.space16),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         DetourIconTile(
