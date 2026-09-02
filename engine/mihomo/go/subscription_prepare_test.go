@@ -29,6 +29,36 @@ func TestPreparedSubscriptionFallsBackToV2RayConversion(t *testing.T) {
 	}
 }
 
+func TestPreparedSubscriptionNormalizesHTTPUpgradeTransport(t *testing.T) {
+	const body = "vless://11111111-1111-4111-8111-111111111111@203.0.113.10:443?security=tls&type=httpupgrade&path=%2Fedge%2F&host=cdn.example.com&sni=cdn.example.com&fp=chrome#HTTPUpgrade"
+
+	proxies, err := parsePreparedSubscriptionProxies([]byte(body))
+	if err != nil {
+		t.Fatalf("HTTPUpgrade VLESS subscription body was rejected: %v", err)
+	}
+	if len(proxies) != 1 {
+		t.Fatalf("got %d proxies, want 1", len(proxies))
+	}
+	proxy := proxies[0]
+	if got := proxy["network"]; got != "ws" {
+		t.Fatalf("network = %v, want ws", got)
+	}
+	wsOpts, ok := proxy["ws-opts"].(map[string]any)
+	if !ok {
+		t.Fatalf("ws-opts = %#v, want map", proxy["ws-opts"])
+	}
+	if enabled, _ := wsOpts["v2ray-http-upgrade"].(bool); !enabled {
+		t.Fatalf("v2ray-http-upgrade = %#v, want true", wsOpts["v2ray-http-upgrade"])
+	}
+	if got := wsOpts["path"]; got != "/edge/" {
+		t.Fatalf("ws path = %v, want /edge/", got)
+	}
+	headers, ok := wsOpts["headers"].(map[string]any)
+	if !ok || headers["Host"] != "cdn.example.com" {
+		t.Fatalf("ws headers = %#v, want Host=cdn.example.com", wsOpts["headers"])
+	}
+}
+
 func TestPreparedSubscriptionKeepsOnlyUniqueSupportedVlessNodes(t *testing.T) {
 	const body = `
 proxies:
@@ -95,6 +125,68 @@ func TestSubscriptionLatencyDefaultsMatchMobileServerListTesting(t *testing.T) {
 	}
 	if subscriptionLatencyParallel != 5 {
 		t.Fatalf("latency parallelism = %d, want 5", subscriptionLatencyParallel)
+	}
+}
+
+func TestOfflineLatencyPreResolvesEndpointHostname(t *testing.T) {
+	original := map[string]any{
+		"name":    "Domain endpoint",
+		"type":    "vless",
+		"server":  "edge.example.com",
+		"port":    443,
+		"uuid":    "66666666-6666-4666-8666-666666666666",
+		"tls":     true,
+		"network": "tcp",
+	}
+	prepared, err := prepareOfflineLatencyProxyMapping(
+		context.Background(),
+		original,
+		func(_ context.Context, host string) ([]string, error) {
+			if host != "edge.example.com" {
+				t.Fatalf("resolver host = %q, want edge.example.com", host)
+			}
+			return []string{"203.0.113.42"}, nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("pre-resolve failed: %v", err)
+	}
+	if got := original["server"]; got != "edge.example.com" {
+		t.Fatalf("original mapping mutated: server=%v", got)
+	}
+	if got := prepared["server"]; got != "203.0.113.42" {
+		t.Fatalf("prepared server = %v, want 203.0.113.42", got)
+	}
+	if got := prepared["servername"]; got != "edge.example.com" {
+		t.Fatalf("prepared servername = %v, want original hostname", got)
+	}
+}
+
+func TestOfflineLatencyPreservesWebSocketHostAsImplicitSNI(t *testing.T) {
+	original := map[string]any{
+		"name":    "WS endpoint",
+		"type":    "vless",
+		"server":  "edge.example.com",
+		"port":    443,
+		"uuid":    "77777777-7777-4777-8777-777777777777",
+		"tls":     true,
+		"network": "ws",
+		"ws-opts": map[string]any{
+			"headers": map[string]any{"Host": "cdn.example.com"},
+		},
+	}
+	prepared, err := prepareOfflineLatencyProxyMapping(
+		context.Background(),
+		original,
+		func(context.Context, string) ([]string, error) {
+			return []string{"203.0.113.43"}, nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("pre-resolve failed: %v", err)
+	}
+	if got := prepared["servername"]; got != "cdn.example.com" {
+		t.Fatalf("prepared servername = %v, want websocket Host", got)
 	}
 }
 
