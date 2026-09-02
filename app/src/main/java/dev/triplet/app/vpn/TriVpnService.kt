@@ -310,21 +310,16 @@ class TriVpnService : VpnService() {
                         cancelled = cancelled,
                         credentials = probeCredentials,
                     ))
-                ServiceLog.i("probe results: vpn=$vpnHealthy dpi=$dpiHealthy")
-                if (cancelled() || (vpnHealthy && dpiHealthy)) return@execute
+                if (cancelled()) return@execute
 
-                runCatching {
-                    executor.execute {
-                        if (
-                            validationGeneration.get() == generation &&
-                            !destroyed.get() && !stopQueued.get() &&
-                            VpnController.state.value == VpnState.Active
-                        ) {
-                            ServiceLog.e("route validation failed")
-                            VpnController.setState(VpnState.Failed(getString(R.string.err_no_connect)))
-                            stopSequence(stopSelf = true)
-                        }
-                    }
+                if (vpnHealthy && dpiHealthy) {
+                    ServiceLog.i("probe results: vpn=true dpi=true")
+                } else {
+                    // Engine.start already established the Android TUN and Mihomo runtime.
+                    // A connectivity URL is only a diagnostic signal: captive portals,
+                    // endpoint filtering or transient DNS/TLS failures must not tear down
+                    // an otherwise usable VPN a moment after it becomes Active.
+                    ServiceLog.w("route probe failed (non-fatal): vpn=$vpnHealthy dpi=$dpiHealthy")
                 }
             }
         }
