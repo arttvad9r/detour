@@ -31,9 +31,10 @@ object HealthCheck {
         cancelled: () -> Boolean = { false },
         credentials: ProbeCredentials = ProbeAuth.current(),
     ): Boolean {
-        // One attempt per independent endpoint is enough here. A second full
-        // pass made the UI sit in "Starting" for tens of seconds on a bad path.
-        return retry(endpoints, attempts = 1, cancelled = cancelled) { endpoint ->
+        // Route validation runs after the UI is already Active, so one retry no
+        // longer blocks the Connecting state. This absorbs cold DNS/TLS/provider
+        // startup after switching profiles instead of reporting a false failure.
+        return retry(endpoints, attempts = 2, cancelled = cancelled) { endpoint ->
             try {
                 val code = requestThroughAuthenticatedProxy(endpoint, proxyPort, timeoutMs, credentials)
                 val ok = code == 204
@@ -71,7 +72,6 @@ object HealthCheck {
                 .createSocket(raw, host, targetPort, true) as SSLSocket
             tls.soTimeout = timeoutMs
             val parameters = tls.sslParameters
-            // Raw SSLSocket does not enable endpoint identity checks by default.
             parameters.endpointIdentificationAlgorithm = "HTTPS"
             tls.sslParameters = parameters
 
