@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -32,7 +31,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -78,9 +76,11 @@ internal fun SettingsMenuScreen(
     }
 
     val protocolRes = when (state.protocol) {
-        HomeProtocol.VLESS_DPI -> if (state.activeVpn == VpnProfileKind.WARP) R.string.protocol_warp_dpi else R.string.protocol_vless_dpi
+        HomeProtocol.VLESS_DPI ->
+            if (state.activeVpn == VpnProfileKind.WARP) R.string.protocol_warp_dpi else R.string.protocol_vless_dpi
         HomeProtocol.DPI -> R.string.protocol_dpi
-        HomeProtocol.VLESS -> if (state.activeVpn == VpnProfileKind.WARP) R.string.protocol_warp else R.string.protocol_vless
+        HomeProtocol.VLESS ->
+            if (state.activeVpn == VpnProfileKind.WARP) R.string.protocol_warp else R.string.protocol_vless
         HomeProtocol.NONE -> R.string.protocol_none
     }
 
@@ -93,14 +93,13 @@ internal fun SettingsMenuScreen(
     val profiles = MenuItem(
         R.string.nav_key,
         {
-            stringResource(
-                when {
-                    state.hasVless && state.hasWarp -> R.string.nav_key_sub
-                    state.hasVless -> R.string.nav_key_sub_vless
-                    state.hasWarp -> R.string.nav_key_sub_warp
-                    else -> R.string.nav_key_sub_none
-                },
-            )
+            when {
+                state.hasVless && state.hasWarp ->
+                    "${stringResource(R.string.protocol_vless)} + ${stringResource(R.string.protocol_warp)}"
+                state.hasVless -> stringResource(R.string.protocol_vless)
+                state.hasWarp -> stringResource(R.string.nav_key_sub_warp)
+                else -> stringResource(R.string.nav_key_sub_none)
+            }
         },
         R.drawable.ic_profile,
         SettingsSection.PROFILES,
@@ -131,7 +130,8 @@ internal fun SettingsMenuScreen(
     ) to onOpenTheme
 
     Column(
-        modifier.fillMaxSize()
+        modifier
+            .fillMaxSize()
             .background(c.background)
             .statusBarsPadding()
             .navigationBarsPadding()
@@ -141,7 +141,7 @@ internal fun SettingsMenuScreen(
         DetourBrandedHeader(stringResource(R.string.settings_title), onBack)
 
         DetourContentColumn {
-            Spacer(Modifier.height(Spacing.space12))
+            Spacer(Modifier.height(Spacing.space4))
             SettingsConnectionSummary(
                 vpnState = state.vpnState,
                 sessionStartedAt = state.sessionStartedAt,
@@ -149,7 +149,7 @@ internal fun SettingsMenuScreen(
                 modifier = Modifier.padding(horizontal = Spacing.space16),
             )
 
-            Spacer(Modifier.height(Spacing.space16))
+            Spacer(Modifier.height(Spacing.space8))
             DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
                 SettingsSectionLabel(R.string.settings_section_routing)
                 SettingsRows(listOf(routes, profiles), selectedSection)
@@ -157,9 +157,10 @@ internal fun SettingsMenuScreen(
                 SettingsSectionDivider()
                 SettingsSectionLabel(R.string.settings_section_connection)
                 SettingsRows(listOf(dpi, dns), selectedSection)
-                GroupDivider(startInset = 16)
+                GroupDivider()
                 Row(
-                    Modifier.fillMaxWidth()
+                    Modifier
+                        .fillMaxWidth()
                         .detourToggleable(
                             value = state.autoConnect,
                             onValueChange = { next ->
@@ -171,24 +172,34 @@ internal fun SettingsMenuScreen(
                             pressedColor = c.surfaceSelected.copy(alpha = 0.34f),
                             pressScale = Motion.PRESS_ROW,
                         )
-                        .heightIn(min = 72.dp)
-                        .padding(horizontal = Spacing.space16, vertical = Spacing.space8),
+                        .padding(start = Spacing.space16, end = Spacing.space8, top = Spacing.space4, bottom = Spacing.space4),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    DetourIconTile(R.drawable.ic_power)
+                    Box(
+                        Modifier
+                            .size(34.dp)
+                            .background(c.accentSoft, AppShapes.extraSmall),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_power),
+                            contentDescription = null,
+                            tint = c.accent,
+                            modifier = Modifier.size(17.dp),
+                        )
+                    }
                     Text(
                         stringResource(R.string.auto_connect),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleSmall,
                         color = c.textPrimary,
                         modifier = Modifier
-                            .padding(start = Spacing.space16)
+                            .padding(start = 10.dp)
                             .weight(1f),
                     )
                     DetourSwitch(
                         checked = state.autoConnect,
                         onCheckedChange = null,
-                        compact = false,
+                        compact = true,
                     )
                 }
 
@@ -197,14 +208,14 @@ internal fun SettingsMenuScreen(
                 SettingsRows(listOf(backup, appearance), selectedSection)
             }
 
-            Spacer(Modifier.height(Spacing.space12))
+            Spacer(Modifier.height(Spacing.space8))
             Text(
                 stringResource(R.string.autorestart_note),
                 style = MaterialTheme.typography.bodySmall,
                 color = c.textMuted,
                 modifier = Modifier.padding(horizontal = Spacing.space20),
             )
-            Spacer(Modifier.height(Spacing.space24))
+            Spacer(Modifier.height(Spacing.space12))
         }
     }
 }
@@ -228,33 +239,33 @@ private fun SettingsConnectionSummary(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(style.container, AppShapes.medium)
-            .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
+            .background(style.container, AppShapes.small)
+            .padding(horizontal = Spacing.space12, vertical = Spacing.space8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             Modifier
-                .size(44.dp)
+                .size(32.dp)
                 .background(style.content.copy(alpha = 0.12f), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             when (vpnState) {
                 VpnState.Starting -> CircularProgressIndicator(
-                    modifier = Modifier.size(22.dp),
-                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(17.dp),
+                    strokeWidth = 1.5.dp,
                     color = style.content,
                 )
                 VpnState.Active -> Icon(
                     painter = painterResource(R.drawable.ic_check),
                     contentDescription = null,
                     tint = style.content,
-                    modifier = Modifier.size(24.dp),
+                    modifier = Modifier.size(18.dp),
                 )
                 is VpnState.Failed,
                 VpnState.Idle,
                 -> Box(
                     Modifier
-                        .size(10.dp)
+                        .size(8.dp)
                         .background(style.content, CircleShape),
                 )
             }
@@ -262,20 +273,19 @@ private fun SettingsConnectionSummary(
 
         Column(
             modifier = Modifier
-                .padding(start = Spacing.space16)
+                .padding(start = Spacing.space8)
                 .weight(1f),
         ) {
             Text(
                 text = stringResource(titleRes),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Medium,
                 color = if (vpnState is VpnState.Failed) c.error else c.textPrimary,
             )
             Text(
                 text = protocol,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 color = c.textSecondary,
-                modifier = Modifier.padding(top = Spacing.space2),
             )
         }
 
@@ -297,7 +307,7 @@ private fun SettingsSessionTimer(sessionStartedAt: Long?) {
     }
     Text(
         text = formatSessionElapsed(elapsed),
-        style = MaterialTheme.typography.titleMedium.copy(
+        style = MaterialTheme.typography.bodySmall.copy(
             fontWeight = FontWeight.Medium,
             fontFeatureSettings = "tnum",
         ),
@@ -309,14 +319,13 @@ private fun SettingsSessionTimer(sessionStartedAt: Long?) {
 private fun SettingsSectionLabel(titleRes: Int) {
     Text(
         text = stringResource(titleRes),
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.Medium,
+        style = MaterialTheme.typography.labelMedium,
         color = detourColors.textSecondary,
         modifier = Modifier.padding(
             start = Spacing.space16,
             end = Spacing.space16,
-            top = Spacing.space16,
-            bottom = Spacing.space8,
+            top = Spacing.space8,
+            bottom = Spacing.space4,
         ),
     )
 }
@@ -326,7 +335,7 @@ private fun SettingsSectionDivider() {
     Box(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = Spacing.space16, vertical = Spacing.space4)
+            .padding(horizontal = Spacing.space16, vertical = Spacing.space2)
             .height(1.dp)
             .background(detourColors.divider),
     )
@@ -339,64 +348,26 @@ private fun SettingsRows(
 ) {
     items.forEachIndexed { index, (item, onClick) ->
         val selected = item.section == selectedSection
-        SettingsMenuRow(
-            title = stringResource(item.titleRes),
-            subtitle = item.sub(),
-            iconRes = item.iconRes,
-            selected = selected,
-            onClick = onClick,
-        )
-        if (index < items.lastIndex) GroupDivider(startInset = 78)
-    }
-}
-
-@Composable
-private fun SettingsMenuRow(
-    title: String,
-    subtitle: String,
-    iconRes: Int,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    val c = detourColors
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(if (selected) c.accentSoft else androidx.compose.ui.graphics.Color.Transparent)
-            .semantics { this.selected = selected }
-            .detourClickable(
-                onClick = onClick,
-                role = Role.Button,
-                pressedColor = c.surfaceSelected.copy(alpha = 0.38f),
-                pressScale = Motion.PRESS_ROW,
-            )
-            .heightIn(min = 72.dp)
-            .padding(horizontal = Spacing.space16, vertical = Spacing.space8),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        DetourIconTile(iconRes = iconRes, selected = selected)
-        Column(
-            modifier = Modifier
-                .padding(start = Spacing.space16)
-                .weight(1f),
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .background(
+                    if (selected) detourColors.accentSoft else androidx.compose.ui.graphics.Color.Transparent,
+                )
+                .semantics { this.selected = selected },
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = c.textPrimary,
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = c.textSecondary,
-                modifier = Modifier.padding(top = Spacing.space2),
+            SettingRow(
+                title = stringResource(item.titleRes),
+                subtitle = item.sub(),
+                iconRes = item.iconRes,
+                onClick = onClick,
+                trailing = if (selected) {
+                    { SelectionMark(selected = true, modifier = Modifier.padding(end = Spacing.space8)) }
+                } else {
+                    null
+                },
             )
         }
-        if (selected) {
-            SelectionMark(selected = true, modifier = Modifier.padding(end = Spacing.space8))
-        } else {
-            Chevron()
-        }
+        if (index < items.lastIndex) GroupDivider()
     }
 }

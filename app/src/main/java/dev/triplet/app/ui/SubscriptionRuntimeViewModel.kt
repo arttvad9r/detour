@@ -47,16 +47,19 @@ class SubscriptionRuntimeViewModel : ViewModel() {
     private var runtimeJob: Job? = null
 
     fun bind(subscriptionUrl: String, connected: Boolean, cacheDir: String) {
+        val previousUrl = boundUrl
+        val previousSelected = _uiState.value.selectedNode
         val changed = boundUrl != subscriptionUrl || boundCacheDir != cacheDir
         boundUrl = subscriptionUrl
         boundCacheDir = cacheDir
 
         if (changed) {
             runtimeJob?.cancel()
+            val cachedSelected = runCatching { Engine.subscriptionSelectedNode(cacheDir) }
+                .getOrNull()
+                ?.takeIf { it.isNotBlank() }
             _uiState.value = SubscriptionRuntimeUiState(
-                selectedNode = runCatching { Engine.subscriptionSelectedNode(cacheDir) }
-                    .getOrNull()
-                    ?.takeIf { it.isNotBlank() },
+                selectedNode = cachedSelected ?: previousSelected.takeIf { previousUrl == subscriptionUrl },
             )
             loadCatalog(subscriptionUrl)
         } else if (_uiState.value.catalogStatus == SubscriptionCatalogStatus.IDLE) {

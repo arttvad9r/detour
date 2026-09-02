@@ -9,7 +9,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -20,17 +19,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -50,9 +44,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -149,11 +140,11 @@ fun HomeScreen(
     }
 
     val targetStatus = statusStyleFor(c, visualState)
-    val statusContent = animateColorAsState(
+    val statusContent by animateColorAsState(
         targetStatus.content,
         tween(Motion.COLOR_MS),
         label = "statusContent",
-    ).value
+    )
 
     val snackbarHostState = remember { SnackbarHostState() }
     val notificationPermissionTracker = rememberManualNotificationPermissionTracker(
@@ -167,9 +158,7 @@ fun HomeScreen(
             VpnController.startNow(ctx)
         } else {
             notificationPermissionTracker.cancel()
-            scope.launch {
-                snackbarHostState.showSnackbar(permissionNotGrantedMessage)
-            }
+            scope.launch { snackbarHostState.showSnackbar(permissionNotGrantedMessage) }
         }
     }
     val canCancelStarting = st == VpnState.Starting && showStarting
@@ -191,9 +180,11 @@ fun HomeScreen(
     }
 
     val protocolRes = when (uiState.protocol) {
-        HomeProtocol.VLESS_DPI -> if (uiState.activeVpn == VpnProfileKind.WARP) R.string.protocol_warp_dpi else R.string.protocol_vless_dpi
+        HomeProtocol.VLESS_DPI ->
+            if (uiState.activeVpn == VpnProfileKind.WARP) R.string.protocol_warp_dpi else R.string.protocol_vless_dpi
         HomeProtocol.DPI -> R.string.protocol_dpi
-        HomeProtocol.VLESS -> if (uiState.activeVpn == VpnProfileKind.WARP) R.string.protocol_warp else R.string.protocol_vless
+        HomeProtocol.VLESS ->
+            if (uiState.activeVpn == VpnProfileKind.WARP) R.string.protocol_warp else R.string.protocol_vless
         HomeProtocol.NONE -> R.string.protocol_none
     }
     val dnsValue = when (uiState.dnsId) {
@@ -216,8 +207,8 @@ fun HomeScreen(
                     onClick = onMainAction,
                     modifier = Modifier
                         .align(Alignment.Center)
-                        .padding(horizontal = Spacing.space16, vertical = Spacing.space12)
-                        .widthIn(max = 520.dp)
+                        .padding(horizontal = Spacing.space16, vertical = Spacing.space8)
+                        .widthIn(max = 480.dp)
                         .fillMaxWidth(),
                 )
             }
@@ -231,7 +222,7 @@ fun HomeScreen(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(start = Spacing.space16, end = Spacing.space8, top = Spacing.space8),
+                    .padding(start = Spacing.space16, end = Spacing.space8, top = Spacing.space4),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 DetourBrandWordmark(Modifier.weight(1f))
@@ -240,7 +231,7 @@ fun HomeScreen(
                         painter = painterResource(R.drawable.ic_gear),
                         contentDescription = stringResource(R.string.cd_settings),
                         tint = c.textPrimary,
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.size(22.dp),
                     )
                 }
             }
@@ -292,14 +283,14 @@ private fun HomeConnectionContent(
     onOpenRoutes: () -> Unit,
 ) {
     val contentModifier = Modifier
-        .padding(horizontal = Spacing.space16, vertical = Spacing.space8)
-        .widthIn(max = if (splitLayout) 1040.dp else 520.dp)
+        .padding(horizontal = Spacing.space16, vertical = Spacing.space4)
+        .widthIn(max = if (splitLayout) 900.dp else 480.dp)
         .fillMaxWidth()
 
     if (splitLayout) {
         Row(
             modifier = contentModifier,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.space32),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.space24),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             ConnectionHero(
@@ -325,8 +316,9 @@ private fun HomeConnectionContent(
         }
     } else {
         Column(
-            modifier = contentModifier.verticalScroll(rememberScrollState()),
+            modifier = contentModifier,
             horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
         ) {
             ConnectionHero(
                 state = state,
@@ -335,7 +327,7 @@ private fun HomeConnectionContent(
                 homeProtocol = homeProtocol,
                 protocol = protocol,
             )
-            Spacer(Modifier.height(Spacing.space12))
+            Spacer(Modifier.height(Spacing.space8))
             ConnectionDetails(
                 profileName = profileName,
                 activeVpn = activeVpn,
@@ -347,7 +339,6 @@ private fun HomeConnectionContent(
                 onOpenDns = onOpenDns,
                 onOpenRoutes = onOpenRoutes,
             )
-            Spacer(Modifier.height(Spacing.space8))
         }
     }
 }
@@ -381,41 +372,18 @@ private fun MainButton(
         else -> stringResource(R.string.btn_connect)
     }
 
-    Button(
+    DetourButton(
+        text = text,
         onClick = onClick,
+        modifier = modifier,
         enabled = !busy,
-        modifier = modifier.heightIn(min = 58.dp),
-        shape = AppShapes.small,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = container,
-            contentColor = content,
-            disabledContainerColor = container,
-            disabledContentColor = content,
-        ),
-        border = if (borderColor != Color.Transparent) {
-            androidx.compose.foundation.BorderStroke(1.dp, borderColor)
-        } else null,
-    ) {
-        if (busy) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(22.dp),
-                strokeWidth = 2.dp,
-                color = content,
-            )
-        } else {
-            Icon(
-                painter = painterResource(R.drawable.ic_power),
-                contentDescription = null,
-                modifier = Modifier.size(25.dp),
-            )
-        }
-        Spacer(Modifier.width(Spacing.space12))
-        Text(
-            text = text,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
-    }
+        height = 52,
+        container = container,
+        contentColor = content,
+        disabledContainer = container,
+        disabledContent = content,
+        borderColor = borderColor,
+    )
 }
 
 @Composable
@@ -443,10 +411,19 @@ private fun ConnectionHero(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            ProtocolBadge(protocol = protocol, homeProtocol = homeProtocol)
-            Spacer(Modifier.height(Spacing.space12))
+            val protocolIcon = when (homeProtocol) {
+                HomeProtocol.VLESS_DPI, HomeProtocol.DPI -> R.drawable.ic_dpi
+                HomeProtocol.VLESS -> R.drawable.ic_lock
+                HomeProtocol.NONE -> R.drawable.ic_globe
+            }
+            DetourRouteChip(
+                text = protocol,
+                iconRes = protocolIcon,
+                selected = true,
+            )
+            Spacer(Modifier.height(Spacing.space8))
             ConnectionRouteDiagram(homeProtocol)
-            Spacer(Modifier.height(Spacing.space12))
+            Spacer(Modifier.height(Spacing.space8))
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -454,33 +431,26 @@ private fun ConnectionHero(
             ) {
                 Box(
                     Modifier
-                        .size(36.dp)
+                        .size(24.dp)
                         .background(statusContent.copy(alpha = 0.12f), CircleShape)
-                        .border(1.5.dp, statusContent.copy(alpha = 0.65f), CircleShape),
+                        .border(1.dp, statusContent.copy(alpha = 0.55f), CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     if (target == VisualVpnState.STARTING) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(14.dp),
+                            strokeWidth = 1.5.dp,
                             color = statusContent,
-                        )
-                    } else if (target == VisualVpnState.ACTIVE) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_check),
-                            contentDescription = null,
-                            tint = statusContent,
-                            modifier = Modifier.size(20.dp),
                         )
                     } else {
                         Box(
                             Modifier
-                                .size(9.dp)
+                                .size(7.dp)
                                 .background(statusContent, CircleShape),
                         )
                     }
                 }
-                Spacer(Modifier.width(Spacing.space12))
+                Spacer(Modifier.width(Spacing.space8))
                 val titleRes = when (target) {
                     VisualVpnState.ACTIVE -> R.string.status_active
                     VisualVpnState.STARTING -> R.string.status_starting
@@ -489,7 +459,7 @@ private fun ConnectionHero(
                 }
                 Text(
                     stringResource(titleRes),
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = if (target == VisualVpnState.FAILED) c.error else c.textPrimary,
                 )
@@ -498,16 +468,18 @@ private fun ConnectionHero(
             when (target) {
                 VisualVpnState.FAILED -> Text(
                     (state as? VpnState.Failed)?.reason.orEmpty(),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = c.textSecondary,
                     textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier
-                        .padding(top = Spacing.space8)
-                        .widthIn(max = 360.dp),
+                        .padding(top = Spacing.space4)
+                        .widthIn(max = 340.dp),
                 )
                 VisualVpnState.IDLE -> Text(
                     stringResource(R.string.state_sub_idle),
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodySmall,
                     color = c.textSecondary,
                     modifier = Modifier.padding(top = Spacing.space4),
                 )
@@ -522,197 +494,90 @@ private fun ConnectionHero(
 }
 
 @Composable
-private fun ProtocolBadge(protocol: String, homeProtocol: HomeProtocol) {
-    val c = detourColors
-    val protocolIcon = when (homeProtocol) {
-        HomeProtocol.VLESS_DPI, HomeProtocol.DPI -> R.drawable.ic_dpi
-        HomeProtocol.VLESS -> R.drawable.ic_lock
-        HomeProtocol.NONE -> R.drawable.ic_globe
-    }
-    Row(
-        modifier = Modifier
-            .background(c.accentSoft, PillShape)
-            .border(1.dp, c.accentBorder.copy(alpha = 0.45f), PillShape)
-            .padding(horizontal = Spacing.space20, vertical = Spacing.space12),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center,
-    ) {
-        Icon(
-            painter = painterResource(protocolIcon),
-            contentDescription = null,
-            tint = c.accent,
-            modifier = Modifier.size(22.dp),
-        )
-        Spacer(Modifier.width(Spacing.space8))
-        Text(
-            text = protocol,
-            style = MaterialTheme.typography.titleMedium,
-            color = c.accent,
-            fontWeight = FontWeight.SemiBold,
-        )
-    }
-}
-
-@Composable
 private fun ConnectionRouteDiagram(homeProtocol: HomeProtocol) {
     val c = detourColors
     val directSelected = homeProtocol == HomeProtocol.NONE
     val dpiSelected = homeProtocol == HomeProtocol.DPI || homeProtocol == HomeProtocol.VLESS_DPI
-    val vpnSelected = homeProtocol == HomeProtocol.VLESS
+    val vpnSelected = homeProtocol == HomeProtocol.VLESS || homeProtocol == HomeProtocol.VLESS_DPI
 
-    Box(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .widthIn(max = 450.dp)
-            .height(214.dp),
+            .widthIn(max = 400.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
     ) {
-        Canvas(Modifier.fillMaxSize()) {
-            val midY = size.height / 2f
-            val topY = 42.dp.toPx()
-            val bottomY = size.height - 42.dp.toPx()
-            val startX = 58.dp.toPx()
-            val endX = size.width - 58.dp.toPx()
-            val sideLeft = 112.dp.toPx()
-            val sideRight = size.width - 112.dp.toPx()
-            val chipLeft = size.width / 2f - 68.dp.toPx()
-            val chipRight = size.width / 2f + 68.dp.toPx()
-            val neutral = c.textMuted.copy(alpha = 0.42f)
-            val dash = PathEffect.dashPathEffect(floatArrayOf(9.dp.toPx(), 7.dp.toPx()))
-
-            fun routePath(y: Float): Path = Path().apply {
-                moveTo(startX, midY)
-                cubicTo(sideLeft, midY, sideLeft, y, chipLeft, y)
-                lineTo(chipRight, y)
-                cubicTo(sideRight, y, sideRight, midY, endX, midY)
-            }
-
-            drawPath(
-                routePath(topY),
-                color = if (directSelected) c.accent else neutral,
-                style = Stroke(
-                    width = if (directSelected) 3.dp.toPx() else 2.dp.toPx(),
-                    pathEffect = if (directSelected) null else dash,
-                ),
-            )
-            drawLine(
-                color = if (dpiSelected) c.accent else neutral,
-                start = androidx.compose.ui.geometry.Offset(startX, midY),
-                end = androidx.compose.ui.geometry.Offset(endX, midY),
-                strokeWidth = if (dpiSelected) 3.dp.toPx() else 2.dp.toPx(),
-            )
-            drawPath(
-                routePath(bottomY),
-                color = if (vpnSelected) c.accent else neutral,
-                style = Stroke(
-                    width = if (vpnSelected) 3.dp.toPx() else 2.dp.toPx(),
-                    pathEffect = if (vpnSelected) null else dash,
-                ),
-            )
-
-            listOf(startX, endX).forEach { x ->
-                drawCircle(c.accentSoft, radius = 14.dp.toPx(), center = androidx.compose.ui.geometry.Offset(x, midY))
-                drawCircle(c.accent, radius = 9.dp.toPx(), center = androidx.compose.ui.geometry.Offset(x, midY))
-                drawCircle(c.surface, radius = 5.dp.toPx(), center = androidx.compose.ui.geometry.Offset(x, midY))
-            }
-        }
-
         RouteEndpoint(
             iconRes = R.drawable.ic_routes,
             label = stringResource(R.string.home_device),
-            modifier = Modifier.align(Alignment.CenterStart),
+        )
+        Box(
+            Modifier
+                .weight(1f)
+                .height(2.dp)
+                .background(if (homeProtocol != HomeProtocol.NONE) c.accent else c.border),
+        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.space2),
+        ) {
+            DetourRouteChip(
+                text = stringResource(R.string.route_direct),
+                iconRes = R.drawable.ic_globe,
+                selected = directSelected,
+            )
+            DetourRouteChip(
+                text = stringResource(R.string.route_dpi),
+                iconRes = R.drawable.ic_dpi,
+                selected = dpiSelected,
+            )
+            DetourRouteChip(
+                text = stringResource(R.string.route_vpn),
+                iconRes = R.drawable.ic_lock,
+                selected = vpnSelected,
+            )
+        }
+        Box(
+            Modifier
+                .weight(1f)
+                .height(2.dp)
+                .background(if (homeProtocol != HomeProtocol.NONE) c.accent else c.border),
         )
         RouteEndpoint(
             iconRes = R.drawable.ic_globe,
             label = stringResource(R.string.home_internet),
-            modifier = Modifier.align(Alignment.CenterEnd),
-        )
-        RouteModeChip(
-            text = stringResource(R.string.route_direct),
-            iconRes = R.drawable.ic_globe,
-            selected = directSelected,
-            modifier = Modifier.align(Alignment.TopCenter),
-        )
-        RouteModeChip(
-            text = stringResource(R.string.route_dpi),
-            iconRes = R.drawable.ic_dpi,
-            selected = dpiSelected,
-            modifier = Modifier.align(Alignment.Center),
-        )
-        RouteModeChip(
-            text = stringResource(R.string.route_vpn),
-            iconRes = R.drawable.ic_lock,
-            selected = vpnSelected,
-            modifier = Modifier.align(Alignment.BottomCenter),
         )
     }
 }
 
 @Composable
-private fun RouteModeChip(
-    text: String,
-    iconRes: Int,
-    selected: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    val c = detourColors
-    Row(
-        modifier = modifier
-            .widthIn(min = 124.dp)
-            .background(if (selected) c.surface else c.surfaceSoft, AppShapes.small)
-            .border(
-                if (selected) 2.dp else 1.dp,
-                if (selected) c.accent else c.border,
-                AppShapes.small,
-            )
-            .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            painter = painterResource(iconRes),
-            contentDescription = null,
-            tint = if (selected) c.accent else c.textSecondary,
-            modifier = Modifier.size(20.dp),
-        )
-        Spacer(Modifier.width(Spacing.space8))
-        Text(
-            text = text,
-            style = MaterialTheme.typography.titleSmall,
-            color = if (selected) c.accent else c.textSecondary,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-        )
-    }
-}
-
-@Composable
-private fun RouteEndpoint(
-    iconRes: Int,
-    label: String,
-    modifier: Modifier = Modifier,
-) {
+private fun RouteEndpoint(iconRes: Int, label: String) {
     val c = detourColors
     Column(
-        modifier = modifier
-            .width(76.dp)
-            .background(c.surface, AppShapes.small)
-            .border(1.dp, c.border, AppShapes.small)
-            .padding(horizontal = Spacing.space8, vertical = Spacing.space12),
         horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(56.dp),
     ) {
-        Icon(
-            painter = painterResource(iconRes),
-            contentDescription = null,
-            tint = c.accent,
-            modifier = Modifier.size(28.dp),
-        )
+        Box(
+            Modifier
+                .size(42.dp)
+                .background(c.surface, AppShapes.extraSmall)
+                .border(1.dp, c.border, AppShapes.extraSmall),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(iconRes),
+                contentDescription = null,
+                tint = c.accent,
+                modifier = Modifier.size(20.dp),
+            )
+        }
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = c.textPrimary,
-            textAlign = TextAlign.Center,
+            color = c.textSecondary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = Spacing.space8),
+            modifier = Modifier.padding(top = Spacing.space2),
         )
     }
 }
@@ -731,45 +596,43 @@ private fun ConnectionDetails(
     modifier: Modifier = Modifier,
 ) {
     DetourCard(modifier) {
-        Column(Modifier.padding(vertical = Spacing.space4)) {
+        HomeInfoRow(
+            iconRes = R.drawable.ic_profile,
+            label = stringResource(R.string.row_profile),
+            value = profileName ?: stringResource(R.string.server_missing),
+            modifier = Modifier.testTag(HOME_PROFILE_ROW_TEST_TAG),
+            onClick = onOpenProfiles,
+        )
+        DetailsDivider()
+        if (activeVpn == VpnProfileKind.WARP) {
             HomeInfoRow(
-                iconRes = R.drawable.ic_profile,
-                label = stringResource(R.string.row_profile),
-                value = profileName ?: stringResource(R.string.server_missing),
-                modifier = Modifier.testTag(HOME_PROFILE_ROW_TEST_TAG),
+                iconRes = R.drawable.ic_server,
+                label = stringResource(R.string.row_endpoints),
+                value = endpointCount.takeIf { it > 0 }?.toString() ?: stringResource(R.string.server_missing),
                 onClick = onOpenProfiles,
             )
-            DetailsDivider()
-            if (activeVpn == VpnProfileKind.WARP) {
-                HomeInfoRow(
-                    iconRes = R.drawable.ic_server,
-                    label = stringResource(R.string.row_endpoints),
-                    value = endpointCount.takeIf { it > 0 }?.toString() ?: stringResource(R.string.server_missing),
-                    onClick = onOpenProfiles,
-                )
-            } else {
-                HomeInfoRow(
-                    iconRes = R.drawable.ic_server,
-                    label = stringResource(R.string.row_server),
-                    value = serverHost ?: stringResource(R.string.server_missing),
-                    onClick = onOpenProfiles,
-                )
-            }
-            DetailsDivider()
+        } else {
             HomeInfoRow(
-                iconRes = R.drawable.ic_detour_mark,
-                label = stringResource(R.string.row_dns),
-                value = dns,
-                onClick = onOpenDns,
-            )
-            DetailsDivider()
-            HomeInfoRow(
-                iconRes = R.drawable.ic_apps,
-                label = stringResource(R.string.home_apps_count, routedCount),
-                value = stringResource(R.string.home_apps_selected, routedCount),
-                onClick = onOpenRoutes,
+                iconRes = R.drawable.ic_server,
+                label = stringResource(R.string.row_server),
+                value = serverHost ?: stringResource(R.string.server_missing),
+                onClick = onOpenProfiles,
             )
         }
+        DetailsDivider()
+        HomeInfoRow(
+            iconRes = R.drawable.ic_detour_mark,
+            label = stringResource(R.string.row_dns),
+            value = dns,
+            onClick = onOpenDns,
+        )
+        DetailsDivider()
+        HomeInfoRow(
+            iconRes = R.drawable.ic_apps,
+            label = stringResource(R.string.nav_routes),
+            value = stringResource(R.string.nav_routes_sub, routedCount),
+            onClick = onOpenRoutes,
+        )
     }
 }
 
@@ -778,7 +641,7 @@ private fun DetailsDivider() {
     Box(
         Modifier
             .fillMaxWidth()
-            .padding(start = 78.dp, end = Spacing.space16)
+            .padding(start = 62.dp, end = Spacing.space12)
             .height(1.dp)
             .background(detourColors.divider),
     )
@@ -796,12 +659,12 @@ private fun SessionTimer(sessionStartedAt: Long?, color: Color) {
     }
     Text(
         formatSessionElapsed(elapsed),
-        style = MaterialTheme.typography.titleLarge.copy(
+        style = MaterialTheme.typography.titleMedium.copy(
             fontWeight = FontWeight.Medium,
             fontFeatureSettings = "tnum",
         ),
         color = color,
-        modifier = Modifier.padding(top = Spacing.space4),
+        modifier = Modifier.padding(top = Spacing.space2),
     )
 }
 
@@ -811,37 +674,43 @@ private fun HomeInfoRow(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null,
+    onClick: () -> Unit,
 ) {
     val c = detourColors
-    val rowModifier = if (onClick != null) {
+    Row(
         modifier
             .fillMaxWidth()
-            .heightIn(min = 70.dp)
             .detourClickable(
                 onClick = onClick,
                 role = androidx.compose.ui.semantics.Role.Button,
                 pressedColor = c.surfaceSelected.copy(alpha = 0.38f),
                 pressScale = Motion.PRESS_ROW,
             )
-    } else {
-        modifier.fillMaxWidth().heightIn(min = 70.dp)
-    }
-    Row(
-        rowModifier.padding(horizontal = Spacing.space16, vertical = Spacing.space8),
+            .padding(horizontal = Spacing.space12, vertical = Spacing.space8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        HomeIconTile(iconRes)
+        Box(
+            Modifier
+                .size(34.dp)
+                .background(c.accentSoft, AppShapes.extraSmall),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(iconRes),
+                contentDescription = null,
+                tint = c.accent,
+                modifier = Modifier.size(17.dp),
+            )
+        }
         Column(
             Modifier
-                .padding(start = Spacing.space16)
+                .padding(start = 10.dp)
                 .weight(1f),
         ) {
             Text(
                 label,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleSmall,
                 color = c.textPrimary,
-                fontWeight = FontWeight.SemiBold,
             )
             AnimatedContent(
                 targetState = value,
@@ -853,33 +722,14 @@ private fun HomeInfoRow(
             ) { shown ->
                 Text(
                     shown,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = c.textSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = Spacing.space2),
+                    modifier = Modifier.padding(top = 1.dp),
                 )
             }
         }
-        if (onClick != null) Chevron()
-    }
-}
-
-@Composable
-private fun HomeIconTile(iconRes: Int) {
-    val c = detourColors
-    Box(
-        Modifier
-            .size(48.dp)
-            .background(c.accentSoft, AppShapes.extraSmall)
-            .border(1.dp, c.accentBorder.copy(alpha = 0.35f), AppShapes.extraSmall),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            painter = painterResource(iconRes),
-            contentDescription = null,
-            tint = c.accent,
-            modifier = Modifier.size(24.dp),
-        )
+        Chevron()
     }
 }
