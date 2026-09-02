@@ -23,6 +23,7 @@ object ConfigGenerator {
     private const val WARP_GROUP = "WARP"
     private const val SUBSCRIPTION_GROUP = "SUBSCRIPTION"
     private const val SUBSCRIPTION_PROVIDER = "DETOUR_SUBSCRIPTION"
+    private const val SUBSCRIPTION_USER_AGENT = "mihomo/1.19.30"
     private const val MAX_WARP_PROXIES = 128
 
     fun build(input: RoutingInput): String {
@@ -194,6 +195,9 @@ $rules""".trim()
         append("    url: ${yamlScalar(url)}\n")
         append("    interval: 3600\n")
         append("    size-limit: 4194304\n")
+        append("    header:\n")
+        append("      User-Agent:\n")
+        append("        - $SUBSCRIPTION_USER_AGENT\n")
         append("    health-check:\n")
         append("      enable: true\n")
         append("      url: https://www.gstatic.com/generate_204\n")
