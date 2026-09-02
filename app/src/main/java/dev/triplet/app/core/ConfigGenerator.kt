@@ -31,6 +31,7 @@ object ConfigGenerator {
             "missing uid resolution for routed packages"
         }
         val subscriptionUrl = (input.vpn as? VpnOutbound.Subscription)?.url
+        val subscriptionProviderPath = subscriptionUrl?.let(SubscriptionProviderMaterializer::localPath)
         val vpnTag = when (input.vpn) {
             is VpnOutbound.Vless -> "VLESS"
             is VpnOutbound.Subscription -> SUBSCRIPTION_GROUP
@@ -88,7 +89,7 @@ object ConfigGenerator {
         }.joinToString("\n")
 
         val proxyProviders = subscriptionUrl?.let { url ->
-            "\nproxy-providers:\n" + renderSubscriptionProvider(url)
+            "\nproxy-providers:\n" + renderSubscriptionProvider(url, subscriptionProviderPath)
         }.orEmpty()
         val proxyGroups = when (input.vpn) {
             is VpnOutbound.Warp -> "\nproxy-groups:\n" + renderWarpGroup(warpProxies.size)
@@ -187,17 +188,25 @@ $rules""".trim()
         """.trimIndent()
     }
 
-    private fun renderSubscriptionProvider(url: String): String = buildString {
+    private fun renderSubscriptionProvider(url: String, localPath: String?): String = buildString {
         val parsed = VlessKeyParser.parse(url) as? ParseResult.Ok
         require(parsed?.profile?.isSubscription == true) { "invalid subscription URL" }
         append("  $SUBSCRIPTION_PROVIDER:\n")
-        append("    type: http\n")
-        append("    url: ${yamlScalar(url)}\n")
-        append("    interval: 3600\n")
-        append("    size-limit: 4194304\n")
-        append("    header:\n")
-        append("      User-Agent:\n")
-        append("        - $SUBSCRIPTION_USER_AGENT\n")
+        if (!localPath.isNullOrBlank()) {
+            append("    type: file\n")
+            append("    path: ${yamlScalar(localPath)}\n")
+        } else {
+            // Unit tests and non-Android callers keep the legacy HTTP source.
+            // Production installs SubscriptionProviderMaterializer in TripletApp,
+            // normalizing URI/base64 subscriptions before mihomo sees them.
+            append("    type: http\n")
+            append("    url: ${yamlScalar(url)}\n")
+            append("    interval: 3600\n")
+            append("    size-limit: 4194304\n")
+            append("    header:\n")
+            append("      User-Agent:\n")
+            append("        - $SUBSCRIPTION_USER_AGENT\n")
+        }
         append("    health-check:\n")
         append("      enable: true\n")
         append("      url: https://www.gstatic.com/generate_204\n")
