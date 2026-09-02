@@ -1,5 +1,7 @@
 package dev.triplet.app.ui
 
+import dev.triplet.app.R
+import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.vpn.VpnState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -32,5 +34,16 @@ class StatusStyleTest {
             assertEquals(theme.colors.error, style.content)
             assertEquals(theme.colors.error.copy(alpha = .45f), style.border)
         }
+    }
+
+    @Test fun `subscription home protocol is not mislabeled as vless`() {
+        assertEquals(
+            R.string.protocol_subscription,
+            homeProtocolLabelRes(HomeProtocol.VLESS, VpnProfileKind.SUBSCRIPTION),
+        )
+        assertEquals(
+            R.string.protocol_subscription_dpi,
+            homeProtocolLabelRes(HomeProtocol.VLESS_DPI, VpnProfileKind.SUBSCRIPTION),
+        )
     }
 }

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -88,6 +89,21 @@ internal fun formatSessionElapsed(seconds: Int): String {
 
 internal fun homeUsesSplitLayout(windowSizeClass: WindowSizeClass): Boolean =
     windowSizeClass.isWidthAtLeastBreakpoint(WIDTH_DP_EXPANDED_LOWER_BOUND)
+
+internal fun homeProtocolLabelRes(protocol: HomeProtocol, activeVpn: VpnProfileKind): Int = when (protocol) {
+    HomeProtocol.VLESS_DPI -> when (activeVpn) {
+        VpnProfileKind.VLESS -> R.string.protocol_vless_dpi
+        VpnProfileKind.SUBSCRIPTION -> R.string.protocol_subscription_dpi
+        VpnProfileKind.WARP -> R.string.protocol_warp_dpi
+    }
+    HomeProtocol.DPI -> R.string.protocol_dpi
+    HomeProtocol.VLESS -> when (activeVpn) {
+        VpnProfileKind.VLESS -> R.string.protocol_vless
+        VpnProfileKind.SUBSCRIPTION -> R.string.protocol_subscription
+        VpnProfileKind.WARP -> R.string.protocol_warp
+    }
+    HomeProtocol.NONE -> R.string.protocol_none
+}
 
 @Composable
 fun HomeScreen(
@@ -179,15 +195,7 @@ fun HomeScreen(
         }
     }
 
-    val protocolRes = when (uiState.protocol) {
-        HomeProtocol.VLESS_DPI ->
-            if (uiState.activeVpn == VpnProfileKind.WARP) R.string.protocol_warp_dpi else R.string.protocol_vless_dpi
-        HomeProtocol.DPI -> R.string.protocol_dpi
-        HomeProtocol.VLESS ->
-            if (uiState.activeVpn == VpnProfileKind.WARP) R.string.protocol_warp else R.string.protocol_vless
-        HomeProtocol.NONE -> R.string.protocol_none
-    }
-    val protocol = stringResource(protocolRes)
+    val protocol = stringResource(homeProtocolLabelRes(uiState.protocol, uiState.activeVpn))
     val dnsValue = when (uiState.dnsId) {
         "google" -> stringResource(R.string.dns_google)
         "cloudflare" -> stringResource(R.string.dns_cloudflare)
@@ -561,7 +569,7 @@ private fun RouteDot(
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.width(64.dp),
+        modifier = Modifier.width(84.dp),
     ) {
         Box(
             Modifier
@@ -580,6 +588,7 @@ private fun RouteDot(
             text = label,
             style = MaterialTheme.typography.labelSmall,
             color = detourColors.textSecondary,
+            textAlign = TextAlign.Center,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = Spacing.space4),
@@ -691,6 +700,7 @@ private fun HomeInfoRow(
                 pressedColor = c.surfaceSelected.copy(alpha = 0.38f),
                 pressScale = Motion.PRESS_ROW,
             )
+            .heightIn(min = 56.dp)
             .padding(horizontal = Spacing.space12, vertical = Spacing.space8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
