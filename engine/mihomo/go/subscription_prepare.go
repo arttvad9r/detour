@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"github.com/metacubex/mihomo/adapter"
 	"github.com/metacubex/mihomo/common/convert"
 	mihomoYaml "github.com/metacubex/mihomo/common/yaml"
+	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/tunnel"
 )
 
@@ -39,6 +41,12 @@ type subscriptionLatencyNode struct {
 }
 
 type subscriptionLatencyProbe func(context.Context, map[string]any) (int, error)
+type subscriptionHostResolver func(context.Context, string) ([]string, error)
+
+type subscriptionLatencyTarget struct {
+	Name  string
+	Probe func(context.Context) (int, error)
+}
 
 // PrepareSubscriptionProvider downloads an HTTPS V2Ray subscription, converts
 // URI/base64 bodies to mihomo YAML and stores only VLESS nodes that Mihomo can
@@ -103,7 +111,7 @@ func FetchPreparedSubscriptionCatalog(subscriptionURL string) string {
 
 // HealthCheckSubscriptionProvider runs one explicit URL test for every node in
 // the currently active provider. It is retained for runtime diagnostics; the UI
-// uses TestSubscriptionCatalogLatency so latency can also be measured offline.
+// uses TestSubscriptionCatalogLatency for the user-triggered latency action.
 func HealthCheckSubscriptionProvider() error {
 	if !Ready() {
 		return errors.New("engine is not ready")
@@ -116,18 +124,24 @@ func HealthCheckSubscriptionProvider() error {
 	return nil
 }
 
-// TestSubscriptionCatalogLatency downloads and normalizes the subscription,
-// builds each VLESS adapter independently and runs Mihomo URLTest directly.
-// No TUN/runtime is created and the selected subscription node is not changed,
-// so this works before connecting just like a server-list latency test.
-// The returned JSON contains all safe node names; delayMs is omitted on failure.
+// TestSubscriptionCatalogLatency prefers the live provider when the VPN engine
+// is running. That path tests the exact proxy objects used for traffic and uses
+// the resolver configured by the active Mihomo config. When disconnected it
+// falls back to independently parsed proxies and resolves endpoint hostnames via
+// Android's system resolver before handing them to Mihomo's URLTest.
 func TestSubscriptionCatalogLatency(subscriptionURL string) string {
+	if results, ok := activeSubscriptionLatencyResults(); ok {
+		return marshalSubscriptionLatencyResults(results)
+	}
+
 	proxies, err := fetchPreparedSubscriptionProxies(subscriptionURL)
 	if err != nil || len(proxies) == 0 {
 		return ""
 	}
+	return marshalSubscriptionLatencyResults(runSubscriptionLatencyTests(proxies, mihomoSubscriptionLatencyProbe))
+}
 
-	results := runSubscriptionLatencyTests(proxies, mihomoSubscriptionLatencyProbe)
+func marshalSubscriptionLatencyResults(results []subscriptionLatencyNode) string {
 	payload, err := json.Marshal(map[string]any{"nodes": results})
 	if err != nil {
 		return ""
@@ -135,44 +149,89 @@ func TestSubscriptionCatalogLatency(subscriptionURL string) string {
 	return string(payload)
 }
 
-func runSubscriptionLatencyTests(proxies []map[string]any, probe subscriptionLatencyProbe) []subscriptionLatencyNode {
-	results := make([]subscriptionLatencyNode, len(proxies))
-	semaphore := make(chan struct{}, subscriptionLatencyParallel)
-	var wg sync.WaitGroup
+func activeSubscriptionLatencyResults() ([]subscriptionLatencyNode, bool) {
+	if !Ready() {
+		return nil, false
+	}
+	provider, ok := tunnel.Providers()[subscriptionProviderName]
+	if !ok {
+		return nil, false
+	}
+	proxies := provider.Proxies()
+	if len(proxies) == 0 {
+		return nil, false
+	}
 
-	for index, mapping := range proxies {
+	targets := make([]subscriptionLatencyTarget, 0, len(proxies))
+	for _, proxy := range proxies {
+		proxy := proxy
+		name, ok := safeCatalogLabel(proxy.Name(), 256)
+		if !ok {
+			continue
+		}
+		targets = append(targets, subscriptionLatencyTarget{
+			Name: name,
+			Probe: func(ctx context.Context) (int, error) {
+				delay, err := proxy.URLTest(ctx, subscriptionLatencyTestURL, nil)
+				return int(delay), err
+			},
+		})
+	}
+	if len(targets) == 0 {
+		return nil, false
+	}
+	return runSubscriptionLatencyTargets(targets), true
+}
+
+func runSubscriptionLatencyTests(proxies []map[string]any, probe subscriptionLatencyProbe) []subscriptionLatencyNode {
+	targets := make([]subscriptionLatencyTarget, 0, len(proxies))
+	for _, mapping := range proxies {
+		mapping := mapping
 		name, ok := safeCatalogLabel(mapping["name"], 256)
 		if !ok {
 			continue
 		}
-		results[index].Name = name
+		targets = append(targets, subscriptionLatencyTarget{
+			Name: name,
+			Probe: func(ctx context.Context) (int, error) {
+				return probe(ctx, mapping)
+			},
+		})
+	}
+	return runSubscriptionLatencyTargets(targets)
+}
+
+func runSubscriptionLatencyTargets(targets []subscriptionLatencyTarget) []subscriptionLatencyNode {
+	results := make([]subscriptionLatencyNode, len(targets))
+	semaphore := make(chan struct{}, subscriptionLatencyParallel)
+	var wg sync.WaitGroup
+
+	for index, target := range targets {
+		results[index].Name = target.Name
 		wg.Add(1)
-		go func(i int, proxyMapping map[string]any) {
+		go func(i int, probe func(context.Context) (int, error)) {
 			defer wg.Done()
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
 			ctx, cancel := context.WithTimeout(context.Background(), subscriptionLatencyTimeout)
 			defer cancel()
-			delay, testErr := probe(ctx, proxyMapping)
+			delay, testErr := probe(ctx)
 			if testErr == nil && delay > 0 {
 				results[i].DelayMs = delay
 			}
-		}(index, mapping)
+		}(index, target.Probe)
 	}
 	wg.Wait()
-
-	compact := results[:0]
-	for _, result := range results {
-		if result.Name != "" {
-			compact = append(compact, result)
-		}
-	}
-	return compact
+	return results
 }
 
 func mihomoSubscriptionLatencyProbe(ctx context.Context, proxyMapping map[string]any) (int, error) {
-	proxy, err := adapter.ParseProxy(proxyMapping)
+	preparedMapping, err := prepareOfflineLatencyProxyMapping(ctx, proxyMapping, systemSubscriptionHostResolver)
+	if err != nil {
+		return 0, err
+	}
+	proxy, err := adapter.ParseProxy(preparedMapping)
 	if err != nil {
 		return 0, err
 	}
@@ -183,6 +242,76 @@ func mihomoSubscriptionLatencyProbe(ctx context.Context, proxyMapping map[string
 		return 0, err
 	}
 	return int(delay), nil
+}
+
+func systemSubscriptionHostResolver(ctx context.Context, host string) ([]string, error) {
+	ips, err := net.DefaultResolver.LookupIP(ctx, "ip4", host)
+	if err != nil {
+		return nil, err
+	}
+	resolved := make([]string, 0, len(ips))
+	for _, ip := range ips {
+		if ip4 := ip.To4(); ip4 != nil {
+			resolved = append(resolved, ip4.String())
+		}
+	}
+	if len(resolved) == 0 {
+		return nil, errors.New("subscription endpoint has no IPv4 address")
+	}
+	return resolved, nil
+}
+
+func prepareOfflineLatencyProxyMapping(
+	ctx context.Context,
+	mapping map[string]any,
+	resolve subscriptionHostResolver,
+) (map[string]any, error) {
+	server, ok := safeCatalogLabel(mapping["server"], 253)
+	if !ok || net.ParseIP(server) != nil {
+		return mapping, nil
+	}
+	addresses, err := resolve(ctx, server)
+	if err != nil || len(addresses) == 0 {
+		if err != nil {
+			return nil, err
+		}
+		return nil, errors.New("subscription endpoint DNS returned no addresses")
+	}
+	ip := net.ParseIP(addresses[0])
+	if ip == nil || ip.To4() == nil {
+		return nil, errors.New("subscription endpoint DNS returned invalid IPv4 address")
+	}
+
+	prepared := cloneProxyMapping(mapping)
+	if tls, _ := prepared["tls"].(bool); tls {
+		if serverName, _ := prepared["servername"].(string); strings.TrimSpace(serverName) == "" {
+			prepared["servername"] = inferredTLSName(prepared, server)
+		}
+	}
+	prepared["server"] = ip.To4().String()
+	return prepared, nil
+}
+
+func cloneProxyMapping(mapping map[string]any) map[string]any {
+	cloned := make(map[string]any, len(mapping))
+	for key, value := range mapping {
+		cloned[key] = value
+	}
+	return cloned
+}
+
+func inferredTLSName(mapping map[string]any, fallback string) string {
+	network, _ := mapping["network"].(string)
+	if strings.EqualFold(strings.TrimSpace(network), "ws") {
+		if wsOpts, ok := mapping["ws-opts"].(map[string]any); ok {
+			if headers, ok := wsOpts["headers"].(map[string]any); ok {
+				if host, ok := headers["Host"].(string); ok && strings.TrimSpace(host) != "" {
+					return strings.TrimSpace(host)
+				}
+			}
+		}
+	}
+	return fallback
 }
 
 func fetchPreparedSubscriptionProxies(subscriptionURL string) ([]map[string]any, error) {
@@ -259,6 +388,7 @@ func parsePreparedSubscriptionProxies(body []byte) ([]map[string]any, error) {
 		// Mihomo expects the canonical outbound type and exact selector names.
 		proxy["type"] = "vless"
 		proxy["name"] = name
+		normalizeVlessHTTPUpgrade(proxy)
 
 		parsedProxy, parseErr := adapter.ParseProxy(proxy)
 		if parseErr != nil {
@@ -277,3 +407,25 @@ func parsePreparedSubscriptionProxies(body []byte) ([]map[string]any, error) {
 	}
 	return prepared, nil
 }
+
+// Mihomo 1.19.30 (and current Meta at the time of this fix) converts VLESS
+// share links with type=httpupgrade into network=httpupgrade while its VLESS
+// adapter implements HTTP Upgrade through the websocket transport. Without
+// v2ray-http-upgrade=true these nodes parse successfully but cannot carry
+// traffic or complete URL tests. Normalize both converted URI subscriptions and
+// YAML subscriptions before the provider sees them.
+func normalizeVlessHTTPUpgrade(proxy map[string]any) {
+	network, _ := proxy["network"].(string)
+	if !strings.EqualFold(strings.TrimSpace(network), "httpupgrade") {
+		return
+	}
+	proxy["network"] = "ws"
+	wsOpts, ok := proxy["ws-opts"].(map[string]any)
+	if !ok || wsOpts == nil {
+		wsOpts = make(map[string]any)
+		proxy["ws-opts"] = wsOpts
+	}
+	wsOpts["v2ray-http-upgrade"] = true
+}
+
+var _ C.Proxy = (C.Proxy)(nil)
