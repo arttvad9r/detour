@@ -241,6 +241,7 @@ internal fun DetourNavigation(
                     onOpenSettings = { backStack.add(AppDestination.Settings) },
                     onOpenProfiles = { openFromHome(AppDestination.Vless) },
                     onOpenDns = { openFromHome(AppDestination.Dns) },
+                    onOpenRoutes = { openFromHome(AppDestination.Routes) },
                 )
             }
 
