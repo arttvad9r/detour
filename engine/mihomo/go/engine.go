@@ -278,28 +278,48 @@ func SelectSubscriptionNode(name string, homeDir string) error {
 	return nil
 }
 
-// SubscriptionSelectedNode returns the live selected node. If the runtime is
-// temporarily unable to report it while starting/reloading, the persisted
-// selector cache remains the source of truth instead of exposing a blank name.
+// resolveSubscriptionSelection prevents mihomo's temporary empty-group proxy
+// (for example COMPATIBLE) from leaking into Android as the user's selection.
+// During provider startup the selector still remembers the cached desired node,
+// but Now() resolves to EmptyFallback() until provider proxies are available.
+func resolveSubscriptionSelection(live string, emptyFallback string, cached string) string {
+	live = strings.TrimSpace(live)
+	emptyFallback = strings.TrimSpace(emptyFallback)
+	cached = strings.TrimSpace(cached)
+	if live != "" && live != emptyFallback {
+		return live
+	}
+	return cached
+}
+
+// SubscriptionSelectedNode returns the selected provider node. The live
+// selector wins after the provider is ready; while it only exposes its internal
+// empty fallback, the persisted desired selection remains the source of truth.
 func SubscriptionSelectedNode(homeDir string) string {
 	if homeDir != "" {
 		if err := os.MkdirAll(homeDir, 0o700); err == nil {
 			C.SetHomeDir(homeDir)
 		}
 	}
+
+	live := ""
+	emptyFallback := ""
 	if Ready() {
 		if proxy, ok := tunnel.Proxies()[subscriptionGroupName]; ok {
 			if selector, ok := proxy.Adapter().(*outboundgroup.Selector); ok {
-				if selected := strings.TrimSpace(selector.Now()); selected != "" {
-					return selected
+				live = selector.Now()
+				if fallback := selector.EmptyFallback(); fallback != nil {
+					emptyFallback = fallback.Name()
 				}
 			}
 		}
 	}
+
+	cached := ""
 	if selected := cachefile.Cache().SelectedMap(); selected != nil {
-		return strings.TrimSpace(selected[subscriptionGroupName])
+		cached = selected[subscriptionGroupName]
 	}
-	return ""
+	return resolveSubscriptionSelection(live, emptyFallback, cached)
 }
 
 func parseSubscriptionURL(value string) (*url.URL, error) {
