@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestPreparedSubscriptionFallsBackToV2RayConversion(t *testing.T) {
@@ -88,6 +89,15 @@ proxies:
 	}
 }
 
+func TestSubscriptionLatencyDefaultsMatchMobileServerListTesting(t *testing.T) {
+	if subscriptionLatencyTestURL != "http://cp.cloudflare.com/" {
+		t.Fatalf("latency URL = %q, want Cloudflare HTTP endpoint", subscriptionLatencyTestURL)
+	}
+	if subscriptionLatencyParallel != 5 {
+		t.Fatalf("latency parallelism = %d, want 5", subscriptionLatencyParallel)
+	}
+}
+
 func TestSubscriptionLatencyTestsCoverEveryNodeBeyondParallelLimit(t *testing.T) {
 	const nodeCount = 25
 	proxies := make([]map[string]any, 0, nodeCount)
@@ -99,9 +109,20 @@ func TestSubscriptionLatencyTestsCoverEveryNodeBeyondParallelLimit(t *testing.T)
 	}
 
 	var calls atomic.Int32
+	var active atomic.Int32
+	var maxActive atomic.Int32
 	results := runSubscriptionLatencyTests(
 		proxies,
 		func(_ context.Context, _ map[string]any) (int, error) {
+			current := active.Add(1)
+			for {
+				previous := maxActive.Load()
+				if current <= previous || maxActive.CompareAndSwap(previous, current) {
+					break
+				}
+			}
+			defer active.Add(-1)
+			time.Sleep(20 * time.Millisecond)
 			calls.Add(1)
 			return 42, nil
 		},
@@ -109,6 +130,9 @@ func TestSubscriptionLatencyTestsCoverEveryNodeBeyondParallelLimit(t *testing.T)
 
 	if got := int(calls.Load()); got != nodeCount {
 		t.Fatalf("latency probe calls = %d, want %d", got, nodeCount)
+	}
+	if got := int(maxActive.Load()); got != subscriptionLatencyParallel {
+		t.Fatalf("max concurrent latency probes = %d, want %d", got, subscriptionLatencyParallel)
 	}
 	if len(results) != nodeCount {
 		t.Fatalf("latency results = %d, want %d", len(results), nodeCount)
