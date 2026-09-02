@@ -92,14 +92,12 @@ internal fun homeUsesSplitLayout(windowSizeClass: WindowSizeClass): Boolean =
 
 internal fun homeProtocolLabelRes(protocol: HomeProtocol, activeVpn: VpnProfileKind): Int = when (protocol) {
     HomeProtocol.VLESS_DPI -> when (activeVpn) {
-        VpnProfileKind.VLESS -> R.string.protocol_vless_dpi
-        VpnProfileKind.SUBSCRIPTION -> R.string.protocol_subscription_dpi
+        VpnProfileKind.VLESS, VpnProfileKind.SUBSCRIPTION -> R.string.protocol_vless_dpi
         VpnProfileKind.WARP -> R.string.protocol_warp_dpi
     }
     HomeProtocol.DPI -> R.string.protocol_dpi
     HomeProtocol.VLESS -> when (activeVpn) {
-        VpnProfileKind.VLESS -> R.string.protocol_vless
-        VpnProfileKind.SUBSCRIPTION -> R.string.protocol_subscription
+        VpnProfileKind.VLESS, VpnProfileKind.SUBSCRIPTION -> R.string.protocol_vless
         VpnProfileKind.WARP -> R.string.protocol_warp
     }
     HomeProtocol.NONE -> R.string.protocol_none
@@ -304,9 +302,6 @@ private fun HomeConnectionContent(
                 state = state,
                 statusContent = statusContent,
                 sessionStartedAt = sessionStartedAt,
-                activeVpn = activeVpn,
-                profileName = profileName,
-                serverHost = serverHost,
                 protocol = protocol,
                 modifier = Modifier.weight(1f),
             )
@@ -333,9 +328,6 @@ private fun HomeConnectionContent(
                 state = state,
                 statusContent = statusContent,
                 sessionStartedAt = sessionStartedAt,
-                activeVpn = activeVpn,
-                profileName = profileName,
-                serverHost = serverHost,
                 protocol = protocol,
             )
             Spacer(Modifier.height(Spacing.space12))
@@ -402,26 +394,13 @@ private fun ConnectionHero(
     state: VpnState,
     statusContent: Color,
     sessionStartedAt: Long?,
-    activeVpn: VpnProfileKind,
-    profileName: String?,
-    serverHost: String?,
     protocol: String,
     modifier: Modifier = Modifier,
 ) {
     val c = detourColors
     val key = visualKey(state)
-    val routeTarget = when {
-        activeVpn == VpnProfileKind.WARP -> profileName
-        !serverHost.isNullOrBlank() -> serverHost
-        else -> profileName
-    }
     val protocolNone = stringResource(R.string.protocol_none)
-    val routeDescription = when {
-        protocol != protocolNone && !routeTarget.isNullOrBlank() -> "$protocol · $routeTarget"
-        protocol != protocolNone -> protocol
-        !routeTarget.isNullOrBlank() -> routeTarget
-        else -> ""
-    }
+    val routeDescription = protocol.takeUnless { it == protocolNone }.orEmpty()
 
     AnimatedContent(
         targetState = key,
@@ -497,7 +476,7 @@ private fun ConnectionHero(
                     }
                     if (routeDescription.isNotBlank()) {
                         Text(
-                            stringResource(R.string.home_route_via, routeDescription),
+                            routeDescription,
                             style = MaterialTheme.typography.bodySmall,
                             color = statusContent,
                             textAlign = TextAlign.Center,
