@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -74,13 +75,14 @@ internal fun SettingsMenuScreen(
     val profiles = MenuItem(
         R.string.nav_key,
         {
-            when {
-                state.hasVless && state.hasWarp ->
-                    "${stringResource(R.string.protocol_vless)} + ${stringResource(R.string.protocol_warp)}"
-                state.hasVless -> stringResource(R.string.protocol_vless)
-                state.hasWarp -> stringResource(R.string.nav_key_sub_warp)
-                else -> stringResource(R.string.nav_key_sub_none)
-            }
+            stringResource(
+                when {
+                    state.hasVless && state.hasWarp -> R.string.nav_key_sub
+                    state.hasVless -> R.string.nav_key_sub_vless
+                    state.hasWarp -> R.string.nav_key_sub_warp
+                    else -> R.string.nav_key_sub_none
+                },
+            )
         },
         R.drawable.ic_profile,
         SettingsSection.PROFILES,
@@ -123,12 +125,14 @@ internal fun SettingsMenuScreen(
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
-            DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-                SettingsSectionLabel(R.string.settings_section_routing)
-                SettingsRows(listOf(routes, profiles), selectedSection)
+            SettingsSectionLabel(R.string.settings_section_routing)
+            Spacer(Modifier.height(Spacing.space8))
+            SettingsGroup(listOf(routes, profiles), selectedSection)
 
-                SettingsSectionDivider()
-                SettingsSectionLabel(R.string.settings_section_connection)
+            Spacer(Modifier.height(Spacing.space20))
+            SettingsSectionLabel(R.string.settings_section_connection)
+            Spacer(Modifier.height(Spacing.space8))
+            DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
                 SettingsRows(listOf(dpi, dns), selectedSection)
                 GroupDivider()
                 Row(
@@ -145,12 +149,8 @@ internal fun SettingsMenuScreen(
                             pressedColor = c.surfaceSelected.copy(alpha = 0.34f),
                             pressScale = Motion.PRESS_ROW,
                         )
-                        .padding(
-                            start = Spacing.space16,
-                            end = Spacing.space8,
-                            top = Spacing.space4,
-                            bottom = Spacing.space4,
-                        ),
+                        .heightIn(min = 60.dp)
+                        .padding(start = Spacing.space16, end = Spacing.space12),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Box(
@@ -180,12 +180,7 @@ internal fun SettingsMenuScreen(
                         compact = true,
                     )
                 }
-
-                SettingsSectionDivider()
-                SettingsSectionLabel(R.string.settings_section_app)
-                SettingsRows(listOf(backup, appearance), selectedSection)
             }
-
             Spacer(Modifier.height(Spacing.space8))
             Text(
                 stringResource(R.string.autorestart_note),
@@ -193,7 +188,13 @@ internal fun SettingsMenuScreen(
                 color = c.textMuted,
                 modifier = Modifier.padding(horizontal = Spacing.space20),
             )
-            Spacer(Modifier.height(Spacing.space12))
+
+            Spacer(Modifier.height(Spacing.space20))
+            SettingsSectionLabel(R.string.settings_section_app)
+            Spacer(Modifier.height(Spacing.space8))
+            SettingsGroup(listOf(backup, appearance), selectedSection)
+
+            Spacer(Modifier.height(Spacing.space24))
         }
     }
 }
@@ -202,26 +203,20 @@ internal fun SettingsMenuScreen(
 private fun SettingsSectionLabel(titleRes: Int) {
     Text(
         text = stringResource(titleRes),
-        style = MaterialTheme.typography.labelMedium,
+        style = MaterialTheme.typography.labelLarge,
         color = detourColors.textSecondary,
-        modifier = Modifier.padding(
-            start = Spacing.space16,
-            end = Spacing.space16,
-            top = Spacing.space8,
-            bottom = Spacing.space4,
-        ),
+        modifier = Modifier.padding(horizontal = Spacing.space20),
     )
 }
 
 @Composable
-private fun SettingsSectionDivider() {
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = Spacing.space16, vertical = Spacing.space2)
-            .height(1.dp)
-            .background(detourColors.divider),
-    )
+private fun SettingsGroup(
+    items: List<Pair<MenuItem, () -> Unit>>,
+    selectedSection: SettingsSection?,
+) {
+    DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
+        SettingsRows(items, selectedSection)
+    }
 }
 
 @Composable
