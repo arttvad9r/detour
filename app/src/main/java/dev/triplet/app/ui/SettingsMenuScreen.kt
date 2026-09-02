@@ -77,8 +77,12 @@ internal fun SettingsMenuScreen(
         R.string.nav_key,
         {
             val configured = buildList {
-                if (state.hasVless) add(stringResource(R.string.protocol_vless))
-                if (state.hasSubscription) add(stringResource(R.string.subscription_profile_section))
+                // A subscription is a source of VLESS nodes, not a separate VPN
+                // protocol. Keep the Settings summary protocol-oriented while the
+                // Profiles screen can still separate direct links/subscriptions.
+                if (state.hasVless || state.hasSubscription) {
+                    add(stringResource(R.string.protocol_vless))
+                }
                 if (state.hasWarp) add(stringResource(R.string.nav_key_sub_warp))
             }
             configured.takeIf { it.isNotEmpty() }
