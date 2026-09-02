@@ -38,6 +38,12 @@ private val DNS_LABELS = mapOf(
     "adguard" to R.string.dns_adguard,
 )
 
+private val DNS_SUBTITLES = mapOf(
+    "google" to R.string.dns_google_subtitle,
+    "cloudflare" to R.string.dns_cloudflare_subtitle,
+    "adguard" to R.string.dns_adguard_subtitle,
+)
+
 @Composable
 fun DnsScreen(viewModel: DnsViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val haptics = LocalHapticFeedback.current
@@ -68,15 +74,24 @@ fun DnsScreen(viewModel: DnsViewModel, onBack: () -> Unit, modifier: Modifier = 
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
+            DetourFeatureSummary(
+                iconRes = R.drawable.ic_globe,
+                title = stringResource(R.string.dns_hint_title),
+                subtitle = stringResource(R.string.dns_info),
+                modifier = Modifier.padding(horizontal = Spacing.space16),
+            )
+
+            Spacer(Modifier.height(Spacing.space12))
             DetourCard(
                 Modifier
                     .padding(horizontal = Spacing.space16)
                     .selectableGroup(),
             ) {
                 DnsOptions.servers.entries.forEachIndexed { index, (id, server) ->
+                    val description = DNS_SUBTITLES[id]?.let { stringResource(it) } ?: server
                     ChoiceRow(
                         title = stringResource(DNS_LABELS[id] ?: R.string.dns_custom),
-                        subtitle = server,
+                        subtitle = "$description\n$server",
                         selected = !state.editingCustom && state.selectedDns == id,
                         onClick = { viewModel.chooseKnown(id) },
                     )
@@ -85,7 +100,8 @@ fun DnsScreen(viewModel: DnsViewModel, onBack: () -> Unit, modifier: Modifier = 
                 GroupDivider(startInset = 56)
                 ChoiceRow(
                     title = stringResource(R.string.dns_custom),
-                    subtitle = state.customField.takeIf { it.isNotBlank() },
+                    subtitle = state.customField.takeIf { it.isNotBlank() }
+                        ?: stringResource(R.string.dns_custom_subtitle),
                     selected = state.editingCustom,
                     onClick = viewModel::editCustom,
                 )

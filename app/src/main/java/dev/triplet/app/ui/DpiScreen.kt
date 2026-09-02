@@ -62,6 +62,14 @@ fun DpiScreen(viewModel: DpiViewModel, onBack: () -> Unit, modifier: Modifier = 
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
+            DetourFeatureSummary(
+                iconRes = R.drawable.ic_dpi,
+                title = stringResource(R.string.dpi_hint_title),
+                subtitle = stringResource(R.string.dpi_hint),
+                modifier = Modifier.padding(horizontal = Spacing.space16),
+            )
+
+            Spacer(Modifier.height(Spacing.space12))
             DetourCard(Modifier.padding(horizontal = Spacing.space16).selectableGroup()) {
                 ChoiceRow(
                     title = stringResource(R.string.preset_recommended),

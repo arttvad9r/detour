@@ -16,8 +16,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -45,6 +43,14 @@ fun ThemeScreen(viewModel: ThemeViewModel, onBack: () -> Unit, modifier: Modifie
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
+            DetourFeatureSummary(
+                iconRes = R.drawable.ic_theme,
+                title = stringResource(R.string.theme_hint_title),
+                subtitle = stringResource(R.string.theme_hint),
+                modifier = Modifier.padding(horizontal = Spacing.space16),
+            )
+
+            Spacer(Modifier.height(Spacing.space12))
             DetourCard(
                 Modifier
                     .padding(horizontal = Spacing.space16)
@@ -60,14 +66,6 @@ fun ThemeScreen(viewModel: ThemeViewModel, onBack: () -> Unit, modifier: Modifie
                     if (index < AppTheme.entries.lastIndex) GroupDivider(startInset = 56)
                 }
             }
-
-            Spacer(Modifier.height(Spacing.space12))
-            Text(
-                stringResource(R.string.theme_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = c.textMuted,
-                modifier = Modifier.padding(horizontal = Spacing.space16),
-            )
             Spacer(Modifier.height(Spacing.space24))
         }
     }

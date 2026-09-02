@@ -623,14 +623,12 @@ private fun ConnectionDetails(
                 iconRes = R.drawable.ic_server,
                 label = stringResource(R.string.row_endpoints),
                 value = endpointCount.takeIf { it > 0 }?.toString() ?: stringResource(R.string.server_missing),
-                onClick = onOpenProfiles,
             )
         } else {
             HomeInfoRow(
                 iconRes = R.drawable.ic_server,
                 label = stringResource(R.string.row_server),
                 value = serverHost ?: stringResource(R.string.server_missing),
-                onClick = onOpenProfiles,
             )
         }
         DetailsDivider()
@@ -688,20 +686,25 @@ private fun HomeInfoRow(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)? = null,
 ) {
     val c = detourColors
+    val baseModifier = modifier
+        .fillMaxWidth()
+        .heightIn(min = 56.dp)
+    val rowModifier = if (onClick != null) {
+        baseModifier.detourClickable(
+            onClick = onClick,
+            role = androidx.compose.ui.semantics.Role.Button,
+            pressedColor = c.surfaceSelected.copy(alpha = 0.38f),
+            pressScale = Motion.PRESS_ROW,
+        )
+    } else {
+        baseModifier
+    }
+
     Row(
-        modifier
-            .fillMaxWidth()
-            .detourClickable(
-                onClick = onClick,
-                role = androidx.compose.ui.semantics.Role.Button,
-                pressedColor = c.surfaceSelected.copy(alpha = 0.38f),
-                pressScale = Motion.PRESS_ROW,
-            )
-            .heightIn(min = 56.dp)
-            .padding(horizontal = Spacing.space12, vertical = Spacing.space8),
+        rowModifier.padding(horizontal = Spacing.space12, vertical = Spacing.space8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
@@ -745,6 +748,6 @@ private fun HomeInfoRow(
                 )
             }
         }
-        Chevron()
+        if (onClick != null) Chevron()
     }
 }

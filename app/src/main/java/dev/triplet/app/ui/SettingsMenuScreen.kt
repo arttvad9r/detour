@@ -11,11 +11,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,7 +22,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -113,8 +110,7 @@ internal fun SettingsMenuScreen(
     ) to onOpenTheme
 
     Column(
-        modifier
-            .fillMaxSize()
+        modifier.fillMaxSize()
             .background(c.background)
             .statusBarsPadding()
             .navigationBarsPadding()
@@ -124,20 +120,17 @@ internal fun SettingsMenuScreen(
         DetourBrandedHeader(stringResource(R.string.settings_title), onBack)
 
         DetourContentColumn {
-            Spacer(Modifier.height(Spacing.space8))
-            SettingsSectionLabel(R.string.settings_section_routing)
-            Spacer(Modifier.height(Spacing.space8))
-            SettingsGroup(listOf(routes, profiles), selectedSection)
-
-            Spacer(Modifier.height(Spacing.space20))
-            SettingsSectionLabel(R.string.settings_section_connection)
-            Spacer(Modifier.height(Spacing.space8))
+            Spacer(Modifier.height(Spacing.space12))
             DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
+                SettingsSectionLabel(R.string.settings_section_routing)
+                SettingsRows(listOf(routes, profiles), selectedSection)
+
+                SettingsSectionDivider()
+                SettingsSectionLabel(R.string.settings_section_connection)
                 SettingsRows(listOf(dpi, dns), selectedSection)
                 GroupDivider()
                 Row(
-                    Modifier
-                        .fillMaxWidth()
+                    Modifier.fillMaxWidth()
                         .detourToggleable(
                             value = state.autoConnect,
                             onValueChange = { next ->
@@ -149,29 +142,17 @@ internal fun SettingsMenuScreen(
                             pressedColor = c.surfaceSelected.copy(alpha = 0.34f),
                             pressScale = Motion.PRESS_ROW,
                         )
-                        .heightIn(min = 60.dp)
+                        .heightIn(min = 64.dp)
                         .padding(start = Spacing.space16, end = Spacing.space12),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(
-                        Modifier
-                            .size(34.dp)
-                            .background(c.accentSoft, AppShapes.extraSmall),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_power),
-                            contentDescription = null,
-                            tint = c.accent,
-                            modifier = Modifier.size(17.dp),
-                        )
-                    }
+                    DetourIconTile(R.drawable.ic_power)
                     Text(
                         stringResource(R.string.auto_connect),
                         style = MaterialTheme.typography.titleSmall,
                         color = c.textPrimary,
                         modifier = Modifier
-                            .padding(start = 10.dp)
+                            .padding(start = Spacing.space12)
                             .weight(1f),
                     )
                     DetourSwitch(
@@ -180,7 +161,12 @@ internal fun SettingsMenuScreen(
                         compact = true,
                     )
                 }
+
+                SettingsSectionDivider()
+                SettingsSectionLabel(R.string.settings_section_app)
+                SettingsRows(listOf(backup, appearance), selectedSection)
             }
+
             Spacer(Modifier.height(Spacing.space8))
             Text(
                 stringResource(R.string.autorestart_note),
@@ -188,12 +174,6 @@ internal fun SettingsMenuScreen(
                 color = c.textMuted,
                 modifier = Modifier.padding(horizontal = Spacing.space20),
             )
-
-            Spacer(Modifier.height(Spacing.space20))
-            SettingsSectionLabel(R.string.settings_section_app)
-            Spacer(Modifier.height(Spacing.space8))
-            SettingsGroup(listOf(backup, appearance), selectedSection)
-
             Spacer(Modifier.height(Spacing.space24))
         }
     }
@@ -205,18 +185,24 @@ private fun SettingsSectionLabel(titleRes: Int) {
         text = stringResource(titleRes),
         style = MaterialTheme.typography.labelLarge,
         color = detourColors.textSecondary,
-        modifier = Modifier.padding(horizontal = Spacing.space20),
+        modifier = Modifier.padding(
+            start = Spacing.space16,
+            end = Spacing.space16,
+            top = Spacing.space16,
+            bottom = Spacing.space8,
+        ),
     )
 }
 
 @Composable
-private fun SettingsGroup(
-    items: List<Pair<MenuItem, () -> Unit>>,
-    selectedSection: SettingsSection?,
-) {
-    DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-        SettingsRows(items, selectedSection)
-    }
+private fun SettingsSectionDivider() {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.space16, vertical = Spacing.space4)
+            .height(1.dp)
+            .background(detourColors.divider),
+    )
 }
 
 @Composable
