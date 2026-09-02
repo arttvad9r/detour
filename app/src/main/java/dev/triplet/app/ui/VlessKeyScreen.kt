@@ -12,13 +12,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,7 +42,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalClipboard
@@ -50,7 +49,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -183,7 +181,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                     Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
-                        .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
+                        .padding(horizontal = Spacing.space16, vertical = Spacing.space8),
                 ) {
                     DetourButton(
                         text = addButtonText,
@@ -194,7 +192,6 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                                 beginEditor(tab = selectedTab)
                             }
                         },
-                        height = 58,
                     )
                 }
             }
@@ -208,22 +205,10 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                 .verticalScroll(scrollState)
                 .detourHighRefresh(scrollState.isScrollInProgress),
         ) {
-            DetourBrandedHeader(stringResource(R.string.app_name), onBack)
+            DetourBrandedHeader(stringResource(R.string.key_title), onBack)
 
             DetourContentColumn {
-                Text(
-                    text = stringResource(R.string.key_title),
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = c.textPrimary,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(
-                        start = Spacing.space20,
-                        end = Spacing.space20,
-                        top = Spacing.space12,
-                    ),
-                )
-
-                Spacer(Modifier.height(Spacing.space24))
+                Spacer(Modifier.height(Spacing.space8))
                 SegmentedControl(
                     options = listOf(
                         stringResource(R.string.protocol_vless),
@@ -234,12 +219,12 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                     onSelect = { selectedTab = it },
                     modifier = Modifier.padding(horizontal = Spacing.space16),
                 )
-                Spacer(Modifier.height(Spacing.space24))
+                Spacer(Modifier.height(Spacing.space16))
 
                 when (selectedTab) {
-                    0 -> ProfileKeyCards(
-                        title = stringResource(R.string.protocol_vless),
+                    0 -> ProfileKeyList(
                         items = groups.vless,
+                        kind = VpnProfileKind.VLESS,
                         activeVpn = activeVpn,
                         activeVlessId = activeVlessId,
                         onEdit = { beginEditor(it) },
@@ -250,9 +235,9 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                         },
                     )
                     1 -> {
-                        ProfileKeyCards(
-                            title = stringResource(R.string.subscription_profile_section),
+                        ProfileKeyList(
                             items = groups.subscriptions,
+                            kind = VpnProfileKind.SUBSCRIPTION,
                             activeVpn = activeVpn,
                             activeVlessId = activeVlessId,
                             onEdit = { beginEditor(it) },
@@ -266,11 +251,11 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                             it.id == activeVlessId && activeVpn == VpnProfileKind.SUBSCRIPTION
                         }
                         if (activeSubscription != null) {
-                            Spacer(Modifier.height(Spacing.space24))
+                            Spacer(Modifier.height(Spacing.space16))
                             SubscriptionRuntimeSection()
                         }
                     }
-                    2 -> WarpProfileCardSection(
+                    2 -> WarpProfileList(
                         profile = groups.warp,
                         selected = activeVpn == VpnProfileKind.WARP,
                         importing = warpImporting,
@@ -284,7 +269,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                 }
 
                 if (warpImportStatus != WarpImportStatus.IDLE) {
-                    Spacer(Modifier.height(Spacing.space16))
+                    Spacer(Modifier.height(Spacing.space12))
                     ProfileOperationNotice(warpImportStatus)
                 }
                 Spacer(Modifier.height(Spacing.space24))
@@ -431,57 +416,52 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
 }
 
 @Composable
-private fun ProfileKeyCards(
-    title: String,
+private fun ProfileKeyList(
     items: List<VlessKey>,
+    kind: VpnProfileKind,
     activeVpn: VpnProfileKind,
     activeVlessId: String?,
     onEdit: (VlessKey) -> Unit,
     onDelete: (String) -> Unit,
     onSelect: (String) -> Unit,
 ) {
-    val c = detourColors
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleLarge,
-        fontWeight = FontWeight.SemiBold,
-        color = c.accent,
-        modifier = Modifier.padding(horizontal = Spacing.space20),
-    )
-    Spacer(Modifier.height(Spacing.space12))
-
     if (items.isEmpty()) {
         EmptyProfilesCard()
         return
     }
 
-    Column(
-        modifier = Modifier.selectableGroup(),
-        verticalArrangement = Arrangement.spacedBy(Spacing.space12),
+    DetourCard(
+        Modifier
+            .padding(horizontal = Spacing.space16)
+            .selectableGroup(),
     ) {
-        items.forEach { key ->
+        items.forEachIndexed { index, key ->
             val profile = remember(key.uri) { parsedProfile(key) }
-            val selected = activeVpn != VpnProfileKind.WARP && key.id == activeVlessId
-            ProfileCard(
-                title = profile?.name?.ifBlank { profile.server } ?: key.name,
-                server = profile?.server ?: "—",
-                type = if (profile?.isSubscription == true) {
-                    stringResource(R.string.protocol_vless)
-                } else {
-                    stringResource(R.string.profile_reality)
-                },
-                iconRes = if (profile?.isSubscription == true) R.drawable.ic_globe else R.drawable.ic_lock,
+            val selected = activeVpn == kind && key.id == activeVlessId
+            val title = profile?.name?.ifBlank { profile.server } ?: key.name
+            val subtitle = when {
+                profile == null -> "—"
+                profile.isSubscription -> stringResource(R.string.subscription_profile_host, profile.server)
+                else -> "${profile.server}:${profile.port}"
+            }
+            CompactProfileRow(
+                title = title,
+                subtitle = subtitle,
                 selected = selected,
+                busy = false,
+                editDescription = stringResource(R.string.key_edit),
+                deleteDescription = stringResource(R.string.key_delete),
                 onEdit = { onEdit(key) },
                 onDelete = { onDelete(key.id) },
                 onClick = { if (!selected) onSelect(key.id) },
             )
+            if (index < items.lastIndex) GroupDivider(startInset = 52)
         }
     }
 }
 
 @Composable
-private fun WarpProfileCardSection(
+private fun WarpProfileList(
     profile: WarpProfile?,
     selected: Boolean,
     importing: Boolean,
@@ -489,216 +469,102 @@ private fun WarpProfileCardSection(
     onDelete: () -> Unit,
     onClick: () -> Unit,
 ) {
-    val c = detourColors
-    Text(
-        text = stringResource(R.string.protocol_warp),
-        style = MaterialTheme.typography.titleLarge,
-        fontWeight = FontWeight.SemiBold,
-        color = c.accent,
-        modifier = Modifier.padding(horizontal = Spacing.space20),
-    )
-    Spacer(Modifier.height(Spacing.space12))
-
     if (profile == null) {
         EmptyProfilesCard()
         return
     }
 
-    ProfileCard(
-        title = profile.name,
-        server = stringResource(R.string.warp_subtitle, profile.proxies.size),
-        type = stringResource(R.string.profile_amneziawg),
-        iconRes = R.drawable.ic_globe,
-        selected = selected,
-        busy = importing,
-        onEdit = onEdit,
-        onDelete = onDelete,
-        onClick = { if (!selected) onClick() },
-    )
+    DetourCard(
+        Modifier
+            .padding(horizontal = Spacing.space16)
+            .selectableGroup(),
+    ) {
+        CompactProfileRow(
+            title = profile.name,
+            subtitle = stringResource(R.string.warp_subtitle, profile.proxies.size),
+            selected = selected,
+            busy = importing,
+            editDescription = stringResource(R.string.warp_replace),
+            deleteDescription = stringResource(R.string.warp_delete),
+            onEdit = onEdit,
+            onDelete = onDelete,
+            onClick = { if (!selected) onClick() },
+        )
+    }
 }
 
 @Composable
-private fun ProfileCard(
+private fun CompactProfileRow(
     title: String,
-    server: String,
-    type: String,
-    iconRes: Int,
+    subtitle: String,
     selected: Boolean,
+    busy: Boolean,
+    editDescription: String,
+    deleteDescription: String,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onClick: () -> Unit,
-    busy: Boolean = false,
 ) {
     val c = detourColors
-    Column(
-        modifier = Modifier
-            .padding(horizontal = Spacing.space16)
+    Row(
+        Modifier
             .fillMaxWidth()
-            .clip(AppShapes.medium)
-            .background(c.surface)
-            .border(
-                if (selected) 2.dp else 1.dp,
-                if (selected) c.accentBorder else c.border,
-                AppShapes.medium,
-            )
             .detourSelectable(
                 selected = selected,
                 onClick = onClick,
-                idleColor = if (selected) c.accentSoft.copy(alpha = 0.28f) else Color.Transparent,
+                idleColor = if (selected) c.accentSoft else Color.Transparent,
                 pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
                 pressScale = Motion.PRESS_RADIO,
             )
-            .padding(Spacing.space16),
+            .heightIn(min = 64.dp)
+            .padding(start = Spacing.space16, top = Spacing.space8, bottom = Spacing.space8, end = Spacing.space8),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            ProfileIconTile(iconRes = iconRes, selected = selected)
-            Column(
-                modifier = Modifier
-                    .padding(start = Spacing.space12)
-                    .weight(1f),
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = c.textPrimary,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (selected) {
-                    Row(
-                        modifier = Modifier
-                            .padding(top = Spacing.space8)
-                            .background(c.activeSoft, PillShape)
-                            .border(1.dp, c.activeBorder, PillShape)
-                            .padding(horizontal = Spacing.space8, vertical = Spacing.space4),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(
-                            Modifier
-                                .size(8.dp)
-                                .background(c.activeStrong, CircleShape),
-                        )
-                        Text(
-                            text = stringResource(R.string.profile_selected),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = c.activeStrong,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(start = Spacing.space4),
-                        )
-                    }
-                }
-            }
-            if (busy) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    strokeWidth = 2.dp,
-                    color = c.accent,
-                )
-            } else {
-                DetourIconButton(onClick = onEdit, size = 40) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_edit),
-                        contentDescription = stringResource(R.string.key_edit),
-                        tint = c.textSecondary,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-                DetourIconButton(onClick = onDelete, size = 40) {
-                    Icon(
-                        painter = painterResource(R.drawable.ic_delete),
-                        contentDescription = stringResource(R.string.key_delete),
-                        tint = c.error,
-                        modifier = Modifier.size(18.dp),
-                    )
-                }
-            }
-        }
-
-        Spacer(Modifier.height(Spacing.space16))
-        Box(
+        SelectionMark(selected)
+        Column(
             Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(c.divider),
-        )
-        Spacer(Modifier.height(Spacing.space12))
-
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.space16),
+                .padding(start = Spacing.space12)
+                .weight(1f),
         ) {
-            ProfileMeta(
-                label = stringResource(R.string.profile_server_label),
-                value = server,
-                iconRes = R.drawable.ic_globe,
-                modifier = Modifier.weight(1f),
-            )
-            ProfileMeta(
-                label = stringResource(R.string.profile_type_label),
-                value = type,
-                iconRes = R.drawable.ic_lock,
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
-}
-
-@Composable
-private fun ProfileIconTile(iconRes: Int, selected: Boolean) {
-    val c = detourColors
-    Box(
-        modifier = Modifier
-            .size(54.dp)
-            .background(if (selected) c.accentSoft else c.surfaceSoft, AppShapes.small)
-            .border(
-                1.dp,
-                if (selected) c.accentBorder.copy(alpha = 0.72f) else c.border,
-                AppShapes.small,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            painter = painterResource(iconRes),
-            contentDescription = null,
-            tint = if (selected) c.accent else c.textSecondary,
-            modifier = Modifier.size(27.dp),
-        )
-    }
-}
-
-@Composable
-private fun ProfileMeta(
-    label: String,
-    value: String,
-    iconRes: Int,
-    modifier: Modifier = Modifier,
-) {
-    val c = detourColors
-    Column(modifier) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = c.textMuted,
-        )
-        Row(
-            modifier = Modifier.padding(top = Spacing.space4),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                painter = painterResource(iconRes),
-                contentDescription = null,
-                tint = c.textSecondary,
-                modifier = Modifier.size(18.dp),
+            Text(
+                title,
+                style = MaterialTheme.typography.titleSmall,
+                color = c.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = value,
-                style = MaterialTheme.typography.bodyMedium,
-                color = c.textPrimary,
-                maxLines = 2,
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = c.textSecondary,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = Spacing.space8),
+                modifier = Modifier.padding(top = Spacing.space2),
             )
+        }
+        if (busy) {
+            CircularProgressIndicator(
+                modifier = Modifier.padding(horizontal = Spacing.space12).size(18.dp),
+                strokeWidth = 2.dp,
+                color = c.accent,
+            )
+        } else {
+            DetourIconButton(onClick = onEdit, size = 36) {
+                Icon(
+                    painterResource(R.drawable.ic_edit),
+                    contentDescription = editDescription,
+                    tint = c.textSecondary,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            DetourIconButton(onClick = onDelete, size = 36) {
+                Icon(
+                    painterResource(R.drawable.ic_delete),
+                    contentDescription = deleteDescription,
+                    tint = c.error,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
         }
     }
 }
@@ -707,22 +573,12 @@ private fun ProfileMeta(
 private fun EmptyProfilesCard() {
     val c = detourColors
     DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(Spacing.space20),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            DetourIconTile(R.drawable.ic_lock)
-            Text(
-                stringResource(R.string.profile_empty),
-                style = MaterialTheme.typography.bodyMedium,
-                color = c.textSecondary,
-                modifier = Modifier
-                    .padding(start = Spacing.space12)
-                    .weight(1f),
-            )
-        }
+        Text(
+            stringResource(R.string.profile_empty),
+            style = MaterialTheme.typography.bodySmall,
+            color = c.textSecondary,
+            modifier = Modifier.padding(Spacing.space16),
+        )
     }
 }
 
