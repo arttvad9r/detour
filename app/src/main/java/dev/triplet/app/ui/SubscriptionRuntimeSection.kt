@@ -72,6 +72,18 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
     val runtimeNodes = remember(state.provider.nodes) {
         state.provider.nodes.associateBy { it.name }
     }
+    val latencyByName = remember(runtimeNodes, state.latencyByName) {
+        buildMap {
+            runtimeNodes.forEach { (name, node) -> node.delayMs?.let { put(name, it) } }
+            putAll(state.latencyByName)
+        }
+    }
+    val latencyTestedNames = remember(runtimeNodes, state.latencyTestedNames) {
+        buildSet {
+            runtimeNodes.forEach { (name, node) -> if (node.delayMs != null) add(name) }
+            addAll(state.latencyTestedNames)
+        }
+    }
 
     Column(modifier.padding(horizontal = Spacing.space16)) {
         Row(
@@ -88,7 +100,10 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
             )
             TextButton(
                 onClick = runtimeViewModel::testLatency,
-                enabled = connected && state.provider.available && !state.latencyTesting,
+                enabled = subscriptionUrl != null &&
+                    state.catalog.isNotEmpty() &&
+                    !state.latencyTesting &&
+                    state.status != SubscriptionRuntimeStatus.REFRESHING,
             ) {
                 Text(
                     text = stringResource(
@@ -124,22 +139,14 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
             }
         }
 
-        if (!connected && state.catalog.isNotEmpty()) {
-            Text(
-                text = stringResource(R.string.subscription_latency_connect_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = c.textMuted,
-                modifier = Modifier.padding(bottom = Spacing.space8),
-            )
-        }
-
         when {
             state.catalog.isNotEmpty() -> {
                 SubscriptionServerList(
                     nodes = state.catalog.take(MAX_SUBSCRIPTION_NODE_ROWS),
                     selectedNode = state.selectedNode,
                     selecting = state.selectionStatus == SubscriptionSelectionStatus.SAVING,
-                    latencyByName = runtimeNodes.mapValues { it.value.delayMs },
+                    latencyByName = latencyByName,
+                    latencyTestedNames = latencyTestedNames,
                     onSelect = runtimeViewModel::selectNode,
                 )
                 val hiddenCount = (state.catalog.size - MAX_SUBSCRIPTION_NODE_ROWS).coerceAtLeast(0)
@@ -184,7 +191,8 @@ private fun SubscriptionServerList(
     nodes: List<SubscriptionCatalogNode>,
     selectedNode: String?,
     selecting: Boolean,
-    latencyByName: Map<String, Int?>,
+    latencyByName: Map<String, Int>,
+    latencyTestedNames: Set<String>,
     onSelect: (String) -> Unit,
 ) {
     DetourCard(Modifier.selectableGroup()) {
@@ -194,6 +202,7 @@ private fun SubscriptionServerList(
                 selected = node.name == selectedNode,
                 enabled = !selecting,
                 delayMs = latencyByName[node.name],
+                latencyTested = node.name in latencyTestedNames,
                 onSelect = { onSelect(node.name) },
             )
             if (index < nodes.lastIndex) GroupDivider(startInset = 56)
@@ -207,6 +216,7 @@ private fun SubscriptionNodeRow(
     selected: Boolean,
     enabled: Boolean,
     delayMs: Int?,
+    latencyTested: Boolean,
     onSelect: () -> Unit,
 ) {
     val c = detourColors
@@ -235,11 +245,11 @@ private fun SubscriptionNodeRow(
                 .padding(start = Spacing.space12)
                 .weight(1f),
         )
-        if (delayMs != null) {
+        if (delayMs != null || latencyTested) {
             Text(
-                text = stringResource(R.string.subscription_node_delay, delayMs),
+                text = delayMs?.let { stringResource(R.string.subscription_node_delay, it) } ?: "—",
                 style = MaterialTheme.typography.labelMedium,
-                color = c.textSecondary,
+                color = if (delayMs != null) c.textSecondary else c.textMuted,
                 modifier = Modifier.padding(start = Spacing.space8),
             )
         }
