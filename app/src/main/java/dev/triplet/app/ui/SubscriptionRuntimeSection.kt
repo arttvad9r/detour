@@ -2,12 +2,12 @@ package dev.triplet.app.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectableGroup
@@ -71,12 +71,14 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
 
     Column(modifier.padding(horizontal = Spacing.space16)) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
                 text = stringResource(R.string.subscription_runtime_title),
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleSmall,
                 color = c.textPrimary,
                 modifier = Modifier.weight(1f),
             )
@@ -164,7 +166,7 @@ private fun SubscriptionServerList(
                 enabled = !selecting,
                 onSelect = { onSelect(node.name) },
             )
-            if (index < nodes.lastIndex) GroupDivider(startInset = 60)
+            if (index < nodes.lastIndex) GroupDivider(startInset = 56)
         }
     }
 }
@@ -183,43 +185,31 @@ private fun SubscriptionNodeRow(
             .detourSelectable(
                 selected = selected,
                 onClick = { if (enabled && !selected) onSelect() },
-                idleColor = if (selected) c.accentSoft.copy(alpha = 0.48f) else Color.Transparent,
+                idleColor = if (selected) c.accentSoft else Color.Transparent,
                 pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
                 pressScale = Motion.PRESS_RADIO,
             )
+            .heightIn(min = 56.dp)
             .padding(horizontal = Spacing.space16, vertical = Spacing.space8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .background(if (selected) c.accentSoft else c.surfaceSoft, AppShapes.extraSmall)
-                .border(
-                    1.dp,
-                    if (selected) c.accentBorder else c.border,
-                    AppShapes.extraSmall,
-                ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                painter = painterResource(R.drawable.ic_server),
-                contentDescription = null,
-                tint = if (selected) c.accent else c.textSecondary,
-                modifier = Modifier.size(17.dp),
-            )
-        }
+        SelectionMark(selected = selected)
         Text(
             text = name,
             style = MaterialTheme.typography.bodyMedium,
             color = c.textPrimary,
-            maxLines = 2,
+            maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
                 .padding(start = Spacing.space12)
                 .weight(1f),
         )
-        if (selected) {
-            SelectionMark(selected = true, modifier = Modifier.padding(start = Spacing.space8))
+        if (selecting && selected) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                strokeWidth = 2.dp,
+                color = c.accent,
+            )
         }
     }
 }
