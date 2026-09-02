@@ -11,25 +11,38 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
+import dev.triplet.app.core.VpnProfileKind
+import dev.triplet.app.vpn.VpnState
+import kotlinx.coroutines.delay
 
 internal enum class SettingsSection { ROUTES, PROFILES, DPI, DNS, BACKUP, APPEARANCE }
 
@@ -63,6 +76,13 @@ internal fun SettingsMenuScreen(
         viewModel.refreshRoutes()
     }
 
+    val protocolRes = when (state.protocol) {
+        HomeProtocol.VLESS_DPI -> if (state.activeVpn == VpnProfileKind.WARP) R.string.protocol_warp_dpi else R.string.protocol_vless_dpi
+        HomeProtocol.DPI -> R.string.protocol_dpi
+        HomeProtocol.VLESS -> if (state.activeVpn == VpnProfileKind.WARP) R.string.protocol_warp else R.string.protocol_vless
+        HomeProtocol.NONE -> R.string.protocol_none
+    }
+
     val routes = MenuItem(
         R.string.nav_routes,
         { stringResource(R.string.nav_routes_sub, state.routedCount) },
@@ -81,7 +101,7 @@ internal fun SettingsMenuScreen(
                 },
             )
         },
-        R.drawable.ic_lock,
+        R.drawable.ic_profile,
         SettingsSection.PROFILES,
     ) to onOpenVless
     val dpi = MenuItem(
@@ -121,14 +141,22 @@ internal fun SettingsMenuScreen(
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space12))
+            SettingsConnectionSummary(
+                vpnState = state.vpnState,
+                sessionStartedAt = state.sessionStartedAt,
+                protocol = stringResource(protocolRes),
+                modifier = Modifier.padding(horizontal = Spacing.space16),
+            )
+
+            Spacer(Modifier.height(Spacing.space16))
             DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-                SettingsSectionLabel(R.string.settings_section_routing, insideCard = true)
+                SettingsSectionLabel(R.string.settings_section_routing)
                 SettingsRows(listOf(routes, profiles), selectedSection)
 
                 SettingsSectionDivider()
-                SettingsSectionLabel(R.string.settings_section_connection, insideCard = true)
+                SettingsSectionLabel(R.string.settings_section_connection)
                 SettingsRows(listOf(dpi, dns), selectedSection)
-                GroupDivider()
+                GroupDivider(startInset = 16)
                 Row(
                     Modifier.fillMaxWidth()
                         .detourToggleable(
@@ -142,32 +170,33 @@ internal fun SettingsMenuScreen(
                             pressedColor = c.surfaceSelected.copy(alpha = 0.34f),
                             pressScale = Motion.PRESS_ROW,
                         )
-                        .heightIn(min = 64.dp)
-                        .padding(start = Spacing.space16, end = Spacing.space12),
+                        .heightIn(min = 72.dp)
+                        .padding(horizontal = Spacing.space16, vertical = Spacing.space8),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     DetourIconTile(R.drawable.ic_power)
                     Text(
                         stringResource(R.string.auto_connect),
-                        style = MaterialTheme.typography.titleSmall,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
                         color = c.textPrimary,
                         modifier = Modifier
-                            .padding(start = Spacing.space12)
+                            .padding(start = Spacing.space16)
                             .weight(1f),
                     )
                     DetourSwitch(
                         checked = state.autoConnect,
                         onCheckedChange = null,
-                        compact = true,
+                        compact = false,
                     )
                 }
 
                 SettingsSectionDivider()
-                SettingsSectionLabel(R.string.settings_section_app, insideCard = true)
+                SettingsSectionLabel(R.string.settings_section_app)
                 SettingsRows(listOf(backup, appearance), selectedSection)
             }
 
-            Spacer(Modifier.height(Spacing.space8))
+            Spacer(Modifier.height(Spacing.space12))
             Text(
                 stringResource(R.string.autorestart_note),
                 style = MaterialTheme.typography.bodySmall,
@@ -180,15 +209,112 @@ internal fun SettingsMenuScreen(
 }
 
 @Composable
-private fun SettingsSectionLabel(titleRes: Int, insideCard: Boolean = false) {
+private fun SettingsConnectionSummary(
+    vpnState: VpnState,
+    sessionStartedAt: Long?,
+    protocol: String,
+    modifier: Modifier = Modifier,
+) {
+    val c = detourColors
+    val style = statusStyleFor(c, vpnState)
+    val titleRes = when (vpnState) {
+        VpnState.Active -> R.string.status_active
+        VpnState.Starting -> R.string.status_starting
+        is VpnState.Failed -> R.string.status_failed
+        VpnState.Idle -> R.string.status_idle
+    }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(style.container, AppShapes.medium)
+            .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(44.dp)
+                .background(style.content.copy(alpha = 0.12f), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            when (vpnState) {
+                VpnState.Starting -> CircularProgressIndicator(
+                    modifier = Modifier.size(22.dp),
+                    strokeWidth = 2.dp,
+                    color = style.content,
+                )
+                VpnState.Active -> Icon(
+                    painter = painterResource(R.drawable.ic_check),
+                    contentDescription = null,
+                    tint = style.content,
+                    modifier = Modifier.size(24.dp),
+                )
+                is VpnState.Failed,
+                VpnState.Idle,
+                -> Box(
+                    Modifier
+                        .size(10.dp)
+                        .background(style.content, CircleShape),
+                )
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .padding(start = Spacing.space16)
+                .weight(1f),
+        ) {
+            Text(
+                text = stringResource(titleRes),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = if (vpnState is VpnState.Failed) c.error else c.textPrimary,
+            )
+            Text(
+                text = protocol,
+                style = MaterialTheme.typography.bodyMedium,
+                color = c.textSecondary,
+                modifier = Modifier.padding(top = Spacing.space2),
+            )
+        }
+
+        if (vpnState == VpnState.Active) {
+            SettingsSessionTimer(sessionStartedAt)
+        }
+    }
+}
+
+@Composable
+private fun SettingsSessionTimer(sessionStartedAt: Long?) {
+    var elapsed by remember(sessionStartedAt) { mutableIntStateOf(0) }
+    LaunchedEffect(sessionStartedAt) {
+        val started = sessionStartedAt ?: System.currentTimeMillis()
+        while (true) {
+            elapsed = ((System.currentTimeMillis() - started) / 1000L).coerceAtLeast(0).toInt()
+            delay(1000)
+        }
+    }
+    Text(
+        text = formatSessionElapsed(elapsed),
+        style = MaterialTheme.typography.titleMedium.copy(
+            fontWeight = FontWeight.Medium,
+            fontFeatureSettings = "tnum",
+        ),
+        color = detourColors.textSecondary,
+    )
+}
+
+@Composable
+private fun SettingsSectionLabel(titleRes: Int) {
     Text(
         text = stringResource(titleRes),
-        style = MaterialTheme.typography.labelLarge,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.Medium,
         color = detourColors.textSecondary,
         modifier = Modifier.padding(
             start = Spacing.space16,
             end = Spacing.space16,
-            top = if (insideCard) Spacing.space16 else Spacing.space4,
+            top = Spacing.space16,
             bottom = Spacing.space8,
         ),
     )
@@ -212,24 +338,64 @@ private fun SettingsRows(
 ) {
     items.forEachIndexed { index, (item, onClick) ->
         val selected = item.section == selectedSection
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .background(
-                    if (selected) detourColors.accentSoft else androidx.compose.ui.graphics.Color.Transparent,
-                )
-                .semantics { this.selected = selected },
-        ) {
-            SettingRow(
-                title = stringResource(item.titleRes),
-                subtitle = item.sub(),
-                iconRes = item.iconRes,
+        SettingsMenuRow(
+            title = stringResource(item.titleRes),
+            subtitle = item.sub(),
+            iconRes = item.iconRes,
+            selected = selected,
+            onClick = onClick,
+        )
+        if (index < items.lastIndex) GroupDivider(startInset = 78)
+    }
+}
+
+@Composable
+private fun SettingsMenuRow(
+    title: String,
+    subtitle: String,
+    iconRes: Int,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val c = detourColors
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(if (selected) c.accentSoft else androidx.compose.ui.graphics.Color.Transparent)
+            .semantics { this.selected = selected }
+            .detourClickable(
                 onClick = onClick,
-                trailing = if (selected) {
-                    { SelectionMark(selected = true, modifier = Modifier.padding(end = Spacing.space8)) }
-                } else null,
+                role = Role.Button,
+                pressedColor = c.surfaceSelected.copy(alpha = 0.38f),
+                pressScale = Motion.PRESS_ROW,
+            )
+            .heightIn(min = 72.dp)
+            .padding(horizontal = Spacing.space16, vertical = Spacing.space8),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        DetourIconTile(iconRes = iconRes, selected = selected)
+        Column(
+            modifier = Modifier
+                .padding(start = Spacing.space16)
+                .weight(1f),
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = c.textPrimary,
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = c.textSecondary,
+                modifier = Modifier.padding(top = Spacing.space2),
             )
         }
-        if (index < items.lastIndex) GroupDivider()
+        if (selected) {
+            SelectionMark(selected = true, modifier = Modifier.padding(end = Spacing.space8))
+        } else {
+            Chevron()
+        }
     }
 }
