@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -31,8 +30,6 @@ fun ThemeScreen(viewModel: ThemeViewModel, onBack: () -> Unit, modifier: Modifie
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val c = detourColors
     val scrollState = rememberScrollState()
-    val officialThemes = listOf(AppTheme.DETOUR_LIGHT, AppTheme.DETOUR_DARK)
-    val communityThemes = AppTheme.entries.filterNot { it in officialThemes }
 
     Column(
         modifier.fillMaxSize()
@@ -53,58 +50,23 @@ fun ThemeScreen(viewModel: ThemeViewModel, onBack: () -> Unit, modifier: Modifie
                 modifier = Modifier.padding(horizontal = Spacing.space16),
             )
 
-            Spacer(Modifier.height(Spacing.space16))
-            ThemeSectionLabel(R.string.theme_section_detour)
-            Spacer(Modifier.height(Spacing.space8))
-            ThemeChoiceCard(
-                themes = officialThemes,
-                selectedThemeId = state.selectedThemeId,
-                onSelect = viewModel::selectTheme,
-            )
-
-            Spacer(Modifier.height(Spacing.space16))
-            ThemeSectionLabel(R.string.theme_section_community)
-            Spacer(Modifier.height(Spacing.space8))
-            ThemeChoiceCard(
-                themes = communityThemes,
-                selectedThemeId = state.selectedThemeId,
-                onSelect = viewModel::selectTheme,
-            )
+            Spacer(Modifier.height(Spacing.space12))
+            DetourCard(
+                Modifier
+                    .padding(horizontal = Spacing.space16)
+                    .selectableGroup(),
+            ) {
+                AppTheme.entries.forEachIndexed { index, theme ->
+                    ChoiceRow(
+                        title = stringResource(themeLabel(theme)),
+                        selected = state.selectedThemeId == theme.id,
+                        onClick = { viewModel.selectTheme(theme.id) },
+                        trailing = { ThemePalettePreview(theme) },
+                    )
+                    if (index < AppTheme.entries.lastIndex) GroupDivider(startInset = 56)
+                }
+            }
             Spacer(Modifier.height(Spacing.space24))
-        }
-    }
-}
-
-@Composable
-private fun ThemeSectionLabel(titleRes: Int) {
-    Text(
-        text = stringResource(titleRes),
-        style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
-        color = detourColors.textSecondary,
-        modifier = Modifier.padding(horizontal = Spacing.space20),
-    )
-}
-
-@Composable
-private fun ThemeChoiceCard(
-    themes: List<AppTheme>,
-    selectedThemeId: String,
-    onSelect: (String) -> Unit,
-) {
-    if (themes.isEmpty()) return
-    DetourCard(
-        Modifier
-            .padding(horizontal = Spacing.space16)
-            .selectableGroup(),
-    ) {
-        themes.forEachIndexed { index, theme ->
-            ChoiceRow(
-                title = stringResource(themeLabel(theme)),
-                selected = selectedThemeId == theme.id,
-                onClick = { onSelect(theme.id) },
-                trailing = { ThemePalettePreview(theme) },
-            )
-            if (index < themes.lastIndex) GroupDivider(startInset = 56)
         }
     }
 }
