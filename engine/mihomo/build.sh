@@ -101,7 +101,9 @@ PYEOF
 
 cp "$BIND_DIR/go.mod" "$WORK_DIR/go.mod"
 cp "$BIND_DIR/go.sum" "$WORK_DIR/go.sum"
-cp "$BIND_DIR/engine.go" "$WORK_DIR/engine.go"
+# Keep the gomobile package source set in one place. New engine bridge files must
+# be bound as well as engine.go; *_test.go is ignored by normal package builds.
+cp "$BIND_DIR"/*.go "$WORK_DIR"/
 cd "$WORK_DIR"
 python3 - <<PYEOF
 import re
