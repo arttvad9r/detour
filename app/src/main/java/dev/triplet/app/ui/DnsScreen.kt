@@ -72,16 +72,6 @@ fun DnsScreen(viewModel: DnsViewModel, onBack: () -> Unit, modifier: Modifier = 
     val customVisibility = remember { MutableTransitionState(state.editingCustom) }
     customVisibility.targetState = state.editingCustom
     val spatialMotionActive = scrollState.isScrollInProgress || !customVisibility.isIdle
-    val selectedLabel = if (state.editingCustom) {
-        stringResource(R.string.dns_custom)
-    } else {
-        stringResource(DNS_LABELS[state.selectedDns] ?: R.string.dns_custom)
-    }
-    val selectedDetail = if (state.editingCustom) {
-        state.customField.takeIf { it.isNotBlank() } ?: stringResource(R.string.dns_custom_subtitle)
-    } else {
-        DnsOptions.servers[state.selectedDns]
-    }
 
     LaunchedEffect(viewModel) {
         viewModel.customSaved.collect {
@@ -102,14 +92,7 @@ fun DnsScreen(viewModel: DnsViewModel, onBack: () -> Unit, modifier: Modifier = 
         DetourBrandedHeader(stringResource(R.string.dns_title), onBack)
 
         DetourContentColumn {
-            Spacer(Modifier.height(Spacing.space12))
-            DnsSelectedSummary(
-                title = selectedLabel,
-                detail = selectedDetail,
-                modifier = Modifier.padding(horizontal = Spacing.space16),
-            )
-
-            Spacer(Modifier.height(Spacing.space20))
+            Spacer(Modifier.height(Spacing.space8))
             DetourCard(
                 Modifier
                     .padding(horizontal = Spacing.space16)
@@ -158,7 +141,6 @@ fun DnsScreen(viewModel: DnsViewModel, onBack: () -> Unit, modifier: Modifier = 
                             onValueChange = viewModel::setCustomField,
                             label = stringResource(R.string.dns_custom_label),
                             placeholder = stringResource(R.string.dns_placeholder),
-                            helper = stringResource(R.string.dns_custom_hint_https),
                             error = when {
                                 state.customInvalid -> stringResource(R.string.dns_invalid_https)
                                 state.saveState == DnsSaveState.ERROR -> stringResource(R.string.dns_save_error)
@@ -196,63 +178,6 @@ fun DnsScreen(viewModel: DnsViewModel, onBack: () -> Unit, modifier: Modifier = 
 }
 
 @Composable
-private fun DnsSelectedSummary(
-    title: String,
-    detail: String?,
-    modifier: Modifier = Modifier,
-) {
-    val c = detourColors
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(c.accentSoft, AppShapes.medium)
-            .border(1.dp, c.accentBorder.copy(alpha = 0.55f), AppShapes.medium)
-            .padding(Spacing.space16),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(52.dp)
-                .background(c.surface, AppShapes.small)
-                .border(1.dp, c.accentBorder.copy(alpha = 0.48f), AppShapes.small),
-            contentAlignment = Alignment.Center,
-        ) {
-            DetourBrandMark(size = 30.dp)
-        }
-        Column(
-            modifier = Modifier
-                .padding(start = Spacing.space12)
-                .weight(1f),
-        ) {
-            Text(
-                text = stringResource(R.string.dns_selected),
-                style = MaterialTheme.typography.labelMedium,
-                color = c.accent,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleLarge,
-                color = c.textPrimary,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(top = Spacing.space2),
-            )
-            if (!detail.isNullOrBlank()) {
-                Text(
-                    text = detail,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = c.textSecondary,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = Spacing.space2),
-                )
-            }
-        }
-        SelectionMark(selected = true)
-    }
-}
-
-@Composable
 private fun DnsProviderRow(
     title: String,
     subtitle: String,
@@ -279,12 +204,12 @@ private fun DnsProviderRow(
                 pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
                 pressScale = Motion.PRESS_RADIO,
             )
-            .padding(horizontal = Spacing.space16, vertical = Spacing.space16),
+            .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .size(54.dp)
+                .size(46.dp)
                 .background(if (selected) c.accentSoft else c.surfaceSoft, AppShapes.small)
                 .border(
                     1.dp,
@@ -297,23 +222,23 @@ private fun DnsProviderRow(
                 painter = painterResource(iconRes),
                 contentDescription = null,
                 tint = if (selected) c.accent else c.textSecondary,
-                modifier = Modifier.size(26.dp),
+                modifier = Modifier.size(22.dp),
             )
         }
         Column(
             modifier = Modifier
-                .padding(start = Spacing.space16)
+                .padding(start = Spacing.space12)
                 .weight(1f),
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleSmall,
                 color = c.textPrimary,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
                 text = subtitle,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall,
                 color = c.textSecondary,
                 modifier = Modifier.padding(top = Spacing.space2),
             )
@@ -324,13 +249,13 @@ private fun DnsProviderRow(
                     color = c.textMuted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = Spacing.space4),
+                    modifier = Modifier.padding(top = Spacing.space2),
                 )
             }
         }
         SelectionMark(
             selected = selected,
-            modifier = Modifier.padding(start = Spacing.space12),
+            modifier = Modifier.padding(start = Spacing.space8),
         )
     }
 }
@@ -343,18 +268,18 @@ private fun DnsInfoNotice(modifier: Modifier = Modifier) {
             .fillMaxWidth()
             .background(c.accentSoft.copy(alpha = 0.55f), AppShapes.medium)
             .border(1.dp, c.accentBorder.copy(alpha = 0.42f), AppShapes.medium)
-            .padding(Spacing.space16),
+            .padding(Spacing.space12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .size(34.dp)
+                .size(32.dp)
                 .background(c.surface, AppShapes.extraSmall),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = "i",
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleSmall,
                 color = c.accent,
                 fontWeight = FontWeight.Bold,
             )

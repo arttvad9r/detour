@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -17,7 +16,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -48,36 +46,6 @@ fun ThemeScreen(viewModel: ThemeViewModel, onBack: () -> Unit, modifier: Modifie
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
-            DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(Spacing.space16),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    DetourBrandMark()
-                    Column(
-                        Modifier
-                            .padding(start = Spacing.space12)
-                            .weight(1f),
-                    ) {
-                        Text(
-                            stringResource(R.string.app_name),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = c.textPrimary,
-                        )
-                        Text(
-                            stringResource(themeLabel(LocalDetourTheme.current)),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = c.textSecondary,
-                            modifier = Modifier.padding(top = Spacing.space2),
-                        )
-                    }
-                    ThemePalettePreview(LocalDetourTheme.current)
-                }
-            }
-
-            Spacer(Modifier.height(Spacing.space16))
             ThemeSectionLabel(R.string.theme_section_detour)
             Spacer(Modifier.height(Spacing.space8))
             ThemeChoiceCard(
@@ -89,7 +57,7 @@ fun ThemeScreen(viewModel: ThemeViewModel, onBack: () -> Unit, modifier: Modifie
             Spacer(Modifier.height(Spacing.space12))
             Text(
                 stringResource(R.string.theme_hint),
-                style = MaterialTheme.typography.bodySmall,
+                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                 color = c.textMuted,
                 modifier = Modifier.padding(horizontal = Spacing.space20),
             )
@@ -111,7 +79,7 @@ fun ThemeScreen(viewModel: ThemeViewModel, onBack: () -> Unit, modifier: Modifie
 private fun ThemeSectionLabel(titleRes: Int) {
     Text(
         text = stringResource(titleRes),
-        style = MaterialTheme.typography.labelLarge,
+        style = androidx.compose.material3.MaterialTheme.typography.labelLarge,
         color = detourColors.textSecondary,
         modifier = Modifier.padding(horizontal = Spacing.space20),
     )

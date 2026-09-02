@@ -13,18 +13,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -33,15 +27,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
-import dev.triplet.app.core.VpnProfileKind
-import dev.triplet.app.vpn.VpnState
-import kotlinx.coroutines.delay
 
 internal enum class SettingsSection { ROUTES, PROFILES, DPI, DNS, BACKUP, APPEARANCE }
 
@@ -73,15 +63,6 @@ internal fun SettingsMenuScreen(
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.refreshRoutes()
-    }
-
-    val protocolRes = when (state.protocol) {
-        HomeProtocol.VLESS_DPI ->
-            if (state.activeVpn == VpnProfileKind.WARP) R.string.protocol_warp_dpi else R.string.protocol_vless_dpi
-        HomeProtocol.DPI -> R.string.protocol_dpi
-        HomeProtocol.VLESS ->
-            if (state.activeVpn == VpnProfileKind.WARP) R.string.protocol_warp else R.string.protocol_vless
-        HomeProtocol.NONE -> R.string.protocol_none
     }
 
     val routes = MenuItem(
@@ -141,14 +122,6 @@ internal fun SettingsMenuScreen(
         DetourBrandedHeader(stringResource(R.string.settings_title), onBack)
 
         DetourContentColumn {
-            Spacer(Modifier.height(Spacing.space4))
-            SettingsConnectionSummary(
-                vpnState = state.vpnState,
-                sessionStartedAt = state.sessionStartedAt,
-                protocol = stringResource(protocolRes),
-                modifier = Modifier.padding(horizontal = Spacing.space16),
-            )
-
             Spacer(Modifier.height(Spacing.space8))
             DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
                 SettingsSectionLabel(R.string.settings_section_routing)
@@ -172,7 +145,12 @@ internal fun SettingsMenuScreen(
                             pressedColor = c.surfaceSelected.copy(alpha = 0.34f),
                             pressScale = Motion.PRESS_ROW,
                         )
-                        .padding(start = Spacing.space16, end = Spacing.space8, top = Spacing.space4, bottom = Spacing.space4),
+                        .padding(
+                            start = Spacing.space16,
+                            end = Spacing.space8,
+                            top = Spacing.space4,
+                            bottom = Spacing.space4,
+                        ),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Box(
@@ -221,101 +199,6 @@ internal fun SettingsMenuScreen(
 }
 
 @Composable
-private fun SettingsConnectionSummary(
-    vpnState: VpnState,
-    sessionStartedAt: Long?,
-    protocol: String,
-    modifier: Modifier = Modifier,
-) {
-    val c = detourColors
-    val style = statusStyleFor(c, vpnState)
-    val titleRes = when (vpnState) {
-        VpnState.Active -> R.string.status_active
-        VpnState.Starting -> R.string.status_starting
-        is VpnState.Failed -> R.string.status_failed
-        VpnState.Idle -> R.string.status_idle
-    }
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(style.container, AppShapes.small)
-            .padding(horizontal = Spacing.space12, vertical = Spacing.space8),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            Modifier
-                .size(32.dp)
-                .background(style.content.copy(alpha = 0.12f), CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            when (vpnState) {
-                VpnState.Starting -> CircularProgressIndicator(
-                    modifier = Modifier.size(17.dp),
-                    strokeWidth = 1.5.dp,
-                    color = style.content,
-                )
-                VpnState.Active -> Icon(
-                    painter = painterResource(R.drawable.ic_check),
-                    contentDescription = null,
-                    tint = style.content,
-                    modifier = Modifier.size(18.dp),
-                )
-                is VpnState.Failed,
-                VpnState.Idle,
-                -> Box(
-                    Modifier
-                        .size(8.dp)
-                        .background(style.content, CircleShape),
-                )
-            }
-        }
-
-        Column(
-            modifier = Modifier
-                .padding(start = Spacing.space8)
-                .weight(1f),
-        ) {
-            Text(
-                text = stringResource(titleRes),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Medium,
-                color = if (vpnState is VpnState.Failed) c.error else c.textPrimary,
-            )
-            Text(
-                text = protocol,
-                style = MaterialTheme.typography.bodySmall,
-                color = c.textSecondary,
-            )
-        }
-
-        if (vpnState == VpnState.Active) {
-            SettingsSessionTimer(sessionStartedAt)
-        }
-    }
-}
-
-@Composable
-private fun SettingsSessionTimer(sessionStartedAt: Long?) {
-    var elapsed by remember(sessionStartedAt) { mutableIntStateOf(0) }
-    LaunchedEffect(sessionStartedAt) {
-        val started = sessionStartedAt ?: System.currentTimeMillis()
-        while (true) {
-            elapsed = ((System.currentTimeMillis() - started) / 1000L).coerceAtLeast(0).toInt()
-            delay(1000)
-        }
-    }
-    Text(
-        text = formatSessionElapsed(elapsed),
-        style = MaterialTheme.typography.bodySmall.copy(
-            fontWeight = FontWeight.Medium,
-            fontFeatureSettings = "tnum",
-        ),
-        color = detourColors.textSecondary,
-    )
-}
-
-@Composable
 private fun SettingsSectionLabel(titleRes: Int) {
     Text(
         text = stringResource(titleRes),
@@ -352,7 +235,8 @@ private fun SettingsRows(
             Modifier
                 .fillMaxWidth()
                 .background(
-                    if (selected) detourColors.accentSoft else androidx.compose.ui.graphics.Color.Transparent,
+                    if (selected) detourColors.accentSoft
+                    else androidx.compose.ui.graphics.Color.Transparent,
                 )
                 .semantics { this.selected = selected },
         ) {

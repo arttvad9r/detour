@@ -42,14 +42,6 @@ fun DpiScreen(viewModel: DpiViewModel, onBack: () -> Unit, modifier: Modifier = 
     val customVisibility = remember { MutableTransitionState(state.editingCustom) }
     customVisibility.targetState = state.editingCustom
     val spatialMotionActive = scrollState.isScrollInProgress || !customVisibility.isIdle
-    val selectedTitle = stringResource(
-        if (state.editingCustom) R.string.preset_custom else R.string.preset_recommended,
-    )
-    val selectedDetail = if (state.editingCustom) {
-        state.customField.takeIf { it.isNotBlank() } ?: stringResource(R.string.dpi_custom_hint)
-    } else {
-        stringResource(R.string.nav_dpi_sub)
-    }
 
     LaunchedEffect(viewModel) {
         viewModel.customSaved.collect {
@@ -70,14 +62,6 @@ fun DpiScreen(viewModel: DpiViewModel, onBack: () -> Unit, modifier: Modifier = 
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
-            DetourFeatureSummary(
-                iconRes = R.drawable.ic_dpi,
-                title = selectedTitle,
-                subtitle = selectedDetail,
-                modifier = Modifier.padding(horizontal = Spacing.space16),
-            )
-
-            Spacer(Modifier.height(Spacing.space16))
             DetourCard(Modifier.padding(horizontal = Spacing.space16).selectableGroup()) {
                 ChoiceRow(
                     title = stringResource(R.string.preset_recommended),

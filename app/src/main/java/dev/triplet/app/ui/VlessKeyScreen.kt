@@ -50,7 +50,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -72,8 +71,6 @@ private data class ProfileGroups(
     val subscriptions: List<VlessKey>,
     val warp: WarpProfile?,
 )
-
-private enum class ProfileSheetMode { PICKER, VLESS_EDITOR }
 
 private fun parsedProfile(key: VlessKey): VlessProfile? =
     (VlessKeyParser.parse(key.uri) as? ParseResult.Ok)?.profile
@@ -99,7 +96,8 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
     val warpImporting = warpImportStatus == WarpImportStatus.IMPORTING
     val vlessSaveStatus = state.vlessSaveStatus
     val vlessSaving = vlessSaveStatus == VlessSaveStatus.SAVING
-    val profileFallbackTitle = stringResource(R.string.profile_add_vless)
+    val vlessFallbackTitle = stringResource(R.string.protocol_vless)
+    val subscriptionFallbackTitle = stringResource(R.string.subscription_profile_section)
 
     val groups = remember(vlessItems, warpProfile) {
         ProfileGroups(
@@ -115,12 +113,15 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
     }
 
     var editingId by rememberSaveable { mutableStateOf<String?>(null) }
-    var showSheet by rememberSaveable { mutableStateOf(false) }
-    var sheetMode by rememberSaveable { mutableStateOf(ProfileSheetMode.PICKER) }
+    var editorTab by rememberSaveable { mutableIntStateOf(0) }
+    var showEditor by rememberSaveable { mutableStateOf(false) }
     var field by rememberSaveable { mutableStateOf("") }
     val parse = remember(field) {
         field.trim().takeIf { it.isNotBlank() }?.let(VlessKeyParser::parse)
     }
+    val parsed = parse as? ParseResult.Ok
+    val expectsSubscription = editorTab == 1
+    val parsedMatchesEditor = parsed?.profile?.isSubscription == expectsSubscription
     val currentVlessSaving = rememberUpdatedState(vlessSaving)
     val confirmSheetValueChange = remember {
         { target: SheetValue -> !currentVlessSaving.value || target != SheetValue.Hidden }
@@ -130,11 +131,15 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
         confirmValueChange = confirmSheetValueChange,
     )
 
+    val warpLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { viewModel.importWarpDocument(it.toString()) }
+    }
+
     LaunchedEffect(vlessSaveStatus, sheetState) {
         if (vlessSaveStatus == VlessSaveStatus.SAVED) {
             haptics.performHapticFeedback(HapticFeedbackType.Confirm)
             runCatching { sheetState.hide() }
-            showSheet = false
+            showEditor = false
             viewModel.acknowledgeVlessSave()
         }
     }
@@ -145,32 +150,26 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
         viewModel.warpImportRejected.collect { haptics.performHapticFeedback(HapticFeedbackType.Reject) }
     }
 
-    fun beginVlessEdit(key: VlessKey?) {
+    fun beginEditor(key: VlessKey? = null, tab: Int = selectedTab) {
         viewModel.clearVlessSaveError()
         editingId = key?.id
         field = key?.uri ?: ""
-        sheetMode = ProfileSheetMode.VLESS_EDITOR
-        showSheet = true
+        editorTab = key?.let { if (parsedProfile(it)?.isSubscription == true) 1 else 0 }
+            ?: tab.coerceIn(0, 1)
+        showEditor = true
     }
 
-    fun openAddSheet() {
-        viewModel.clearVlessSaveError()
-        editingId = null
-        field = ""
-        sheetMode = ProfileSheetMode.PICKER
-        showSheet = true
-    }
-
-    fun dismissSheet(after: (() -> Unit)? = null) {
+    fun dismissEditor() {
         scope.launch {
             runCatching { sheetState.hide() }
-            showSheet = false
-            after?.invoke()
+            showEditor = false
         }
     }
 
-    val warpLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let { viewModel.importWarpDocument(it.toString()) }
+    val addButtonText = when (selectedTab) {
+        0 -> stringResource(R.string.profile_add_vless_action)
+        1 -> stringResource(R.string.profile_add_subscription_action)
+        else -> stringResource(if (warpProfile == null) R.string.warp_import else R.string.warp_replace)
     }
 
     Scaffold(
@@ -179,7 +178,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
             .fillMaxSize(),
         containerColor = c.background,
         bottomBar = {
-            if (!showSheet && !warpImporting) {
+            if (!showEditor && !warpImporting) {
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -187,8 +186,14 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                         .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
                 ) {
                     DetourButton(
-                        text = stringResource(R.string.profile_add_title),
-                        onClick = ::openAddSheet,
+                        text = addButtonText,
+                        onClick = {
+                            if (selectedTab == 2) {
+                                warpLauncher.launch(arrayOf("*/*"))
+                            } else {
+                                beginEditor(tab = selectedTab)
+                            }
+                        },
                         height = 58,
                     )
                 }
@@ -237,7 +242,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                         items = groups.vless,
                         activeVpn = activeVpn,
                         activeVlessId = activeVlessId,
-                        onEdit = ::beginVlessEdit,
+                        onEdit = { beginEditor(it) },
                         onDelete = viewModel::deleteVless,
                         onSelect = { keyId ->
                             haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
@@ -250,7 +255,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                             items = groups.subscriptions,
                             activeVpn = activeVpn,
                             activeVlessId = activeVlessId,
-                            onEdit = ::beginVlessEdit,
+                            onEdit = { beginEditor(it) },
                             onDelete = viewModel::deleteVless,
                             onSelect = { keyId ->
                                 haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
@@ -287,182 +292,139 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
         }
     }
 
-    if (showSheet) {
+    if (showEditor) {
         ModalBottomSheet(
-            onDismissRequest = { if (!vlessSaving) showSheet = false },
+            onDismissRequest = { if (!vlessSaving) showEditor = false },
             sheetState = sheetState,
             containerColor = c.background,
             contentColor = c.textPrimary,
         ) {
-            when (sheetMode) {
-                ProfileSheetMode.PICKER -> {
-                    Column(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = Spacing.space16),
-                    ) {
-                        Row(
-                            Modifier.padding(
-                                start = Spacing.space4,
-                                end = Spacing.space4,
-                                top = Spacing.space4,
-                                bottom = Spacing.space16,
-                            ),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            DetourBrandMark(size = 30.dp)
-                            Text(
-                                stringResource(R.string.profile_add_title),
-                                style = MaterialTheme.typography.titleLarge,
-                                color = c.textPrimary,
-                                modifier = Modifier.padding(start = Spacing.space12),
-                            )
-                        }
-                        DetourCard {
-                            ProfileTypeRow(
-                                title = stringResource(R.string.profile_add_vless),
-                                subtitle = stringResource(R.string.profile_add_vless_sub),
-                                iconRes = R.drawable.ic_lock,
-                            ) {
-                                editingId = null
-                                field = ""
-                                sheetMode = ProfileSheetMode.VLESS_EDITOR
-                            }
-                            GroupDivider(startInset = 70)
-                            ProfileTypeRow(
-                                title = stringResource(R.string.profile_add_warp),
-                                subtitle = stringResource(
-                                    if (warpProfile == null) R.string.profile_add_warp_sub
-                                    else R.string.profile_replace_warp_sub,
-                                ),
-                                iconRes = R.drawable.ic_globe,
-                            ) {
-                                dismissSheet { warpLauncher.launch(arrayOf("*/*")) }
-                            }
-                        }
-                        Spacer(Modifier.height(Spacing.space8))
-                        TextButton(
-                            onClick = { dismissSheet() },
-                            modifier = Modifier.align(Alignment.End),
-                        ) {
-                            Text(stringResource(R.string.key_cancel), color = c.textSecondary)
-                        }
-                        Spacer(Modifier.navigationBarsPadding().height(Spacing.space8))
-                    }
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .imePadding()
+                    .padding(horizontal = Spacing.space20),
+            ) {
+                Row(
+                    Modifier.padding(top = Spacing.space4, bottom = Spacing.space16),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    DetourIconTile(
+                        iconRes = if (expectsSubscription) R.drawable.ic_globe else R.drawable.ic_lock,
+                        selected = true,
+                    )
+                    Text(
+                        text = when {
+                            editingId != null -> stringResource(R.string.vless_edit_title)
+                            expectsSubscription -> stringResource(R.string.profile_add_subscription_action)
+                            else -> stringResource(R.string.profile_add_vless_action)
+                        },
+                        style = MaterialTheme.typography.titleMedium,
+                        color = c.textPrimary,
+                        modifier = Modifier.padding(start = Spacing.space12),
+                    )
                 }
 
-                ProfileSheetMode.VLESS_EDITOR -> {
-                    val parsed = parse as? ParseResult.Ok
-                    val editorIsSubscription = parsed?.profile?.isSubscription == true
-                    Column(
-                        Modifier
-                            .fillMaxWidth()
-                            .imePadding()
-                            .padding(horizontal = Spacing.space20),
-                    ) {
-                        Row(
-                            Modifier.padding(top = Spacing.space4, bottom = Spacing.space16),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            DetourIconTile(
-                                iconRes = if (editorIsSubscription) R.drawable.ic_globe else R.drawable.ic_lock,
-                                selected = true,
-                            )
-                            Text(
-                                stringResource(
-                                    if (editingId == null) R.string.vless_add_title else R.string.vless_edit_title,
-                                ),
-                                style = MaterialTheme.typography.titleMedium,
-                                color = c.textPrimary,
-                                modifier = Modifier.padding(start = Spacing.space12),
+                val contextError = when {
+                    parse is ParseResult.Err -> stringResource(
+                        if (expectsSubscription) R.string.profile_subscription_invalid
+                        else R.string.profile_vless_invalid,
+                    )
+                    parsed != null && !parsedMatchesEditor -> stringResource(
+                        if (expectsSubscription) R.string.profile_subscription_wrong_type
+                        else R.string.profile_vless_wrong_type,
+                    )
+                    vlessSaveStatus == VlessSaveStatus.ERROR -> stringResource(R.string.vless_save_error)
+                    else -> null
+                }
+
+                DetourInputField(
+                    value = field,
+                    onValueChange = { value ->
+                        viewModel.clearVlessSaveError()
+                        field = value.replace("\r", "").replace("\n", "")
+                    },
+                    label = stringResource(
+                        if (expectsSubscription) R.string.profile_subscription_input_label
+                        else R.string.profile_vless_input_label,
+                    ),
+                    placeholder = stringResource(
+                        if (expectsSubscription) R.string.profile_subscription_placeholder
+                        else R.string.profile_vless_placeholder,
+                    ),
+                    helper = stringResource(
+                        if (expectsSubscription) R.string.profile_subscription_input_hint
+                        else R.string.profile_vless_input_hint,
+                    ),
+                    error = contextError,
+                    success = parsed?.takeIf { parsedMatchesEditor }?.let { result ->
+                        if (expectsSubscription) {
+                            stringResource(R.string.subscription_profile_host, result.profile.server)
+                        } else {
+                            stringResource(
+                                R.string.key_detected_server,
+                                result.profile.server,
+                                result.profile.port,
                             )
                         }
-                        DetourInputField(
-                            value = field,
-                            onValueChange = { value ->
+                    },
+                    singleLine = false,
+                    minHeight = 56.dp,
+                    maxHeight = 144.dp,
+                    maxLines = 5,
+                )
+
+                val clipboard = LocalClipboard.current
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            clipboard.getClipEntry()?.clipData?.getItemAt(0)?.text?.toString()?.let {
                                 viewModel.clearVlessSaveError()
-                                field = value.replace("\r", "").replace("\n", "")
-                            },
-                            label = stringResource(R.string.key_uri),
-                            placeholder = stringResource(R.string.key_placeholder),
-                            helper = stringResource(R.string.key_input_hint),
-                            error = when {
-                                parse is ParseResult.Err -> stringResource(R.string.key_invalid)
-                                vlessSaveStatus == VlessSaveStatus.ERROR -> stringResource(R.string.vless_save_error)
-                                else -> null
-                            },
-                            success = parsed?.let { result ->
-                                if (result.profile.isSubscription) {
-                                    stringResource(R.string.subscription_profile_host, result.profile.server)
-                                } else {
-                                    stringResource(
-                                        R.string.key_detected_server,
-                                        result.profile.server,
-                                        result.profile.port,
-                                    )
-                                }
-                            },
-                            singleLine = false,
-                            minHeight = 56.dp,
-                            maxHeight = 144.dp,
-                            maxLines = 5,
-                        )
-
-                        val clipboard = LocalClipboard.current
-                        TextButton(
-                            onClick = {
-                                scope.launch {
-                                    clipboard.getClipEntry()?.clipData?.getItemAt(0)?.text?.toString()?.let {
-                                        viewModel.clearVlessSaveError()
-                                        field = it.trim().replace("\r", "").replace("\n", "")
-                                    }
-                                }
-                            },
-                            modifier = Modifier.align(Alignment.End),
-                        ) {
-                            Text(stringResource(R.string.key_paste))
+                                field = it.trim().replace("\r", "").replace("\n", "")
+                            }
                         }
-
-                        Spacer(Modifier.height(Spacing.space8))
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(Spacing.space12),
-                        ) {
-                            DetourButton(
-                                text = stringResource(R.string.key_cancel),
-                                onClick = {
-                                    if (editingId == null) {
-                                        field = ""
-                                        sheetMode = ProfileSheetMode.PICKER
-                                    } else {
-                                        dismissSheet()
-                                    }
-                                },
-                                enabled = !vlessSaving,
-                                style = ButtonStyle.SECONDARY,
-                                modifier = Modifier.weight(1f),
-                            )
-                            DetourButton(
-                                text = stringResource(
-                                    if (vlessSaving) R.string.vless_saving else R.string.btn_save,
-                                ),
-                                enabled = parse is ParseResult.Ok && !vlessSaving,
-                                onClick = {
-                                    val value = field.trim()
-                                    val parsedProfile = (parse as? ParseResult.Ok)?.profile
-                                    val key = VlessKey(
-                                        editingId ?: UUID.randomUUID().toString(),
-                                        parsedProfile?.name?.ifBlank { parsedProfile.server } ?: profileFallbackTitle,
-                                        value,
-                                    )
-                                    viewModel.saveVless(key, isNew = editingId == null)
-                                },
-                                modifier = Modifier.weight(1f),
-                            )
-                        }
-                        Spacer(Modifier.navigationBarsPadding().height(Spacing.space16))
-                    }
+                    },
+                    modifier = Modifier.align(Alignment.End),
+                ) {
+                    Text(stringResource(R.string.key_paste))
                 }
+
+                Spacer(Modifier.height(Spacing.space8))
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.space12),
+                ) {
+                    DetourButton(
+                        text = stringResource(R.string.key_cancel),
+                        onClick = ::dismissEditor,
+                        enabled = !vlessSaving,
+                        style = ButtonStyle.SECONDARY,
+                        modifier = Modifier.weight(1f),
+                    )
+                    DetourButton(
+                        text = stringResource(
+                            if (vlessSaving) R.string.vless_saving else R.string.btn_save,
+                        ),
+                        enabled = parsed != null && parsedMatchesEditor && !vlessSaving,
+                        onClick = {
+                            val value = field.trim()
+                            val parsedProfile = parsed?.profile ?: return@DetourButton
+                            val fallback = if (parsedProfile.isSubscription) {
+                                subscriptionFallbackTitle
+                            } else {
+                                vlessFallbackTitle
+                            }
+                            val key = VlessKey(
+                                editingId ?: UUID.randomUUID().toString(),
+                                parsedProfile.name.ifBlank { parsedProfile.server.ifBlank { fallback } },
+                                value,
+                            )
+                            viewModel.saveVless(key, isNew = editingId == null)
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Spacer(Modifier.navigationBarsPadding().height(Spacing.space16))
             }
         }
     }
@@ -504,7 +466,7 @@ private fun ProfileKeyCards(
                 title = profile?.name?.ifBlank { profile.server } ?: key.name,
                 server = profile?.server ?: "—",
                 type = if (profile?.isSubscription == true) {
-                    stringResource(R.string.subscription_profile_kind)
+                    stringResource(R.string.protocol_vless)
                 } else {
                     stringResource(R.string.profile_reality)
                 },
@@ -807,43 +769,5 @@ private fun ProfileOperationNotice(status: WarpImportStatus) {
                 .padding(start = Spacing.space12)
                 .weight(1f),
         )
-    }
-}
-
-@Composable
-private fun ProfileTypeRow(
-    title: String,
-    subtitle: String,
-    iconRes: Int,
-    onClick: () -> Unit,
-) {
-    val c = detourColors
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .detourClickable(
-                onClick = onClick,
-                role = Role.Button,
-                pressedColor = c.surfaceSelected.copy(alpha = 0.42f),
-                pressScale = Motion.PRESS_ROW,
-            )
-            .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        DetourIconTile(iconRes = iconRes, selected = true)
-        Column(
-            Modifier
-                .padding(start = Spacing.space12)
-                .weight(1f),
-        ) {
-            Text(title, style = MaterialTheme.typography.titleSmall, color = c.textPrimary)
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = c.textSecondary,
-                modifier = Modifier.padding(top = Spacing.space2),
-            )
-        }
-        Chevron()
     }
 }

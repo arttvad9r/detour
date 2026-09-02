@@ -100,16 +100,8 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
-            DetourFeatureSummary(
-                iconRes = R.drawable.ic_export,
-                title = stringResource(R.string.backup_title),
-                subtitle = stringResource(R.string.backup_note),
-                modifier = Modifier.padding(horizontal = Spacing.space16),
-            )
-
-            Spacer(Modifier.height(Spacing.space12))
             BackupNotice(
-                text = stringResource(R.string.backup_warning),
+                text = stringResource(R.string.backup_note),
                 iconRes = R.drawable.ic_lock,
                 tone = BackupNoticeTone.INFO,
                 modifier = Modifier.padding(horizontal = Spacing.space16),

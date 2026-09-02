@@ -4,4 +4,16 @@
     <string name="profile_type_label">Тип</string>
     <string name="profile_reality">Reality</string>
     <string name="profile_amneziawg">AmneziaWG</string>
+    <string name="profile_add_vless_action">Добавить VLESS</string>
+    <string name="profile_add_subscription_action">Добавить подписку</string>
+    <string name="profile_vless_input_label">VLESS-ссылка</string>
+    <string name="profile_subscription_input_label">URL подписки</string>
+    <string name="profile_vless_input_hint">Вставьте VLESS Reality-ссылку.</string>
+    <string name="profile_subscription_input_hint">Вставьте HTTPS URL подписки. Её VLESS-серверы появятся в этом списке.</string>
+    <string name="profile_vless_placeholder">vless://…</string>
+    <string name="profile_subscription_placeholder">https://subscription.example/…</string>
+    <string name="profile_vless_invalid">Не удалось распознать VLESS Reality-ссылку.</string>
+    <string name="profile_subscription_invalid">Не удалось прочитать HTTPS URL подписки.</string>
+    <string name="profile_vless_wrong_type">На этой вкладке нужна VLESS Reality-ссылка.</string>
+    <string name="profile_subscription_wrong_type">На этой вкладке нужен HTTPS URL подписки.</string>
 </resources>
