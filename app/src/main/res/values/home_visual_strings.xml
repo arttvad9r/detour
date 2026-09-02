@@ -1,0 +1,4 @@
+<resources>
+    <string name="home_apps_count">Apps: %1$d</string>
+    <string name="home_apps_selected">%1$d apps selected</string>
+</resources>
