@@ -8,10 +8,10 @@
     <string name="subscription_runtime_unavailable">Live health data is not available yet.</string>
     <string name="subscription_runtime_summary">%1$d of %2$d servers available</string>
     <string name="subscription_runtime_updated">Updated: %1$s</string>
-    <string name="subscription_runtime_refresh">Refresh subscription</string>
+    <string name="subscription_runtime_refresh">Refresh</string>
     <string name="subscription_runtime_refreshing">Refreshing…</string>
     <string name="subscription_runtime_refresh_error">Could not refresh the subscription. The current tunnel was not changed.</string>
-    <string name="subscription_catalog_error">Could not load servers from this subscription. Check the link and try refreshing.</string>
+    <string name="subscription_catalog_error">Could not load VLESS servers from this subscription. Check the link and try refreshing.</string>
     <string name="subscription_selected_server">Selected server</string>
     <string name="subscription_select_server">Select a server</string>
     <string name="subscription_search_hint">Search servers…</string>
@@ -19,6 +19,9 @@
     <string name="subscription_sort_latency">Latency</string>
     <string name="subscription_sort_name">Name</string>
     <string name="subscription_selection_error">Could not select this server. The previous selection is still active.</string>
+    <string name="subscription_latency_test">Test ping</string>
+    <string name="subscription_latency_testing">Testing…</string>
+    <string name="subscription_latency_connect_hint">Connect the subscription profile to test ping for all servers.</string>
     <string name="subscription_node_online">Online</string>
     <string name="subscription_node_offline">Offline</string>
     <string name="subscription_node_unknown">Not tested</string>
