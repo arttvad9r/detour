@@ -1,6 +1,11 @@
 package engine
 
-import "testing"
+import (
+	"context"
+	"fmt"
+	"sync/atomic"
+	"testing"
+)
 
 func TestPreparedSubscriptionFallsBackToV2RayConversion(t *testing.T) {
 	const body = "vless://a1b2c3d4-eacc-4433-981b-7e5f9a8b@142.98.76.54:34888?encryption=none&security=reality&type=tcp&sni=github.io&fp=chrome&pbk=ppQ9FwLrLIa0AOrp1WvcyiaQ37vg2WSy_CD4bIdiTUw&sid=6ba85179f3a2b4c5&flow=xtls-rprx-vision#My-VLESS-Reality-Vision"
@@ -17,6 +22,9 @@ func TestPreparedSubscriptionFallsBackToV2RayConversion(t *testing.T) {
 	}
 	if got := proxies[0]["type"]; got != "vless" {
 		t.Fatalf("proxy type = %v, want vless", got)
+	}
+	if got := proxies[0]["flow"]; got != "xtls-rprx-vision" {
+		t.Fatalf("proxy flow = %v, want xtls-rprx-vision", got)
 	}
 }
 
@@ -50,5 +58,38 @@ proxies:
 	}
 	if proxies[0]["name"] != "Finland - 1" || proxies[1]["name"] != "Russia - 2" {
 		t.Fatalf("unexpected retained nodes: %v, %v", proxies[0]["name"], proxies[1]["name"])
+	}
+}
+
+func TestSubscriptionLatencyTestsCoverEveryNodeBeyondParallelLimit(t *testing.T) {
+	const nodeCount = 25
+	proxies := make([]map[string]any, 0, nodeCount)
+	for index := 0; index < nodeCount; index++ {
+		proxies = append(proxies, map[string]any{
+			"name": fmt.Sprintf("Server %02d", index+1),
+			"type": "vless",
+		})
+	}
+
+	var calls atomic.Int32
+	results := runSubscriptionLatencyTests(
+		proxies,
+		func(_ context.Context, _ map[string]any) (int, error) {
+			calls.Add(1)
+			return 42, nil
+		},
+	)
+
+	if got := int(calls.Load()); got != nodeCount {
+		t.Fatalf("latency probe calls = %d, want %d", got, nodeCount)
+	}
+	if len(results) != nodeCount {
+		t.Fatalf("latency results = %d, want %d", len(results), nodeCount)
+	}
+	for index, result := range results {
+		wantName := fmt.Sprintf("Server %02d", index+1)
+		if result.Name != wantName || result.DelayMs != 42 {
+			t.Fatalf("result[%d] = %+v, want name=%q delay=42", index, result, wantName)
+		}
 	}
 }
