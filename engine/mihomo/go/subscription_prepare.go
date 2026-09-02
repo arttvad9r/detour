@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	neturl "net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,7 +24,9 @@ const (
 	subscriptionProviderFileName = "detour-subscription.yaml"
 	subscriptionLatencyTestURL   = "https://www.gstatic.com/generate_204"
 	subscriptionLatencyTimeout   = 5 * time.Second
-	subscriptionLatencyParallel  = 10
+	// Mihomo's own provider HealthCheck uses the same concurrency limit. This is
+	// only a parallelism cap; every prepared node must still be tested.
+	subscriptionLatencyParallel = 10
 )
 
 type preparedProxySchema struct {
@@ -33,6 +37,8 @@ type subscriptionLatencyNode struct {
 	Name    string `json:"name"`
 	DelayMs int    `json:"delayMs,omitempty"`
 }
+
+type subscriptionLatencyProbe func(context.Context, map[string]any) (int, error)
 
 // PrepareSubscriptionProvider downloads an HTTPS V2Ray subscription, converts
 // URI/base64 bodies to mihomo YAML and stores only VLESS nodes in app-private
@@ -89,6 +95,15 @@ func TestSubscriptionCatalogLatency(subscriptionURL string) string {
 		return ""
 	}
 
+	results := runSubscriptionLatencyTests(proxies, mihomoSubscriptionLatencyProbe)
+	payload, err := json.Marshal(map[string]any{"nodes": results})
+	if err != nil {
+		return ""
+	}
+	return string(payload)
+}
+
+func runSubscriptionLatencyTests(proxies []map[string]any, probe subscriptionLatencyProbe) []subscriptionLatencyNode {
 	results := make([]subscriptionLatencyNode, len(proxies))
 	semaphore := make(chan struct{}, subscriptionLatencyParallel)
 	var wg sync.WaitGroup
@@ -105,17 +120,11 @@ func TestSubscriptionCatalogLatency(subscriptionURL string) string {
 			semaphore <- struct{}{}
 			defer func() { <-semaphore }()
 
-			proxy, parseErr := adapter.ParseProxy(proxyMapping)
-			if parseErr != nil {
-				return
-			}
-			defer proxy.Close()
-
 			ctx, cancel := context.WithTimeout(context.Background(), subscriptionLatencyTimeout)
 			defer cancel()
-			delay, testErr := proxy.URLTest(ctx, subscriptionLatencyTestURL, nil)
+			delay, testErr := probe(ctx, proxyMapping)
 			if testErr == nil && delay > 0 {
-				results[i].DelayMs = int(delay)
+				results[i].DelayMs = delay
 			}
 		}(index, mapping)
 	}
@@ -127,11 +136,21 @@ func TestSubscriptionCatalogLatency(subscriptionURL string) string {
 			compact = append(compact, result)
 		}
 	}
-	payload, err := json.Marshal(map[string]any{"nodes": compact})
+	return compact
+}
+
+func mihomoSubscriptionLatencyProbe(ctx context.Context, proxyMapping map[string]any) (int, error) {
+	proxy, err := adapter.ParseProxy(proxyMapping)
 	if err != nil {
-		return ""
+		return 0, err
 	}
-	return string(payload)
+	defer proxy.Close()
+
+	delay, err := proxy.URLTest(ctx, subscriptionLatencyTestURL, nil)
+	if err != nil {
+		return 0, err
+	}
+	return int(delay), nil
 }
 
 func fetchPreparedSubscriptionProxies(subscriptionURL string) ([]map[string]any, error) {
@@ -184,6 +203,11 @@ func parsePreparedSubscriptionProxies(body []byte) ([]map[string]any, error) {
 		if convertErr != nil || len(proxies) == 0 {
 			return nil, errors.New("unsupported subscription format")
 		}
+		// Mihomo v1.19.30's generic V2Ray share-link converter does not copy the
+		// VLESS `flow` query parameter even though the VLESS outbound supports it.
+		// Restore only the field present in the original link so Reality/Vision
+		// subscriptions are equivalent to the same standalone VLESS profile.
+		restoreVlessShareLinkFlow(body, proxies)
 		schema.Proxies = proxies
 	}
 
@@ -211,4 +235,56 @@ func parsePreparedSubscriptionProxies(body []byte) ([]map[string]any, error) {
 		return nil, errors.New("subscription has no VLESS nodes")
 	}
 	return prepared, nil
+}
+
+func restoreVlessShareLinkFlow(body []byte, proxies []map[string]any) {
+	decoded := string(convert.DecodeBase64(body))
+	flows := make(map[string]string)
+	for _, line := range strings.FieldsFunc(decoded, func(r rune) bool { return r == '\n' || r == '\r' }) {
+		line = strings.TrimSpace(line)
+		if len(line) < len("vless://") || !strings.EqualFold(line[:len("vless://")], "vless://") {
+			continue
+		}
+		parsed, err := neturl.Parse(line)
+		if err != nil || parsed.User == nil {
+			continue
+		}
+		flow := strings.TrimSpace(parsed.Query().Get("flow"))
+		if flow == "" {
+			continue
+		}
+		key := vlessEndpointKey(parsed.User.Username(), parsed.Hostname(), parsed.Port())
+		if key != "" {
+			flows[key] = flow
+		}
+	}
+	if len(flows) == 0 {
+		return
+	}
+
+	for _, proxy := range proxies {
+		proxyType, _ := proxy["type"].(string)
+		if !strings.EqualFold(strings.TrimSpace(proxyType), "vless") {
+			continue
+		}
+		if existing, _ := proxy["flow"].(string); strings.TrimSpace(existing) != "" {
+			continue
+		}
+		uuid, _ := proxy["uuid"].(string)
+		server, _ := proxy["server"].(string)
+		port := strings.TrimSpace(fmt.Sprint(proxy["port"]))
+		if flow := flows[vlessEndpointKey(uuid, server, port)]; flow != "" {
+			proxy["flow"] = flow
+		}
+	}
+}
+
+func vlessEndpointKey(uuid string, server string, port string) string {
+	uuid = strings.ToLower(strings.TrimSpace(uuid))
+	server = strings.ToLower(strings.TrimSpace(server))
+	port = strings.TrimSpace(port)
+	if uuid == "" || server == "" || port == "" {
+		return ""
+	}
+	return uuid + "\x00" + server + "\x00" + port
 }
