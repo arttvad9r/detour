@@ -6,11 +6,13 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import androidx.core.content.ContextCompat
+import dev.triplet.app.core.SubscriptionProviderMaterializer
 import dev.triplet.app.data.AppInventory
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
 import dev.triplet.app.vpn.resolveRouteSnapshot
+import dev.triplet.engine.engine.Engine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -72,6 +74,15 @@ class TripletApp : Application() {
     override fun onCreate() {
         super.onCreate()
         routesStore = RoutesStore(this)
+
+        // Mihomo's HTTP provider does not reliably convert URI/base64 bodies
+        // that are valid YAML scalars. Normalize them to an app-private provider
+        // file before ConfigGenerator builds the runtime configuration.
+        SubscriptionProviderMaterializer.install { url ->
+            Engine.prepareSubscriptionProvider(url, cacheDir.absolutePath)
+                .takeIf { it.isNotBlank() }
+                ?: throw IllegalStateException("subscription could not be prepared")
+        }
 
         val packageFilter = IntentFilter().apply {
             addAction(Intent.ACTION_PACKAGE_ADDED)
