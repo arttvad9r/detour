@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -72,7 +73,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 private val AppsContentMaxWidth = 840.dp
-private val AppRowWideBreakpoint = 700.dp
+private val AppRouteInlineMinWidth = 292.dp
 
 @Composable
 fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
@@ -108,6 +109,13 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
             }
         }
     }
+    val directLabel = stringResource(routeLabel(AppRoute.DIRECT))
+    val vpnLabel = stringResource(routeLabel(AppRoute.VPN))
+    val dpiLabel = stringResource(routeLabel(AppRoute.DPI))
+    val routeSummary = "$directLabel ${routeCounts[AppRoute.DIRECT] ?: 0} · " +
+        "$vpnLabel ${routeCounts[AppRoute.VPN] ?: 0} · " +
+        "$dpiLabel ${routeCounts[AppRoute.DPI] ?: 0}"
+
     val screenOrder = remember(allApps) {
         AppRouteOrdering.snapshot(allApps, state.routes)
     }
@@ -138,7 +146,8 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
     }
 
     Column(
-        modifier.fillMaxSize()
+        modifier
+            .fillMaxSize()
             .background(c.background)
             .statusBarsPadding()
             .navigationBarsPadding(),
@@ -207,33 +216,41 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
                         pressScale = Motion.PRESS_ROW,
                     )
                     .heightIn(min = 60.dp)
-                    .padding(start = Spacing.space16, end = Spacing.space12),
+                    .padding(start = Spacing.space16, end = Spacing.space12, top = Spacing.space4, bottom = Spacing.space4),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 DetourIconTile(R.drawable.ic_routes)
-                Text(
-                    stringResource(R.string.show_system),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Medium,
-                    color = c.textPrimary,
+                Column(
                     modifier = Modifier
                         .padding(start = Spacing.space12)
                         .weight(1f),
-                )
+                ) {
+                    Text(
+                        stringResource(R.string.show_system),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Medium,
+                        color = c.textPrimary,
+                    )
+                    if (loadedApps != null) {
+                        Text(
+                            routeSummary,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = c.textSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = Spacing.space2),
+                        )
+                    }
+                }
                 DetourSwitch(
                     checked = showSystem,
                     onCheckedChange = null,
                     compact = true,
                 )
             }
-
-            if (loadedApps != null) {
-                GroupDivider(startInset = 16)
-                RouteDistributionRow(routeCounts)
-            }
         }
 
-        Spacer(Modifier.height(Spacing.space12))
+        Spacer(Modifier.height(Spacing.space8))
         if (state.inventoryStatus == AppsInventoryStatus.ERROR && loadedApps != null) {
             InventoryErrorBanner(
                 onRetry = viewModel::refreshInventory,
@@ -309,88 +326,20 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
                                 }
                                 if (i < apps.lastIndex) {
                                     Box(
-                                        Modifier.fillMaxWidth()
-                                            .padding(start = 64.dp)
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(start = 52.dp)
                                             .height(1.dp)
                                             .background(c.divider),
                                     )
                                 }
                             }
                         }
-                        item { Spacer(Modifier.height(Spacing.space24)) }
+                        item { Spacer(Modifier.height(Spacing.space16)) }
                     }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun RouteDistributionRow(counts: Map<AppRoute, Int>) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = Spacing.space12, vertical = Spacing.space12),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.space8),
-    ) {
-        AppRoute.entries.forEach { route ->
-            RouteCountTile(
-                route = route,
-                count = counts[route] ?: 0,
-                modifier = Modifier.weight(1f),
-            )
-        }
-    }
-}
-
-@Composable
-private fun RouteCountTile(
-    route: AppRoute,
-    count: Int,
-    modifier: Modifier = Modifier,
-) {
-    val c = detourColors
-    val iconRes = when (route) {
-        AppRoute.DIRECT -> R.drawable.ic_globe
-        AppRoute.VPN -> R.drawable.ic_lock
-        AppRoute.DPI -> R.drawable.ic_dpi
-    }
-
-    Column(
-        modifier = modifier
-            .heightIn(min = 58.dp)
-            .background(c.surfaceSoft, AppShapes.extraSmall)
-            .border(1.dp, c.border.copy(alpha = 0.72f), AppShapes.extraSmall)
-            .padding(horizontal = Spacing.space8, vertical = Spacing.space8),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            Icon(
-                painter = painterResource(iconRes),
-                contentDescription = null,
-                tint = c.accent,
-                modifier = Modifier.size(15.dp),
-            )
-            Text(
-                text = stringResource(routeLabel(route)),
-                style = MaterialTheme.typography.labelSmall,
-                color = c.textSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = Spacing.space4),
-            )
-        }
-        Text(
-            text = count.toString(),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = c.textPrimary,
-            modifier = Modifier.padding(top = Spacing.space2),
-        )
     }
 }
 
@@ -472,6 +421,7 @@ private fun AppRow(
     onSelect: (AppRoute) -> Unit,
 ) {
     val ctx = LocalContext.current
+    val density = LocalDensity.current
     val bmp by produceState<Bitmap?>(
         initialValue = AppInventory.peekIcon(app.packageName),
         key1 = app.packageName,
@@ -486,10 +436,10 @@ private fun AppRow(
     BoxWithConstraints(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
+            .padding(horizontal = Spacing.space12, vertical = Spacing.space8),
     ) {
-        val wide = maxWidth >= AppRowWideBreakpoint
-        if (wide) {
+        val inline = maxWidth >= AppRouteInlineMinWidth && density.fontScale <= 1.30f
+        if (inline) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -497,19 +447,20 @@ private fun AppRow(
                 AppIdentity(
                     app = app,
                     bitmap = bmp,
+                    compact = true,
                     modifier = Modifier.weight(1f),
                 )
-                Spacer(Modifier.width(Spacing.space16))
+                Spacer(Modifier.width(Spacing.space8))
                 AppRouteSelector(
                     current = current,
                     onSelect = onSelect,
-                    modifier = Modifier.width(320.dp),
+                    modifier = Modifier.width(176.dp),
                 )
             }
         } else {
             Column(Modifier.fillMaxWidth()) {
-                AppIdentity(app = app, bitmap = bmp)
-                Spacer(Modifier.height(Spacing.space12))
+                AppIdentity(app = app, bitmap = bmp, compact = false)
+                Spacer(Modifier.height(Spacing.space8))
                 AppRouteSelector(current = current, onSelect = onSelect)
             }
         }
@@ -520,16 +471,19 @@ private fun AppRow(
 private fun AppIdentity(
     app: AppInfo,
     bitmap: Bitmap?,
+    compact: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val c = detourColors
+    val tileSize = if (compact) 34.dp else 38.dp
+    val imageSize = if (compact) 28.dp else 30.dp
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .size(42.dp)
+                .size(tileSize)
                 .background(c.surfaceSoft, AppShapes.extraSmall)
                 .border(1.dp, c.border.copy(alpha = 0.72f), AppShapes.extraSmall),
             contentAlignment = Alignment.Center,
@@ -539,39 +493,41 @@ private fun AppIdentity(
                     bitmap.asImageBitmap(),
                     contentDescription = null,
                     modifier = Modifier
-                        .size(34.dp)
+                        .size(imageSize)
                         .clip(AppShapes.extraSmall),
                 )
             } else {
                 Icon(
                     painter = painterResource(R.drawable.ic_routes),
                     contentDescription = null,
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(18.dp),
                     tint = c.textMuted,
                 )
             }
         }
         Column(
             Modifier
-                .padding(start = Spacing.space12)
+                .padding(start = Spacing.space8)
                 .weight(1f),
         ) {
             Text(
                 app.label,
-                style = MaterialTheme.typography.bodyLarge,
+                style = if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium,
                 color = c.textPrimary,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                app.packageName,
-                style = MaterialTheme.typography.labelSmall,
-                color = c.textMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = Spacing.space2),
             )
+            if (!compact) {
+                Text(
+                    app.packageName,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = c.textMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = Spacing.space2),
+                )
+            }
         }
     }
 }
