@@ -4,9 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import dev.triplet.app.core.AppRoute
+import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.data.TriSettings
 import dev.triplet.app.vpn.EffectiveRoutes
+import dev.triplet.app.vpn.VpnController
+import dev.triplet.app.vpn.VpnState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,7 +17,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
@@ -27,6 +29,10 @@ data class SettingsMenuUiState(
     val hasVless: Boolean = false,
     val hasWarp: Boolean = false,
     val autoConnect: Boolean = false,
+    val vpnState: VpnState = VpnState.Idle,
+    val sessionStartedAt: Long? = null,
+    val protocol: HomeProtocol = HomeProtocol.NONE,
+    val activeVpn: VpnProfileKind = VpnProfileKind.VLESS,
 )
 
 internal fun settingsMenuUiState(
@@ -38,10 +44,13 @@ internal fun settingsMenuUiState(
     hasVless = settings?.vlessKeys?.items?.isNotEmpty() == true,
     hasWarp = settings?.warpProfile != null,
     autoConnect = autoConnectOverride ?: (settings?.autoConnect == true),
+    sessionStartedAt = settings?.sessionStartedAt,
+    activeVpn = settings?.activeVpn ?: VpnProfileKind.VLESS,
 )
 
 class SettingsMenuViewModel(
     private val settings: StateFlow<TriSettings?>,
+    private val vpnState: StateFlow<VpnState>,
     private val resolveRoutes: suspend (Map<String, AppRoute>) -> EffectiveRoutes,
     private val persistAutoConnect: suspend (Boolean) -> Unit,
 ) : ViewModel() {
@@ -50,34 +59,43 @@ class SettingsMenuViewModel(
     private val autoConnectWriteMutex = Mutex()
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    private val routedCount = combine(
+    private val effectiveRoutes = combine(
         settings
             .map { it?.routes.orEmpty() }
             .distinctUntilChanged(),
         routeRefresh,
     ) { routes, _ -> routes }
         .mapLatest { routes ->
-            if (routes.isEmpty()) 0 else resolveRoutes(routes).packages.size
+            if (routes.isEmpty()) EffectiveRoutes(emptySet(), emptySet())
+            else resolveRoutes(routes)
         }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = settings.value?.routes?.size ?: 0,
+            initialValue = EffectiveRoutes(emptySet(), emptySet()),
         )
 
     val uiState: StateFlow<SettingsMenuUiState> = combine(
         settings,
-        routedCount,
+        effectiveRoutes,
         autoConnectOverride,
-    ) { settings, routedCount, override ->
-        settingsMenuUiState(settings, routedCount, override)
+        vpnState,
+    ) { settings, effectiveRoutes, override, vpnState ->
+        settingsMenuUiState(
+            settings = settings,
+            routedCount = effectiveRoutes.packages.size,
+            autoConnectOverride = override,
+        ).copy(
+            vpnState = vpnState,
+            protocol = homeProtocol(effectiveRoutes),
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = settingsMenuUiState(
             settings = settings.value,
             routedCount = settings.value?.routes?.size ?: 0,
-        ),
+        ).copy(vpnState = vpnState.value),
     )
 
     fun refreshRoutes() {
@@ -121,6 +139,7 @@ class SettingsMenuViewModel(
                 @Suppress("UNCHECKED_CAST")
                 return SettingsMenuViewModel(
                     settings = store.settings,
+                    vpnState = VpnController.state,
                     resolveRoutes = resolveRoutes,
                     persistAutoConnect = store::setAutoConnect,
                 ) as T
