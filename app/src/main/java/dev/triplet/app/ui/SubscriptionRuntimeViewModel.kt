@@ -27,6 +27,11 @@ data class SubscriptionCatalogNode(
     val type: String,
 )
 
+data class SubscriptionLatencyResult(
+    val testedNames: Set<String> = emptySet(),
+    val delayByName: Map<String, Int> = emptyMap(),
+)
+
 data class SubscriptionRuntimeUiState(
     val provider: SubscriptionProviderState = SubscriptionProviderState.Unavailable,
     val catalog: List<SubscriptionCatalogNode> = emptyList(),
@@ -35,7 +40,30 @@ data class SubscriptionRuntimeUiState(
     val selectedNode: String? = null,
     val selectionStatus: SubscriptionSelectionStatus = SubscriptionSelectionStatus.IDLE,
     val latencyTesting: Boolean = false,
+    val latencyTestedNames: Set<String> = emptySet(),
+    val latencyByName: Map<String, Int> = emptyMap(),
 )
+
+internal fun parseSubscriptionLatencyResult(raw: String): SubscriptionLatencyResult {
+    if (raw.isBlank() || raw.length > 512 * 1024) return SubscriptionLatencyResult()
+    return runCatching {
+        val nodes = JSONObject(raw).optJSONArray("nodes") ?: return@runCatching SubscriptionLatencyResult()
+        val tested = LinkedHashSet<String>()
+        val delays = LinkedHashMap<String, Int>()
+        for (index in 0 until minOf(nodes.length(), 256)) {
+            val node = nodes.optJSONObject(index) ?: continue
+            val name = node.optString("name").trim()
+            if (
+                name.isBlank() || name.length > 256 ||
+                name.any { it.code < 0x20 || it.code == 0x7f }
+            ) continue
+            tested += name
+            val delay = node.optInt("delayMs", 0)
+            if (delay in 1..60_000) delays[name] = delay
+        }
+        SubscriptionLatencyResult(testedNames = tested, delayByName = delays)
+    }.getOrDefault(SubscriptionLatencyResult())
+}
 
 class SubscriptionRuntimeViewModel : ViewModel() {
     private val operationMutex = Mutex()
@@ -74,13 +102,17 @@ class SubscriptionRuntimeViewModel : ViewModel() {
             _uiState.value = _uiState.value.copy(
                 provider = SubscriptionProviderState.Unavailable,
                 status = SubscriptionRuntimeStatus.IDLE,
-                latencyTesting = false,
             )
         }
     }
 
     fun refresh(connected: Boolean) {
         val url = boundUrl ?: return
+        _uiState.value = _uiState.value.copy(
+            latencyTesting = false,
+            latencyTestedNames = emptySet(),
+            latencyByName = emptyMap(),
+        )
         loadCatalog(url, force = true)
         if (connected) {
             runtimeJob?.cancel()
@@ -114,18 +146,23 @@ class SubscriptionRuntimeViewModel : ViewModel() {
     }
 
     fun testLatency() {
-        if (_uiState.value.latencyTesting || !_uiState.value.provider.available) return
+        val url = boundUrl ?: return
+        if (_uiState.value.latencyTesting || _uiState.value.catalog.isEmpty()) return
         viewModelScope.launch {
             operationMutex.withLock {
                 try {
-                    _uiState.value = _uiState.value.copy(latencyTesting = true)
-                    withContext(Dispatchers.IO) { Engine.healthCheckSubscriptionProvider() }
-                    val provider = withContext(Dispatchers.IO) {
-                        SubscriptionProviderStateParser.parse(Engine.subscriptionProviderState())
+                    _uiState.value = _uiState.value.copy(
+                        latencyTesting = true,
+                        latencyTestedNames = emptySet(),
+                        latencyByName = emptyMap(),
+                    )
+                    val result = withContext(Dispatchers.IO) {
+                        parseSubscriptionLatencyResult(Engine.testSubscriptionCatalogLatency(url))
                     }
                     _uiState.value = _uiState.value.copy(
-                        provider = provider,
                         latencyTesting = false,
+                        latencyTestedNames = result.testedNames,
+                        latencyByName = result.delayByName,
                     )
                 } catch (cancelled: CancellationException) {
                     _uiState.value = _uiState.value.copy(latencyTesting = false)
@@ -186,6 +223,7 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                 val nodes = withContext(Dispatchers.IO) {
                     parseCatalog(Engine.fetchSubscriptionCatalog(url))
                 }
+                val names = nodes.mapTo(HashSet()) { it.name }
                 _uiState.value = _uiState.value.copy(
                     catalog = nodes,
                     catalogStatus = if (nodes.isEmpty()) {
@@ -193,6 +231,8 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                     } else {
                         SubscriptionCatalogStatus.READY
                     },
+                    latencyTestedNames = _uiState.value.latencyTestedNames intersect names,
+                    latencyByName = _uiState.value.latencyByName.filterKeys { it in names },
                 )
             } catch (cancelled: CancellationException) {
                 throw cancelled
