@@ -575,7 +575,7 @@ private fun ProfileCard(
             .clip(AppShapes.medium)
             .background(c.surface)
             .border(
-                1.dp,
+                if (selected) 2.dp else 1.dp,
                 if (selected) c.accentBorder else c.border,
                 AppShapes.medium,
             )
