@@ -1,0 +1,8 @@
+<resources>
+    <string name="home_route_via">через %1$s</string>
+    <string name="dpi_hint_title">Стратегия DPI</string>
+    <string name="dpi_hint">Выберите рекомендуемую стратегию или задайте свои аргументы -d, -s, -a и --timeout.</string>
+    <string name="dns_hint_title">DNS для туннеля</string>
+    <string name="theme_hint_title">Фирменные темы Detour</string>
+    <string name="backup_hint_title">Конфигурация Detour</string>
+</resources>
