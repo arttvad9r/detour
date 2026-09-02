@@ -204,7 +204,7 @@ private fun SubscriptionNodeRow(
                 .padding(start = Spacing.space12)
                 .weight(1f),
         )
-        if (selecting && selected) {
+        if (!enabled && selected) {
             CircularProgressIndicator(
                 modifier = Modifier.size(18.dp),
                 strokeWidth = 2.dp,
