@@ -33,9 +33,9 @@
     <string name="nav_routes">Маршруты приложений</string>
     <string name="nav_routes_sub">в туннеле: %1$d</string>
     <string name="nav_key">VPN-профили</string>
-    <string name="nav_key_sub">VLESS / подписка + WARP</string>
+    <string name="nav_key_sub">VLESS + WARP</string>
     <string name="nav_key_sub_none">не настроено</string>
-    <string name="nav_key_sub_vless">VLESS / подписка</string>
+    <string name="nav_key_sub_vless">VLESS</string>
     <string name="nav_key_sub_warp">WARP / AmneziaWG</string>
     <string name="nav_theme">Оформление</string>
     <string name="theme_title">Оформление</string>
@@ -90,7 +90,7 @@
     <string name="vless_edit_title">Изменить VPN-ссылку</string>
     <string name="profile_empty">Пока нет VPN-профилей. Нажмите +, чтобы добавить.</string>
     <string name="profile_add_title">Добавить VPN-профиль</string>
-    <string name="profile_add_vless">VLESS / подписка</string>
+    <string name="profile_add_vless">VLESS</string>
     <string name="profile_add_vless_sub">Добавить VLESS Reality-ссылку или HTTPS URL подписки</string>
     <string name="profile_add_warp">WARP / AmneziaWG</string>
     <string name="profile_add_warp_sub">Импортировать YAML или CONF</string>
