@@ -44,7 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
 
-private enum class BackupNoticeTone { INFO, SUCCESS, ERROR }
+private enum class BackupNoticeTone { SUCCESS, ERROR }
 
 @Composable
 fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
@@ -100,14 +100,14 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
-            BackupNotice(
-                text = stringResource(R.string.backup_note),
-                iconRes = R.drawable.ic_lock,
-                tone = BackupNoticeTone.INFO,
+            DetourFeatureSummary(
+                iconRes = R.drawable.ic_export,
+                title = stringResource(R.string.backup_hint_title),
+                subtitle = stringResource(R.string.backup_note),
                 modifier = Modifier.padding(horizontal = Spacing.space16),
             )
 
-            Spacer(Modifier.height(Spacing.space16))
+            Spacer(Modifier.height(Spacing.space12))
             DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
                 ActionRow(
                     label = stringResource(
@@ -165,17 +165,14 @@ private fun BackupNotice(
 ) {
     val c = detourColors
     val container = when (tone) {
-        BackupNoticeTone.INFO -> c.surfaceSoft
         BackupNoticeTone.SUCCESS -> c.activeSoft
         BackupNoticeTone.ERROR -> c.errorSoft
     }
     val border = when (tone) {
-        BackupNoticeTone.INFO -> c.border
         BackupNoticeTone.SUCCESS -> c.activeBorder
         BackupNoticeTone.ERROR -> c.error.copy(alpha = 0.34f)
     }
     val iconTint = when (tone) {
-        BackupNoticeTone.INFO -> c.accent
         BackupNoticeTone.SUCCESS -> c.activeStrong
         BackupNoticeTone.ERROR -> c.error
     }
