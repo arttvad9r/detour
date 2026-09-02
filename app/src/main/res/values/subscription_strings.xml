@@ -1,9 +1,9 @@
 <resources>
     <string name="subscription_profile_section">Subscriptions</string>
-    <string name="subscription_profile_kind">HTTPS subscription</string>
-    <string name="subscription_profile_host">HTTPS subscription · %1$s</string>
+    <string name="subscription_profile_kind">VLESS</string>
+    <string name="subscription_profile_host">VLESS · %1$s</string>
     <string name="subscription_runtime_title">Subscription servers</string>
-    <string name="subscription_runtime_disconnected">Choose a server now. Connect the VPN to see live latency and availability.</string>
+    <string name="subscription_runtime_disconnected">Choose and test a server before connecting. Live provider availability appears while the VPN is active.</string>
     <string name="subscription_runtime_loading">Loading subscription servers…</string>
     <string name="subscription_runtime_unavailable">Live health data is not available yet.</string>
     <string name="subscription_runtime_summary">%1$d of %2$d servers available</string>
@@ -21,7 +21,7 @@
     <string name="subscription_selection_error">Could not select this server. The previous selection is still active.</string>
     <string name="subscription_latency_test">Test ping</string>
     <string name="subscription_latency_testing">Testing…</string>
-    <string name="subscription_latency_connect_hint">Connect the subscription profile to test ping for all servers.</string>
+    <string name="subscription_latency_connect_hint">Test all VLESS servers with one tap before connecting.</string>
     <string name="subscription_node_online">Online</string>
     <string name="subscription_node_offline">Offline</string>
     <string name="subscription_node_unknown">Not tested</string>
