@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
 
 enum class HomeProtocol { VLESS_DPI, DPI, VLESS, NONE }
@@ -28,6 +29,11 @@ internal data class HomeProfilePresentation(
     val name: String?,
     val server: String?,
     val endpointCount: Int = 0,
+)
+
+private data class SubscriptionNodeRead(
+    val profileKey: String?,
+    val node: String?,
 )
 
 data class HomeUiState(
@@ -140,16 +146,30 @@ class HomeViewModel(
         settings
             .map { value -> value?.let { it.activeVpn to it.vlessUri } }
             .distinctUntilChanged(),
+        vpnState.distinctUntilChanged(),
         routeRefresh,
-    ) { profile, _ -> profile }
+    ) { profile, _, _ -> profile }
         .mapLatest { profile ->
-            val (kind, uri) = profile ?: return@mapLatest null
-            if (kind != VpnProfileKind.SUBSCRIPTION || uri.isBlank()) return@mapLatest null
-            runCatching { readSubscriptionNode() }
+            val (kind, uri) = profile ?: return@mapLatest SubscriptionNodeRead(null, null)
+            if (kind != VpnProfileKind.SUBSCRIPTION || uri.isBlank()) {
+                return@mapLatest SubscriptionNodeRead(null, null)
+            }
+            val profileKey = uri.trim()
+            val node = runCatching { readSubscriptionNode() }
                 .getOrNull()
                 ?.trim()
                 ?.takeIf { it.isNotBlank() }
+            SubscriptionNodeRead(profileKey, node)
         }
+        .scan(SubscriptionNodeRead(null, null)) { previous, current ->
+            when {
+                current.profileKey == null -> current
+                current.node != null -> current
+                current.profileKey == previous.profileKey -> previous
+                else -> current
+            }
+        }
+        .map { it.node }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -197,7 +217,6 @@ class HomeViewModel(
             }
         }
 
-        /** Convenience for the Android composition root; the ViewModel itself only receives flows. */
         fun factory(
             store: RoutesStore,
             resolveRoutes: suspend (Map<String, AppRoute>) -> EffectiveRoutes,
