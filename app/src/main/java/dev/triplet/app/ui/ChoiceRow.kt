@@ -30,7 +30,7 @@ import dev.triplet.app.R
 
 /**
  * Single-choice list row with radio semantics and a branded square selection mark.
- * Selection is conveyed by both the tonal surface and a non-color check icon.
+ * Geometry follows the compact main-branch list rhythm; branding stays Detour-specific.
  */
 @Composable
 fun ChoiceRow(
@@ -59,7 +59,7 @@ fun ChoiceRow(
                 pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
                 pressScale = Motion.PRESS_RADIO,
             )
-            .heightIn(min = 60.dp)
+            .heightIn(min = 56.dp)
             .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
         verticalAlignment = Alignment.CenterVertically,
     ) {
