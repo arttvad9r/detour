@@ -131,7 +131,7 @@ fun DnsScreen(viewModel: DnsViewModel, onBack: () -> Unit, modifier: Modifier = 
                     title = stringResource(R.string.dns_custom),
                     subtitle = stringResource(R.string.dns_custom_subtitle),
                     server = state.customField.takeIf { it.isNotBlank() },
-                    iconRes = R.drawable.ic_routes,
+                    iconRes = R.drawable.ic_globe,
                     selected = state.editingCustom,
                     onClick = viewModel::editCustom,
                 )
@@ -265,6 +265,13 @@ private fun DnsProviderRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .then(
+                if (selected) {
+                    Modifier.border(1.5.dp, c.accentBorder, AppShapes.small)
+                } else {
+                    Modifier
+                },
+            )
             .detourSelectable(
                 selected = selected,
                 onClick = { if (!selected) onClick() },
