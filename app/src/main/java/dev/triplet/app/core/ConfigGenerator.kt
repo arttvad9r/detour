@@ -194,7 +194,7 @@ $rules""".trim()
         append("  $SUBSCRIPTION_PROVIDER:\n")
         if (!localPath.isNullOrBlank()) {
             append("    type: file\n")
-            append("    path: ${yamlScalar(localPath)}\n")
+            append("    path: ${yamlScalar(localPath)}")
         } else {
             // Unit tests and non-Android callers keep the legacy HTTP source.
             // Production installs SubscriptionProviderMaterializer in TripletApp,
@@ -205,15 +205,12 @@ $rules""".trim()
             append("    size-limit: 4194304\n")
             append("    header:\n")
             append("      User-Agent:\n")
-            append("        - $SUBSCRIPTION_USER_AGENT\n")
+            append("        - $SUBSCRIPTION_USER_AGENT")
         }
-        append("    health-check:\n")
-        append("      enable: true\n")
-        append("      url: https://www.gstatic.com/generate_204\n")
-        append("      interval: 300\n")
-        append("      timeout: 5000\n")
-        append("      lazy: false\n")
-        append("      expected-status: 204")
+        // A select group does not need provider-wide health checks. Running them
+        // eagerly on every VPN start fans out connections to the entire subscription
+        // and can interfere with the one server the user actually selected. Latency
+        // testing is explicit from the subscription screen instead.
     }
 
     private fun renderSubscriptionGroup(): String =
