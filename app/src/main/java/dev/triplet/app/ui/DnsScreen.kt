@@ -68,14 +68,6 @@ fun DnsScreen(viewModel: DnsViewModel, onBack: () -> Unit, modifier: Modifier = 
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
-            DetourFeatureSummary(
-                iconRes = R.drawable.ic_globe,
-                title = stringResource(R.string.dns_hint_title),
-                subtitle = stringResource(R.string.dns_info),
-                modifier = Modifier.padding(horizontal = Spacing.space16),
-            )
-
-            Spacer(Modifier.height(Spacing.space12))
             DetourCard(
                 Modifier
                     .padding(horizontal = Spacing.space16)
