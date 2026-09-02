@@ -64,6 +64,7 @@ import dev.triplet.app.vpn.AutoConnectCoordinator
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
 import dev.triplet.app.vpn.resolveEffectiveRoutes
+import dev.triplet.engine.engine.Engine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -232,6 +233,13 @@ internal fun DetourNavigation(
                         resolveRoutes = { routes ->
                             withContext(Dispatchers.IO) {
                                 resolveEffectiveRoutes(appContext.packageManager, routes)
+                            }
+                        },
+                        readSubscriptionNode = {
+                            withContext(Dispatchers.IO) {
+                                Engine.subscriptionSelectedNode(appContext.cacheDir.absolutePath)
+                                    .trim()
+                                    .takeIf { it.isNotBlank() }
                             }
                         },
                     ),
