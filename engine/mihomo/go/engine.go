@@ -39,6 +39,7 @@ import (
 const (
 	subscriptionProviderName = "DETOUR_SUBSCRIPTION"
 	subscriptionGroupName    = "SUBSCRIPTION"
+	subscriptionUserAgent    = "mihomo/1.19.30"
 	maxSubscriptionBodyBytes = 4 * 1024 * 1024
 	maxSubscriptionNodes     = 256
 )
@@ -182,7 +183,7 @@ func FetchSubscriptionCatalog(subscriptionURL string) string {
 	if err != nil {
 		return ""
 	}
-	req.Header.Set("User-Agent", "Detour")
+	req.Header.Set("User-Agent", subscriptionUserAgent)
 	resp, err := client.Do(req)
 	if err != nil {
 		return ""
@@ -200,15 +201,16 @@ func FetchSubscriptionCatalog(subscriptionURL string) string {
 		Proxies []map[string]any `yaml:"proxies"`
 	}
 	schema := &proxySchema{}
-	if err := mihomoYaml.Unmarshal(body, schema); err != nil {
+	yamlErr := mihomoYaml.Unmarshal(body, schema)
+	// URI/base64 subscription bodies can be valid YAML scalars, so a successful
+	// YAML parse does not imply that a `proxies:` collection was present.
+	// Fall back whenever YAML yielded no nodes, not only when it returned an error.
+	if yamlErr != nil || len(schema.Proxies) == 0 {
 		proxies, convertErr := convert.ConvertsV2Ray(body)
-		if convertErr != nil {
+		if convertErr != nil || len(proxies) == 0 {
 			return ""
 		}
 		schema.Proxies = proxies
-	}
-	if len(schema.Proxies) == 0 {
-		return ""
 	}
 
 	type catalogNode struct {
