@@ -71,7 +71,7 @@ fun DetourBrandedHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 64.dp)
+            .heightIn(min = 56.dp)
             .padding(
                 start = if (showBack) Spacing.space4 else Spacing.space20,
                 end = Spacing.space20,
