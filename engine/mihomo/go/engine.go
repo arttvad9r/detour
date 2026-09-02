@@ -278,8 +278,9 @@ func SelectSubscriptionNode(name string, homeDir string) error {
 	return nil
 }
 
-// SubscriptionSelectedNode returns the live selected node, or the cached node
-// while disconnected. homeDir must be the same app-private directory used by Start.
+// SubscriptionSelectedNode returns the live selected node. If the runtime is
+// temporarily unable to report it while starting/reloading, the persisted
+// selector cache remains the source of truth instead of exposing a blank name.
 func SubscriptionSelectedNode(homeDir string) string {
 	if homeDir != "" {
 		if err := os.MkdirAll(homeDir, 0o700); err == nil {
@@ -289,12 +290,14 @@ func SubscriptionSelectedNode(homeDir string) string {
 	if Ready() {
 		if proxy, ok := tunnel.Proxies()[subscriptionGroupName]; ok {
 			if selector, ok := proxy.Adapter().(*outboundgroup.Selector); ok {
-				return selector.Now()
+				if selected := strings.TrimSpace(selector.Now()); selected != "" {
+					return selected
+				}
 			}
 		}
 	}
 	if selected := cachefile.Cache().SelectedMap(); selected != nil {
-		return selected[subscriptionGroupName]
+		return strings.TrimSpace(selected[subscriptionGroupName])
 	}
 	return ""
 }
