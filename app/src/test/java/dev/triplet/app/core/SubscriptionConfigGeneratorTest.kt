@@ -26,6 +26,7 @@ class SubscriptionConfigGeneratorTest {
         assertTrue(yaml.contains("- UID,10101,SUBSCRIPTION"))
         assertTrue(yaml.contains("name: PROBE_SUBSCRIPTION"))
         assertTrue(yaml.contains("proxy: SUBSCRIPTION"))
+        assertFalse(yaml.contains("health-check:"))
         assertFalse(yaml.contains("type: vless"))
         assertFalse(yaml.contains("- name: SUBSCRIPTION\n  type: fallback"))
     }
