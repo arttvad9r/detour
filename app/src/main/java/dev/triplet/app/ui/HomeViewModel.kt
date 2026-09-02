@@ -59,14 +59,20 @@ internal fun homeProfilePresentation(
     vlessUri: String,
     warpName: String?,
     warpEndpointCount: Int,
+    subscriptionNode: String? = null,
 ): HomeProfilePresentation = when (activeVpn) {
-    VpnProfileKind.VLESS,
-    VpnProfileKind.SUBSCRIPTION,
-    -> {
+    VpnProfileKind.VLESS -> {
         val profile = (VlessKeyParser.parse(vlessUri) as? ParseResult.Ok)?.profile
         HomeProfilePresentation(
             name = profile?.name?.ifBlank { profile.server },
             server = profile?.server,
+        )
+    }
+    VpnProfileKind.SUBSCRIPTION -> {
+        val profile = (VlessKeyParser.parse(vlessUri) as? ParseResult.Ok)?.profile
+        HomeProfilePresentation(
+            name = profile?.name?.ifBlank { profile.server },
+            server = subscriptionNode?.trim()?.takeIf { it.isNotBlank() },
         )
     }
     VpnProfileKind.WARP -> HomeProfilePresentation(
@@ -80,6 +86,7 @@ internal fun homeUiState(
     settings: TriSettings?,
     vpnState: VpnState,
     effectiveRoutes: EffectiveRoutes,
+    subscriptionNode: String? = null,
 ): HomeUiState {
     val activeVpn = settings?.activeVpn ?: VpnProfileKind.VLESS
     val profile = homeProfilePresentation(
@@ -87,6 +94,7 @@ internal fun homeUiState(
         vlessUri = settings?.vlessUri.orEmpty(),
         warpName = settings?.warpProfile?.name,
         warpEndpointCount = settings?.warpProfile?.proxies?.size ?: 0,
+        subscriptionNode = subscriptionNode,
     )
     return HomeUiState(
         vpnState = vpnState,
@@ -106,6 +114,7 @@ class HomeViewModel(
     settings: StateFlow<TriSettings?>,
     vpnState: StateFlow<VpnState>,
     private val resolveRoutes: suspend (Map<String, AppRoute>) -> EffectiveRoutes,
+    private val readSubscriptionNode: suspend () -> String? = { null },
 ) : ViewModel() {
     private val routeRefresh = MutableStateFlow(0L)
 
@@ -126,12 +135,40 @@ class HomeViewModel(
             initialValue = EffectiveRoutes(emptySet(), emptySet()),
         )
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val selectedSubscriptionNode = combine(
+        settings
+            .map { value -> value?.let { it.activeVpn to it.vlessUri } }
+            .distinctUntilChanged(),
+        routeRefresh,
+    ) { profile, _ -> profile }
+        .mapLatest { profile ->
+            val (kind, uri) = profile ?: return@mapLatest null
+            if (kind != VpnProfileKind.SUBSCRIPTION || uri.isBlank()) return@mapLatest null
+            runCatching { readSubscriptionNode() }
+                .getOrNull()
+                ?.trim()
+                ?.takeIf { it.isNotBlank() }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = null,
+        )
+
     val uiState: StateFlow<HomeUiState> = combine(
         settings,
         vpnState,
         effectiveRoutes,
-        ::homeUiState,
-    ).stateIn(
+        selectedSubscriptionNode,
+    ) { currentSettings, currentVpnState, routes, subscriptionNode ->
+        homeUiState(
+            settings = currentSettings,
+            vpnState = currentVpnState,
+            effectiveRoutes = routes,
+            subscriptionNode = subscriptionNode,
+        )
+    }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = HomeUiState(),
@@ -146,11 +183,17 @@ class HomeViewModel(
             settings: StateFlow<TriSettings?>,
             vpnState: StateFlow<VpnState>,
             resolveRoutes: suspend (Map<String, AppRoute>) -> EffectiveRoutes,
+            readSubscriptionNode: suspend () -> String? = { null },
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 require(modelClass.isAssignableFrom(HomeViewModel::class.java))
                 @Suppress("UNCHECKED_CAST")
-                return HomeViewModel(settings, vpnState, resolveRoutes) as T
+                return HomeViewModel(
+                    settings = settings,
+                    vpnState = vpnState,
+                    resolveRoutes = resolveRoutes,
+                    readSubscriptionNode = readSubscriptionNode,
+                ) as T
             }
         }
 
@@ -158,10 +201,12 @@ class HomeViewModel(
         fun factory(
             store: RoutesStore,
             resolveRoutes: suspend (Map<String, AppRoute>) -> EffectiveRoutes,
+            readSubscriptionNode: suspend () -> String? = { null },
         ): ViewModelProvider.Factory = factory(
             settings = store.settings,
             vpnState = VpnController.state,
             resolveRoutes = resolveRoutes,
+            readSubscriptionNode = readSubscriptionNode,
         )
     }
 }
