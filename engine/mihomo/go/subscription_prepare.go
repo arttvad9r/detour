@@ -39,8 +39,8 @@ type subscriptionLatencyNode struct {
 type subscriptionLatencyProbe func(context.Context, map[string]any) (int, error)
 
 // PrepareSubscriptionProvider downloads an HTTPS V2Ray subscription, converts
-// URI/base64 bodies to mihomo YAML and stores only VLESS nodes in app-private
-// cache. The returned absolute path is safe to feed to a file proxy-provider.
+// URI/base64 bodies to mihomo YAML and stores only VLESS nodes that Mihomo can
+// actually parse. The returned absolute path is safe to feed to a file provider.
 // Empty string means the subscription could not be prepared.
 func PrepareSubscriptionProvider(subscriptionURL string, homeDir string) string {
 	proxies, err := fetchPreparedSubscriptionProxies(subscriptionURL)
@@ -65,6 +65,38 @@ func PrepareSubscriptionProvider(subscriptionURL string, homeDir string) string 
 		return ""
 	}
 	return finalPath
+}
+
+// FetchPreparedSubscriptionCatalog returns the same validated VLESS set that
+// PrepareSubscriptionProvider writes for runtime. Keeping catalog and provider
+// on one normalization path prevents the UI from offering a node that would
+// later make Mihomo reject the complete file provider.
+func FetchPreparedSubscriptionCatalog(subscriptionURL string) string {
+	proxies, err := fetchPreparedSubscriptionProxies(subscriptionURL)
+	if err != nil || len(proxies) == 0 {
+		return ""
+	}
+	type catalogNode struct {
+		Name string `json:"name"`
+		Type string `json:"type"`
+	}
+	nodes := make([]catalogNode, 0, len(proxies))
+	for _, proxy := range proxies {
+		name, nameOK := safeCatalogLabel(proxy["name"], 256)
+		proxyType, typeOK := safeCatalogLabel(proxy["type"], 64)
+		if !nameOK || !typeOK {
+			continue
+		}
+		nodes = append(nodes, catalogNode{Name: name, Type: proxyType})
+	}
+	if len(nodes) == 0 {
+		return ""
+	}
+	payload, err := json.Marshal(map[string]any{"nodes": nodes})
+	if err != nil {
+		return ""
+	}
+	return string(payload)
 }
 
 // HealthCheckSubscriptionProvider runs one explicit URL test for every node in
@@ -189,10 +221,11 @@ func fetchPreparedSubscriptionProxies(subscriptionURL string) ([]map[string]any,
 }
 
 // parsePreparedSubscriptionProxies is intentionally separate from network I/O.
-// In particular, a URI/base64 subscription may be accepted by the YAML decoder
-// without yielding a proxies collection; that must still fall back to V2Ray
-// conversion instead of producing the provider error that originally broke
-// otherwise valid subscriptions in Detour.
+// URI/base64 subscription bodies may be accepted by the YAML decoder without a
+// proxies collection, so they still fall back to Mihomo's V2Ray converter.
+// Every retained mapping is then parsed once with Mihomo itself. Its file
+// provider parser is all-or-nothing, so dropping an invalid mapping here keeps
+// one incompatible node from disabling every otherwise valid server.
 func parsePreparedSubscriptionProxies(body []byte) ([]map[string]any, error) {
 	schema := &preparedProxySchema{}
 	yamlErr := mihomoYaml.Unmarshal(body, schema)
@@ -218,6 +251,13 @@ func parsePreparedSubscriptionProxies(body []byte) ([]map[string]any, error) {
 		if _, duplicate := seen[name]; duplicate {
 			continue
 		}
+
+		parsedProxy, parseErr := adapter.ParseProxy(proxy)
+		if parseErr != nil {
+			continue
+		}
+		_ = parsedProxy.Close()
+
 		seen[name] = struct{}{}
 		prepared = append(prepared, proxy)
 		if len(prepared) >= maxSubscriptionNodes {
@@ -225,7 +265,7 @@ func parsePreparedSubscriptionProxies(body []byte) ([]map[string]any, error) {
 		}
 	}
 	if len(prepared) == 0 {
-		return nil, errors.New("subscription has no VLESS nodes")
+		return nil, errors.New("subscription has no supported VLESS nodes")
 	}
 	return prepared, nil
 }
