@@ -63,7 +63,7 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
         if (
             state.catalog.isNotEmpty() &&
             state.selectionStatus != SubscriptionSelectionStatus.SAVING &&
-            state.selectedNode !in state.catalog.map { it.name }
+            state.selectedNode.isNullOrBlank()
         ) {
             runtimeViewModel.selectNode(state.catalog.first().name)
         }
