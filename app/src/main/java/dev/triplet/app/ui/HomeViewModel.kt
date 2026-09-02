@@ -146,7 +146,7 @@ class HomeViewModel(
         settings
             .map { value -> value?.let { it.activeVpn to it.vlessUri } }
             .distinctUntilChanged(),
-        vpnState.distinctUntilChanged(),
+        vpnState,
         routeRefresh,
     ) { profile, _, _ -> profile }
         .mapLatest { profile ->
