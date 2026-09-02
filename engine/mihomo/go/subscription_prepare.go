@@ -252,6 +252,12 @@ func parsePreparedSubscriptionProxies(body []byte) ([]map[string]any, error) {
 			continue
 		}
 
+		// Normalize fields used as Mihomo/provider identifiers before parsing.
+		// The UI already compares type case-insensitively and trims labels, while
+		// Mihomo expects the canonical outbound type and exact selector names.
+		proxy["type"] = "vless"
+		proxy["name"] = name
+
 		parsedProxy, parseErr := adapter.ParseProxy(proxy)
 		if parseErr != nil {
 			continue
