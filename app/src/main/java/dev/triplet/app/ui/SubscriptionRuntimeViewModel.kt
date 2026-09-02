@@ -221,7 +221,7 @@ class SubscriptionRuntimeViewModel : ViewModel() {
             try {
                 _uiState.value = _uiState.value.copy(catalogStatus = SubscriptionCatalogStatus.LOADING)
                 val nodes = withContext(Dispatchers.IO) {
-                    parseCatalog(Engine.fetchSubscriptionCatalog(url))
+                    parseCatalog(Engine.fetchPreparedSubscriptionCatalog(url))
                 }
                 val names = nodes.mapTo(HashSet()) { it.name }
                 _uiState.value = _uiState.value.copy(
