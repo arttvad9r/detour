@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import dev.triplet.app.core.AppRoute
+import dev.triplet.app.core.ParseResult
+import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.data.TriSettings
@@ -28,6 +30,7 @@ import kotlinx.coroutines.sync.withLock
 data class SettingsMenuUiState(
     val routedCount: Int = 0,
     val hasVless: Boolean = false,
+    val hasSubscription: Boolean = false,
     val hasWarp: Boolean = false,
     val autoConnect: Boolean = false,
     val vpnState: VpnState = VpnState.Idle,
@@ -40,14 +43,22 @@ internal fun settingsMenuUiState(
     settings: TriSettings?,
     routedCount: Int,
     autoConnectOverride: Boolean? = null,
-): SettingsMenuUiState = SettingsMenuUiState(
-    routedCount = routedCount,
-    hasVless = settings?.vlessKeys?.items?.isNotEmpty() == true,
-    hasWarp = settings?.warpProfile != null,
-    autoConnect = autoConnectOverride ?: (settings?.autoConnect == true),
-    sessionStartedAt = settings?.sessionStartedAt,
-    activeVpn = settings?.activeVpn ?: VpnProfileKind.VLESS,
-)
+): SettingsMenuUiState {
+    val keys = settings?.vlessKeys?.items.orEmpty()
+    val subscriptionIds = keys.mapNotNull { key ->
+        val parsed = VlessKeyParser.parse(key.uri) as? ParseResult.Ok
+        key.id.takeIf { parsed?.profile?.isSubscription == true }
+    }.toSet()
+    return SettingsMenuUiState(
+        routedCount = routedCount,
+        hasVless = keys.any { it.id !in subscriptionIds },
+        hasSubscription = subscriptionIds.isNotEmpty(),
+        hasWarp = settings?.warpProfile != null,
+        autoConnect = autoConnectOverride ?: (settings?.autoConnect == true),
+        sessionStartedAt = settings?.sessionStartedAt,
+        activeVpn = settings?.activeVpn ?: VpnProfileKind.VLESS,
+    )
+}
 
 class SettingsMenuViewModel(
     private val settings: StateFlow<TriSettings?>,

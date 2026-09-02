@@ -75,14 +75,14 @@ internal fun SettingsMenuScreen(
     val profiles = MenuItem(
         R.string.nav_key,
         {
-            stringResource(
-                when {
-                    state.hasVless && state.hasWarp -> R.string.nav_key_sub
-                    state.hasVless -> R.string.nav_key_sub_vless
-                    state.hasWarp -> R.string.nav_key_sub_warp
-                    else -> R.string.nav_key_sub_none
-                },
-            )
+            val configured = buildList {
+                if (state.hasVless) add(stringResource(R.string.protocol_vless))
+                if (state.hasSubscription) add(stringResource(R.string.subscription_profile_section))
+                if (state.hasWarp) add(stringResource(R.string.nav_key_sub_warp))
+            }
+            configured.takeIf { it.isNotEmpty() }
+                ?.joinToString(" + ")
+                ?: stringResource(R.string.nav_key_sub_none)
         },
         R.drawable.ic_profile,
         SettingsSection.PROFILES,
