@@ -2,9 +2,9 @@ package dev.triplet.app.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -69,6 +69,10 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
         }
     }
 
+    val runtimeNodes = remember(state.provider.nodes) {
+        state.provider.nodes.associateBy { it.name }
+    }
+
     Column(modifier.padding(horizontal = Spacing.space16)) {
         Row(
             modifier = Modifier
@@ -83,10 +87,26 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
                 modifier = Modifier.weight(1f),
             )
             TextButton(
+                onClick = runtimeViewModel::testLatency,
+                enabled = connected && state.provider.available && !state.latencyTesting,
+            ) {
+                Text(
+                    text = stringResource(
+                        if (state.latencyTesting) {
+                            R.string.subscription_latency_testing
+                        } else {
+                            R.string.subscription_latency_test
+                        },
+                    ),
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+            TextButton(
                 onClick = { runtimeViewModel.refresh(connected) },
                 enabled = subscriptionUrl != null &&
                     state.catalogStatus != SubscriptionCatalogStatus.LOADING &&
-                    state.status != SubscriptionRuntimeStatus.REFRESHING,
+                    state.status != SubscriptionRuntimeStatus.REFRESHING &&
+                    !state.latencyTesting,
             ) {
                 Text(
                     text = stringResource(
@@ -104,7 +124,14 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
             }
         }
 
-        Spacer(Modifier.height(Spacing.space4))
+        if (!connected && state.catalog.isNotEmpty()) {
+            Text(
+                text = stringResource(R.string.subscription_latency_connect_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = c.textMuted,
+                modifier = Modifier.padding(bottom = Spacing.space8),
+            )
+        }
 
         when {
             state.catalog.isNotEmpty() -> {
@@ -112,6 +139,7 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
                     nodes = state.catalog.take(MAX_SUBSCRIPTION_NODE_ROWS),
                     selectedNode = state.selectedNode,
                     selecting = state.selectionStatus == SubscriptionSelectionStatus.SAVING,
+                    latencyByName = runtimeNodes.mapValues { it.value.delayMs },
                     onSelect = runtimeViewModel::selectNode,
                 )
                 val hiddenCount = (state.catalog.size - MAX_SUBSCRIPTION_NODE_ROWS).coerceAtLeast(0)
@@ -156,6 +184,7 @@ private fun SubscriptionServerList(
     nodes: List<SubscriptionCatalogNode>,
     selectedNode: String?,
     selecting: Boolean,
+    latencyByName: Map<String, Int?>,
     onSelect: (String) -> Unit,
 ) {
     DetourCard(Modifier.selectableGroup()) {
@@ -164,6 +193,7 @@ private fun SubscriptionServerList(
                 name = node.name,
                 selected = node.name == selectedNode,
                 enabled = !selecting,
+                delayMs = latencyByName[node.name],
                 onSelect = { onSelect(node.name) },
             )
             if (index < nodes.lastIndex) GroupDivider(startInset = 56)
@@ -176,6 +206,7 @@ private fun SubscriptionNodeRow(
     name: String,
     selected: Boolean,
     enabled: Boolean,
+    delayMs: Int?,
     onSelect: () -> Unit,
 ) {
     val c = detourColors
@@ -189,8 +220,8 @@ private fun SubscriptionNodeRow(
                 pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
                 pressScale = Motion.PRESS_RADIO,
             )
-            .heightIn(min = 56.dp)
-            .padding(horizontal = Spacing.space16, vertical = Spacing.space8),
+            .heightIn(min = 52.dp)
+            .padding(horizontal = Spacing.space16, vertical = Spacing.space4),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SelectionMark(selected = selected)
@@ -204,9 +235,19 @@ private fun SubscriptionNodeRow(
                 .padding(start = Spacing.space12)
                 .weight(1f),
         )
+        if (delayMs != null) {
+            Text(
+                text = stringResource(R.string.subscription_node_delay, delayMs),
+                style = MaterialTheme.typography.labelMedium,
+                color = c.textSecondary,
+                modifier = Modifier.padding(start = Spacing.space8),
+            )
+        }
         if (!enabled && selected) {
             CircularProgressIndicator(
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier
+                    .padding(start = Spacing.space8)
+                    .size(18.dp),
                 strokeWidth = 2.dp,
                 color = c.accent,
             )
