@@ -4,4 +4,5 @@
     <string name="routes_refresh_error">Не удалось обновить приложения. Показан последний загруженный список.</string>
     <string name="routes_empty">Не найдено приложений для запуска.</string>
     <string name="routes_no_results">Нет приложений, подходящих под текущие фильтры. Очистите поиск или измените фильтр системных приложений.</string>
+    <string name="route_direct_compact">Прямой</string>
 </resources>

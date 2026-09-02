@@ -165,8 +165,8 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = Spacing.space12, vertical = Spacing.space8)
-                    .heightIn(min = 52.dp)
+                    .padding(horizontal = Spacing.space12, vertical = Spacing.space4)
+                    .heightIn(min = 48.dp)
                     .clip(AppShapes.extraSmall)
                     .background(c.surfaceSoft)
                     .border(1.dp, searchBorder, AppShapes.extraSmall)
@@ -215,7 +215,7 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
                         pressedColor = c.surfaceSelected.copy(alpha = 0.32f),
                         pressScale = Motion.PRESS_ROW,
                     )
-                    .heightIn(min = 60.dp)
+                    .heightIn(min = 56.dp)
                     .padding(start = Spacing.space16, end = Spacing.space12, top = Spacing.space4, bottom = Spacing.space4),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -436,7 +436,7 @@ private fun AppRow(
     BoxWithConstraints(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = Spacing.space12, vertical = Spacing.space8),
+            .padding(horizontal = Spacing.space12, vertical = Spacing.space4),
     ) {
         val inline = maxWidth >= AppRouteInlineMinWidth && density.fontScale <= 1.30f
         if (inline) {
@@ -454,6 +454,7 @@ private fun AppRow(
                 AppRouteSelector(
                     current = current,
                     onSelect = onSelect,
+                    compactLabels = true,
                     modifier = Modifier.width(176.dp),
                 )
             }
@@ -536,14 +537,23 @@ private fun AppIdentity(
 private fun AppRouteSelector(
     current: AppRoute,
     onSelect: (AppRoute) -> Unit,
+    compactLabels: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     SegmentedControl(
-        options = AppRoute.entries.map { stringResource(routeLabel(it)) },
+        options = AppRoute.entries.map {
+            stringResource(if (compactLabels) routeCompactLabel(it) else routeLabel(it))
+        },
         selected = AppRoute.entries.indexOf(current),
         onSelect = { idx -> onSelect(AppRoute.entries[idx]) },
         modifier = modifier,
     )
+}
+
+private fun routeCompactLabel(r: AppRoute): Int = when (r) {
+    AppRoute.DIRECT -> R.string.route_direct_compact
+    AppRoute.VPN -> R.string.route_vpn
+    AppRoute.DPI -> R.string.route_dpi
 }
 
 fun routeLabel(r: AppRoute): Int = when (r) {
