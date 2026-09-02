@@ -141,8 +141,9 @@ func SubscriptionProviderState() string {
 	return string(payload)
 }
 
-// RefreshSubscriptionProvider forces a remote provider update, then refreshes
-// its health state. Callers must run this away from Android's main thread.
+// RefreshSubscriptionProvider reloads the provider after Android has atomically
+// replaced its app-private file. Latency checks are an explicit, separate user
+// action and must not fan out connections merely because the list was refreshed.
 func RefreshSubscriptionProvider() error {
 	if !Ready() {
 		return errors.New("engine is not ready")
@@ -154,7 +155,6 @@ func RefreshSubscriptionProvider() error {
 	if err := provider.Update(); err != nil {
 		return redactError(err)
 	}
-	provider.HealthCheck()
 	return nil
 }
 
