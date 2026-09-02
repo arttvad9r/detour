@@ -20,11 +20,13 @@ import (
 
 const (
 	subscriptionProviderFileName = "detour-subscription.yaml"
-	subscriptionLatencyTestURL   = "https://www.gstatic.com/generate_204"
-	subscriptionLatencyTimeout   = 5 * time.Second
-	// Mihomo's own provider HealthCheck uses the same concurrency limit. This is
-	// only a parallelism cap; every prepared node must still be tested.
-	subscriptionLatencyParallel = 10
+	// Match NekoBox's default connectivity-test target. HTTP intentionally avoids
+	// measuring a second, destination-side TLS handshake on top of VLESS/Reality.
+	subscriptionLatencyTestURL = "http://cp.cloudflare.com/"
+	subscriptionLatencyTimeout = 5 * time.Second
+	// Keep mobile-radio pressure modest. This is only a parallelism cap; every
+	// prepared node is still tested before the method returns.
+	subscriptionLatencyParallel = 5
 )
 
 type preparedProxySchema struct {
