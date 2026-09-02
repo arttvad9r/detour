@@ -18,6 +18,7 @@ import javax.net.ssl.SSLSocketFactory
 object HealthCheck {
     private const val MAX_HTTP_LINE_BYTES = 8 * 1024
     private const val MAX_HTTP_HEADERS = 100
+    private const val COLD_ROUTE_RETRY_DELAY_MS = 300L
 
     private val endpoints = listOf(
         "https://www.gstatic.com/generate_204",
@@ -31,10 +32,15 @@ object HealthCheck {
         cancelled: () -> Boolean = { false },
         credentials: ProbeCredentials = ProbeAuth.current(),
     ): Boolean {
-        // Route validation runs after the UI is already Active, so one retry no
-        // longer blocks the Connecting state. This absorbs cold DNS/TLS/provider
-        // startup after switching profiles instead of reporting a false failure.
-        return retry(endpoints, attempts = 2, cancelled = cancelled) { endpoint ->
+        // Route validation runs after the UI is already Active. A short backoff
+        // between attempts gives a freshly restarted VLESS adapter time to finish
+        // cold DNS/TLS setup without delaying a route that succeeds immediately.
+        return retry(
+            endpoints = endpoints,
+            attempts = 2,
+            retryDelayMs = COLD_ROUTE_RETRY_DELAY_MS,
+            cancelled = cancelled,
+        ) { endpoint ->
             try {
                 val code = requestThroughAuthenticatedProxy(endpoint, proxyPort, timeoutMs, credentials)
                 val ok = code == 204
@@ -137,12 +143,25 @@ object HealthCheck {
     }
 
     internal fun retry(
-        endpoints: List<String>, attempts: Int, cancelled: () -> Boolean = { false },
+        endpoints: List<String>,
+        attempts: Int,
+        retryDelayMs: Long = 0L,
+        cancelled: () -> Boolean = { false },
         check: (String) -> Boolean,
     ): Boolean {
-        for (endpoint in endpoints) repeat(attempts) {
-            if (cancelled() || Thread.currentThread().isInterrupted) return false
-            if (check(endpoint)) return true
+        for (endpoint in endpoints) {
+            repeat(attempts) { attempt ->
+                if (cancelled() || Thread.currentThread().isInterrupted) return false
+                if (check(endpoint)) return true
+                if (attempt < attempts - 1 && retryDelayMs > 0L) {
+                    try {
+                        Thread.sleep(retryDelayMs)
+                    } catch (_: InterruptedException) {
+                        Thread.currentThread().interrupt()
+                        return false
+                    }
+                }
+            }
         }
         return false
     }
