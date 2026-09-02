@@ -35,9 +35,9 @@
     <string name="nav_routes">App routes</string>
     <string name="nav_routes_sub">in tunnel: %1$d</string>
     <string name="nav_key">VPN profiles</string>
-    <string name="nav_key_sub">VLESS / subscription + WARP</string>
+    <string name="nav_key_sub">VLESS + WARP</string>
     <string name="nav_key_sub_none">not configured</string>
-    <string name="nav_key_sub_vless">VLESS / subscription</string>
+    <string name="nav_key_sub_vless">VLESS</string>
     <string name="nav_key_sub_warp">WARP / AmneziaWG</string>
     <string name="nav_theme">Appearance</string>
     <string name="theme_title">Appearance</string>
@@ -94,7 +94,7 @@
     <string name="vless_edit_title">Edit VPN link</string>
     <string name="profile_empty">No VPN profiles yet. Tap + to add one.</string>
     <string name="profile_add_title">Add VPN profile</string>
-    <string name="profile_add_vless">VLESS / subscription</string>
+    <string name="profile_add_vless">VLESS</string>
     <string name="profile_add_vless_sub">Add a VLESS Reality link or HTTPS subscription URL</string>
     <string name="profile_add_warp">WARP / AmneziaWG</string>
     <string name="profile_add_warp_sub">Import YAML or CONF</string>
