@@ -2,8 +2,8 @@ package dev.triplet.app.core
 
 import org.json.JSONArray
 import org.json.JSONObject
-import java.util.UUID
 import java.net.InetAddress
+import java.util.UUID
 
 enum class VpnProfileKind {
     VLESS,
@@ -220,10 +220,22 @@ private fun requireIpLiteral(value: String) {
     require(isValidIpLiteral(value))
 }
 
-private fun isValidIpLiteral(value: String): Boolean = runCatching {
-    InetAddress.getByName(value)
-    value.contains(':') || value.matches(Regex("\\d{1,3}(\\.\\d{1,3}){3}"))
-}.getOrDefault(false)
+private fun isValidIpLiteral(value: String): Boolean {
+    if (value.isBlank() || value != value.trim() || !value.hasNoControlCharacters()) return false
+    if (value.contains(':')) {
+        // A colon cannot occur in a DNS hostname. Restrict InetAddress to the
+        // IPv6-literal branch so validation never performs hostname resolution.
+        return runCatching {
+            InetAddress.getByName(value).address.size == 16
+        }.getOrDefault(false)
+    }
+    val parts = value.split('.')
+    if (parts.size != 4) return false
+    return parts.all { part ->
+        part.isNotEmpty() && part.all(Char::isDigit) &&
+            part.toIntOrNull()?.let { it in 0..255 } == true
+    }
+}
 
 private fun isValidCidr(value: String): Boolean {
     if (value.any { it.code < 0x20 || it.code == 0x7f }) return false
