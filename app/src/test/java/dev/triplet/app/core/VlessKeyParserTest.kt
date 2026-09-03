@@ -44,8 +44,9 @@ class VlessKeyParserTest {
         assertTrue(VlessKeyParser.parse("trojan://example.com") is ParseResult.Err)
     }
 
-    @Test fun `rejects subscription fragments and invalid hosts`() {
+    @Test fun `rejects subscription fragments userinfo and invalid hosts`() {
         assertTrue(VlessKeyParser.parse("https://subscription.example/key#ignored") is ParseResult.Err)
+        assertTrue(VlessKeyParser.parse("https://user:secret@subscription.example/key") is ParseResult.Err)
         assertTrue(VlessKeyParser.parse("https:///missing-host") is ParseResult.Err)
     }
 
