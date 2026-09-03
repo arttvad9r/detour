@@ -164,7 +164,7 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                             selectedNode = selected ?: _uiState.value.selectedNode,
                             status = SubscriptionRuntimeStatus.IDLE,
                         )
-                        selected?.let { logSelectedNodeDiagnostics(url, it) }
+                        selected?.let { logSelectedNodeDiagnostics(boundCacheDir, it) }
                     } catch (cancelled: CancellationException) {
                         _uiState.value = _uiState.value.copy(status = SubscriptionRuntimeStatus.IDLE)
                         throw cancelled
@@ -226,7 +226,7 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                     selectedNode = selected,
                     selectionStatus = SubscriptionSelectionStatus.IDLE,
                 )
-                boundUrl?.let { logSelectedNodeDiagnostics(it, selected) }
+                logSelectedNodeDiagnostics(boundCacheDir, selected)
             } catch (cancelled: CancellationException) {
                 _uiState.value = _uiState.value.copy(
                     selectedNode = previous,
@@ -298,9 +298,8 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                         },
                     )
                     val node = selected ?: _uiState.value.selectedNode
-                    val url = boundUrl
-                    if (node != null && url != null) {
-                        logSelectedNodeDiagnostics(url, node)
+                    if (node != null) {
+                        logSelectedNodeDiagnostics(boundCacheDir, node)
                     }
                 } catch (cancelled: CancellationException) {
                     _uiState.value = _uiState.value.copy(status = SubscriptionRuntimeStatus.IDLE)
@@ -312,9 +311,9 @@ class SubscriptionRuntimeViewModel : ViewModel() {
         }
     }
 
-    private suspend fun logSelectedNodeDiagnostics(url: String, nodeName: String) {
+    private suspend fun logSelectedNodeDiagnostics(homeDir: String, nodeName: String) {
         val diagnostics = withContext(Dispatchers.IO) {
-            Engine.subscriptionNodeDiagnostics(url, nodeName)
+            Engine.subscriptionNodeDiagnostics(homeDir, nodeName)
         }
         if (diagnostics.isNotBlank()) {
             Log.i(PROXY_CONFIG_LOG_TAG, "[DETOUR_PROXY_CONFIG] $diagnostics")
