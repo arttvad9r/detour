@@ -109,6 +109,30 @@ else:
     raise SystemExit(f"FATAL: VLESS gRPC converter layout changed: {p}")
 PYEOF
 
+# XTLS Vision is defined for VLESS over the raw TCP transport. Some subscription
+# generators nevertheless attach flow=xtls-rprx-vision to gRPC nodes. Xray treats
+# Vision as TCP-only, while Mihomo v1.19.30 attempts to wrap the gRPC gun.Conn in
+# vision.NewConn and cannot find the required outer TLS connection. Ignore only
+# that invalid gRPC+Vision combination; valid TCP Vision profiles are untouched.
+python3 - <<'PYEOF'
+p = 'adapter/outbound/vless.go'
+s = open(p).read()
+old = '''func NewVless(option VlessOption) (*Vless, error) {
+\tvar addons *vless.Addons'''
+new = '''func NewVless(option VlessOption) (*Vless, error) {
+\tif strings.EqualFold(option.Network, "grpc") && option.Flow == vless.XRV {
+\t\toption.Flow = ""
+\t}
+\tvar addons *vless.Addons'''
+if old in s:
+    open(p, 'w').write(s.replace(old, new, 1))
+    print("VLESS gRPC Vision compatibility patch applied")
+elif new in s:
+    print("VLESS gRPC Vision compatibility patch already applied")
+else:
+    raise SystemExit(f"FATAL: VLESS NewVless layout changed: {p}")
+PYEOF
+
 # Xray-core v26.7.11+ defaults REALITY minClientVer to 26.3.27. Mihomo
 # v1.19.30 still advertises 1.8.2 in the encrypted ClientHello SessionId, so a
 # default modern Xray REALITY server rejects the handshake and the client sees
