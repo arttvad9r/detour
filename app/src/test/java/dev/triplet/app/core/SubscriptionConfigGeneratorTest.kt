@@ -26,11 +26,14 @@ class SubscriptionConfigGeneratorTest {
         }
     }
 
-    @Test fun `subscription uses dedicated provider and manual selector group`() {
+    @Test fun `subscription uses dedicated provider and detour owned selector persistence`() {
         val input = RoutingInput(
             tunFd = 7,
             apiLevel = 33,
-            vpn = VpnOutbound.Subscription("https://subscription.example/opaque-token"),
+            vpn = VpnOutbound.Subscription(
+                url = "https://subscription.example/opaque-token",
+                selectedNode = "Preferred Node",
+            ),
             vpnApps = setOf("org.telegram.messenger"),
             vpnUids = mapOf("org.telegram.messenger" to 10101),
             dpiApps = emptySet(),
@@ -38,11 +41,12 @@ class SubscriptionConfigGeneratorTest {
 
         val yaml = ConfigGenerator.build(input)
 
-        assertTrue(yaml.contains("profile:\n  store-selected: true"))
+        assertTrue(yaml.contains("profile:\n  store-selected: false"))
         assertTrue(yaml.contains("proxy-providers:\n  DETOUR_SUBSCRIPTION:"))
         assertTrue(yaml.contains("url: \"https://subscription.example/opaque-token\""))
         assertTrue(yaml.contains("header:\n      User-Agent:\n        - mihomo/1.19.30"))
         assertTrue(yaml.contains("- name: SUBSCRIPTION\n  type: select"))
+        assertTrue(yaml.contains("default-selected: \"Preferred Node\""))
         assertTrue(yaml.contains("use:\n    - DETOUR_SUBSCRIPTION"))
         assertTrue(yaml.contains("- UID,10101,SUBSCRIPTION"))
         assertTrue(yaml.contains("name: PROBE_SUBSCRIPTION"))
@@ -50,6 +54,21 @@ class SubscriptionConfigGeneratorTest {
         assertFalse(yaml.contains("health-check:"))
         assertFalse(yaml.contains("type: vless"))
         assertFalse(yaml.contains("- name: SUBSCRIPTION\n  type: fallback"))
+    }
+
+    @Test fun `subscription without persisted node leaves selector unset`() {
+        val yaml = ConfigGenerator.build(
+            RoutingInput(
+                tunFd = 7,
+                apiLevel = 33,
+                vpn = VpnOutbound.Subscription("https://subscription.example/opaque-token"),
+                vpnApps = setOf("org.telegram.messenger"),
+                vpnUids = mapOf("org.telegram.messenger" to 10101),
+                dpiApps = emptySet(),
+            ),
+        )
+
+        assertFalse(yaml.contains("default-selected:"))
     }
 
     @Test(expected = IllegalArgumentException::class)
