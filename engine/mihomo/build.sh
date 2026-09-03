@@ -326,16 +326,16 @@ old_import = '''\tC "github.com/metacubex/mihomo/constant"
 new_import = '''\tC "github.com/metacubex/mihomo/constant"
 \t"github.com/metacubex/mihomo/log"
 \t"github.com/metacubex/mihomo/tunnel"'''
-old_result = '''\t\tdelay, testErr := probe(ctx)
-\t\tif testErr == nil && delay > 0 {
-\t\t\tresults[i].DelayMs = delay
-\t\t}'''
-new_result = '''\t\tdelay, testErr := probe(ctx)
-\t\tif testErr == nil && delay > 0 {
-\t\t\tresults[i].DelayMs = delay
-\t\t} else if testErr != nil {
-\t\t\tlog.Errorln("[DETOUR_SUBSCRIPTION_TEST] node=%q class=%s error=%s", results[i].Name, adapter.DetourURLTestErrorClass(testErr), adapter.DetourURLTestErrorText(testErr))
-\t\t}'''
+old_result = '''\t\t\tdelay, testErr := probe(ctx)
+\t\t\tif testErr == nil && delay > 0 {
+\t\t\t\tresults[i].DelayMs = delay
+\t\t\t}'''
+new_result = '''\t\t\tdelay, testErr := probe(ctx)
+\t\t\tif testErr == nil && delay > 0 {
+\t\t\t\tresults[i].DelayMs = delay
+\t\t\t} else if testErr != nil {
+\t\t\t\tlog.Errorln("[DETOUR_SUBSCRIPTION_TEST] node=%q class=%s error=%s", results[i].Name, adapter.DetourURLTestErrorClass(testErr), adapter.DetourURLTestErrorText(testErr))
+\t\t\t}'''
 if old_import in s and old_result in s:
     s = s.replace(old_import, new_import, 1)
     s = s.replace(old_result, new_result, 1)
