@@ -23,6 +23,9 @@ func TestPreparedSubscriptionUsesHostAsMissingRealitySNI(t *testing.T) {
 	if got := proxies[0]["client-fingerprint"]; got != "iOS" {
 		t.Fatalf("client-fingerprint = %v, want iOS", got)
 	}
+	if got := proxies[0]["flow"]; got != "xtls-rprx-vision" {
+		t.Fatalf("flow = %v, want xtls-rprx-vision", got)
+	}
 }
 
 func TestPreparedSubscriptionExplicitSNIWinsOverHost(t *testing.T) {
@@ -37,6 +40,9 @@ func TestPreparedSubscriptionExplicitSNIWinsOverHost(t *testing.T) {
 	}
 	if got := proxies[0]["servername"]; got != "github.io" {
 		t.Fatalf("servername = %v, want explicit github.io", got)
+	}
+	if got := proxies[0]["flow"]; got != "xtls-rprx-vision" {
+		t.Fatalf("flow = %v, want xtls-rprx-vision", got)
 	}
 }
 
@@ -56,5 +62,38 @@ func TestPreparedSubscriptionNormalizesBase64VlessCompatibility(t *testing.T) {
 	}
 	if got := proxies[0]["client-fingerprint"]; got != "iOS" {
 		t.Fatalf("client-fingerprint = %v, want iOS", got)
+	}
+	if got := proxies[0]["flow"]; got != "xtls-rprx-vision" {
+		t.Fatalf("flow = %v, want xtls-rprx-vision", got)
+	}
+}
+
+func TestPreparedSubscriptionStripsLegacyFlowUdp443Suffix(t *testing.T) {
+	const link = "vless://a1b2c3d4-eacc-4433-981b-7e5f9a8b1234@142.98.76.54:34888?encryption=none&security=reality&type=tcp&sni=github.io&fp=chrome&pbk=" + compatRealityPublicKey + "&sid=6ba85179f3a2b4c5&flow=xtls-rprx-vision-udp443#LegacyFlow"
+
+	proxies, err := parsePreparedSubscriptionProxies([]byte(link))
+	if err != nil {
+		t.Fatalf("Reality VLESS subscription body was rejected: %v", err)
+	}
+	if len(proxies) != 1 {
+		t.Fatalf("got %d proxies, want 1", len(proxies))
+	}
+	if got := proxies[0]["flow"]; got != "xtls-rprx-vision" {
+		t.Fatalf("flow = %v, want xtls-rprx-vision", got)
+	}
+}
+
+func TestPreparedSubscriptionDoesNotInventMissingFlow(t *testing.T) {
+	const link = "vless://a1b2c3d4-eacc-4433-981b-7e5f9a8b1234@142.98.76.54:34888?encryption=none&security=reality&type=tcp&sni=github.io&fp=chrome&pbk=" + compatRealityPublicKey + "&sid=6ba85179f3a2b4c5#NoFlow"
+
+	proxies, err := parsePreparedSubscriptionProxies([]byte(link))
+	if err != nil {
+		t.Fatalf("Reality VLESS subscription body was rejected: %v", err)
+	}
+	if len(proxies) != 1 {
+		t.Fatalf("got %d proxies, want 1", len(proxies))
+	}
+	if got, exists := proxies[0]["flow"]; exists && got != "" {
+		t.Fatalf("flow = %v, want absent/empty", got)
 	}
 }
