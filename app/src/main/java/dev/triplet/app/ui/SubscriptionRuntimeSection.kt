@@ -235,7 +235,7 @@ private fun SubscriptionNodeRow(
                 pressScale = Motion.PRESS_RADIO,
             )
             .heightIn(min = 52.dp)
-            .padding(horizontal = Spacing.space16, vertical = Spacing.space6),
+            .padding(horizontal = Spacing.space16, vertical = Spacing.space4),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SelectionMark(selected = selected)
