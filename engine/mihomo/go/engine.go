@@ -6,6 +6,7 @@
 package engine
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,8 +24,8 @@ import (
 
 	"github.com/metacubex/mihomo/adapter/outboundgroup"
 	"github.com/metacubex/mihomo/common/convert"
-	mihomoYaml "github.com/metacubex/mihomo/common/yaml"
 	"github.com/metacubex/mihomo/common/observable"
+	mihomoYaml "github.com/metacubex/mihomo/common/yaml"
 	"github.com/metacubex/mihomo/component/process"
 	"github.com/metacubex/mihomo/component/profile/cachefile"
 	"github.com/metacubex/mihomo/config"
@@ -53,6 +54,7 @@ type ProcessResolver interface {
 }
 
 var hostResolver ProcessResolver
+var runtimeMu sync.Mutex
 var readyMu sync.RWMutex
 var ready bool
 
@@ -82,6 +84,8 @@ func init() {
 
 // Start parses configYAML and applies it. Logs are mirrored to logPath when non-empty.
 func Start(configYAML string, logPath string) (err error) {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
 	readyMu.Lock()
 	ready = false
 	readyMu.Unlock()
@@ -108,6 +112,9 @@ func Start(configYAML string, logPath string) (err error) {
 		return err
 	}
 	executor.ApplyConfig(cfg, true)
+	if cfg.General.Tun.Enable && !listener.LastTunConf.Enable {
+		return errors.New("failed to create TUN")
+	}
 	readyMu.Lock()
 	ready = true
 	readyMu.Unlock()
@@ -274,8 +281,16 @@ func SelectSubscriptionNode(name string, homeDir string) error {
 			return redactError(err)
 		}
 	}
-	cachefile.Cache().SetSelected(subscriptionGroupName, name)
+	cachefile.Cache().SetSelected(subscriptionSelectionKey(homeDir), name)
 	return nil
+}
+
+func subscriptionSelectionKey(homeDir string) string {
+	if homeDir == "" {
+		return subscriptionGroupName
+	}
+	hash := sha256.Sum256([]byte(filepath.Clean(homeDir)))
+	return subscriptionGroupName + "-" + fmt.Sprintf("%x", hash[:])
 }
 
 // resolveSubscriptionSelection prevents mihomo's temporary empty-group proxy
@@ -317,7 +332,10 @@ func SubscriptionSelectedNode(homeDir string) string {
 
 	cached := ""
 	if selected := cachefile.Cache().SelectedMap(); selected != nil {
-		cached = selected[subscriptionGroupName]
+		cached = selected[subscriptionSelectionKey(homeDir)]
+		if cached == "" && homeDir != "" {
+			cached = selected[subscriptionGroupName]
+		}
 	}
 	return resolveSubscriptionSelection(live, emptyFallback, cached)
 }
@@ -350,6 +368,8 @@ func safeCatalogLabel(value any, maxChars int) (string, bool) {
 
 // Stop shuts down the mihomo runtime.
 func Stop() {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
 	readyMu.Lock()
 	ready = false
 	readyMu.Unlock()

@@ -5,12 +5,87 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/metacubex/mihomo/component/profile"
 	"github.com/metacubex/mihomo/config"
 )
 
 func TestReadyIsFalseBeforeStart(t *testing.T) {
 	if Ready() {
 		t.Fatal("engine must not report readiness before Start")
+	}
+}
+
+func TestStartDoesNotReportReadyWhenTunCreationFails(t *testing.T) {
+	Stop()
+	config := `
+mode: rule
+log-level: silent
+proxies: []
+tun:
+  enable: true
+  file-descriptor: 2147483647
+rules:
+  - MATCH,DIRECT
+`
+
+	if err := Start(config, t.TempDir()+"/engine.log"); err == nil {
+		t.Fatal("Start must report failed TUN creation")
+	}
+	if Ready() {
+		t.Fatal("failed TUN creation must not publish readiness")
+	}
+}
+
+func TestConcurrentStartAndStopLeaveEngineStopped(t *testing.T) {
+	Stop()
+	config := "mode: rule\nlog-level: silent\nproxies: []\nrules:\n  - MATCH,DIRECT\n"
+	started := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		for i := 0; i < 8; i++ {
+			_ = Start(config, "")
+		}
+		close(started)
+	}()
+	go func() {
+		for i := 0; i < 8; i++ {
+			Stop()
+		}
+		close(done)
+	}()
+	<-started
+	<-done
+	Stop()
+	if Ready() {
+		t.Fatal("engine must be stopped after concurrent Start and Stop")
+	}
+}
+
+func TestSubscriptionSelectionIsScopedToProfile(t *testing.T) {
+	Stop()
+	profile.StoreSelected.Store(true)
+	profileA := t.TempDir()
+	profileB := t.TempDir()
+	if err := SelectSubscriptionNode("node-a", profileA); err != nil {
+		t.Fatalf("select profile A node: %v", err)
+	}
+	if err := SelectSubscriptionNode("node-b", profileB); err != nil {
+		t.Fatalf("select profile B node: %v", err)
+	}
+	if got := SubscriptionSelectedNode(profileA); got != "node-a" {
+		t.Fatalf("profile A selection = %q, want node-a", got)
+	}
+	if got := SubscriptionSelectedNode(profileB); got != "node-b" {
+		t.Fatalf("profile B selection = %q, want node-b", got)
+	}
+}
+
+func TestSubscriptionSelectionKeyHasStableProfileIdentity(t *testing.T) {
+	if got := subscriptionSelectionKey("/profiles/one"); got == subscriptionSelectionKey("/profiles/two") {
+		t.Fatal("different profiles must not share a selection key")
+	}
+	if got := subscriptionSelectionKey(""); got != subscriptionGroupName {
+		t.Fatalf("empty profile key = %q, want %q", got, subscriptionGroupName)
 	}
 }
 
