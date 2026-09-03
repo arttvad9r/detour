@@ -21,6 +21,7 @@
     <string name="subscription_selection_error">Не удалось выбрать сервер. Предыдущий выбор сохранён.</string>
     <string name="subscription_latency_test">Проверить пинг</string>
     <string name="subscription_latency_testing">Проверка…</string>
+    <string name="subscription_latency_failed">Пинг не измерен</string>
     <string name="subscription_latency_connect_hint">Одним нажатием проверьте все VLESS-серверы ещё до подключения.</string>
     <string name="subscription_node_online">Доступен</string>
     <string name="subscription_node_offline">Недоступен</string>
