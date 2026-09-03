@@ -4,6 +4,7 @@
 
 - `engine/mihomo/go/engine.go`
 - `engine/mihomo/go/engine_test.go`
+- `engine/mihomo/build.sh`
 
 ## Tests Run
 
@@ -12,6 +13,12 @@
 - Prepared-tree focused race tests: **PASS** (`ok engine 1.193s`).
 - Prepared-tree `go test -race ./...`: **FAIL** due a data race in the existing AmneziaWG test background goroutine reading mihomo logging state while another test calls `log.SetLevel`; no Task 1 assertion failed.
 - `git diff --check`: **PASS**.
+
+## Reviewer Follow-up
+
+- `engine/mihomo/go/engine.go` now keeps the prior runtime intact when config parsing fails, tears down the prior runtime before replacement, propagates prepared `ApplyConfig` failures, synchronizes all runtime-facing APIs, and closes proxy/rule providers through the pinned optional `Close() error` hook.
+- `engine/mihomo/build.sh` makes the pinned void dispatcher return recovered apply panics as errors while preserving existing callers.
+- `engine/mihomo/go/engine_test.go` now forces Start/Stop overlap while the lifecycle mutex is held, covers legacy selection migration, verifies provider cleanup, and restores profile/home state.
 
 ## Design Decisions
 
@@ -23,4 +30,19 @@
 ## Concerns
 
 - Full race verification remains blocked by the pre-existing mihomo/AmneziaWG background-goroutine race described above. Fixing it would require changes outside the Task 1 file scope.
-- The pinned mihomo provider interface exposes no provider close method; runtime cleanup remains delegated to `executor.Shutdown` and mihomo's listener lifecycle.
+- The pinned provider interface itself omits `Close`, but pinned concrete providers expose the optional `Close() error` hook; the bridge now invokes it when available.
+
+## Reviewer Fixes
+
+- `engine/mihomo/go/engine.go` now tears down the old runtime before applying a replacement, propagates prepared `ApplyConfig` errors, closes proxy and rule providers through the pinned `Close() error` hook, and serializes runtime-dependent public APIs.
+- `engine/mihomo/build.sh` patches the pinned void `ApplyConfig` dispatcher to return recovered apply panics as errors.
+- Tests now force lifecycle overlap, cover legacy selection migration, verify provider cleanup, and restore global profile/home state.
+
+## Reviewer Fix Verification
+
+- RED: prepared build test failed with `undefined: resolveSubscriptionCache` before the production helper was added.
+- `PATH=/tmp/opencode/fakebin:$PATH ./build.sh`: Go test stage **PASS** (`ok engine 0.164s`); temporary gomobile wrapper intentionally failed only the later AAR validation.
+- `go test -tags with_gvisor ./... -run 'Test(StartDoesNotReportReadyWhenTunCreationFails|ConcurrentStartAndStopLeaveEngineStopped|SubscriptionSelectionIsScopedToProfile|SubscriptionSelectionUsesLegacyKeyAsMigrationFallback|ProviderCleanupCallsPinnedCloseHook)'`: **PASS** (`ok engine 0.057s`).
+- `go test -race -tags with_gvisor ./... -run 'Test(StartDoesNotReportReadyWhenTunCreationFails|ConcurrentStartAndStopLeaveEngineStopped|SubscriptionSelectionIsScopedToProfile|SubscriptionSelectionUsesLegacyKeyAsMigrationFallback|ProviderCleanupCallsPinnedCloseHook)'`: **PASS** (`ok engine 1.190s`).
+- Full prepared-tree `go test -race ./...`: **FAIL** on the same pre-existing AmneziaWG background-goroutine/logging race reported above.
+- `git diff --check`: **PASS**.

@@ -277,6 +277,31 @@ else:
     raise SystemExit(f"FATAL: process.go anchor not found or ambiguous: {p}")
 PYEOF
 
+# Make panics during the void upstream configuration dispatcher observable to
+# the embedding bridge. The dispatcher has no ordinary error return in this
+# pinned release, but callers can still propagate a failed apply.
+python3 - <<'PYEOF'
+p = 'hub/executor/executor.go'
+s = open(p).read()
+old = '''func ApplyConfig(cfg *config.Config, force bool) {\n\tmux.Lock()'''
+new = '''func ApplyConfig(cfg *config.Config, force bool) (err error) {\n\tdefer func() {\n\t\tif recovered := recover(); recovered != nil {\n\t\t\terr = fmt.Errorf("apply config panic: %v", recovered)\n\t\t}\n\t}()\n\tmux.Lock()'''
+if old in s:
+    s = s.replace(old, new, 1)
+    print("ApplyConfig error propagation patch applied")
+elif new in s:
+    print("ApplyConfig error propagation patch already applied")
+else:
+    raise SystemExit(f"FATAL: ApplyConfig layout changed: {p}")
+old_end = '''\tresolver.ResetConnection()\n}'''
+if old_end in s:
+    old_end = '''\tresolver.ResetConnection()\n}'''
+    if s.count(old_end) != 1:
+        raise SystemExit(f"FATAL: ApplyConfig end layout changed: {p}")
+    s = s.replace(old_end, '''\tresolver.ResetConnection()\n\treturn nil\n}''', 1)
+    print("ApplyConfig return patch applied")
+open(p, 'w').write(s)
+PYEOF
+
 cp "$BIND_DIR/go.mod" "$WORK_DIR/go.mod"
 cp "$BIND_DIR/go.sum" "$WORK_DIR/go.sum"
 cp "$BIND_DIR"/*.go "$WORK_DIR"/

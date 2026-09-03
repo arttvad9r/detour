@@ -7,6 +7,7 @@ import (
 
 	"github.com/metacubex/mihomo/component/profile"
 	"github.com/metacubex/mihomo/config"
+	C "github.com/metacubex/mihomo/constant"
 )
 
 func TestReadyIsFalseBeforeStart(t *testing.T) {
@@ -17,6 +18,11 @@ func TestReadyIsFalseBeforeStart(t *testing.T) {
 
 func TestStartDoesNotReportReadyWhenTunCreationFails(t *testing.T) {
 	Stop()
+	oldHomeDir := C.Path.HomeDir()
+	t.Cleanup(func() {
+		Stop()
+		C.SetHomeDir(oldHomeDir)
+	})
 	config := `
 mode: rule
 log-level: silent
@@ -39,23 +45,35 @@ rules:
 func TestConcurrentStartAndStopLeaveEngineStopped(t *testing.T) {
 	Stop()
 	config := "mode: rule\nlog-level: silent\nproxies: []\nrules:\n  - MATCH,DIRECT\n"
-	started := make(chan struct{})
-	done := make(chan struct{})
+	runtimeMu.Lock()
+	startDone := make(chan error, 1)
+	startCalling := make(chan struct{})
 	go func() {
-		for i := 0; i < 8; i++ {
-			_ = Start(config, "")
-		}
-		close(started)
+		close(startCalling)
+		startDone <- Start(config, "")
 	}()
+	<-startCalling
+	stopDone := make(chan struct{})
 	go func() {
-		for i := 0; i < 8; i++ {
-			Stop()
-		}
-		close(done)
+		Stop()
+		close(stopDone)
 	}()
-	<-started
-	<-done
+	select {
+	case <-startDone:
+		t.Fatal("Start must overlap the blocked Stop call")
+	default:
+	}
+	select {
+	case <-stopDone:
+		t.Fatal("Stop must wait for the active lifecycle operation")
+	default:
+	}
+	runtimeMu.Unlock()
+	if err := <-startDone; err != nil {
+		t.Fatalf("concurrent Start failed: %v", err)
+	}
 	Stop()
+	<-stopDone
 	if Ready() {
 		t.Fatal("engine must be stopped after concurrent Start and Stop")
 	}
@@ -63,6 +81,13 @@ func TestConcurrentStartAndStopLeaveEngineStopped(t *testing.T) {
 
 func TestSubscriptionSelectionIsScopedToProfile(t *testing.T) {
 	Stop()
+	oldStoreSelected := profile.StoreSelected.Load()
+	oldHomeDir := C.Path.HomeDir()
+	t.Cleanup(func() {
+		Stop()
+		profile.StoreSelected.Store(oldStoreSelected)
+		C.SetHomeDir(oldHomeDir)
+	})
 	profile.StoreSelected.Store(true)
 	profileA := t.TempDir()
 	profileB := t.TempDir()
@@ -77,6 +102,29 @@ func TestSubscriptionSelectionIsScopedToProfile(t *testing.T) {
 	}
 	if got := SubscriptionSelectedNode(profileB); got != "node-b" {
 		t.Fatalf("profile B selection = %q, want node-b", got)
+	}
+}
+
+func TestSubscriptionSelectionUsesLegacyKeyAsMigrationFallback(t *testing.T) {
+	profile := "/profiles/new"
+	selected := map[string]string{subscriptionGroupName: "legacy-node"}
+	if got := resolveSubscriptionCache(selected, profile); got != "legacy-node" {
+		t.Fatalf("legacy selection = %q, want legacy-node", got)
+	}
+}
+
+type testProviderCloser struct{ closed bool }
+
+func (p *testProviderCloser) Close() error {
+	p.closed = true
+	return nil
+}
+
+func TestProviderCleanupCallsPinnedCloseHook(t *testing.T) {
+	provider := &testProviderCloser{}
+	closeProvider(provider)
+	if !provider.closed {
+		t.Fatal("provider cleanup must call the pinned Close hook")
 	}
 }
 
