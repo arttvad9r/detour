@@ -22,11 +22,19 @@ func TestSubscriptionCatalogLatencyDetailed(subscriptionURL string) string {
 		return ""
 	}
 	for _, proxy := range proxies {
-		payload, marshalErr := json.Marshal(sanitizedSubscriptionNodeDiagnostics(proxy))
-		if marshalErr != nil {
+		payload := subscriptionLatencyDiagnosticsPayload(proxy)
+		if payload == "" {
 			continue
 		}
-		log.Infoln("[DETOUR_PROXY_CONFIG] stage=latency source=%s", string(payload))
+		log.Infoln("[DETOUR_PROXY_CONFIG] stage=latency source=%s", payload)
 	}
 	return marshalSubscriptionLatencyResults(runSubscriptionLatencyTests(proxies, mihomoSubscriptionLatencyProbe))
+}
+
+func subscriptionLatencyDiagnosticsPayload(proxy map[string]any) string {
+	payload, err := json.Marshal(sanitizedSubscriptionNodeDiagnostics(proxy))
+	if err != nil {
+		return ""
+	}
+	return string(payload)
 }
