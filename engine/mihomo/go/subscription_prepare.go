@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -351,6 +352,46 @@ func fetchPreparedSubscriptionProxies(subscriptionURL string) ([]map[string]any,
 	return parsePreparedSubscriptionProxies(body)
 }
 
+// normalizeVlessSubscriptionBody closes a compatibility gap between NekoBox's
+// VLESS share-link parser and Mihomo 1.19.30. NekoBox treats `host` as the TLS
+// server name when `sni` is absent. Mihomo's converter discards `host` for TCP,
+// so Reality/TLS handshakes can be sent with the endpoint IP/hostname instead of
+// the intended camouflage name and be closed immediately by the server.
+// Normalize the URI before conversion, while the original query still exists.
+func normalizeVlessSubscriptionBody(body []byte) []byte {
+	data := convert.DecodeBase64(body)
+	lines := strings.Split(string(data), "\n")
+	for index, rawLine := range lines {
+		line := strings.TrimRight(rawLine, " \r")
+		if !strings.HasPrefix(strings.ToLower(line), "vless://") {
+			continue
+		}
+		parsed, err := url.Parse(line)
+		if err != nil {
+			continue
+		}
+		query := parsed.Query()
+		changed := false
+		security := strings.ToLower(strings.TrimSpace(query.Get("security")))
+		if (security == "reality" || strings.HasSuffix(security, "tls")) &&
+			strings.TrimSpace(query.Get("sni")) == "" {
+			if host := strings.TrimSpace(query.Get("host")); host != "" {
+				query.Set("sni", host)
+				changed = true
+			}
+		}
+		if fingerprint := query.Get("fp"); strings.EqualFold(fingerprint, "ios") && fingerprint != "iOS" {
+			query.Set("fp", "iOS")
+			changed = true
+		}
+		if changed {
+			parsed.RawQuery = query.Encode()
+			lines[index] = parsed.String()
+		}
+	}
+	return []byte(strings.Join(lines, "\n"))
+}
+
 // parsePreparedSubscriptionProxies is intentionally separate from network I/O.
 // URI/base64 subscription bodies may be accepted by the YAML decoder without a
 // proxies collection, so they still fall back to Mihomo's V2Ray converter.
@@ -361,7 +402,7 @@ func parsePreparedSubscriptionProxies(body []byte) ([]map[string]any, error) {
 	schema := &preparedProxySchema{}
 	yamlErr := mihomoYaml.Unmarshal(body, schema)
 	if yamlErr != nil || len(schema.Proxies) == 0 {
-		proxies, convertErr := convert.ConvertsV2Ray(body)
+		proxies, convertErr := convert.ConvertsV2Ray(normalizeVlessSubscriptionBody(body))
 		if convertErr != nil || len(proxies) == 0 {
 			return nil, errors.New("unsupported subscription format")
 		}
