@@ -321,9 +321,9 @@ python3 - "$WORK_DIR/subscription_prepare.go" <<'PYEOF'
 import sys
 p = sys.argv[1]
 s = open(p).read()
-old_import = '''\t"github.com/metacubex/mihomo/constant"
+old_import = '''\tC "github.com/metacubex/mihomo/constant"
 \t"github.com/metacubex/mihomo/tunnel"'''
-new_import = '''\t"github.com/metacubex/mihomo/constant"
+new_import = '''\tC "github.com/metacubex/mihomo/constant"
 \t"github.com/metacubex/mihomo/log"
 \t"github.com/metacubex/mihomo/tunnel"'''
 old_result = '''\t\tdelay, testErr := probe(ctx)
