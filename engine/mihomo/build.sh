@@ -114,8 +114,12 @@ PYEOF
 # default modern Xray REALITY server rejects the handshake and the client sees
 # an EOF/connection-closed fallback. Detour embeds Mihomo, so advertise the
 # minimum accepted modern Xray version while keeping the pinned engine otherwise
-# unchanged. Export constants so the bridge tests verify the exact patched AAR
-# source rather than only checking this patch script text.
+# unchanged.
+#
+# At the same layer, preserve the REALITY stage in returned errors and emit a
+# stable DETOUR_REALITY log line. Upstream otherwise returns the bare transport
+# error (often just EOF/connection closed), which makes runtime failures
+# indistinguishable from unrelated HTTP/TCP closures in Android diagnostics.
 python3 - <<'PYEOF'
 p = 'component/tls/reality.go'
 s = open(p).read()
@@ -125,6 +129,7 @@ new_const = '''const (
 \tRealityClientVersionMajor byte = 26
 \tRealityClientVersionMinor byte = 3
 \tRealityClientVersionPatch byte = 27
+\tDetourRealityDiagnosticsEnabled = true
 )'''
 old_version = '''\t\thello.SessionId[0] = 1
 \t\thello.SessionId[1] = 8
@@ -132,15 +137,127 @@ old_version = '''\t\thello.SessionId[0] = 1
 new_version = '''\t\thello.SessionId[0] = RealityClientVersionMajor
 \t\thello.SessionId[1] = RealityClientVersionMinor
 \t\thello.SessionId[2] = RealityClientVersionPatch'''
-if old_const in s and old_version in s:
+old_import = '''\t"errors"
+\t"net"'''
+new_import = '''\t"errors"
+\t"fmt"
+\t"net"'''
+old_handshake = '''\t\terr = uConn.HandshakeContext(ctx)
+\t\tif err != nil {
+\t\t\treturn nil, err
+\t\t}'''
+new_handshake = '''\t\terr = uConn.HandshakeContext(ctx)
+\t\tif err != nil {
+\t\t\tlog.Errorln("[DETOUR_REALITY] server=%q fingerprint=%q stage=handshake error=%v", serverName, fingerprint.Client, err)
+\t\t\treturn nil, fmt.Errorf("REALITY handshake failed: %w", err)
+\t\t}'''
+old_auth = '''\t\tif !verifier.verified {
+\t\t\tgo realityClientFallback(uConn, uConfig.ServerName, fingerprint)
+\t\t\treturn nil, errors.New("REALITY authentication failed")
+\t\t}'''
+new_auth = '''\t\tif !verifier.verified {
+\t\t\tlog.Errorln("[DETOUR_REALITY] server=%q fingerprint=%q stage=authentication error=authentication_failed", serverName, fingerprint.Client)
+\t\t\tgo realityClientFallback(uConn, uConfig.ServerName, fingerprint)
+\t\t\treturn nil, errors.New("REALITY authentication failed")
+\t\t}'''
+if old_const in s and old_version in s and old_import in s and old_handshake in s and old_auth in s:
     s = s.replace(old_const, new_const, 1)
     s = s.replace(old_version, new_version, 1)
+    s = s.replace(old_import, new_import, 1)
+    s = s.replace(old_handshake, new_handshake, 1)
+    s = s.replace(old_auth, new_auth, 1)
     open(p, 'w').write(s)
-    print("REALITY client-version compatibility patch applied")
-elif new_const in s and new_version in s:
-    print("REALITY client-version compatibility patch already applied")
+    print("REALITY compatibility/diagnostics patch applied")
+elif new_const in s and new_version in s and new_import in s and new_handshake in s and new_auth in s:
+    print("REALITY compatibility/diagnostics patch already applied")
 else:
-    raise SystemExit(f"FATAL: REALITY client-version layout changed: {p}")
+    raise SystemExit(f"FATAL: REALITY compatibility/diagnostics layout changed: {p}")
+PYEOF
+
+# URLTest already receives the exact transport error, but Mihomo v1.19.30 drops
+# that error after updating alive/history state. Detour's UI consequently sees
+# only a missing delay. Emit one stable, node-attributed diagnostic record for
+# every failed URLTest. The classifier intentionally prioritizes REALITY before
+# generic connection-closed/EOF so wrapped REALITY failures remain actionable.
+python3 - <<'PYEOF'
+p = 'adapter/adapter.go'
+s = open(p).read()
+old_import = '''\t"encoding/json"
+\t"fmt"'''
+new_import = '''\t"encoding/json"
+\t"errors"
+\t"fmt"'''
+old_const = '''const (
+\tdefaultHistoriesNum = 10
+)'''
+new_const = '''const (
+\tdefaultHistoriesNum = 10
+\tDetourURLTestDiagnosticsEnabled = true
+)
+
+func DetourURLTestErrorClass(err error) string {
+\tif err == nil {
+\t\treturn ""
+\t}
+\tlower := strings.ToLower(err.Error())
+\tswitch {
+\tcase errors.Is(err, context.DeadlineExceeded):
+\t\treturn "timeout"
+\tcase strings.Contains(lower, "reality"):
+\t\treturn "reality"
+\tcase strings.Contains(lower, "no such host"), strings.Contains(lower, "lookup "), strings.Contains(lower, "dns"):
+\t\treturn "dns"
+\tcase strings.Contains(lower, "tls"), strings.Contains(lower, "x509"), strings.Contains(lower, "certificate"), strings.Contains(lower, "handshake"):
+\t\treturn "tls"
+\tcase strings.Contains(lower, "grpc"):
+\t\treturn "grpc"
+\tcase strings.Contains(lower, "eof"), strings.Contains(lower, "connection closed"), strings.Contains(lower, "reset by peer"), strings.Contains(lower, "broken pipe"):
+\t\treturn "connection"
+\tcase strings.Contains(lower, "dial "), strings.Contains(lower, "connect:"), strings.Contains(lower, "connection refused"), strings.Contains(lower, "network is unreachable"):
+\t\treturn "dial"
+\tdefault:
+\t\tif timeoutErr, ok := err.(interface{ Timeout() bool }); ok && timeoutErr.Timeout() {
+\t\t\treturn "timeout"
+\t\t}
+\t\treturn "other"
+\t}
+}
+
+func detourURLTestErrorText(err error) string {
+\tif err == nil {
+\t\treturn ""
+\t}
+\ttext := strings.Map(func(r rune) rune {
+\t\tif r < 0x20 || r == 0x7f {
+\t\t\treturn ' '
+\t\t}
+\t\treturn r
+\t}, err.Error())
+\tif index := strings.Index(strings.ToLower(text), "vless://"); index >= 0 {
+\t\ttext = text[:index] + "vless://<redacted>"
+\t}
+\tif len(text) > 800 {
+\t\ttext = text[:800]
+\t}
+\treturn text
+}'''
+old_defer = '''\tdefer func() {
+\t\talive := err == nil'''
+new_defer = '''\tdefer func() {
+\t\tif err != nil {
+\t\t\tlog.Errorln("[DETOUR_URLTEST] node=%q type=%s class=%s error=%s", p.Name(), p.Type().String(), DetourURLTestErrorClass(err), detourURLTestErrorText(err))
+\t\t}
+\t\talive := err == nil'''
+if old_import in s and old_const in s and old_defer in s:
+    s = s.replace(old_import, new_import, 1)
+    s = s.replace(old_const, new_const, 1)
+    s = s.replace(old_defer, new_defer, 1)
+    open(p, 'w').write(s)
+    print("URLTest diagnostics patch applied")
+elif new_import in s and new_const in s and new_defer in s:
+    print("URLTest diagnostics patch already applied")
+else:
+    raise SystemExit(f"FATAL: URLTest diagnostics layout changed: {p}")
 PYEOF
 
 # Triplet host-side UID resolver bridge (Task 3 round 2):
