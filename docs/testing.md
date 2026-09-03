@@ -23,20 +23,15 @@ The first release assembly is the universal compatibility baseline. CI then gene
 
 CI verifies that signed APK with Android `apksigner`. The arm64 distribution check requires the APK to contain exactly `arm64-v8a` native libraries and enforces a 30 MiB maximum APK size. The universal and arm64 JSON size reports are retained as the `apk-size-reports` workflow artifact for comparison and regression diagnosis.
 
-Pull requests and pushes to `master` additionally install the hosted Android 16 emulator image and run:
-
-```bash
-./gradlew :app:connectedDebugAndroidTest
-```
-
-Ordinary branch pushes still compile the instrumentation APK but skip the emulator download and runtime test. The pull-request gate therefore validates the exact review revision on a device before merge, and the `master` push validates the integrated revision after merge.
+Pull requests and pushes to `main` additionally install hosted Android 16 and Android 17 emulator images and run the instrumentation suite. Ordinary branch pushes still compile the instrumentation APK but skip emulator download and runtime tests. The pull-request gate therefore validates the exact review revision on a device before merge, and the `main` push validates the integrated revision after merge.
 
 The Android workflow pins:
 
 - JDK 17;
 - compile SDK 37 and target SDK 36;
 - Android platform package `platforms;android-37.0`;
-- Android 16 / API 36 `google_apis` x86_64 system image for hosted instrumentation tests;
+- Android 16 / API 36 `google_apis` x86_64 system image;
+- Android 17 / API 37 16 KB `google_apis_ps16k` x86_64 system image;
 - build-tools 36.0.0;
 - NDK 28.0.13004108;
 - Go 1.26.7;
@@ -50,13 +45,14 @@ After release assembly, `tools/apk_size_report.py` records the total APK size, p
 
 ## Instrumented tests
 
-For pull requests and `master` pushes, hosted CI creates a headless hardware-accelerated Android 16 / API 36 emulator after the normal build gate and executes `:app:connectedDebugAndroidTest`. Keeping the runtime test in the same job reuses the already-built Mihomo/ByeDPI artifacts instead of rebuilding the native engine in a second job.
+For pull requests and `main` pushes, hosted CI creates headless Android 16 / API 36 and Android 17 / API 37 emulators after the normal build gate and executes `:app:connectedDebugAndroidTest`. Keeping runtime tests in the same job reuses the already-built Mihomo/ByeDPI artifacts instead of rebuilding the native engine in a second job.
 
 The hosted runtime suite intentionally stays below the VPN data plane. It currently covers:
 
 - real `MainActivity` launch and primary Home controls;
 - on-device Preferences DataStore profile mutations and duplicate-id rejection;
-- backup restore policy, including forced-off auto-connect.
+- backup restore policy, including forced-off auto-connect;
+- Compose accessibility/layout regression coverage including large-font behavior.
 
 VPN consent, live TUN establishment, per-app routing, network changes, DNS behavior and DPI/VPN traffic validation still require the device smoke checklist below.
 
@@ -71,6 +67,7 @@ ANDROID_SERIAL=<serial> ./gradlew :app:connectedDebugAndroidTest
 The JVM suite covers the behavior that must remain deterministic without a device, including:
 
 - VLESS parsing, fingerprints and profile storage/migration;
+- subscription profile persistence, selected-node serialization and generated selector configuration;
 - WARP/AmneziaWG profile parsing/storage and fail-closed selection behavior;
 - generated Mihomo configuration and rule ordering;
 - DNS validation/bootstrap generation;
@@ -97,7 +94,11 @@ Run this after changes to VPN lifecycle, engine/config generation, routing, pack
 
 ### Profiles and persistence
 
-- Switch VLESS ↔ WARP/AmneziaWG and reconnect successfully.
+- Switch VLESS ↔ subscription ↔ WARP/AmneziaWG and reconnect successfully.
+- Select a non-first subscription server, disconnect/reconnect and verify the same server remains selected and carries traffic.
+- Change the underlying network while a subscription is active and verify the selected server survives the automatic tunnel rebuild.
+- Verify multiple subscriptions retain independent selected servers.
+- Export VLESS + multiple subscriptions + WARP, import into a clean settings state, and verify every profile plus each selected subscription server is restored.
 - Editing/replacing the active profile restarts the active tunnel.
 - Editing an inactive profile does not interrupt the tunnel.
 - Deleting the active profile stops the session instead of selecting another endpoint silently.
