@@ -18,8 +18,19 @@ class SettingsMenuViewModelTest {
 
         assertEquals(3, state.routedCount)
         assertTrue(state.hasVless)
+        assertFalse(state.hasSubscription)
         assertFalse(state.hasWarp)
         assertTrue(state.autoConnect)
+    }
+
+    @Test fun `subscription profile is not reported as vless`() {
+        val state = settingsMenuUiState(
+            settings = settings(autoConnect = false, withSubscription = true),
+            routedCount = 0,
+        )
+
+        assertFalse(state.hasVless)
+        assertTrue(state.hasSubscription)
     }
 
     @Test fun `pending auto connect intent overrides lagging persistence`() {
@@ -46,25 +57,34 @@ class SettingsMenuViewModelTest {
         assertEquals(SettingsMenuUiState(), settingsMenuUiState(null, routedCount = 0))
     }
 
-    private fun settings(autoConnect: Boolean, withVless: Boolean = false) = TriSettings(
-        vlessKeys = if (withVless) {
-            VlessKeys(
-                items = listOf(VlessKey("id", "Profile", "vless://example")),
-                activeId = "id",
-            )
-        } else {
-            VlessKeys(emptyList(), null)
-        },
-        warpProfile = null,
-        activeVpn = VpnProfileKind.VLESS,
-        preset = DpiPreset.RECOMMENDED,
-        dpiCustomArgs = "",
-        autoConnect = autoConnect,
-        themeId = "",
-        dnsId = "google",
-        dnsCustom = "",
-        routes = emptyMap(),
-        showSystemApps = false,
-        sessionStartedAt = null,
-    )
+    private fun settings(
+        autoConnect: Boolean,
+        withVless: Boolean = false,
+        withSubscription: Boolean = false,
+    ): TriSettings {
+        val items = buildList {
+            if (withVless) add(VlessKey("vless-id", "VLESS", "vless://example"))
+            if (withSubscription) {
+                add(VlessKey("subscription-id", "Subscription", "https://subscription.example/profile"))
+            }
+        }
+        return TriSettings(
+            vlessKeys = VlessKeys(items = items, activeId = items.firstOrNull()?.id),
+            warpProfile = null,
+            activeVpn = if (withSubscription && !withVless) {
+                VpnProfileKind.SUBSCRIPTION
+            } else {
+                VpnProfileKind.VLESS
+            },
+            preset = DpiPreset.RECOMMENDED,
+            dpiCustomArgs = "",
+            autoConnect = autoConnect,
+            themeId = "",
+            dnsId = "google",
+            dnsCustom = "",
+            routes = emptyMap(),
+            showSystemApps = false,
+            sessionStartedAt = null,
+        )
+    }
 }

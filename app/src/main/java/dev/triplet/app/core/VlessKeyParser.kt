@@ -15,7 +15,10 @@ data class VlessProfile(
     val fingerprint: String,
     val flow: String,
     val name: String,
-)
+    val subscriptionUrl: String? = null,
+) {
+    val isSubscription: Boolean get() = subscriptionUrl != null
+}
 
 sealed interface ParseResult {
     data class Ok(val profile: VlessProfile) : ParseResult
@@ -35,9 +38,11 @@ object VlessKeyParser {
     private const val FLOW = "xtls-rprx-vision"
     private const val REALITY_PUBLIC_KEY_BYTES = 32
     private const val REALITY_SHORT_ID_HEX_CHARS = 16
+    private const val MAX_SUBSCRIPTION_URL_CHARS = 8 * 1024
 
     fun parse(uriRaw: String): ParseResult {
         val uri = uriRaw.trim()
+        if (uri.startsWith("https://", ignoreCase = true)) return parseSubscription(uri)
         if (!uri.startsWith("vless://")) return ParseResult.Err(ERR_FORMAT)
         return try {
             val u = URI(uri)
@@ -62,8 +67,8 @@ object VlessKeyParser {
                 }
             }
             if (q["type"] != null && q["type"] != "tcp") return ParseResult.Err(ERR_TRANSPORT)
-            // Поддерживаемый профиль: Reality (+vision). Plain TLS сознательно отклонён:
-            // продукт заточен под проверенный профиль пользователя (см. спеку).
+            // Поддерживаемый одиночный профиль: Reality (+vision). Plain TLS сознательно отклонён.
+            // HTTPS subscription URL обрабатывается отдельно и передаётся штатному proxy-provider mihomo.
             if (q["security"] != "reality") return ParseResult.Err(ERR_SECURITY)
             val pbk = q["pbk"]?.takeIf(::isRealityPublicKey)
                 ?: return ParseResult.Err(ERR_SECURITY)
@@ -87,6 +92,40 @@ object VlessKeyParser {
             )
             ParseResult.Ok(profile)
         } catch (e: Exception) {
+            ParseResult.Err(ERR_FORMAT)
+        }
+    }
+
+    private fun parseSubscription(raw: String): ParseResult {
+        return try {
+            if (raw.length > MAX_SUBSCRIPTION_URL_CHARS || raw.any { it.code < 0x20 || it.code == 0x7f }) {
+                return ParseResult.Err(ERR_FORMAT)
+            }
+            val uri = URI(raw)
+            if (!uri.scheme.equals("https", ignoreCase = true)) return ParseResult.Err(ERR_FORMAT)
+            if (uri.fragment != null) return ParseResult.Err(ERR_FORMAT)
+            val host = uri.host?.takeIf { it.isNotBlank() } ?: return ParseResult.Err(ERR_FORMAT)
+            val port = if (uri.port == -1) 443 else uri.port
+            if (port !in 1..65535) return ParseResult.Err(ERR_FORMAT)
+
+            // Keep the existing profile container for source/back-up compatibility. These
+            // VLESS-only fields are never rendered when subscriptionUrl is present;
+            // ConfigGenerator emits a native mihomo proxy-provider instead.
+            ParseResult.Ok(
+                VlessProfile(
+                    uuid = "",
+                    server = host,
+                    port = port,
+                    sni = host,
+                    publicKey = "",
+                    shortId = "",
+                    fingerprint = "",
+                    flow = "",
+                    name = host,
+                    subscriptionUrl = raw,
+                ),
+            )
+        } catch (_: Exception) {
             ParseResult.Err(ERR_FORMAT)
         }
     }

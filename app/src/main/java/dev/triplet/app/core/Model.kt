@@ -4,6 +4,9 @@ enum class AppRoute { DIRECT, VPN, DPI }
 
 sealed interface VpnOutbound {
     data class Vless(val profile: VlessProfile) : VpnOutbound
+    data class Subscription(val url: String) : VpnOutbound {
+        init { require(url.isNotBlank()) }
+    }
     data class Warp(val profile: WarpProfile) : VpnOutbound
 }
 

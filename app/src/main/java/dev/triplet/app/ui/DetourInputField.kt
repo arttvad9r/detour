@@ -2,6 +2,7 @@ package dev.triplet.app.ui
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -36,8 +37,8 @@ private enum class SupportingTone { ERROR, SUCCESS, HELPER }
 private data class SupportingText(val text: String, val tone: SupportingTone)
 
 /**
- * Shared input treatment with restrained focus/validation motion. Multiline
- * fields still grow only with their actual content; no decorative bouncing.
+ * Shared Detour input treatment. Focus is communicated through a restrained
+ * violet surface/border shift while validation remains semantic and readable.
  */
 @Composable
 fun DetourInputField(
@@ -67,8 +68,19 @@ fun DetourInputField(
         focused -> c.accent
         else -> c.textSecondary
     }
+    val targetContainer = when {
+        error != null -> c.errorSoft.copy(alpha = 0.38f)
+        focused -> c.accentSoft.copy(alpha = 0.54f)
+        else -> c.surface
+    }
     val borderColor by animateColorAsState(targetBorder, tween(Motion.COLOR_MS), label = "fieldBorder")
     val labelColor by animateColorAsState(targetLabel, tween(Motion.COLOR_MS), label = "fieldLabel")
+    val containerColor by animateColorAsState(targetContainer, tween(Motion.COLOR_MS), label = "fieldContainer")
+    val borderWidth by animateDpAsState(
+        targetValue = if (focused || error != null) 1.5.dp else 1.dp,
+        animationSpec = tween(Motion.COLOR_MS),
+        label = "fieldBorderWidth",
+    )
     val baseTextStyle = MaterialTheme.typography.bodyLarge
     val textStyle = if (monospace) {
         baseTextStyle.copy(color = c.textPrimary, fontFamily = FontFamily.Monospace)
@@ -100,8 +112,8 @@ fun DetourInputField(
                     error?.let { message -> this.error(message) }
                 }
                 .onFocusChanged { focused = it.isFocused }
-                .background(c.surface, AppShapes.small)
-                .border(1.dp, borderColor, AppShapes.small)
+                .background(containerColor, AppShapes.small)
+                .border(borderWidth, borderColor, AppShapes.small)
                 .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
             singleLine = singleLine,
             maxLines = maxLines,
@@ -125,7 +137,7 @@ fun DetourInputField(
                                 text = placeholder,
                                 style = textStyle,
                                 color = c.textMuted,
-                                maxLines = 1,
+                                maxLines = if (singleLine) 1 else maxLines,
                             )
                         } else {
                             Box(Modifier)
@@ -156,7 +168,7 @@ fun DetourInputField(
                     style = MaterialTheme.typography.bodySmall,
                     color = when (shown.tone) {
                         SupportingTone.ERROR -> c.error
-                        SupportingTone.SUCCESS -> c.textSecondary
+                        SupportingTone.SUCCESS -> c.activeStrong
                         SupportingTone.HELPER -> c.textMuted
                     },
                     modifier = Modifier.padding(

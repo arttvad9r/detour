@@ -38,6 +38,12 @@ private val DNS_LABELS = mapOf(
     "adguard" to R.string.dns_adguard,
 )
 
+private val DNS_SUBTITLES = mapOf(
+    "google" to R.string.dns_google_subtitle,
+    "cloudflare" to R.string.dns_cloudflare_subtitle,
+    "adguard" to R.string.dns_adguard_subtitle,
+)
+
 @Composable
 fun DnsScreen(viewModel: DnsViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val haptics = LocalHapticFeedback.current
@@ -55,7 +61,8 @@ fun DnsScreen(viewModel: DnsViewModel, onBack: () -> Unit, modifier: Modifier = 
     }
 
     Column(
-        modifier.fillMaxSize()
+        modifier
+            .fillMaxSize()
             .background(c.background)
             .statusBarsPadding()
             .navigationBarsPadding()
@@ -63,69 +70,87 @@ fun DnsScreen(viewModel: DnsViewModel, onBack: () -> Unit, modifier: Modifier = 
             .verticalScroll(scrollState)
             .detourHighRefresh(spatialMotionActive),
     ) {
-        ScreenHeader(stringResource(R.string.dns_title), onBack)
+        DetourBrandedHeader(stringResource(R.string.dns_title), onBack)
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
-            DetourCard(Modifier.padding(horizontal = Spacing.space16).selectableGroup()) {
-                DnsOptions.servers.entries.forEach { (id, server) ->
+            DetourFeatureSummary(
+                iconRes = R.drawable.ic_globe,
+                title = stringResource(R.string.dns_hint_title),
+                subtitle = stringResource(R.string.dns_info),
+                modifier = Modifier.padding(horizontal = Spacing.space16),
+            )
+
+            Spacer(Modifier.height(Spacing.space12))
+            DetourCard(
+                Modifier
+                    .padding(horizontal = Spacing.space16)
+                    .selectableGroup(),
+            ) {
+                DnsOptions.servers.entries.forEachIndexed { index, (id, server) ->
+                    val description = DNS_SUBTITLES[id]?.let { stringResource(it) } ?: server
                     ChoiceRow(
                         title = stringResource(DNS_LABELS[id] ?: R.string.dns_custom),
-                        subtitle = server,
+                        subtitle = "$description\n$server",
                         selected = !state.editingCustom && state.selectedDns == id,
                         onClick = { viewModel.chooseKnown(id) },
                     )
-                    GroupDivider(startInset = 56)
+                    if (index < DnsOptions.servers.size - 1) GroupDivider(startInset = 56)
                 }
+                GroupDivider(startInset = 56)
                 ChoiceRow(
                     title = stringResource(R.string.dns_custom),
+                    subtitle = state.customField.takeIf { it.isNotBlank() }
+                        ?: stringResource(R.string.dns_custom_subtitle),
                     selected = state.editingCustom,
                     onClick = viewModel::editCustom,
                 )
+
+                AnimatedVisibility(
+                    visibleState = customVisibility,
+                    enter = fadeIn(
+                        tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
+                    ) + expandVertically(
+                        animationSpec = tween(Motion.STATE_MS, easing = Motion.ENTER_EASING),
+                        expandFrom = Alignment.Top,
+                    ),
+                    exit = fadeOut(
+                        tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
+                    ) + shrinkVertically(
+                        animationSpec = tween(Motion.STATE_MS, easing = Motion.EXIT_EASING),
+                        shrinkTowards = Alignment.Top,
+                    ),
+                ) {
+                    Column {
+                        GroupDivider(startInset = 20)
+                        DetourInputField(
+                            value = state.customField,
+                            onValueChange = viewModel::setCustomField,
+                            label = stringResource(R.string.dns_custom_label),
+                            placeholder = stringResource(R.string.dns_placeholder),
+                            error = when {
+                                state.customInvalid -> stringResource(R.string.dns_invalid_https)
+                                state.saveState == DnsSaveState.ERROR -> stringResource(R.string.dns_save_error)
+                                else -> null
+                            },
+                            modifier = Modifier.padding(Spacing.space16),
+                        )
+                    }
+                }
             }
 
-            AnimatedVisibility(
-                visibleState = customVisibility,
-                enter = fadeIn(
-                    tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING),
-                ) + expandVertically(
-                    animationSpec = tween(Motion.STATE_MS, easing = Motion.ENTER_EASING),
-                    expandFrom = Alignment.Top,
-                ),
-                exit = fadeOut(
-                    tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING),
-                ) + shrinkVertically(
-                    animationSpec = tween(Motion.STATE_MS, easing = Motion.EXIT_EASING),
-                    shrinkTowards = Alignment.Top,
-                ),
-            ) {
-                Column {
-                    Spacer(Modifier.height(Spacing.space16))
-                    DetourInputField(
-                        value = state.customField,
-                        onValueChange = viewModel::setCustomField,
-                        label = stringResource(R.string.dns_custom_label),
-                        placeholder = stringResource(R.string.dns_placeholder),
-                        helper = stringResource(R.string.dns_custom_hint_https),
-                        error = when {
-                            state.customInvalid -> stringResource(R.string.dns_invalid_https)
-                            state.saveState == DnsSaveState.ERROR -> stringResource(R.string.dns_save_error)
-                            else -> null
-                        },
-                        modifier = Modifier.padding(horizontal = Spacing.space16),
-                    )
-                    Spacer(Modifier.height(Spacing.space16))
-                    DetourButton(
-                        text = if (state.saveState == DnsSaveState.SAVING) {
-                            stringResource(R.string.dns_saving)
-                        } else {
-                            stringResource(R.string.btn_save)
-                        },
-                        onClick = viewModel::saveCustom,
-                        enabled = state.canSaveCustom,
-                        modifier = Modifier.padding(horizontal = Spacing.space16),
-                    )
-                }
+            if (state.editingCustom) {
+                Spacer(Modifier.height(Spacing.space16))
+                DetourButton(
+                    text = if (state.saveState == DnsSaveState.SAVING) {
+                        stringResource(R.string.dns_saving)
+                    } else {
+                        stringResource(R.string.btn_save)
+                    },
+                    onClick = viewModel::saveCustom,
+                    enabled = state.canSaveCustom,
+                    modifier = Modifier.padding(horizontal = Spacing.space16),
+                )
             }
 
             Spacer(Modifier.height(Spacing.space24))

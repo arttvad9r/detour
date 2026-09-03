@@ -16,8 +16,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -41,29 +39,33 @@ fun ThemeScreen(viewModel: ThemeViewModel, onBack: () -> Unit, modifier: Modifie
             .verticalScroll(scrollState)
             .detourHighRefresh(scrollState.isScrollInProgress),
     ) {
-        ScreenHeader(stringResource(R.string.theme_title), onBack)
+        DetourBrandedHeader(stringResource(R.string.theme_title), onBack)
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
-            DetourCard(Modifier.padding(horizontal = Spacing.space16).selectableGroup()) {
-                AppTheme.entries.forEachIndexed { i, theme ->
+            DetourFeatureSummary(
+                iconRes = R.drawable.ic_theme,
+                title = stringResource(R.string.theme_hint_title),
+                subtitle = stringResource(R.string.theme_hint),
+                modifier = Modifier.padding(horizontal = Spacing.space16),
+            )
+
+            Spacer(Modifier.height(Spacing.space12))
+            DetourCard(
+                Modifier
+                    .padding(horizontal = Spacing.space16)
+                    .selectableGroup(),
+            ) {
+                AppTheme.entries.forEachIndexed { index, theme ->
                     ChoiceRow(
                         title = stringResource(themeLabel(theme)),
                         selected = state.selectedThemeId == theme.id,
                         onClick = { viewModel.selectTheme(theme.id) },
                         trailing = { ThemePalettePreview(theme) },
                     )
-                    if (i < AppTheme.entries.lastIndex) GroupDivider(startInset = 56)
+                    if (index < AppTheme.entries.lastIndex) GroupDivider(startInset = 56)
                 }
             }
-
-            Spacer(Modifier.height(Spacing.space12))
-            Text(
-                stringResource(R.string.theme_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = c.textMuted,
-                modifier = Modifier.padding(horizontal = Spacing.space16),
-            )
             Spacer(Modifier.height(Spacing.space24))
         }
     }

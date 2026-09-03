@@ -64,6 +64,7 @@ import dev.triplet.app.vpn.AutoConnectCoordinator
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
 import dev.triplet.app.vpn.resolveEffectiveRoutes
+import dev.triplet.engine.engine.Engine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -177,6 +178,13 @@ internal fun DetourNavigation(
         backStack.add(destination)
     }
 
+    fun openFromHome(destination: AppDestination) {
+        require(destination.isSettingsDetail())
+        if (backStack.lastOrNull() == destination) return
+        while (backStack.size > 1) backStack.removeLastOrNull()
+        backStack.add(destination)
+    }
+
     val popBack: () -> Unit = { backStack.removeLastOrNull() }
 
     NavDisplay(
@@ -227,13 +235,21 @@ internal fun DetourNavigation(
                                 resolveEffectiveRoutes(appContext.packageManager, routes)
                             }
                         },
+                        readSubscriptionNode = {
+                            withContext(Dispatchers.IO) {
+                                Engine.subscriptionSelectedNode(appContext.cacheDir.absolutePath)
+                                    .trim()
+                                    .takeIf { it.isNotBlank() }
+                            }
+                        },
                     ),
                 )
                 HomeScreen(
                     viewModel = homeViewModel,
                     onOpenSettings = { backStack.add(AppDestination.Settings) },
-                    onOpenProfiles = { openSettingsDetail(AppDestination.Vless) },
-                    onOpenDns = { openSettingsDetail(AppDestination.Dns) },
+                    onOpenProfiles = { openFromHome(AppDestination.Vless) },
+                    onOpenDns = { openFromHome(AppDestination.Dns) },
+                    onOpenRoutes = { openFromHome(AppDestination.Routes) },
                 )
             }
 
@@ -371,17 +387,5 @@ internal fun DetourNavigation(
 
 @Composable
 private fun SettingsDetailPlaceholder() {
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(detourColors.background)
-            .padding(32.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = stringResource(R.string.settings_select_section),
-            style = MaterialTheme.typography.bodyLarge,
-            color = detourColors.textMuted,
-        )
-    }
+    dev.triplet.app.ui.SettingsDetailEmptyState()
 }

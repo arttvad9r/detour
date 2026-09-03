@@ -13,6 +13,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -66,6 +68,19 @@ val detourColors: DetourColors
 val hairline: Color
     @Composable get() = detourColors.border
 
+private fun interactionOverlay(
+    pressed: Boolean,
+    focused: Boolean,
+    hovered: Boolean,
+    feedbackColor: Color?,
+): Color = when {
+    feedbackColor == null -> Color.Transparent
+    pressed -> feedbackColor
+    focused -> feedbackColor.copy(alpha = 0.22f)
+    hovered -> feedbackColor.copy(alpha = 0.12f)
+    else -> Color.Transparent
+}
+
 /**
  * Flat interaction feedback without a ripple flash. Large surfaces use tonal
  * feedback only; small controls may opt into a restrained press scale.
@@ -80,6 +95,8 @@ fun Modifier.detourClickable(
 ): Modifier {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+    val focused by interactionSource.collectIsFocusedAsState()
+    val hovered by interactionSource.collectIsHoveredAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed) pressScale else 1f,
         animationSpec = spring(
@@ -88,8 +105,8 @@ fun Modifier.detourClickable(
         ),
         label = "pressScale",
     )
-    val background by animateColorAsState(
-        targetValue = if (pressed && pressedColor != null) pressedColor else idleColor,
+    val overlay by animateColorAsState(
+        targetValue = interactionOverlay(pressed, focused, hovered, pressedColor),
         animationSpec = tween(Motion.PRESS_TONE_MS),
         label = "pressTone",
     )
@@ -98,7 +115,8 @@ fun Modifier.detourClickable(
             scaleX = scale
             scaleY = scale
         }
-        .background(background)
+        .background(idleColor)
+        .background(overlay)
         .clickable(
             interactionSource = interactionSource,
             indication = null,
@@ -118,6 +136,8 @@ fun Modifier.detourSelectable(
 ): Modifier {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+    val focused by interactionSource.collectIsFocusedAsState()
+    val hovered by interactionSource.collectIsHoveredAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed) pressScale else 1f,
         animationSpec = spring(
@@ -126,8 +146,8 @@ fun Modifier.detourSelectable(
         ),
         label = "selectScale",
     )
-    val background by animateColorAsState(
-        targetValue = if (pressed && pressedColor != null) pressedColor else idleColor,
+    val overlay by animateColorAsState(
+        targetValue = interactionOverlay(pressed, focused, hovered, pressedColor),
         animationSpec = tween(Motion.PRESS_TONE_MS),
         label = "selectTone",
     )
@@ -136,7 +156,8 @@ fun Modifier.detourSelectable(
             scaleX = scale
             scaleY = scale
         }
-        .background(background)
+        .background(idleColor)
+        .background(overlay)
         .selectable(
             selected = selected,
             interactionSource = interactionSource,
@@ -157,6 +178,8 @@ fun Modifier.detourToggleable(
 ): Modifier {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+    val focused by interactionSource.collectIsFocusedAsState()
+    val hovered by interactionSource.collectIsHoveredAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed) pressScale else 1f,
         animationSpec = spring(
@@ -165,8 +188,8 @@ fun Modifier.detourToggleable(
         ),
         label = "toggleScale",
     )
-    val background by animateColorAsState(
-        targetValue = if (pressed && pressedColor != null) pressedColor else idleColor,
+    val overlay by animateColorAsState(
+        targetValue = interactionOverlay(pressed, focused, hovered, pressedColor),
         animationSpec = tween(Motion.PRESS_TONE_MS),
         label = "toggleTone",
     )
@@ -175,7 +198,8 @@ fun Modifier.detourToggleable(
             scaleX = scale
             scaleY = scale
         }
-        .background(background)
+        .background(idleColor)
+        .background(overlay)
         .toggleable(
             value = value,
             interactionSource = interactionSource,
@@ -193,8 +217,11 @@ fun DetourIconButton(
     size: Int = 48,
     content: @Composable BoxScope.() -> Unit,
 ) {
+    val c = detourColors
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+    val focused by interactionSource.collectIsFocusedAsState()
+    val hovered by interactionSource.collectIsHoveredAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed) Motion.PRESS_ICON else 1f,
         animationSpec = spring(
@@ -203,10 +230,22 @@ fun DetourIconButton(
         ),
         label = "iconPress",
     )
+    val interactionColor by animateColorAsState(
+        targetValue = when {
+            pressed -> c.surfaceSelected.copy(alpha = 0.72f)
+            focused -> c.accentSoft.copy(alpha = 0.78f)
+            hovered -> c.surfaceSelected.copy(alpha = 0.42f)
+            else -> Color.Transparent
+        },
+        animationSpec = tween(Motion.PRESS_TONE_MS),
+        label = "iconInteraction",
+    )
     Box(
         modifier
             .minimumInteractiveComponentSize()
             .size(size.dp)
+            .clip(AppShapes.extraSmall)
+            .background(interactionColor)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale

@@ -18,6 +18,7 @@ import javax.net.ssl.SSLSocketFactory
 object HealthCheck {
     private const val MAX_HTTP_LINE_BYTES = 8 * 1024
     private const val MAX_HTTP_HEADERS = 100
+    private const val COLD_ROUTE_RETRY_DELAY_MS = 300L
 
     private val endpoints = listOf(
         "https://www.gstatic.com/generate_204",
@@ -31,9 +32,15 @@ object HealthCheck {
         cancelled: () -> Boolean = { false },
         credentials: ProbeCredentials = ProbeAuth.current(),
     ): Boolean {
-        // One attempt per independent endpoint is enough here. A second full
-        // pass made the UI sit in "Starting" for tens of seconds on a bad path.
-        return retry(endpoints, attempts = 1, cancelled = cancelled) { endpoint ->
+        // Route validation runs after the UI is already Active. A short backoff
+        // between attempts gives a freshly restarted VLESS adapter time to finish
+        // cold DNS/TLS setup without delaying a route that succeeds immediately.
+        return retry(
+            endpoints = endpoints,
+            attempts = 2,
+            retryDelayMs = COLD_ROUTE_RETRY_DELAY_MS,
+            cancelled = cancelled,
+        ) { endpoint ->
             try {
                 val code = requestThroughAuthenticatedProxy(endpoint, proxyPort, timeoutMs, credentials)
                 val ok = code == 204
@@ -71,7 +78,6 @@ object HealthCheck {
                 .createSocket(raw, host, targetPort, true) as SSLSocket
             tls.soTimeout = timeoutMs
             val parameters = tls.sslParameters
-            // Raw SSLSocket does not enable endpoint identity checks by default.
             parameters.endpointIdentificationAlgorithm = "HTTPS"
             tls.sslParameters = parameters
 
@@ -137,12 +143,25 @@ object HealthCheck {
     }
 
     internal fun retry(
-        endpoints: List<String>, attempts: Int, cancelled: () -> Boolean = { false },
+        endpoints: List<String>,
+        attempts: Int,
+        retryDelayMs: Long = 0L,
+        cancelled: () -> Boolean = { false },
         check: (String) -> Boolean,
     ): Boolean {
-        for (endpoint in endpoints) repeat(attempts) {
-            if (cancelled() || Thread.currentThread().isInterrupted) return false
-            if (check(endpoint)) return true
+        for (endpoint in endpoints) {
+            repeat(attempts) { attempt ->
+                if (cancelled() || Thread.currentThread().isInterrupted) return false
+                if (check(endpoint)) return true
+                if (attempt < attempts - 1 && retryDelayMs > 0L) {
+                    try {
+                        Thread.sleep(retryDelayMs)
+                    } catch (_: InterruptedException) {
+                        Thread.currentThread().interrupt()
+                        return false
+                    }
+                }
+            }
         }
         return false
     }

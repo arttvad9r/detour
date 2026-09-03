@@ -66,7 +66,7 @@ object SettingsBackup {
         val keys = legacyKeys(b.vlessUri)
         validateKeys(keys)
         validateRoutes(b.routes)
-        return b.copy(vlessKeys = keys, activeVpn = VpnProfileKind.VLESS)
+        return b.copy(vlessKeys = keys, activeVpn = selectedKeyKind(keys) ?: VpnProfileKind.VLESS)
     }
 
     private fun parseV2(o: JSONObject): Backup {
@@ -79,7 +79,7 @@ object SettingsBackup {
         return b.copy(
             vlessKeys = keys,
             vlessUri = keys.active?.uri ?: "",
-            activeVpn = VpnProfileKind.VLESS,
+            activeVpn = selectedKeyKind(keys) ?: VpnProfileKind.VLESS,
         )
     }
 
@@ -95,7 +95,11 @@ object SettingsBackup {
         validateBase(b)
         validateKeys(keys)
         validateRoutes(b.routes)
-        if (activeVpn == VpnProfileKind.WARP) require(warp != null)
+        when (activeVpn) {
+            VpnProfileKind.VLESS -> if (keys.active != null) require(selectedKeyKind(keys) == VpnProfileKind.VLESS)
+            VpnProfileKind.SUBSCRIPTION -> require(selectedKeyKind(keys) == VpnProfileKind.SUBSCRIPTION)
+            VpnProfileKind.WARP -> require(warp != null)
+        }
         return b.copy(
             vlessKeys = keys,
             vlessUri = keys.active?.uri ?: "",
@@ -114,6 +118,12 @@ object SettingsBackup {
     private fun validateKeys(keys: VlessKeys) {
         keys.items.forEach { require(VlessKeyParser.parse(it.uri) is ParseResult.Ok) }
         require(keys.activeId == null || keys.items.any { it.id == keys.activeId })
+    }
+
+    private fun selectedKeyKind(keys: VlessKeys): VpnProfileKind? {
+        val active = keys.active ?: return null
+        val parsed = VlessKeyParser.parse(active.uri) as? ParseResult.Ok ?: return null
+        return if (parsed.profile.isSubscription) VpnProfileKind.SUBSCRIPTION else VpnProfileKind.VLESS
     }
 
     private fun validateRoutes(routes: Map<String, String>) {

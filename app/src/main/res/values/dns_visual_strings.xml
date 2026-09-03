@@ -1,0 +1,8 @@
+<resources>
+    <string name="dns_google_subtitle">Google Public DNS · classic DNS</string>
+    <string name="dns_cloudflare_subtitle">Cloudflare · DNS over HTTPS</string>
+    <string name="dns_adguard_subtitle">AdGuard DNS · DNS over HTTPS</string>
+    <string name="dns_custom_subtitle">IP address or HTTPS DoH URL</string>
+    <string name="dns_info">HTTPS DoH resolvers are encrypted. IP-only resolvers use classic DNS inside the Detour tunnel.</string>
+    <string name="dns_selected">Selected resolver</string>
+</resources>

@@ -67,6 +67,20 @@ class FontScaleLayoutTest {
         assertGrows("input-normal", "input-large")
     }
 
+    @Test fun settingsDetailEmptyStateDisplaysAtTwoHundredPercentFontScale() {
+        rule.setContent {
+            TestTheme {
+                DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(2f)) {
+                    SettingsDetailEmptyState(
+                        Modifier.testTag("settings-detail-large"),
+                    )
+                }
+            }
+        }
+
+        rule.onNodeWithTag("settings-detail-large").assertIsDisplayed()
+    }
+
     private fun assertGrows(normalTag: String, largeTag: String) {
         rule.waitForIdle()
         val normal = rule.onNodeWithTag(normalTag).assertIsDisplayed()

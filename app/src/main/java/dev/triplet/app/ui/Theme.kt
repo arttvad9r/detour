@@ -50,6 +50,56 @@ enum class AppTheme(
     val colors: DetourColors,
     val dark: Boolean,
 ) {
+    DETOUR_LIGHT(
+        "detour_light", "Detour Light",
+        DetourColors(
+            background = Color(0xFFF8F7FC),
+            surface = Color(0xFFFFFFFF),
+            surfaceSoft = Color(0xFFF2EFFA),
+            surfaceSelected = Color(0xFFEAE5F7),
+            textPrimary = Color(0xFF17152A),
+            textSecondary = Color(0xFF625D78),
+            textMuted = Color(0xFF756F86),
+            accent = Color(0xFF7162B8),
+            onAccent = Color(0xFFFFFFFF),
+            accentSoft = Color(0xFF7162B8).copy(alpha = 0.12f),
+            accentBorder = Color(0xFF8D7DD1),
+            divider = Color(0xFFE8E3F1),
+            border = Color(0xFFDED8EA),
+            active = Color(0xFF2FA866),
+            activeStrong = Color(0xFF248652),
+            activeSoft = Color(0xFF2FA866).copy(alpha = 0.11f),
+            activeBorder = Color(0xFF2FA866).copy(alpha = 0.38f),
+            error = Color(0xFFB83E59),
+            errorSoft = Color(0xFFB83E59).copy(alpha = 0.10f),
+        ),
+        dark = false,
+    ),
+    DETOUR_DARK(
+        "detour_dark", "Detour Dark",
+        DetourColors(
+            background = Color(0xFF15131E),
+            surface = Color(0xFF1F1B2C),
+            surfaceSoft = Color(0xFF28233A),
+            surfaceSelected = Color(0xFF342D4C),
+            textPrimary = Color(0xFFF5F1FF),
+            textSecondary = Color(0xFFC9C1DC),
+            textMuted = Color(0xFF9890AC),
+            accent = Color(0xFFA99AEB),
+            onAccent = Color(0xFF181324),
+            accentSoft = Color(0xFFA99AEB).copy(alpha = 0.18f),
+            accentBorder = Color(0xFF8D7DD1),
+            divider = Color(0xFF393248),
+            border = Color(0xFF463E59),
+            active = Color(0xFF70D69D),
+            activeStrong = Color(0xFF70D69D),
+            activeSoft = Color(0xFF70D69D).copy(alpha = 0.13f),
+            activeBorder = Color(0xFF70D69D).copy(alpha = 0.40f),
+            error = Color(0xFFFF8198),
+            errorSoft = Color(0xFFFF8198).copy(alpha = 0.13f),
+        ),
+        dark = true,
+    ),
     CATPPUCCIN_LATTE(
         "catppuccin_latte", "Catppuccin Latte",
         DetourColors(
@@ -158,10 +208,10 @@ enum class AppTheme(
     companion object {
         /** Preserve settings and exported backups from the original palette set. */
         fun byId(id: String): AppTheme = entries.firstOrNull { it.id == id } ?: when (id) {
-            "lavenda", "ocean" -> CATPPUCCIN_LATTE
-            "midnight" -> CATPPUCCIN_MOCHA
+            "lavenda", "ocean" -> DETOUR_LIGHT
+            "midnight" -> DETOUR_DARK
             "graphite" -> GRUVBOX_DARK
-            else -> CATPPUCCIN_LATTE
+            else -> DETOUR_LIGHT
         }
     }
 }
@@ -189,15 +239,17 @@ fun colorSchemeFor(c: DetourColors, dark: Boolean): ColorScheme {
     ) else light
 }
 
-/** Keep card fills neutral; state is communicated through accent/error details. */
+/** Selection stays branded violet; connection success uses the semantic active palette. */
 fun statusStyleFor(colors: DetourColors, state: dev.triplet.app.vpn.VpnState): StatusStyle = when (state) {
-    dev.triplet.app.vpn.VpnState.Active -> StatusStyle(colors.surfaceSelected, colors.accent, colors.accentBorder)
-    dev.triplet.app.vpn.VpnState.Starting -> StatusStyle(colors.surface, colors.accent, colors.accentBorder)
+    dev.triplet.app.vpn.VpnState.Active -> StatusStyle(colors.activeSoft, colors.activeStrong, colors.activeBorder)
+    dev.triplet.app.vpn.VpnState.Starting -> StatusStyle(colors.accentSoft, colors.accent, colors.accentBorder)
     is dev.triplet.app.vpn.VpnState.Failed -> StatusStyle(colors.surface, colors.error, colors.error.copy(alpha = .45f))
     dev.triplet.app.vpn.VpnState.Idle -> StatusStyle(colors.surface, colors.textPrimary, colors.border)
 }
 
 fun themeLabel(theme: AppTheme): Int = when (theme) {
+    AppTheme.DETOUR_LIGHT -> R.string.theme_detour_light
+    AppTheme.DETOUR_DARK -> R.string.theme_detour_dark
     AppTheme.CATPPUCCIN_LATTE -> R.string.theme_catppuccin_latte
     AppTheme.CATPPUCCIN_MOCHA -> R.string.theme_catppuccin_mocha
     AppTheme.GRUVBOX_DARK -> R.string.theme_gruvbox_dark
@@ -205,11 +257,11 @@ fun themeLabel(theme: AppTheme): Int = when (theme) {
 }
 
 /** Target theme metadata (id/name/dark). */
-val LocalDetourTheme = androidx.compose.runtime.staticCompositionLocalOf<AppTheme> { AppTheme.CATPPUCCIN_LATTE }
+val LocalDetourTheme = androidx.compose.runtime.staticCompositionLocalOf<AppTheme> { AppTheme.DETOUR_LIGHT }
 
 /** Animated semantic colors used by the rendered UI. */
 val LocalDetourColors = androidx.compose.runtime.staticCompositionLocalOf<DetourColors> {
-    AppTheme.CATPPUCCIN_LATTE.colors
+    AppTheme.DETOUR_LIGHT.colors
 }
 
 object Spacing {
@@ -226,10 +278,10 @@ object Spacing {
 }
 
 val AppShapes = Shapes(
-    extraSmall = RoundedCornerShape(10.dp),
-    small = RoundedCornerShape(14.dp),
-    medium = RoundedCornerShape(20.dp),
-    large = RoundedCornerShape(24.dp),
+    extraSmall = RoundedCornerShape(12.dp),
+    small = RoundedCornerShape(18.dp),
+    medium = RoundedCornerShape(24.dp),
+    large = RoundedCornerShape(30.dp),
 )
 val PillShape = RoundedCornerShape(999.dp)
 

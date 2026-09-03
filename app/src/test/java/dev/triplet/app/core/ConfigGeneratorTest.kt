@@ -191,7 +191,10 @@ class ConfigGeneratorTest {
             |mode: rule
             |log-level: info
             |ipv6: false
+            |unified-delay: true
             |find-process-mode: strict
+            |profile:
+            |  store-selected: true
             |tun:
             |  enable: true
             |  stack: gvisor

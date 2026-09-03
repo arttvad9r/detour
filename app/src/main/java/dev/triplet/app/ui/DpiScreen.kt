@@ -58,10 +58,18 @@ fun DpiScreen(viewModel: DpiViewModel, onBack: () -> Unit, modifier: Modifier = 
             .verticalScroll(scrollState)
             .detourHighRefresh(spatialMotionActive),
     ) {
-        ScreenHeader(stringResource(R.string.dpi_title), onBack)
+        DetourBrandedHeader(stringResource(R.string.dpi_title), onBack)
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
+            DetourFeatureSummary(
+                iconRes = R.drawable.ic_dpi,
+                title = stringResource(R.string.dpi_hint_title),
+                subtitle = stringResource(R.string.dpi_hint),
+                modifier = Modifier.padding(horizontal = Spacing.space16),
+            )
+
+            Spacer(Modifier.height(Spacing.space12))
             DetourCard(Modifier.padding(horizontal = Spacing.space16).selectableGroup()) {
                 ChoiceRow(
                     title = stringResource(R.string.preset_recommended),
@@ -98,7 +106,6 @@ fun DpiScreen(viewModel: DpiViewModel, onBack: () -> Unit, modifier: Modifier = 
                         onValueChange = viewModel::setCustomField,
                         label = stringResource(R.string.dpi_custom_label),
                         placeholder = stringResource(R.string.dpi_custom_placeholder),
-                        helper = stringResource(R.string.dpi_custom_hint),
                         error = when {
                             state.customInvalid -> stringResource(R.string.dpi_custom_invalid)
                             state.saveState == DpiSaveState.ERROR -> stringResource(R.string.dpi_save_error)

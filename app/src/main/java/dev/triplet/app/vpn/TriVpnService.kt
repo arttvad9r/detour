@@ -139,13 +139,39 @@ class TriVpnService : VpnService() {
         // cannot diverge even if credential generation changes in the future.
         val probeCredentials = ProbeAuth.current()
 
-        // 1. Разрешаем только выбранный VPN-профиль. VLESS парсится заново перед
+        // 1. Разрешаем только выбранный VPN-профиль. URI парсится заново перед
         // запуском, WARP уже был строго проверен при импорте/чтении из DataStore.
         val vpn = when (settings.activeVpn) {
             VpnProfileKind.VLESS -> {
                 if (settings.vlessUri.isBlank()) null
                 else when (val parsed = VlessKeyParser.parse(settings.vlessUri)) {
-                    is ParseResult.Ok -> VpnOutbound.Vless(parsed.profile)
+                    is ParseResult.Ok -> {
+                        if (parsed.profile.isSubscription) {
+                            VpnController.setState(VpnState.Failed(getString(R.string.err_invalid_key)))
+                            stopSequence(stopSelf = true)
+                            return
+                        }
+                        VpnOutbound.Vless(parsed.profile)
+                    }
+                    is ParseResult.Err -> {
+                        VpnController.setState(VpnState.Failed(getString(R.string.err_invalid_key)))
+                        stopSequence(stopSelf = true)
+                        return
+                    }
+                }
+            }
+            VpnProfileKind.SUBSCRIPTION -> {
+                if (settings.vlessUri.isBlank()) null
+                else when (val parsed = VlessKeyParser.parse(settings.vlessUri)) {
+                    is ParseResult.Ok -> {
+                        val url = parsed.profile.subscriptionUrl
+                        if (url == null) {
+                            VpnController.setState(VpnState.Failed(getString(R.string.err_invalid_key)))
+                            stopSequence(stopSelf = true)
+                            return
+                        }
+                        VpnOutbound.Subscription(url)
+                    }
                     is ParseResult.Err -> {
                         VpnController.setState(VpnState.Failed(getString(R.string.err_invalid_key)))
                         stopSequence(stopSelf = true)
@@ -265,9 +291,12 @@ class TriVpnService : VpnService() {
                         validationGeneration.get() != generation ||
                         VpnController.state.value != VpnState.Active
                 }
-                // WARP may need a little longer on the first connection while the
-                // url-test group resolves/chooses an endpoint.
-                val vpnTimeout = if (vpnKind == VpnProfileKind.WARP) 5000 else 2500
+                // Provider-backed profiles may need longer on first connection
+                // while an endpoint is downloaded/checked/selected.
+                val vpnTimeout = when (vpnKind) {
+                    VpnProfileKind.VLESS -> 2500
+                    VpnProfileKind.SUBSCRIPTION, VpnProfileKind.WARP -> 5000
+                }
                 val vpnHealthy = effVpn.isEmpty() ||
                     HealthCheck.generate204(
                         10810,
@@ -281,21 +310,16 @@ class TriVpnService : VpnService() {
                         cancelled = cancelled,
                         credentials = probeCredentials,
                     ))
-                ServiceLog.i("probe results: vpn=$vpnHealthy dpi=$dpiHealthy")
-                if (cancelled() || (vpnHealthy && dpiHealthy)) return@execute
+                if (cancelled()) return@execute
 
-                runCatching {
-                    executor.execute {
-                        if (
-                            validationGeneration.get() == generation &&
-                            !destroyed.get() && !stopQueued.get() &&
-                            VpnController.state.value == VpnState.Active
-                        ) {
-                            ServiceLog.e("route validation failed")
-                            VpnController.setState(VpnState.Failed(getString(R.string.err_no_connect)))
-                            stopSequence(stopSelf = true)
-                        }
-                    }
+                if (vpnHealthy && dpiHealthy) {
+                    ServiceLog.i("probe results: vpn=true dpi=true")
+                } else {
+                    // Engine.start already established the Android TUN and Mihomo runtime.
+                    // A connectivity URL is only a diagnostic signal: captive portals,
+                    // endpoint filtering or transient DNS/TLS failures must not tear down
+                    // an otherwise usable VPN a moment after it becomes Active.
+                    ServiceLog.w("route probe failed (non-fatal): vpn=$vpnHealthy dpi=$dpiHealthy")
                 }
             }
         }

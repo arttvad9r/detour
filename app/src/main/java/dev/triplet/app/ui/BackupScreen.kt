@@ -7,6 +7,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -41,6 +43,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
+
+private enum class BackupNoticeTone { SUCCESS, ERROR }
 
 @Composable
 fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
@@ -92,22 +96,15 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
             .verticalScroll(scrollState)
             .detourHighRefresh(scrollState.isScrollInProgress),
     ) {
-        ScreenHeader(stringResource(R.string.backup_title), onBack)
+        DetourBrandedHeader(stringResource(R.string.backup_title), onBack)
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
-            Text(
-                stringResource(R.string.backup_note),
-                style = MaterialTheme.typography.bodySmall,
-                color = c.textSecondary,
+            DetourFeatureSummary(
+                iconRes = R.drawable.ic_export,
+                title = stringResource(R.string.backup_hint_title),
+                subtitle = stringResource(R.string.backup_note),
                 modifier = Modifier.padding(horizontal = Spacing.space16),
-            )
-            Spacer(Modifier.height(Spacing.space4))
-            Text(
-                stringResource(R.string.backup_warning),
-                style = MaterialTheme.typography.bodySmall,
-                color = c.textSecondary,
-                modifier = Modifier.padding(horizontal = Spacing.space16, vertical = Spacing.space4),
             )
 
             Spacer(Modifier.height(Spacing.space12))
@@ -124,7 +121,7 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
                 ) {
                     exportLauncher.launch("detour-backup.json")
                 }
-                GroupDivider(startInset = 46)
+                GroupDivider(startInset = 66)
                 ActionRow(
                     label = stringResource(
                         if (operation == BackupOperation.IMPORT) R.string.backup_importing
@@ -146,16 +143,69 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
             ) {
                 Column {
                     Spacer(Modifier.height(Spacing.space12))
-                    Text(
-                        statusText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (statusIsError) c.error else c.accent,
+                    BackupNotice(
+                        text = statusText,
+                        iconRes = if (statusIsError) R.drawable.ic_warning else R.drawable.ic_check,
+                        tone = if (statusIsError) BackupNoticeTone.ERROR else BackupNoticeTone.SUCCESS,
                         modifier = Modifier.padding(horizontal = Spacing.space16),
                     )
                 }
             }
             Spacer(Modifier.height(Spacing.space24))
         }
+    }
+}
+
+@Composable
+private fun BackupNotice(
+    text: String,
+    iconRes: Int,
+    tone: BackupNoticeTone,
+    modifier: Modifier = Modifier,
+) {
+    val c = detourColors
+    val container = when (tone) {
+        BackupNoticeTone.SUCCESS -> c.activeSoft
+        BackupNoticeTone.ERROR -> c.errorSoft
+    }
+    val border = when (tone) {
+        BackupNoticeTone.SUCCESS -> c.activeBorder
+        BackupNoticeTone.ERROR -> c.error.copy(alpha = 0.34f)
+    }
+    val iconTint = when (tone) {
+        BackupNoticeTone.SUCCESS -> c.activeStrong
+        BackupNoticeTone.ERROR -> c.error
+    }
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(container, AppShapes.small)
+            .border(1.dp, border, AppShapes.small)
+            .padding(horizontal = Spacing.space12, vertical = Spacing.space12),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .background(c.surface.copy(alpha = 0.72f), AppShapes.extraSmall),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painter = painterResource(iconRes),
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = c.textPrimary,
+            modifier = Modifier
+                .padding(start = Spacing.space12)
+                .weight(1f),
+        )
     }
 }
 
@@ -169,11 +219,6 @@ private fun ActionRow(
     onClick: () -> Unit,
 ) {
     val c = detourColors
-    val tint = when {
-        !enabled -> c.textMuted
-        accent -> c.accent
-        else -> c.textSecondary
-    }
     val row = Modifier
         .fillMaxWidth()
         .heightIn(min = 56.dp)
@@ -195,10 +240,9 @@ private fun ActionRow(
         interactiveRow.padding(horizontal = Spacing.space16),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            painterResource(iconRes), null,
-            tint = tint,
-            modifier = Modifier.size(18.dp),
+        DetourIconTile(
+            iconRes = iconRes,
+            selected = accent && enabled,
         )
         Text(
             label,

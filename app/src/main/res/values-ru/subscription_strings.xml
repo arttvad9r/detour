@@ -1,0 +1,30 @@
+<resources>
+    <string name="subscription_profile_section">Подписки</string>
+    <string name="subscription_profile_kind">VLESS</string>
+    <string name="subscription_profile_host">VLESS · %1$s</string>
+    <string name="subscription_runtime_title">Серверы подписки</string>
+    <string name="subscription_runtime_disconnected">Сервер можно выбрать и проверить до подключения. Доступность активного провайдера появится после запуска VPN.</string>
+    <string name="subscription_runtime_loading">Загрузка серверов подписки…</string>
+    <string name="subscription_runtime_unavailable">Данные о доступности серверов пока не получены.</string>
+    <string name="subscription_runtime_summary">Доступно серверов: %1$d из %2$d</string>
+    <string name="subscription_runtime_updated">Обновлено: %1$s</string>
+    <string name="subscription_runtime_refresh">Обновить</string>
+    <string name="subscription_runtime_refreshing">Обновление…</string>
+    <string name="subscription_runtime_refresh_error">Не удалось обновить подписку. Текущий туннель не изменён.</string>
+    <string name="subscription_catalog_error">Не удалось получить VLESS-серверы из подписки. Проверьте ссылку и попробуйте обновить.</string>
+    <string name="subscription_selected_server">Выбранный сервер</string>
+    <string name="subscription_select_server">Выберите сервер</string>
+    <string name="subscription_search_hint">Поиск серверов…</string>
+    <string name="subscription_sort_default">По порядку</string>
+    <string name="subscription_sort_latency">Задержка</string>
+    <string name="subscription_sort_name">Имя</string>
+    <string name="subscription_selection_error">Не удалось выбрать сервер. Предыдущий выбор сохранён.</string>
+    <string name="subscription_latency_test">Проверить пинг</string>
+    <string name="subscription_latency_testing">Проверка…</string>
+    <string name="subscription_latency_connect_hint">Одним нажатием проверьте все VLESS-серверы ещё до подключения.</string>
+    <string name="subscription_node_online">Доступен</string>
+    <string name="subscription_node_offline">Недоступен</string>
+    <string name="subscription_node_unknown">Не проверен</string>
+    <string name="subscription_node_delay">%1$d мс</string>
+    <string name="subscription_nodes_more">Ещё серверов: %1$d</string>
+</resources>

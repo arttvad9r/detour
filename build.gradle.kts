@@ -11,9 +11,20 @@ val goVersion = providers.exec {
     commandLine("go", "version")
 }.standardOutput.asText
 
+val engineGoSources = fileTree("engine/mihomo/go") {
+    include("*.go")
+    exclude("*_test.go")
+}
+
 tasks.register<Exec>("buildMihomoAar") {
-    // Engine output depends on both its sources and the exact Go toolchain.
-    inputs.files("engine/mihomo/build.sh", "engine/mihomo/go/go.mod", "engine/mihomo/go/go.sum", "engine/mihomo/go/engine.go")
+    // Engine output depends on every production bridge source, module metadata,
+    // the embedding script and the exact Go toolchain.
+    inputs.files(
+        "engine/mihomo/build.sh",
+        "engine/mihomo/go/go.mod",
+        "engine/mihomo/go/go.sum",
+    )
+    inputs.files(engineGoSources)
     inputs.property("goVersion", goVersion)
     outputs.file("engine/libs/engine.aar")
     commandLine("bash", "engine/mihomo/build.sh")

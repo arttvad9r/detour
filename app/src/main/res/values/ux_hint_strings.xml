@@ -1,0 +1,8 @@
+<resources>
+    <string name="home_route_via">via %1$s</string>
+    <string name="dpi_hint_title">DPI strategy</string>
+    <string name="dpi_hint">Choose the recommended strategy or enter custom -d, -s, -a and --timeout arguments.</string>
+    <string name="dns_hint_title">DNS for the tunnel</string>
+    <string name="theme_hint_title">Detour themes</string>
+    <string name="backup_hint_title">Detour configuration</string>
+</resources>

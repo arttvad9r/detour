@@ -15,8 +15,9 @@ trap 'rm -rf "$WORK_DIR"' EXIT
 
 cp "$REPO_ROOT/engine/mihomo/go/go.mod" "$WORK_DIR/"
 cp "$REPO_ROOT/engine/mihomo/go/go.sum" "$WORK_DIR/"
-cp "$REPO_ROOT/engine/mihomo/go/engine.go" "$WORK_DIR/"
-cp "$REPO_ROOT/engine/mihomo/go/engine_test.go" "$WORK_DIR/"
+# Test the same Go package source set that gomobile binds. This must include
+# auxiliary bridge files such as subscription_prepare.go, not only engine.go.
+cp "$REPO_ROOT/engine/mihomo/go"/*.go "$WORK_DIR/"
 cd "$WORK_DIR"
 sed -i "s|^replace github.com/metacubex/mihomo => .*|replace github.com/metacubex/mihomo => $CACHE|" go.mod
 grep -q '^replace github.com/metacubex/mihomo' go.mod || \
