@@ -109,6 +109,40 @@ else:
     raise SystemExit(f"FATAL: VLESS gRPC converter layout changed: {p}")
 PYEOF
 
+# Xray-core v26.7.11+ defaults REALITY minClientVer to 26.3.27. Mihomo
+# v1.19.30 still advertises 1.8.2 in the encrypted ClientHello SessionId, so a
+# default modern Xray REALITY server rejects the handshake and the client sees
+# an EOF/connection-closed fallback. Detour embeds Mihomo, so advertise the
+# minimum accepted modern Xray version while keeping the pinned engine otherwise
+# unchanged. Export constants so the bridge tests verify the exact patched AAR
+# source rather than only checking this patch script text.
+python3 - <<'PYEOF'
+p = 'component/tls/reality.go'
+s = open(p).read()
+old_const = '''const RealityMaxShortIDLen = 8'''
+new_const = '''const (
+\tRealityMaxShortIDLen = 8
+\tRealityClientVersionMajor byte = 26
+\tRealityClientVersionMinor byte = 3
+\tRealityClientVersionPatch byte = 27
+)'''
+old_version = '''\t\thello.SessionId[0] = 1
+\t\thello.SessionId[1] = 8
+\t\thello.SessionId[2] = 2'''
+new_version = '''\t\thello.SessionId[0] = RealityClientVersionMajor
+\t\thello.SessionId[1] = RealityClientVersionMinor
+\t\thello.SessionId[2] = RealityClientVersionPatch'''
+if old_const in s and old_version in s:
+    s = s.replace(old_const, new_const, 1)
+    s = s.replace(old_version, new_version, 1)
+    open(p, 'w').write(s)
+    print("REALITY client-version compatibility patch applied")
+elif new_const in s and new_version in s:
+    print("REALITY client-version compatibility patch already applied")
+else:
+    raise SystemExit(f"FATAL: REALITY client-version layout changed: {p}")
+PYEOF
+
 # Triplet host-side UID resolver bridge (Task 3 round 2):
 # tunnel.go consults process.TripletHostFinder (wired to the app's
 # ConnectivityManager.getConnectionOwnerUid via engine.SetProcessResolver)
