@@ -294,7 +294,6 @@ else:
     raise SystemExit(f"FATAL: ApplyConfig layout changed: {p}")
 old_end = '''\tresolver.ResetConnection()\n}'''
 if old_end in s:
-    old_end = '''\tresolver.ResetConnection()\n}'''
     if s.count(old_end) != 1:
         raise SystemExit(f"FATAL: ApplyConfig end layout changed: {p}")
     s = s.replace(old_end, '''\tresolver.ResetConnection()\n\treturn nil\n}''', 1)

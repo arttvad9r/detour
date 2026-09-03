@@ -5,9 +5,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/metacubex/mihomo/common/utils"
 	"github.com/metacubex/mihomo/component/profile"
 	"github.com/metacubex/mihomo/config"
 	C "github.com/metacubex/mihomo/constant"
+	P "github.com/metacubex/mihomo/constant/provider"
+	"github.com/metacubex/mihomo/tunnel"
 )
 
 func TestReadyIsFalseBeforeStart(t *testing.T) {
@@ -39,6 +42,21 @@ rules:
 	}
 	if Ready() {
 		t.Fatal("failed TUN creation must not publish readiness")
+	}
+}
+
+func TestFailedReplacementLeavesRuntimeStopped(t *testing.T) {
+	Stop()
+	valid := "mode: rule\nlog-level: silent\nproxies: []\nrules:\n  - MATCH,DIRECT\n"
+	if err := Start(valid, ""); err != nil {
+		t.Fatalf("start valid runtime: %v", err)
+	}
+	failed := "mode: rule\nlog-level: silent\nproxies: []\ntun:\n  enable: true\n  file-descriptor: 2147483647\nrules:\n  - MATCH,DIRECT\n"
+	if err := Start(failed, ""); err == nil {
+		t.Fatal("failed replacement must return an error")
+	}
+	if Ready() {
+		t.Fatal("failed replacement must not leave a partially active runtime")
 	}
 }
 
@@ -125,6 +143,33 @@ func TestProviderCleanupCallsPinnedCloseHook(t *testing.T) {
 	closeProvider(provider)
 	if !provider.closed {
 		t.Fatal("provider cleanup must call the pinned Close hook")
+	}
+}
+
+type traversedProvider struct{ closed bool }
+
+func (p *traversedProvider) Name() string                                                          { return "test" }
+func (p *traversedProvider) VehicleType() P.VehicleType                                            { return P.Compatible }
+func (p *traversedProvider) Type() P.ProviderType                                                  { return P.Proxy }
+func (p *traversedProvider) Initial() error                                                        { return nil }
+func (p *traversedProvider) Update() error                                                         { return nil }
+func (p *traversedProvider) Proxies() []C.Proxy                                                    { return nil }
+func (p *traversedProvider) Count() int                                                            { return 0 }
+func (p *traversedProvider) Touch()                                                                {}
+func (p *traversedProvider) HealthCheck()                                                          {}
+func (p *traversedProvider) Version() uint32                                                       { return 0 }
+func (p *traversedProvider) RegisterHealthCheckTask(string, utils.IntRanges[uint16], string, uint) {}
+func (p *traversedProvider) HealthCheckURL() string                                                { return "" }
+func (p *traversedProvider) Close() error                                                          { p.closed = true; return nil }
+
+func TestStopTraversesAndClosesProviders(t *testing.T) {
+	provider := &traversedProvider{}
+	oldProviders := tunnel.Providers()
+	tunnel.UpdateProxies(nil, map[string]P.ProxyProvider{"test": provider})
+	t.Cleanup(func() { tunnel.UpdateProxies(nil, oldProviders) })
+	Stop()
+	if !provider.closed {
+		t.Fatal("Stop must close providers from the active runtime")
 	}
 }
 

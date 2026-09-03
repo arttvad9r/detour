@@ -118,9 +118,11 @@ func Start(configYAML string, logPath string) (err error) {
 	}
 	stopRuntimeLocked()
 	if applyErr := executor.ApplyConfig(cfg, true); applyErr != nil {
+		stopRuntimeLocked()
 		return applyErr
 	}
 	if cfg.General.Tun.Enable && !listener.LastTunConf.Enable {
+		stopRuntimeLocked()
 		return errors.New("failed to create TUN")
 	}
 	readyMu.Lock()

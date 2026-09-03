@@ -5,6 +5,7 @@
 - `engine/mihomo/go/engine.go`
 - `engine/mihomo/go/engine_test.go`
 - `engine/mihomo/build.sh`
+- `engine/mihomo/go/subscription_prepare.go`
 
 ## Tests Run
 
@@ -12,6 +13,24 @@
 - Project `engine/mihomo/build.sh` preparation with a temporary no-op `gomobile` wrapper: focused package tests **PASS** (`ok engine 0.159s`); the wrapper intentionally stopped the later AAR validation.
 - Prepared-tree focused race tests: **PASS** (`ok engine 1.193s`).
 - Prepared-tree `go test -race ./...`: **FAIL** due a data race in the existing AmneziaWG test background goroutine reading mihomo logging state while another test calls `log.SetLevel`; no Task 1 assertion failed.
+- `git diff --check`: **PASS**.
+
+- Final `go test -race ./...`: **FAIL** (`engine 0.374s`) on the same pre-existing AmneziaWG goroutine/logging race in `TestStopReleasesCustomProbeListener`.
+
+## Scoped Reviewer Round 2
+
+- Failed replacement now tears down the newly partial runtime on both ApplyConfig and TUN failure paths; config parse failures occur before teardown so the existing runtime is preserved.
+- `HealthCheckSubscriptionProvider`, active latency inspection, and catalog latency now synchronize runtime access with `runtimeMu`; the internal locked helper avoids recursive locking.
+- Stop traversal is covered with a provider inserted into mihomo's active provider map, and the test restores that global map.
+- The overlap test signals goroutine entry before releasing `runtimeMu` and performs no fatal assertion while holding the lock.
+
+## Round 2 Verification
+
+- RED: prepared build test failed with `undefined: resolveSubscriptionCache` before the prior-round helper existed.
+- `PATH=/tmp/opencode/fakebin:$PATH ./build.sh`: Go test stage **PASS** (`ok engine 0.180s`); temporary gomobile wrapper intentionally failed only the later AAR validation.
+- `go test -tags with_gvisor ./... -run 'Test(StartDoesNotReportReadyWhenTunCreationFails|FailedReplacementLeavesRuntimeStopped|ConcurrentStartAndStopLeaveEngineStopped|SubscriptionSelectionIsScopedToProfile|SubscriptionSelectionUsesLegacyKeyAsMigrationFallback|ProviderCleanupCallsPinnedCloseHook|StopTraversesAndClosesProviders|SubscriptionLatency)'`: **PASS** (`ok engine 0.174s`).
+- `go test -race -tags with_gvisor ./... -run 'Test(StartDoesNotReportReadyWhenTunCreationFails|FailedReplacementLeavesRuntimeStopped|ConcurrentStartAndStopLeaveEngineStopped|SubscriptionSelectionIsScopedToProfile|SubscriptionSelectionUsesLegacyKeyAsMigrationFallback|ProviderCleanupCallsPinnedCloseHook|StopTraversesAndClosesProviders|SubscriptionLatency)'`: **PASS** (`ok engine 1.367s`).
+- Prepared-tree `go test -race ./...`: **FAIL** on the pre-existing AmneziaWG background-goroutine/logging race; no Task 1 test failure was reported.
 - `git diff --check`: **PASS**.
 
 ## Reviewer Follow-up

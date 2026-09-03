@@ -117,6 +117,8 @@ func FetchPreparedSubscriptionCatalog(subscriptionURL string) string {
 // the currently active provider. It is retained for runtime diagnostics; the UI
 // uses TestSubscriptionCatalogLatency for the user-triggered latency action.
 func HealthCheckSubscriptionProvider() error {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
 	if !Ready() {
 		return errors.New("engine is not ready")
 	}
@@ -134,7 +136,9 @@ func HealthCheckSubscriptionProvider() error {
 // falls back to independently parsed proxies and resolves endpoint hostnames via
 // Android's system resolver before handing them to Mihomo's URLTest.
 func TestSubscriptionCatalogLatency(subscriptionURL string) string {
-	if results, ok := activeSubscriptionLatencyResults(); ok {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+	if results, ok := activeSubscriptionLatencyResultsLocked(); ok {
 		return marshalSubscriptionLatencyResults(results)
 	}
 
@@ -154,6 +158,12 @@ func marshalSubscriptionLatencyResults(results []subscriptionLatencyNode) string
 }
 
 func activeSubscriptionLatencyResults() ([]subscriptionLatencyNode, bool) {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+	return activeSubscriptionLatencyResultsLocked()
+}
+
+func activeSubscriptionLatencyResultsLocked() ([]subscriptionLatencyNode, bool) {
 	if !Ready() {
 		return nil, false
 	}
