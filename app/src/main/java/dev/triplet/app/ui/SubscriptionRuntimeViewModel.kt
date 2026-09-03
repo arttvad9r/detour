@@ -120,6 +120,11 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                 selectedNode = cachedSelected ?: previousSelected.takeIf { previousUrl == subscriptionUrl },
             )
             loadCatalog(subscriptionUrl)
+            cachedSelected?.let { selected ->
+                viewModelScope.launch {
+                    logSelectedNodeDiagnostics(cacheDir, selected)
+                }
+            }
         } else if (_uiState.value.catalogStatus == SubscriptionCatalogStatus.IDLE) {
             loadCatalog(subscriptionUrl)
         }
@@ -189,7 +194,7 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                         latencyErrorByName = emptyMap(),
                     )
                     val result = withContext(Dispatchers.IO) {
-                        parseSubscriptionLatencyResult(Engine.testSubscriptionCatalogLatency(url))
+                        parseSubscriptionLatencyResult(Engine.testSubscriptionCatalogLatencyDetailed(url))
                     }
                     _uiState.value = _uiState.value.copy(
                         latencyTesting = false,
