@@ -76,7 +76,7 @@ fun DpiScreen(viewModel: DpiViewModel, onBack: () -> Unit, modifier: Modifier = 
                     selected = !state.editingCustom && state.preset == DpiPreset.RECOMMENDED,
                     onClick = viewModel::chooseRecommended,
                 )
-                GroupDivider(startInset = 56)
+                GroupDivider(startInset = ChoiceRowDividerInset)
                 ChoiceRow(
                     title = stringResource(R.string.preset_custom),
                     selected = state.editingCustom,
