@@ -73,3 +73,11 @@
 - `go test -race -tags with_gvisor ./... -run 'Test(StartDoesNotReportReadyWhenTunCreationFails|ConcurrentStartAndStopLeaveEngineStopped|SubscriptionSelectionIsScopedToProfile|SubscriptionSelectionUsesLegacyKeyAsMigrationFallback|ProviderCleanupCallsPinnedCloseHook)'`: **PASS** (`ok engine 1.190s`).
 - Full prepared-tree `go test -race ./...`: **FAIL** on the same pre-existing AmneziaWG background-goroutine/logging race reported above.
 - `git diff --check`: **PASS**.
+
+## Round 4
+
+- Replaced the pre-call overlap barriers with a mutex-acquisition hook. The test now blocks immediately after `Start` owns `runtimeMu`, starts `Stop`, and asserts the observed acquisition order is `Start` then `Stop` before joining both goroutines.
+- Cleanup releases the blocked hook through `sync.Once`, waits for both lifecycle goroutines, and only then clears the test hook.
+- Prepared-tree focused concurrency test: **PASS** (`go test ./... -run '^TestConcurrentStartAndStopLeaveEngineStopped$' -count=10`).
+- Prepared-tree focused concurrency race test: **PASS** (`go test -race ./... -run '^TestConcurrentStartAndStopLeaveEngineStopped$' -count=10`).
+- Prepared-tree Task 1 focused normal and race selectors: **PASS** (`ok engine 0.169s` and `ok engine 1.387s`).

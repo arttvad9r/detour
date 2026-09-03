@@ -3,6 +3,7 @@ package engine
 import (
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/metacubex/mihomo/common/utils"
@@ -63,31 +64,36 @@ func TestFailedReplacementLeavesRuntimeStopped(t *testing.T) {
 func TestConcurrentStartAndStopLeaveEngineStopped(t *testing.T) {
 	Stop()
 	config := "mode: rule\nlog-level: silent\nproxies: []\nrules:\n  - MATCH,DIRECT\n"
-	runtimeMu.Lock()
-	released := false
-	releaseRuntime := func() {
-		if !released {
-			released = true
-			runtimeMu.Unlock()
+	startDone := make(chan error, 1)
+	stopDone := make(chan struct{})
+	acquired := make(chan string, 2)
+	releaseStart := make(chan struct{})
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(releaseStart) }) }
+	runtimeMuAcquiredHook = func(operation string) {
+		acquired <- operation
+		if operation == "Start" {
+			<-releaseStart
 		}
 	}
-	t.Cleanup(releaseRuntime)
-	startDone := make(chan error, 1)
-	startAttempt := make(chan struct{})
+	t.Cleanup(func() {
+		release()
+		<-startDone
+		<-stopDone
+		runtimeMuAcquiredHook = nil
+	})
+	go func() { startDone <- Start(config, "") }()
+	if operation := <-acquired; operation != "Start" {
+		t.Fatalf("first runtime mutex owner = %q, want Start", operation)
+	}
 	go func() {
-		close(startAttempt)
-		startDone <- Start(config, "")
-	}()
-	stopDone := make(chan struct{})
-	stopAttempt := make(chan struct{})
-	go func() {
-		close(stopAttempt)
 		Stop()
 		close(stopDone)
 	}()
-	<-startAttempt
-	<-stopAttempt
-	releaseRuntime()
+	release()
+	if operation := <-acquired; operation != "Stop" {
+		t.Fatalf("second runtime mutex owner = %q, want Stop", operation)
+	}
 	if err := <-startDone; err != nil {
 		t.Fatalf("concurrent Start failed: %v", err)
 	}

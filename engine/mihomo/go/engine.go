@@ -55,6 +55,7 @@ type ProcessResolver interface {
 
 var hostResolver ProcessResolver
 var runtimeMu sync.Mutex
+var runtimeMuAcquiredHook func(string)
 var resolverMu sync.RWMutex
 var readyMu sync.RWMutex
 var ready bool
@@ -94,6 +95,9 @@ func init() {
 func Start(configYAML string, logPath string) (err error) {
 	runtimeMu.Lock()
 	defer runtimeMu.Unlock()
+	if hook := runtimeMuAcquiredHook; hook != nil {
+		hook("Start")
+	}
 	defer func() {
 		if err != nil {
 			err = redactError(err)
@@ -385,6 +389,9 @@ func safeCatalogLabel(value any, maxChars int) (string, bool) {
 func Stop() {
 	runtimeMu.Lock()
 	defer runtimeMu.Unlock()
+	if hook := runtimeMuAcquiredHook; hook != nil {
+		hook("Stop")
+	}
 	stopRuntimeLocked()
 }
 
