@@ -210,7 +210,7 @@ private fun SubscriptionServerList(
                 latencyError = latencyErrorByName[node.name],
                 onSelect = { onSelect(node.name) },
             )
-            if (index < nodes.lastIndex) GroupDivider(startInset = 56)
+            if (index < nodes.lastIndex) GroupDivider(startInset = ChoiceRowDividerInset)
         }
     }
 }
@@ -237,8 +237,8 @@ private fun SubscriptionNodeRow(
                 pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
                 pressScale = Motion.PRESS_RADIO,
             )
-            .heightIn(min = 52.dp)
-            .padding(horizontal = Spacing.space16, vertical = Spacing.space4),
+            .heightIn(min = 56.dp)
+            .padding(horizontal = Spacing.space16, vertical = Spacing.space8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SelectionMark(selected = selected)
@@ -249,17 +249,17 @@ private fun SubscriptionNodeRow(
         ) {
             Text(
                 text = name,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.titleSmall,
                 color = c.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             if (latencyError != null) {
                 Text(
-                    text = "${latencyError.errorClass}: ${latencyError.errorText}",
+                    text = stringResource(R.string.subscription_latency_failed),
                     style = MaterialTheme.typography.bodySmall,
-                    color = c.error,
-                    maxLines = 2,
+                    color = latencyBadColor(theme),
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = Spacing.space2),
                 )
