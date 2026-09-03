@@ -27,9 +27,15 @@ data class SubscriptionCatalogNode(
     val type: String,
 )
 
+data class SubscriptionLatencyError(
+    val errorClass: String,
+    val errorText: String,
+)
+
 data class SubscriptionLatencyResult(
     val testedNames: Set<String> = emptySet(),
     val delayByName: Map<String, Int> = emptyMap(),
+    val errorByName: Map<String, SubscriptionLatencyError> = emptyMap(),
 )
 
 data class SubscriptionRuntimeUiState(
@@ -42,7 +48,15 @@ data class SubscriptionRuntimeUiState(
     val latencyTesting: Boolean = false,
     val latencyTestedNames: Set<String> = emptySet(),
     val latencyByName: Map<String, Int> = emptyMap(),
+    val latencyErrorByName: Map<String, SubscriptionLatencyError> = emptyMap(),
 )
+
+private fun safeLatencyDiagnostic(value: String, maxChars: Int): String? {
+    val trimmed = value.trim()
+    if (trimmed.isBlank() || trimmed.length > maxChars) return null
+    if (trimmed.any { it.code < 0x20 || it.code == 0x7f }) return null
+    return trimmed
+}
 
 internal fun parseSubscriptionLatencyResult(raw: String): SubscriptionLatencyResult {
     if (raw.isBlank() || raw.length > 512 * 1024) return SubscriptionLatencyResult()
@@ -50,6 +64,7 @@ internal fun parseSubscriptionLatencyResult(raw: String): SubscriptionLatencyRes
         val nodes = JSONObject(raw).optJSONArray("nodes") ?: return@runCatching SubscriptionLatencyResult()
         val tested = LinkedHashSet<String>()
         val delays = LinkedHashMap<String, Int>()
+        val errors = LinkedHashMap<String, SubscriptionLatencyError>()
         for (index in 0 until minOf(nodes.length(), 256)) {
             val node = nodes.optJSONObject(index) ?: continue
             val name = node.optString("name").trim()
@@ -59,9 +74,22 @@ internal fun parseSubscriptionLatencyResult(raw: String): SubscriptionLatencyRes
             ) continue
             tested += name
             val delay = node.optInt("delayMs", 0)
-            if (delay in 1..60_000) delays[name] = delay
+            if (delay in 1..60_000) {
+                delays[name] = delay
+                continue
+            }
+
+            val errorClass = safeLatencyDiagnostic(node.optString("errorClass"), 64)
+            val errorText = safeLatencyDiagnostic(node.optString("errorText"), 800)
+            if (errorClass != null && errorText != null) {
+                errors[name] = SubscriptionLatencyError(errorClass, errorText)
+            }
         }
-        SubscriptionLatencyResult(testedNames = tested, delayByName = delays)
+        SubscriptionLatencyResult(
+            testedNames = tested,
+            delayByName = delays,
+            errorByName = errors,
+        )
     }.getOrDefault(SubscriptionLatencyResult())
 }
 
@@ -112,6 +140,7 @@ class SubscriptionRuntimeViewModel : ViewModel() {
             latencyTesting = false,
             latencyTestedNames = emptySet(),
             latencyByName = emptyMap(),
+            latencyErrorByName = emptyMap(),
         )
         loadCatalog(url, force = true)
         if (connected) {
@@ -155,6 +184,7 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                         latencyTesting = true,
                         latencyTestedNames = emptySet(),
                         latencyByName = emptyMap(),
+                        latencyErrorByName = emptyMap(),
                     )
                     val result = withContext(Dispatchers.IO) {
                         parseSubscriptionLatencyResult(Engine.testSubscriptionCatalogLatency(url))
@@ -163,6 +193,7 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                         latencyTesting = false,
                         latencyTestedNames = result.testedNames,
                         latencyByName = result.delayByName,
+                        latencyErrorByName = result.errorByName,
                     )
                 } catch (cancelled: CancellationException) {
                     _uiState.value = _uiState.value.copy(latencyTesting = false)
@@ -233,6 +264,7 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                     },
                     latencyTestedNames = _uiState.value.latencyTestedNames intersect names,
                     latencyByName = _uiState.value.latencyByName.filterKeys { it in names },
+                    latencyErrorByName = _uiState.value.latencyErrorByName.filterKeys { it in names },
                 )
             } catch (cancelled: CancellationException) {
                 throw cancelled
