@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -291,6 +293,7 @@ private fun HomeConnectionContent(
         .padding(horizontal = Spacing.space16, vertical = Spacing.space4)
         .widthIn(max = if (splitLayout) 900.dp else 480.dp)
         .fillMaxWidth()
+        .then(if (!splitLayout) Modifier.verticalScroll(rememberScrollState()) else Modifier)
 
     if (splitLayout) {
         Row(

@@ -524,22 +524,6 @@ fun SegmentedControl(
     }
 }
 
-/** Compatibility wrapper; branded headers share one implementation. */
-@Composable
-fun ScreenHeader(
-    title: String,
-    onBack: () -> Unit,
-    modifier: Modifier = Modifier,
-    hideBackInListDetail: Boolean = true,
-) {
-    DetourBrandedHeader(
-        title = title,
-        onBack = onBack,
-        modifier = modifier,
-        hideBackInListDetail = hideBackInListDetail,
-    )
-}
-
 @Composable
 fun fieldColors() = OutlinedTextFieldDefaults.colors(
     focusedContainerColor = detourColors.surface,

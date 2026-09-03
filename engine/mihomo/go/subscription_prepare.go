@@ -357,6 +357,9 @@ func fetchPreparedSubscriptionProxies(subscriptionURL string) ([]map[string]any,
 			if req.URL.Scheme != "https" || req.URL.Host == "" || req.URL.User != nil {
 				return errors.New("unsafe subscription redirect")
 			}
+			if len(via) > 0 && !sameSubscriptionOrigin(via[0].URL, req.URL) {
+				return errors.New("cross-origin subscription redirect")
+			}
 			return nil
 		},
 	}
@@ -378,6 +381,20 @@ func fetchPreparedSubscriptionProxies(subscriptionURL string) ([]map[string]any,
 		return nil, errors.New("invalid subscription body")
 	}
 	return parsePreparedSubscriptionProxies(body)
+}
+
+func sameSubscriptionOrigin(a, b *url.URL) bool {
+	port := func(value *url.URL) string {
+		if value.Port() != "" {
+			return value.Port()
+		}
+		if strings.EqualFold(value.Scheme, "https") {
+			return "443"
+		}
+		return value.Scheme
+	}
+	return strings.EqualFold(a.Scheme, b.Scheme) &&
+		strings.EqualFold(a.Hostname(), b.Hostname()) && port(a) == port(b)
 }
 
 // normalizeVlessSubscriptionBody closes a compatibility gap between NekoBox's

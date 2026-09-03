@@ -49,7 +49,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
@@ -284,11 +283,12 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
             containerColor = c.background,
             contentColor = c.textPrimary,
         ) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .imePadding()
-                    .padding(horizontal = Spacing.space20),
+             Column(
+                 Modifier
+                     .fillMaxWidth()
+                     .imePadding()
+                     .verticalScroll(rememberScrollState())
+                     .padding(horizontal = Spacing.space20),
             ) {
                 Row(
                     Modifier.padding(top = Spacing.space4, bottom = Spacing.space16),
@@ -530,15 +530,11 @@ private fun CompactProfileRow(
                 title,
                 style = MaterialTheme.typography.titleSmall,
                 color = c.textPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = c.textSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = Spacing.space2),
             )
         }
@@ -552,7 +548,7 @@ private fun CompactProfileRow(
             DetourIconButton(onClick = onEdit, size = 36) {
                 Icon(
                     painterResource(R.drawable.ic_edit),
-                    contentDescription = editDescription,
+                    contentDescription = "$editDescription: $title",
                     tint = c.textSecondary,
                     modifier = Modifier.size(18.dp),
                 )
@@ -560,7 +556,7 @@ private fun CompactProfileRow(
             DetourIconButton(onClick = onDelete, size = 36) {
                 Icon(
                     painterResource(R.drawable.ic_delete),
-                    contentDescription = deleteDescription,
+                    contentDescription = "$deleteDescription: $title",
                     tint = c.error,
                     modifier = Modifier.size(18.dp),
                 )

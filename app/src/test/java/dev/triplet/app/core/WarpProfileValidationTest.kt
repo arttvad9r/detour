@@ -29,4 +29,15 @@ class WarpProfileValidationTest {
             assertTrue(runCatching { validateWarpProxy(candidate) }.isFailure)
         }
     }
+
+    @Test fun `rejects malformed addresses and ranges`() {
+        val variants = listOf(
+            proxy().copy(ip = "not-an-ip"),
+            proxy().copy(allowedIps = listOf("10.0.0.0/99")),
+            proxy().copy(amnezia = proxy().amnezia.copy(jmin = 80, jmax = 40)),
+        )
+        variants.forEach { candidate ->
+            assertTrue(runCatching { validateWarpProxy(candidate) }.isFailure)
+        }
+    }
 }

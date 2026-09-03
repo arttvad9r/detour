@@ -2,6 +2,7 @@ package engine
 
 import (
 	"errors"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -13,6 +14,34 @@ import (
 	P "github.com/metacubex/mihomo/constant/provider"
 	"github.com/metacubex/mihomo/tunnel"
 )
+
+func TestSameSubscriptionOrigin(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		a    string
+		b    string
+		want bool
+	}{
+		{"same default port", "https://a.example/token", "https://a.example/next", true},
+		{"explicit default port", "https://a.example/token", "https://a.example:443/next", true},
+		{"different host", "https://a.example/token", "https://b.example/next", false},
+		{"different scheme", "https://a.example/token", "http://a.example/next", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, err := url.Parse(tc.a)
+			if err != nil {
+				t.Fatal(err)
+			}
+			b, err := url.Parse(tc.b)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := sameSubscriptionOrigin(a, b); got != tc.want {
+				t.Fatalf("sameSubscriptionOrigin() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
 
 func TestReadyIsFalseBeforeStart(t *testing.T) {
 	if Ready() {

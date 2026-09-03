@@ -104,9 +104,10 @@ jobs:
           gomobile init
       - name: Verify app tests and lint
         run: >-
-          ./gradlew
+          ./gradlew --dependency-verification strict
           :app:testDebugUnitTest
           :app:lintDebug
+          :app:lintRelease
           :app:assembleDebug
           :app:assembleDebugAndroidTest
       - name: Restore release keystore
@@ -154,7 +155,7 @@ jobs:
           mkdir -p "$ARTIFACT_DIR"
           ARTIFACT="$ARTIFACT_DIR/$APK_NAME"
           cp "$APK" "$ARTIFACT"
-          sha256sum "$ARTIFACT" > "$ARTIFACT.sha256"
+          (cd "$ARTIFACT_DIR" && sha256sum "$(basename "$ARTIFACT")") > "$ARTIFACT.sha256"
           echo "RELEASE_APK=$ARTIFACT" >> "$GITHUB_ENV"
           echo "RELEASE_SHA256=$ARTIFACT.sha256" >> "$GITHUB_ENV"
       - name: Upload signed release artifact
@@ -173,7 +174,7 @@ jobs:
         run: |
           set -euo pipefail
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$RELEASE_APK" "$RELEASE_SHA256" --clobber
+            gh release upload "$GITHUB_REF_NAME" "$RELEASE_APK" "$RELEASE_SHA256"
           else
             gh release create "$GITHUB_REF_NAME" \
               "$RELEASE_APK" \

@@ -64,7 +64,7 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
     LaunchedEffect(state.catalog, state.selectedNode, state.selectionStatus) {
         if (
             state.catalog.isNotEmpty() &&
-            state.selectionStatus != SubscriptionSelectionStatus.SAVING &&
+            shouldAutoSelectSubscriptionNode(state.selectionStatus) &&
             state.selectedNode.isNullOrBlank()
         ) {
             runtimeViewModel.selectNode(state.catalog.first().name)
@@ -332,3 +332,6 @@ private fun SubscriptionNotice(
         )
     }
 }
+
+internal fun shouldAutoSelectSubscriptionNode(status: SubscriptionSelectionStatus): Boolean =
+    status == SubscriptionSelectionStatus.IDLE

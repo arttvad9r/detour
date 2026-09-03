@@ -5,6 +5,27 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SubscriptionConfigGeneratorTest {
+    @Test fun `subscription uses normalized provider file when materializer is installed`() {
+        SubscriptionProviderMaterializer.install { "/data/user/0/dev.triplet.app/cache/subscription.yaml" }
+        try {
+            val yaml = ConfigGenerator.build(
+                RoutingInput(
+                    tunFd = 7,
+                    apiLevel = 33,
+                    vpn = VpnOutbound.Subscription("https://subscription.example/opaque-token"),
+                    vpnApps = setOf("org.telegram.messenger"),
+                    vpnUids = mapOf("org.telegram.messenger" to 10101),
+                    dpiApps = emptySet(),
+                ),
+            )
+            assertTrue(yaml.contains("type: file"))
+            assertTrue(yaml.contains("path: /data/user/0/dev.triplet.app/cache/subscription.yaml"))
+            assertFalse(yaml.contains("type: http"))
+        } finally {
+            SubscriptionProviderMaterializer.clear()
+        }
+    }
+
     @Test fun `subscription uses dedicated provider and manual selector group`() {
         val input = RoutingInput(
             tunFd = 7,

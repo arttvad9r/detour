@@ -9,6 +9,10 @@ AAR="$REPO_ROOT/engine/libs/engine.aar"
 
 [[ -d "$CACHE" ]] || { echo "run :buildMihomoAar first (need patched $CACHE)" >&2; exit 1; }
 [[ -f "$AAR" ]] || { echo "run :buildMihomoAar first (need $AAR)" >&2; exit 1; }
+command -v govulncheck >/dev/null || {
+  echo "govulncheck is required; install golang.org/x/vuln/cmd/govulncheck@v1.7.0" >&2
+  exit 127
+}
 
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "$WORK_DIR"' EXIT
