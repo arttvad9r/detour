@@ -313,10 +313,9 @@ cp "$BIND_DIR/go.sum" "$WORK_DIR/go.sum"
 # be bound as well as engine.go; *_test.go is ignored by normal package builds.
 cp "$BIND_DIR"/*.go "$WORK_DIR"/
 
-# The disconnected subscription test can fail before adapter.Proxy.URLTest is
-# reached (system DNS pre-resolution or adapter.ParseProxy). The original bridge
-# discards testErr in that case. Patch only the temporary gomobile source copy so
-# every failed catalog node produces one outer diagnostic record as well.
+# Older branch revisions dropped offline/pre-URLTest errors in the bridge. Keep
+# this fallback patch for reproducible historical builds, but skip it when the
+# bridge already contains native per-node error diagnostics.
 python3 - "$WORK_DIR/subscription_prepare.go" <<'PYEOF'
 import sys
 p = sys.argv[1]
@@ -336,7 +335,9 @@ new_result = '''\t\t\tdelay, testErr := probe(ctx)
 \t\t\t} else if testErr != nil {
 \t\t\t\tlog.Errorln("[DETOUR_SUBSCRIPTION_TEST] node=%q class=%s error=%s", results[i].Name, adapter.DetourURLTestErrorClass(testErr), adapter.DetourURLTestErrorText(testErr))
 \t\t\t}'''
-if old_import in s and old_result in s:
+if '[DETOUR_SUBSCRIPTION_TEST]' in s and 'ErrorClass string `json:"errorClass,omitempty"`' in s:
+    print("subscription outer diagnostics already implemented in bridge")
+elif old_import in s and old_result in s:
     s = s.replace(old_import, new_import, 1)
     s = s.replace(old_result, new_result, 1)
     open(p, 'w').write(s)
