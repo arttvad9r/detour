@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -26,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -224,6 +226,7 @@ private fun SubscriptionNodeRow(
     onSelect: () -> Unit,
 ) {
     val c = detourColors
+    val theme = LocalDetourTheme.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -263,11 +266,15 @@ private fun SubscriptionNodeRow(
             }
         }
         if (delayMs != null || latencyTested) {
+            val delayColor = if (latencyError != null) latencyBadColor(theme) else latencyColorFor(theme, delayMs)
             Text(
                 text = delayMs?.let { stringResource(R.string.subscription_node_delay, it) } ?: "—",
-                style = MaterialTheme.typography.labelMedium,
-                color = if (delayMs != null) c.textSecondary else c.textMuted,
-                modifier = Modifier.padding(start = Spacing.space8),
+                style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                color = delayColor,
+                textAlign = TextAlign.End,
+                modifier = Modifier
+                    .padding(start = Spacing.space8)
+                    .widthIn(min = 64.dp),
             )
         }
         if (!enabled && selected) {
