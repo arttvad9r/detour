@@ -3,24 +3,40 @@ package engine
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"strings"
+
+	mihomoYaml "github.com/metacubex/mihomo/common/yaml"
 )
 
 // SubscriptionNodeDiagnostics returns only non-secret fields from the exact
-// prepared VLESS mapping used by the subscription provider. It intentionally
+// prepared provider file used by the subscription runtime. It intentionally
 // excludes UUID, subscription URL, REALITY public key/short ID and other
-// credentials so Android diagnostics can safely distinguish converter/runtime
-// mismatches without exposing account material.
-func SubscriptionNodeDiagnostics(subscriptionURL string, nodeName string) string {
+// credentials so Android diagnostics can distinguish converter/runtime
+// mismatches without exposing account material or refetching the subscription.
+func SubscriptionNodeDiagnostics(homeDir string, nodeName string) string {
 	name := strings.TrimSpace(nodeName)
-	if name == "" {
+	if name == "" || strings.TrimSpace(homeDir) == "" {
 		return ""
 	}
-	proxies, err := fetchPreparedSubscriptionProxies(subscriptionURL)
+
+	file, err := os.Open(filepath.Join(homeDir, subscriptionProviderFileName))
 	if err != nil {
 		return ""
 	}
-	for _, proxy := range proxies {
+	defer file.Close()
+	body, err := io.ReadAll(io.LimitReader(file, maxSubscriptionBodyBytes+1))
+	if err != nil || len(body) == 0 || len(body) > maxSubscriptionBodyBytes {
+		return ""
+	}
+
+	schema := &preparedProxySchema{}
+	if err := mihomoYaml.Unmarshal(body, schema); err != nil {
+		return ""
+	}
+	for _, proxy := range schema.Proxies {
 		proxyName, ok := safeCatalogLabel(proxy["name"], 256)
 		if !ok || proxyName != name {
 			continue
