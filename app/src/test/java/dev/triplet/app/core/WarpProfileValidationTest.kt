@@ -18,6 +18,10 @@ class WarpProfileValidationTest {
         amnezia = AmneziaWgOptions(jc = 1, i1 = "<b 0x1234>"),
     )
 
+    @Test fun `accepts valid IPv4 and IPv6 literals`() {
+        assertTrue(runCatching { validateWarpProxy(proxy()) }.isSuccess)
+    }
+
     @Test fun `rejects control characters in rendered warp scalars`() {
         val variants = listOf(
             proxy().copy(server = "bad\nhost"),
@@ -30,9 +34,12 @@ class WarpProfileValidationTest {
         }
     }
 
-    @Test fun `rejects malformed addresses and ranges`() {
+    @Test fun `rejects hostnames and malformed addresses where literals are required`() {
         val variants = listOf(
             proxy().copy(ip = "not-an-ip"),
+            proxy().copy(ip = "example.com"),
+            proxy().copy(ip = "999.1.1.1"),
+            proxy().copy(dns = listOf("dns.example.com")),
             proxy().copy(allowedIps = listOf("10.0.0.0/99")),
             proxy().copy(amnezia = proxy().amnezia.copy(jmin = 80, jmax = 40)),
         )
