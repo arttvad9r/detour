@@ -20,6 +20,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 internal const val NavigationRowDividerInset = 58
+internal val NavigationRowMinHeight = 56.dp
+internal val NavigationRowHorizontalPadding = Spacing.space12
+internal val NavigationRowVerticalPadding = Spacing.space8
+internal val NavigationRowLeadingTileSize = 34.dp
+internal val NavigationRowLeadingIconSize = 17.dp
+internal val NavigationRowContentGap = Spacing.space12
+internal val NavigationRowSubtitleGap = Spacing.space2
 
 @Composable
 fun DetourNavigationRow(
@@ -34,7 +41,7 @@ fun DetourNavigationRow(
     val c = detourColors
     val base = modifier
         .fillMaxWidth()
-        .heightIn(min = 56.dp)
+        .heightIn(min = NavigationRowMinHeight)
     val rowModifier = if (onClick != null) {
         base.detourClickable(
             onClick = onClick,
@@ -48,12 +55,15 @@ fun DetourNavigationRow(
     }
 
     Row(
-        rowModifier.padding(horizontal = Spacing.space12, vertical = Spacing.space8),
+        rowModifier.padding(
+            horizontal = NavigationRowHorizontalPadding,
+            vertical = NavigationRowVerticalPadding,
+        ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             Modifier
-                .size(34.dp)
+                .size(NavigationRowLeadingTileSize)
                 .background(c.accentSoft, AppShapes.extraSmall),
             contentAlignment = Alignment.Center,
         ) {
@@ -61,12 +71,12 @@ fun DetourNavigationRow(
                 painter = painterResource(iconRes),
                 contentDescription = null,
                 tint = c.accent,
-                modifier = Modifier.size(17.dp),
+                modifier = Modifier.size(NavigationRowLeadingIconSize),
             )
         }
         Column(
             Modifier
-                .padding(start = Spacing.space12)
+                .padding(start = NavigationRowContentGap)
                 .weight(1f),
         ) {
             Text(
@@ -83,7 +93,7 @@ fun DetourNavigationRow(
                     color = c.textSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = Spacing.space2),
+                    modifier = Modifier.padding(top = NavigationRowSubtitleGap),
                 )
             }
         }
