@@ -52,6 +52,34 @@ else:
     raise SystemExit(f"FATAL: buildAndroidRules layout changed: {p}")
 PYEOF
 
+# Mihomo v1.19.30's listener.Cleanup closes only the TUN listener. Detour also
+# uses named custom mixed listeners for route probes; leaving them alive across
+# Engine.stop makes the next profile fail to bind the same loopback port and,
+# worse, can leave the old profile reachable through that stale listener.
+python3 - <<'PYEOF'
+p = 'listener/listener.go'
+s = open(p).read()
+old = '''func Cleanup() {
+	closeTunListener()
+}'''
+new = '''func Cleanup() {
+	closeTunListener()
+	inboundMux.Lock()
+	for name, inboundListener := range inboundListeners {
+		_ = inboundListener.Close()
+		delete(inboundListeners, name)
+	}
+	inboundMux.Unlock()
+}'''
+if old in s:
+    open(p, 'w').write(s.replace(old, new))
+    print("listener cleanup patch applied")
+elif new in s:
+    print("listener cleanup patch already applied")
+else:
+    raise SystemExit(f"FATAL: listener Cleanup layout changed: {p}")
+PYEOF
+
 # Triplet host-side UID resolver bridge (Task 3 round 2):
 # tunnel.go consults process.TripletHostFinder (wired to the app's
 # ConnectivityManager.getConnectionOwnerUid via engine.SetProcessResolver)
