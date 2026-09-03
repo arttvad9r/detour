@@ -31,7 +31,7 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-37.0 build-tools;36.0.0 ndk;28.0.13004108'
       - name: Install Android 16 and Android 17 emulator images
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
         run: >-
           sdkmanager 'emulator'
           'system-images;android-36;google_apis;x86_64'
@@ -112,12 +112,12 @@ jobs:
           retention-days: 14
           path: app/build/reports/apk-size*.json
       - name: Run instrumentation tests on Android 16 emulator
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
         timeout-minutes: 15
         shell: bash
         run: bash tools/run_android_instrumentation_emulator.sh 36
       - name: Run instrumentation tests on Android 17 emulator
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
         timeout-minutes: 15
         shell: bash
         run: >-
@@ -125,7 +125,7 @@ jobs:
           'system-images;android-37.0;google_apis_ps16k;x86_64'
           16384
       - name: Upload instrumentation diagnostics
-        if: ${{ always() && (github.event_name == 'pull_request' || github.ref == 'refs/heads/master') }}
+        if: ${{ always() && (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: instrumentation-diagnostics
