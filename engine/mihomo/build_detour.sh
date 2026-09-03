@@ -23,27 +23,21 @@ s = src.read_text()
 # The earlier URI compatibility experiment forced omitted serviceName to "grpc".
 # That is not Xray semantics. Preserve the empty value so YAML and URI providers
 # behave identically; the VLESS-only runtime patch below maps it to //Tun.
-old_uri_new = r'''new = '''\tcase "grpc":
-\t\tgrpcOpts := make(map[string]any)
-\t\tserviceName := query.Get("serviceName")
+old_uri_fragment = r'''\t\tserviceName := query.Get("serviceName")
 \t\tif serviceName == "" {
 \t\t\tserviceName = "grpc"
 \t\t}
-\t\tgrpcOpts["grpc-service-name"] = serviceName
-\t\tproxy["grpc-opts"] = grpcOpts''''''
-new_uri_new = r'''new = '''\tcase "grpc":
-\t\tgrpcOpts := make(map[string]any)
-\t\tgrpcOpts["grpc-service-name"] = query.Get("serviceName")
-\t\tproxy["grpc-opts"] = grpcOpts''''''
-if old_uri_new not in s:
+\t\tgrpcOpts["grpc-service-name"] = serviceName'''
+new_uri_fragment = r'''\t\tgrpcOpts["grpc-service-name"] = query.Get("serviceName")'''
+if old_uri_fragment not in s:
     raise SystemExit("FATAL: VLESS URI gRPC compatibility block layout changed")
-s = s.replace(old_uri_new, new_uri_new, 1)
+s = s.replace(old_uri_fragment, new_uri_fragment, 1)
 
 marker = '# Preserve the exact VLESS gRPC request/response exchange in device diagnostics.\n'
 if marker not in s:
     raise SystemExit("FATAL: gRPC diagnostics marker not found")
 
-xray_empty_service_patch = r'''# Xray-core keeps an omitted gRPC serviceName empty. Its normal Tun RPC method
+xray_empty_service_patch = r"""# Xray-core keeps an omitted gRPC serviceName empty. Its normal Tun RPC method
 # therefore resolves to //Tun. Mihomo's gun transport instead substitutes
 # "GunService" for an empty value, producing /GunService/Tun and grpc-status=12
 # (unknown service GunService) against Xray servers configured with the default
@@ -77,7 +71,7 @@ else:
     raise SystemExit(f"FATAL: VLESS gRPC gun config layout changed: {p}")
 PYEOF
 
-'''
+"""
 s = s.replace(marker, xray_empty_service_patch + marker, 1)
 out.write_text(s)
 PYEOF
