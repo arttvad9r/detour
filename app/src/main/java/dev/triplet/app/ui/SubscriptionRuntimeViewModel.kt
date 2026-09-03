@@ -1,5 +1,6 @@
 package dev.triplet.app.ui
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.triplet.app.core.SubscriptionProviderState
@@ -163,6 +164,7 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                             selectedNode = selected ?: _uiState.value.selectedNode,
                             status = SubscriptionRuntimeStatus.IDLE,
                         )
+                        selected?.let { logSelectedNodeDiagnostics(url, it) }
                     } catch (cancelled: CancellationException) {
                         _uiState.value = _uiState.value.copy(status = SubscriptionRuntimeStatus.IDLE)
                         throw cancelled
@@ -224,6 +226,7 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                     selectedNode = selected,
                     selectionStatus = SubscriptionSelectionStatus.IDLE,
                 )
+                boundUrl?.let { logSelectedNodeDiagnostics(it, selected) }
             } catch (cancelled: CancellationException) {
                 _uiState.value = _uiState.value.copy(
                     selectedNode = previous,
@@ -294,6 +297,11 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                             SubscriptionRuntimeStatus.ERROR
                         },
                     )
+                    val node = selected ?: _uiState.value.selectedNode
+                    val url = boundUrl
+                    if (node != null && url != null) {
+                        logSelectedNodeDiagnostics(url, node)
+                    }
                 } catch (cancelled: CancellationException) {
                     _uiState.value = _uiState.value.copy(status = SubscriptionRuntimeStatus.IDLE)
                     throw cancelled
@@ -301,6 +309,15 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                     _uiState.value = _uiState.value.copy(status = SubscriptionRuntimeStatus.ERROR)
                 }
             }
+        }
+    }
+
+    private suspend fun logSelectedNodeDiagnostics(url: String, nodeName: String) {
+        val diagnostics = withContext(Dispatchers.IO) {
+            Engine.subscriptionNodeDiagnostics(url, nodeName)
+        }
+        if (diagnostics.isNotBlank()) {
+            Log.i(PROXY_CONFIG_LOG_TAG, "[DETOUR_PROXY_CONFIG] $diagnostics")
         }
     }
 
@@ -344,5 +361,6 @@ class SubscriptionRuntimeViewModel : ViewModel() {
         const val PROVIDER_POLL_DELAY_MS = 350L
         const val MAX_CATALOG_NODES = 256
         const val MAX_CATALOG_JSON_CHARS = 512 * 1024
+        const val PROXY_CONFIG_LOG_TAG = "DetourProxyConfig"
     }
 }
