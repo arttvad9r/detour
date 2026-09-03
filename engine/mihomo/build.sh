@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Builds the pinned mihomo Android engine AAR into engine/libs/engine.aar.
-# Applies the embedding patch: buildAndroidRules -> nil (apps cannot read
-# /data/system/packages.xml; host excludes own UID via VpnService).
+# Applies only the compatibility patches required by the Android embedding.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -27,6 +26,8 @@ git reset --hard "$MIHOMO_COMMIT"
 git clean -fdx
 echo "mihomo: $MIHOMO_VERSION ($MIHOMO_COMMIT)"
 
+# Ordinary Android apps cannot read /data/system/packages.xml. Detour resolves
+# ownership host-side and excludes its own UID through VpnService.
 python3 - <<'PYEOF'
 p = 'listener/sing_tun/server_android.go'
 s = open(p).read()
@@ -39,23 +40,19 @@ old = '''func (l *Listener) buildAndroidRules(tunOptions *tun.Options) error {
 	return nil
 }'''
 new = '''func (l *Listener) buildAndroidRules(tunOptions *tun.Options) error {
-	// Patched for Triplet embedding: reading /data/system/packages.xml is
-	// forbidden for ordinary Android apps. Host excludes own UID via VpnService.
+	// Patched for Detour embedding: host-side UID resolution is used instead.
 	return nil
 }'''
 if old in s:
-    open(p, 'w').write(s.replace(old, new))
-    print("patch applied")
+    open(p, 'w').write(s.replace(old, new, 1))
+    print("Android rules embedding patch applied")
 elif new in s:
-    print("patch already applied")
+    print("Android rules embedding patch already applied")
 else:
     raise SystemExit(f"FATAL: buildAndroidRules layout changed: {p}")
 PYEOF
 
-# Mihomo v1.19.30's listener.Cleanup closes only the TUN listener. Detour also
-# uses named custom mixed listeners for route probes; leaving them alive across
-# Engine.stop makes the next profile fail to bind the same loopback port and,
-# worse, can leave the old profile reachable through that stale listener.
+# Close named custom listeners as well as TUN across Engine.stop/Start cycles.
 python3 - <<'PYEOF'
 p = 'listener/listener.go'
 s = open(p).read()
@@ -72,7 +69,7 @@ new = '''func Cleanup() {
 	inboundMux.Unlock()
 }'''
 if old in s:
-    open(p, 'w').write(s.replace(old, new))
+    open(p, 'w').write(s.replace(old, new, 1))
     print("listener cleanup patch applied")
 elif new in s:
     print("listener cleanup patch already applied")
@@ -80,50 +77,18 @@ else:
     raise SystemExit(f"FATAL: listener Cleanup layout changed: {p}")
 PYEOF
 
-# Mihomo v1.19.30 converts a VLESS gRPC share link with an omitted serviceName
-# into grpc-service-name: "". Xray/sing-box-compatible clients use the conventional
-# "grpc" fallback, while Mihomo then fails the transport with the connection
-# closing before the useful stream is established. Apply the compatibility
-# default only when the URI omitted/emptied serviceName; explicit values win.
-python3 - <<'PYEOF'
-p = 'common/convert/v.go'
-s = open(p).read()
-old = '''\tcase "grpc":
-\t\tgrpcOpts := make(map[string]any)
-\t\tgrpcOpts["grpc-service-name"] = query.Get("serviceName")
-\t\tproxy["grpc-opts"] = grpcOpts'''
-new = '''\tcase "grpc":
-\t\tgrpcOpts := make(map[string]any)
-\t\tserviceName := query.Get("serviceName")
-\t\tif serviceName == "" {
-\t\t\tserviceName = "grpc"
-\t\t}
-\t\tgrpcOpts["grpc-service-name"] = serviceName
-\t\tproxy["grpc-opts"] = grpcOpts'''
-if old in s:
-    open(p, 'w').write(s.replace(old, new, 1))
-    print("VLESS gRPC service-name compatibility patch applied")
-elif new in s:
-    print("VLESS gRPC service-name compatibility patch already applied")
-else:
-    raise SystemExit(f"FATAL: VLESS gRPC converter layout changed: {p}")
-PYEOF
-
-# XTLS Vision is defined for VLESS over the raw TCP transport. Some subscription
-# generators nevertheless attach flow=xtls-rprx-vision to gRPC nodes. Xray treats
-# Vision as TCP-only, while Mihomo v1.19.30 attempts to wrap the gRPC gun.Conn in
-# vision.NewConn and cannot find the required outer TLS connection. Ignore only
-# that invalid gRPC+Vision combination; valid TCP Vision profiles are untouched.
+# XTLS Vision is a raw-TCP VLESS flow. Ignore the invalid gRPC+Vision
+# combination emitted by some subscription generators.
 python3 - <<'PYEOF'
 p = 'adapter/outbound/vless.go'
 s = open(p).read()
 old = '''func NewVless(option VlessOption) (*Vless, error) {
-\tvar addons *vless.Addons'''
+	var addons *vless.Addons'''
 new = '''func NewVless(option VlessOption) (*Vless, error) {
-\tif strings.EqualFold(option.Network, "grpc") && option.Flow == vless.XRV {
-\t\toption.Flow = ""
-\t}
-\tvar addons *vless.Addons'''
+	if strings.EqualFold(option.Network, "grpc") && option.Flow == vless.XRV {
+		option.Flow = ""
+	}
+	var addons *vless.Addons'''
 if old in s:
     open(p, 'w').write(s.replace(old, new, 1))
     print("VLESS gRPC Vision compatibility patch applied")
@@ -133,245 +98,142 @@ else:
     raise SystemExit(f"FATAL: VLESS NewVless layout changed: {p}")
 PYEOF
 
-# Preserve the exact VLESS gRPC request/response exchange in device diagnostics.
-# This is diagnostic-only: it does not change serviceName, request path, headers,
-# retries, fallback behavior, or any proxy selection. Immediate response headers
-# distinguish an HTTP/2 path rejection; trailers capture grpc-status when the
-# server returns it only after the streaming body terminates.
+# Xray keeps an omitted VLESS gRPC serviceName empty. Its Tun RPC therefore
+# uses //Tun. Mihomo substitutes GunService for an empty value, producing
+# /GunService/Tun. Apply Xray semantics only to VLESS gRPC with an omitted
+# service name; explicit names are preserved.
 python3 - <<'PYEOF'
-p = 'transport/gun/gun.go'
+p = 'adapter/outbound/vless.go'
 s = open(p).read()
-old_import = '''\tC "github.com/metacubex/mihomo/constant"
-\t"github.com/metacubex/mihomo/transport/vmess"'''
-new_import = '''\tC "github.com/metacubex/mihomo/constant"
-\t"github.com/metacubex/mihomo/log"
-\t"github.com/metacubex/mihomo/transport/vmess"'''
-old_config = '''type Config struct {
-\tServiceName  string
-\tUserAgent    string
-\tHost         string
-\tPingInterval int
-}'''
-new_config = '''type Config struct {
-\tServiceName  string
-\tUserAgent    string
-\tHost         string
-\tPingInterval int
-}
-
-type detourGRPCResponseBody struct {
-\tio.ReadCloser
-\tresponse *http.Response
-\tpath     string
-\tonce     sync.Once
-}
-
-func (b *detourGRPCResponseBody) logEnd(err error) {
-\tb.once.Do(func() {
-\t\tlog.Infoln("[DETOUR_GRPC] stage=body_end path=%q status=%d grpc-status=%q grpc-message=%q error=%v", b.path, b.response.StatusCode, b.response.Trailer.Get("Grpc-Status"), b.response.Trailer.Get("Grpc-Message"), err)
-\t})
-}
-
-func (b *detourGRPCResponseBody) Read(p []byte) (int, error) {
-\tn, err := b.ReadCloser.Read(p)
-\tif err != nil {
-\t\tb.logEnd(err)
-\t}
-\treturn n, err
-}
-
-func (b *detourGRPCResponseBody) Close() error {
-\terr := b.ReadCloser.Close()
-\tb.logEnd(err)
-\treturn err
-}'''
-old_path = '''\tpath := ServiceNameToPath(serviceName)
-
-\treader, writer := io.Pipe()'''
-new_path = '''\tpath := ServiceNameToPath(serviceName)
-\tlog.Infoln("[DETOUR_GRPC] stage=request host=%q service=%q path=%q", t.cfg.Host, serviceName, path)
-
-\treader, writer := io.Pipe()'''
-old_response = '''\t\t\tresponse, err := t.transport.RoundTrip(request)
-\t\t\tif err != nil {
-\t\t\t\treturn nil, err
-\t\t\t}
-\t\t\treturn response.Body, nil'''
-new_response = '''\t\t\tresponse, err := t.transport.RoundTrip(request)
-\t\t\tif err != nil {
-\t\t\t\tlog.Infoln("[DETOUR_GRPC] stage=roundtrip_error path=%q error=%v", path, err)
-\t\t\t\treturn nil, err
-\t\t\t}
-\t\t\tlog.Infoln("[DETOUR_GRPC] stage=response path=%q status=%d content-type=%q grpc-status=%q grpc-message=%q", path, response.StatusCode, response.Header.Get("Content-Type"), response.Header.Get("Grpc-Status"), response.Header.Get("Grpc-Message"))
-\t\t\treturn &detourGRPCResponseBody{ReadCloser: response.Body, response: response, path: path}, nil'''
-if old_import in s and old_config in s and old_path in s and old_response in s:
-    s = s.replace(old_import, new_import, 1)
-    s = s.replace(old_config, new_config, 1)
-    s = s.replace(old_path, new_path, 1)
-    s = s.replace(old_response, new_response, 1)
-    open(p, 'w').write(s)
-    print("VLESS gRPC transport diagnostics patch applied")
-elif new_import in s and new_config in s and new_path in s and new_response in s:
-    print("VLESS gRPC transport diagnostics patch already applied")
+old = '''		gunConfig := &gun.Config{
+			ServiceName:  option.GrpcOpts.GrpcServiceName,
+			UserAgent:    option.GrpcOpts.GrpcUserAgent,
+			Host:         option.ServerName,
+			PingInterval: option.GrpcOpts.PingInterval,
+		}'''
+new = '''		serviceName := option.GrpcOpts.GrpcServiceName
+		if serviceName == "" {
+			serviceName = "//Tun"
+		}
+		gunConfig := &gun.Config{
+			ServiceName:  serviceName,
+			UserAgent:    option.GrpcOpts.GrpcUserAgent,
+			Host:         option.ServerName,
+			PingInterval: option.GrpcOpts.PingInterval,
+		}'''
+if old in s:
+    open(p, 'w').write(s.replace(old, new, 1))
+    print("VLESS empty gRPC service-name Xray compatibility patch applied")
+elif new in s:
+    print("VLESS empty gRPC service-name Xray compatibility patch already applied")
 else:
-    raise SystemExit(f"FATAL: gRPC transport diagnostics layout changed: {p}")
+    raise SystemExit(f"FATAL: VLESS gRPC gun config layout changed: {p}")
 PYEOF
 
-# Xray-core v26.7.11+ defaults REALITY minClientVer to 26.3.27. Mihomo
-# v1.19.30 still advertises 1.8.2 in the encrypted ClientHello SessionId, so a
-# default modern Xray REALITY server rejects the handshake and the client sees
-# an EOF/connection-closed fallback. Detour embeds Mihomo, so advertise the
-# minimum accepted modern Xray version while keeping the pinned engine otherwise
-# unchanged.
-#
-# At the same layer, preserve the REALITY stage in returned errors and emit a
-# stable DETOUR_REALITY log line. Upstream otherwise returns the bare transport
-# error (often just EOF/connection closed), which makes runtime failures
-# indistinguishable from unrelated HTTP/TCP closures in Android diagnostics.
+# Modern Xray REALITY defaults minClientVer to 26.3.27. Mihomo v1.19.30 still
+# advertises 1.8.2, so advertise the minimum accepted modern Xray version.
 python3 - <<'PYEOF'
 p = 'component/tls/reality.go'
 s = open(p).read()
 old_const = '''const RealityMaxShortIDLen = 8'''
 new_const = '''const (
-\tRealityMaxShortIDLen = 8
-\tRealityClientVersionMajor byte = 26
-\tRealityClientVersionMinor byte = 3
-\tRealityClientVersionPatch byte = 27
-\tDetourRealityDiagnosticsEnabled = true
+	RealityMaxShortIDLen = 8
+	RealityClientVersionMajor byte = 26
+	RealityClientVersionMinor byte = 3
+	RealityClientVersionPatch byte = 27
 )'''
-old_version = '''\t\thello.SessionId[0] = 1
-\t\thello.SessionId[1] = 8
-\t\thello.SessionId[2] = 2'''
-new_version = '''\t\thello.SessionId[0] = RealityClientVersionMajor
-\t\thello.SessionId[1] = RealityClientVersionMinor
-\t\thello.SessionId[2] = RealityClientVersionPatch'''
-old_import = '''\t"errors"
-\t"net"'''
-new_import = '''\t"errors"
-\t"fmt"
-\t"net"'''
-old_handshake = '''\t\terr = uConn.HandshakeContext(ctx)
-\t\tif err != nil {
-\t\t\treturn nil, err
-\t\t}'''
-new_handshake = '''\t\terr = uConn.HandshakeContext(ctx)
-\t\tif err != nil {
-\t\t\tlog.Errorln("[DETOUR_REALITY] server=%q fingerprint=%q stage=handshake error=%v", serverName, fingerprint.Client, err)
-\t\t\treturn nil, fmt.Errorf("REALITY handshake failed: %w", err)
-\t\t}'''
-old_auth = '''\t\tif !verifier.verified {
-\t\t\tgo realityClientFallback(uConn, uConfig.ServerName, fingerprint)
-\t\t\treturn nil, errors.New("REALITY authentication failed")
-\t\t}'''
-new_auth = '''\t\tif !verifier.verified {
-\t\t\tlog.Errorln("[DETOUR_REALITY] server=%q fingerprint=%q stage=authentication error=authentication_failed", serverName, fingerprint.Client)
-\t\t\tgo realityClientFallback(uConn, uConfig.ServerName, fingerprint)
-\t\t\treturn nil, errors.New("REALITY authentication failed")
-\t\t}'''
-if old_const in s and old_version in s and old_import in s and old_handshake in s and old_auth in s:
+old_version = '''		hello.SessionId[0] = 1
+		hello.SessionId[1] = 8
+		hello.SessionId[2] = 2'''
+new_version = '''		hello.SessionId[0] = RealityClientVersionMajor
+		hello.SessionId[1] = RealityClientVersionMinor
+		hello.SessionId[2] = RealityClientVersionPatch'''
+if old_const in s and old_version in s:
     s = s.replace(old_const, new_const, 1)
     s = s.replace(old_version, new_version, 1)
-    s = s.replace(old_import, new_import, 1)
-    s = s.replace(old_handshake, new_handshake, 1)
-    s = s.replace(old_auth, new_auth, 1)
     open(p, 'w').write(s)
-    print("REALITY compatibility/diagnostics patch applied")
-elif new_const in s and new_version in s and new_import in s and new_handshake in s and new_auth in s:
-    print("REALITY compatibility/diagnostics patch already applied")
+    print("REALITY client-version compatibility patch applied")
+elif new_const in s and new_version in s:
+    print("REALITY client-version compatibility patch already applied")
 else:
-    raise SystemExit(f"FATAL: REALITY compatibility/diagnostics layout changed: {p}")
+    raise SystemExit(f"FATAL: REALITY client-version layout changed: {p}")
 PYEOF
 
-# URLTest already receives the exact transport error, but Mihomo v1.19.30 drops
-# that error after updating alive/history state. Detour's UI consequently sees
-# only a missing delay. Emit one stable, node-attributed diagnostic record for
-# every failed URLTest. The classifier intentionally prioritizes REALITY before
-# generic connection-closed/EOF so wrapped REALITY failures remain actionable.
+# Expose sanitized URLTest error classification to the Android bridge without
+# adding transport logging to Mihomo.
 python3 - <<'PYEOF'
 p = 'adapter/adapter.go'
 s = open(p).read()
-old_import = '''\t"encoding/json"
-\t"fmt"'''
-new_import = '''\t"encoding/json"
-\t"errors"
-\t"fmt"'''
+old_import = '''	"encoding/json"
+	"fmt"'''
+new_import = '''	"encoding/json"
+	"errors"
+	"fmt"'''
 old_const = '''const (
-\tdefaultHistoriesNum = 10
+	defaultHistoriesNum = 10
 )'''
 new_const = '''const (
-\tdefaultHistoriesNum = 10
-\tDetourURLTestDiagnosticsEnabled = true
+	defaultHistoriesNum = 10
 )
 
 func DetourURLTestErrorClass(err error) string {
-\tif err == nil {
-\t\treturn ""
-\t}
-\tlower := strings.ToLower(err.Error())
-\tswitch {
-\tcase errors.Is(err, context.DeadlineExceeded):
-\t\treturn "timeout"
-\tcase strings.Contains(lower, "reality"):
-\t\treturn "reality"
-\tcase strings.Contains(lower, "no such host"), strings.Contains(lower, "lookup "), strings.Contains(lower, "dns"):
-\t\treturn "dns"
-\tcase strings.Contains(lower, "tls"), strings.Contains(lower, "x509"), strings.Contains(lower, "certificate"), strings.Contains(lower, "handshake"):
-\t\treturn "tls"
-\tcase strings.Contains(lower, "grpc"):
-\t\treturn "grpc"
-\tcase strings.Contains(lower, "eof"), strings.Contains(lower, "connection closed"), strings.Contains(lower, "reset by peer"), strings.Contains(lower, "broken pipe"):
-\t\treturn "connection"
-\tcase strings.Contains(lower, "dial "), strings.Contains(lower, "connect:"), strings.Contains(lower, "connection refused"), strings.Contains(lower, "network is unreachable"):
-\t\treturn "dial"
-\tdefault:
-\t\tif timeoutErr, ok := err.(interface{ Timeout() bool }); ok && timeoutErr.Timeout() {
-\t\t\treturn "timeout"
-\t\t}
-\t\treturn "other"
-\t}
+	if err == nil {
+		return ""
+	}
+	lower := strings.ToLower(err.Error())
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return "timeout"
+	case strings.Contains(lower, "reality"):
+		return "reality"
+	case strings.Contains(lower, "no such host"), strings.Contains(lower, "lookup "), strings.Contains(lower, "dns"):
+		return "dns"
+	case strings.Contains(lower, "tls"), strings.Contains(lower, "x509"), strings.Contains(lower, "certificate"), strings.Contains(lower, "handshake"):
+		return "tls"
+	case strings.Contains(lower, "grpc"):
+		return "grpc"
+	case strings.Contains(lower, "eof"), strings.Contains(lower, "connection closed"), strings.Contains(lower, "reset by peer"), strings.Contains(lower, "broken pipe"):
+		return "connection"
+	case strings.Contains(lower, "dial "), strings.Contains(lower, "connect:"), strings.Contains(lower, "connection refused"), strings.Contains(lower, "network is unreachable"):
+		return "dial"
+	default:
+		if timeoutErr, ok := err.(interface{ Timeout() bool }); ok && timeoutErr.Timeout() {
+			return "timeout"
+		}
+		return "other"
+	}
 }
 
 func DetourURLTestErrorText(err error) string {
-\tif err == nil {
-\t\treturn ""
-\t}
-\ttext := strings.Map(func(r rune) rune {
-\t\tif r < 0x20 || r == 0x7f {
-\t\t\treturn ' '
-\t\t}
-\t\treturn r
-\t}, err.Error())
-\tif index := strings.Index(strings.ToLower(text), "vless://"); index >= 0 {
-\t\ttext = text[:index] + "vless://<redacted>"
-\t}
-\tif len(text) > 800 {
-\t\ttext = text[:800]
-\t}
-\treturn text
+	if err == nil {
+		return ""
+	}
+	text := strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f {
+			return ' '
+		}
+		return r
+	}, err.Error())
+	if index := strings.Index(strings.ToLower(text), "vless://"); index >= 0 {
+		text = text[:index] + "vless://<redacted>"
+	}
+	if len(text) > 800 {
+		text = text[:800]
+	}
+	return text
 }'''
-old_defer = '''\tdefer func() {
-\t\talive := err == nil'''
-new_defer = '''\tdefer func() {
-\t\tif err != nil {
-\t\t\tlog.Errorln("[DETOUR_URLTEST] node=%q type=%s class=%s error=%s", p.Name(), p.Type().String(), DetourURLTestErrorClass(err), DetourURLTestErrorText(err))
-\t\t}
-\t\talive := err == nil'''
-if old_import in s and old_const in s and old_defer in s:
+if old_import in s and old_const in s:
     s = s.replace(old_import, new_import, 1)
     s = s.replace(old_const, new_const, 1)
-    s = s.replace(old_defer, new_defer, 1)
     open(p, 'w').write(s)
-    print("URLTest diagnostics patch applied")
-elif new_import in s and new_const in s and new_defer in s:
-    print("URLTest diagnostics patch already applied")
+    print("URLTest error classification patch applied")
+elif new_import in s and new_const in s:
+    print("URLTest error classification patch already applied")
 else:
-    raise SystemExit(f"FATAL: URLTest diagnostics layout changed: {p}")
+    raise SystemExit(f"FATAL: URLTest classification layout changed: {p}")
 PYEOF
 
-# Triplet host-side UID resolver bridge (Task 3 round 2):
-# tunnel.go consults process.TripletHostFinder (wired to the app's
-# ConnectivityManager.getConnectionOwnerUid via engine.SetProcessResolver)
-# instead of netlink/procfs, which are banned for ordinary apps.
+# Host-side UID resolver bridge.
 python3 - <<'PYEOF'
 p = 'tunnel/tunnel.go'
 s = open(p).read()
@@ -389,12 +251,12 @@ inject = (
     '\t\t\t\t} else if !features.CMFA {'
 )
 if marker in s:
-    print("triplet tunnel patch: already applied")
+    print("triplet tunnel patch already applied")
 elif s.count(anchor) == 1:
     open(p, 'w').write(s.replace(anchor, inject, 1))
     print("triplet tunnel patch applied")
 else:
-    raise SystemExit(f"FATAL: tunnel.go anchor not found or ambiguous ({p})")
+    raise SystemExit(f"FATAL: tunnel.go anchor not found or ambiguous: {p}")
 PYEOF
 
 python3 - <<'PYEOF'
@@ -407,54 +269,17 @@ decl = (
     'var TripletHostFinder func(network string, srcIP netip.Addr, srcPort int, dstIP netip.Addr, dstPort int) (uint32, string, bool)\n\n'
 )
 if marker in s:
-    print("triplet process patch: already applied")
+    print("triplet process patch already applied")
 elif s.count(anchor) == 1:
     open(p, 'w').write(s.replace(anchor, decl + anchor, 1))
     print("triplet process patch applied")
 else:
-    raise SystemExit(f"FATAL: process.go anchor not found or ambiguous ({p})")
+    raise SystemExit(f"FATAL: process.go anchor not found or ambiguous: {p}")
 PYEOF
 
 cp "$BIND_DIR/go.mod" "$WORK_DIR/go.mod"
 cp "$BIND_DIR/go.sum" "$WORK_DIR/go.sum"
-# Keep the gomobile package source set in one place. New engine bridge files must
-# be bound as well as engine.go; *_test.go is ignored by normal package builds.
 cp "$BIND_DIR"/*.go "$WORK_DIR"/
-
-# Older branch revisions dropped offline/pre-URLTest errors in the bridge. Keep
-# this fallback patch for reproducible historical builds, but skip it when the
-# bridge already contains native per-node error diagnostics.
-python3 - "$WORK_DIR/subscription_prepare.go" <<'PYEOF'
-import sys
-p = sys.argv[1]
-s = open(p).read()
-old_import = '''\tC "github.com/metacubex/mihomo/constant"
-\t"github.com/metacubex/mihomo/tunnel"'''
-new_import = '''\tC "github.com/metacubex/mihomo/constant"
-\t"github.com/metacubex/mihomo/log"
-\t"github.com/metacubex/mihomo/tunnel"'''
-old_result = '''\t\t\tdelay, testErr := probe(ctx)
-\t\t\tif testErr == nil && delay > 0 {
-\t\t\t\tresults[i].DelayMs = delay
-\t\t\t}'''
-new_result = '''\t\t\tdelay, testErr := probe(ctx)
-\t\t\tif testErr == nil && delay > 0 {
-\t\t\t\tresults[i].DelayMs = delay
-\t\t\t} else if testErr != nil {
-\t\t\t\tlog.Errorln("[DETOUR_SUBSCRIPTION_TEST] node=%q class=%s error=%s", results[i].Name, adapter.DetourURLTestErrorClass(testErr), adapter.DetourURLTestErrorText(testErr))
-\t\t\t}'''
-if '[DETOUR_SUBSCRIPTION_TEST]' in s and 'ErrorClass string `json:"errorClass,omitempty"`' in s:
-    print("subscription outer diagnostics already implemented in bridge")
-elif old_import in s and old_result in s:
-    s = s.replace(old_import, new_import, 1)
-    s = s.replace(old_result, new_result, 1)
-    open(p, 'w').write(s)
-    print("subscription outer diagnostics patch applied")
-elif new_import in s and new_result in s:
-    print("subscription outer diagnostics patch already applied")
-else:
-    raise SystemExit(f"FATAL: subscription diagnostics layout changed: {p}")
-PYEOF
 
 cd "$WORK_DIR"
 python3 - <<PYEOF
@@ -469,16 +294,9 @@ PYEOF
 
 export PATH="$PATH:$(go env GOPATH)/bin"
 export GOFLAGS="-mod=mod -tags=with_gvisor"
-# Run bridge unit tests against the exact pinned Mihomo source after Detour's
-# embedding patches have been applied. This keeps subscription/runtime tests in
-# the same source environment that is subsequently packaged into the AAR.
 go test ./...
-# -libname dropped: current gomobile no longer supports it; output defaults to <package>.aar == engine.aar
 gomobile bind -target android/arm64,android/amd64 -androidapi 24 -javapkg=dev.triplet.engine .
 
-# Verify the shipped c-shared libraries were built by the selected Go toolchain.
-# `go version` reads the linker-stamped version from c-shared ELF files; checking
-# every ABI prevents a stale/vulnerable runtime from being packaged.
 expected_go="$(go env GOVERSION)"
 mapfile -t go_libs < <(unzip -Z1 engine.aar | grep -E '^jni/[^/]+/libgojni\.so$')
 if (( ${#go_libs[@]} == 0 )); then

@@ -18,19 +18,16 @@ val engineGoSources = fileTree("engine/mihomo/go") {
 
 tasks.register<Exec>("buildMihomoAar") {
     // Engine output depends on every production bridge source, module metadata,
-    // the embedding scripts and the exact Go toolchain. build_detour.sh is the
-    // canonical entrypoint and applies Detour's narrow Xray-compatibility delta
-    // to the pinned Mihomo build before packaging the AAR.
+    // the embedding script and the exact Go toolchain.
     inputs.files(
         "engine/mihomo/build.sh",
-        "engine/mihomo/build_detour.sh",
         "engine/mihomo/go/go.mod",
         "engine/mihomo/go/go.sum",
     )
     inputs.files(engineGoSources)
     inputs.property("goVersion", goVersion)
     outputs.file("engine/libs/engine.aar")
-    commandLine("bash", "engine/mihomo/build_detour.sh")
+    commandLine("bash", "engine/mihomo/build.sh")
 }
 
 tasks.register<Exec>("buildByeDpi") {
