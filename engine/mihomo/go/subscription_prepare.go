@@ -117,6 +117,8 @@ func FetchPreparedSubscriptionCatalog(subscriptionURL string) string {
 // the currently active provider. It is retained for runtime diagnostics; the UI
 // uses TestSubscriptionCatalogLatency for the user-triggered latency action.
 func HealthCheckSubscriptionProvider() error {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
 	if !Ready() {
 		return errors.New("engine is not ready")
 	}
@@ -134,7 +136,9 @@ func HealthCheckSubscriptionProvider() error {
 // falls back to independently parsed proxies and resolves endpoint hostnames via
 // Android's system resolver before handing them to Mihomo's URLTest.
 func TestSubscriptionCatalogLatency(subscriptionURL string) string {
-	if results, ok := activeSubscriptionLatencyResults(); ok {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+	if results, ok := activeSubscriptionLatencyResultsLocked(); ok {
 		return marshalSubscriptionLatencyResults(results)
 	}
 
@@ -154,6 +158,12 @@ func marshalSubscriptionLatencyResults(results []subscriptionLatencyNode) string
 }
 
 func activeSubscriptionLatencyResults() ([]subscriptionLatencyNode, bool) {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+	return activeSubscriptionLatencyResultsLocked()
+}
+
+func activeSubscriptionLatencyResultsLocked() ([]subscriptionLatencyNode, bool) {
 	if !Ready() {
 		return nil, false
 	}
@@ -347,6 +357,9 @@ func fetchPreparedSubscriptionProxies(subscriptionURL string) ([]map[string]any,
 			if req.URL.Scheme != "https" || req.URL.Host == "" || req.URL.User != nil {
 				return errors.New("unsafe subscription redirect")
 			}
+			if len(via) > 0 && !sameSubscriptionOrigin(via[0].URL, req.URL) {
+				return errors.New("cross-origin subscription redirect")
+			}
 			return nil
 		},
 	}
@@ -368,6 +381,20 @@ func fetchPreparedSubscriptionProxies(subscriptionURL string) ([]map[string]any,
 		return nil, errors.New("invalid subscription body")
 	}
 	return parsePreparedSubscriptionProxies(body)
+}
+
+func sameSubscriptionOrigin(a, b *url.URL) bool {
+	port := func(value *url.URL) string {
+		if value.Port() != "" {
+			return value.Port()
+		}
+		if strings.EqualFold(value.Scheme, "https") {
+			return "443"
+		}
+		return value.Scheme
+	}
+	return strings.EqualFold(a.Scheme, b.Scheme) &&
+		strings.EqualFold(a.Hostname(), b.Hostname()) && port(a) == port(b)
 }
 
 // normalizeVlessSubscriptionBody closes a compatibility gap between NekoBox's

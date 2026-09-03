@@ -95,9 +95,9 @@ fun DnsScreen(viewModel: DnsViewModel, onBack: () -> Unit, modifier: Modifier = 
                         selected = !state.editingCustom && state.selectedDns == id,
                         onClick = { viewModel.chooseKnown(id) },
                     )
-                    if (index < DnsOptions.servers.size - 1) GroupDivider(startInset = 56)
+                    if (index < DnsOptions.servers.size - 1) GroupDivider(startInset = ChoiceRowDividerInset)
                 }
-                GroupDivider(startInset = 56)
+                GroupDivider(startInset = ChoiceRowDividerInset)
                 ChoiceRow(
                     title = stringResource(R.string.dns_custom),
                     subtitle = state.customField.takeIf { it.isNotBlank() }
@@ -122,7 +122,7 @@ fun DnsScreen(viewModel: DnsViewModel, onBack: () -> Unit, modifier: Modifier = 
                     ),
                 ) {
                     Column {
-                        GroupDivider(startInset = 20)
+                        GroupDivider(startInset = Spacing.space20.value.toInt())
                         DetourInputField(
                             value = state.customField,
                             onValueChange = viewModel::setCustomField,

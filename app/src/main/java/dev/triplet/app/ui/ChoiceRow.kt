@@ -28,6 +28,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import dev.triplet.app.R
 
+internal const val ChoiceRowDividerInset = 52
+
 /**
  * Single-choice list row with radio semantics and a branded square selection mark.
  * Geometry follows the compact main-branch list rhythm; branding stays Detour-specific.

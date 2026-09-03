@@ -12,5 +12,11 @@ object SubscriptionProviderMaterializer {
         handler = materializer
     }
 
+    fun isInstalled(): Boolean = handler != null
+
+    internal fun clear() {
+        handler = null
+    }
+
     fun localPath(subscriptionUrl: String): String? = handler?.invoke(subscriptionUrl)
 }

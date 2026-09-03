@@ -45,6 +45,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
 
 private enum class BackupNoticeTone { SUCCESS, ERROR }
+private const val BackupActionDividerInset = 70
 
 @Composable
 fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
@@ -121,7 +122,7 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
                 ) {
                     exportLauncher.launch("detour-backup.json")
                 }
-                GroupDivider(startInset = 66)
+                GroupDivider(startInset = BackupActionDividerInset)
                 ActionRow(
                     label = stringResource(
                         if (operation == BackupOperation.IMPORT) R.string.backup_importing

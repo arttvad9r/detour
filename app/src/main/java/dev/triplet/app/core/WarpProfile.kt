@@ -3,6 +3,7 @@ package dev.triplet.app.core
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
+import java.net.InetAddress
 
 enum class VpnProfileKind {
     VLESS,
@@ -191,17 +192,20 @@ fun validateWarpProxy(proxy: WarpProxy) {
     require(proxy.name.isNotBlank())
     requireRenderedScalar(proxy.server)
     require(proxy.port in 1..65535)
-    requireRenderedScalar(proxy.ip)
-    proxy.ipv6?.let(::requireRenderedScalar)
+    requireIpLiteral(proxy.ip)
+    proxy.ipv6?.let(::requireIpLiteral)
     requireRenderedScalar(proxy.privateKey)
     requireRenderedScalar(proxy.publicKey)
     require(proxy.reserved.all { it in 0..255 })
-    require(proxy.allowedIps.isNotEmpty() && proxy.allowedIps.all {
-        it.isNotBlank() && it.hasNoControlCharacters()
-    })
+    require(proxy.allowedIps.isNotEmpty() && proxy.allowedIps.all(::isValidCidr))
     require(proxy.mtu in 576..9000)
     require(proxy.persistentKeepalive == null || proxy.persistentKeepalive in 0..65535)
-    require(proxy.dns.all { it.isNotBlank() && it.hasNoControlCharacters() })
+    require(proxy.dns.all(::isValidIpLiteral))
+    val amz = proxy.amnezia
+    require(amz.jc == null || amz.jc in 0..128)
+    require(amz.jmin == null || amz.jmin >= 0)
+    require(amz.jmax == null || amz.jmax >= 0)
+    require(amz.jmin == null || amz.jmax == null || amz.jmin <= amz.jmax)
     listOf(
         proxy.amnezia.i1,
         proxy.amnezia.i2,
@@ -209,4 +213,22 @@ fun validateWarpProxy(proxy: WarpProxy) {
         proxy.amnezia.i4,
         proxy.amnezia.i5,
     ).filterNotNull().forEach { require(it.hasNoControlCharacters()) }
+}
+
+private fun requireIpLiteral(value: String) {
+    requireRenderedScalar(value)
+    require(isValidIpLiteral(value))
+}
+
+private fun isValidIpLiteral(value: String): Boolean = runCatching {
+    InetAddress.getByName(value)
+    value.contains(':') || value.matches(Regex("\\d{1,3}(\\.\\d{1,3}){3}"))
+}.getOrDefault(false)
+
+private fun isValidCidr(value: String): Boolean {
+    if (value.any { it.code < 0x20 || it.code == 0x7f }) return false
+    val parts = value.split('/', limit = 2)
+    if (parts.size != 2 || !isValidIpLiteral(parts[0])) return false
+    val max = if (parts[0].contains(':')) 128 else 32
+    return parts[1].toIntOrNull()?.let { it in 0..max } == true
 }

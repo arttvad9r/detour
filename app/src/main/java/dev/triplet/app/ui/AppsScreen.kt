@@ -81,6 +81,11 @@ import kotlinx.coroutines.withContext
 private val AppsContentMaxWidth = 840.dp
 private val AppRouteInlineMinWidth = 260.dp
 private val AppRouteSelectorWidth = 166.dp
+private val DenseAppRowMinHeight = 48.dp
+private val DenseAppTileSize = 32.dp
+private val DenseAppImageSize = 26.dp
+private val DenseAppContentGap = Spacing.space8
+private const val DenseAppRowDividerInset = 52
 
 @Composable
 fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
@@ -166,7 +171,7 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
                 Modifier
                     .fillMaxWidth()
                     .padding(horizontal = Spacing.space12, vertical = Spacing.space4)
-                    .heightIn(min = 48.dp)
+                    .heightIn(min = DenseAppRowMinHeight)
                     .clip(AppShapes.extraSmall)
                     .background(c.surfaceSoft)
                     .border(1.dp, searchBorder, AppShapes.extraSmall)
@@ -206,48 +211,25 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
                 }
             }
 
-            GroupDivider(startInset = 16)
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .detourToggleable(
-                        value = showSystem,
-                        onValueChange = ::setShowSystemFromRow,
-                        pressedColor = c.surfaceSelected.copy(alpha = 0.32f),
-                        pressScale = Motion.PRESS_ROW,
+            GroupDivider(startInset = Spacing.space16.value.toInt())
+            DetourNavigationRow(
+                title = stringResource(R.string.show_system),
+                subtitle = routeSummary.takeIf { loadedApps != null },
+                iconRes = R.drawable.ic_routes,
+                modifier = Modifier.detourToggleable(
+                    value = showSystem,
+                    onValueChange = ::setShowSystemFromRow,
+                    pressedColor = c.surfaceSelected.copy(alpha = 0.32f),
+                    pressScale = Motion.PRESS_ROW,
+                ),
+                trailing = {
+                    DetourSwitch(
+                        checked = showSystem,
+                        onCheckedChange = null,
+                        compact = true,
                     )
-                    .heightIn(min = 52.dp)
-                    .padding(start = Spacing.space16, end = Spacing.space12),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                DetourIconTile(R.drawable.ic_routes, modifier = Modifier.size(36.dp))
-                Column(
-                    modifier = Modifier
-                        .padding(start = Spacing.space8)
-                        .weight(1f),
-                ) {
-                    Text(
-                        stringResource(R.string.show_system),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Medium,
-                        color = c.textPrimary,
-                    )
-                    if (loadedApps != null) {
-                        Text(
-                            routeSummary,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = c.textSecondary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
-                DetourSwitch(
-                    checked = showSystem,
-                    onCheckedChange = null,
-                    compact = true,
-                )
-            }
+                },
+            )
         }
 
         Spacer(Modifier.height(Spacing.space8))
@@ -317,7 +299,7 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
                                     Box(
                                         Modifier
                                             .fillMaxWidth()
-                                            .padding(start = 48.dp)
+                                            .padding(start = DenseAppRowDividerInset.dp)
                                             .height(1.dp)
                                             .background(c.divider),
                                     )
@@ -420,7 +402,7 @@ private fun AppRow(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 48.dp)
+                    .heightIn(min = DenseAppRowMinHeight)
                     .padding(horizontal = Spacing.space12),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -430,7 +412,7 @@ private fun AppRow(
                     compact = true,
                     modifier = Modifier.weight(1f),
                 )
-                Spacer(Modifier.width(Spacing.space8))
+                Spacer(Modifier.width(DenseAppContentGap))
                 CompactRouteSelector(
                     current = current,
                     onSelect = onSelect,
@@ -463,8 +445,8 @@ private fun AppIdentity(
     modifier: Modifier = Modifier,
 ) {
     val c = detourColors
-    val tileSize = if (compact) 32.dp else 38.dp
-    val imageSize = if (compact) 26.dp else 30.dp
+    val tileSize = if (compact) DenseAppTileSize else 38.dp
+    val imageSize = if (compact) DenseAppImageSize else 30.dp
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier = Modifier
@@ -483,12 +465,12 @@ private fun AppIdentity(
                 Icon(
                     painter = painterResource(R.drawable.ic_routes),
                     contentDescription = null,
-                    modifier = Modifier.size(17.dp),
+                    modifier = Modifier.size(NavigationRowLeadingIconSize),
                     tint = c.textMuted,
                 )
             }
         }
-        Column(Modifier.padding(start = Spacing.space8).weight(1f)) {
+        Column(Modifier.padding(start = DenseAppContentGap).weight(1f)) {
             Text(
                 app.label,
                 style = if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.bodyLarge,
@@ -521,7 +503,7 @@ private fun CompactRouteSelector(
     val haptics = LocalHapticFeedback.current
     Row(
         modifier = modifier
-            .height(48.dp)
+            .height(DenseAppRowMinHeight)
             .selectableGroup(),
     ) {
         AppRoute.entries.forEach { route ->

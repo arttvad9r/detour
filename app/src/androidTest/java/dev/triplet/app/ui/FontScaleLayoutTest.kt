@@ -37,6 +37,55 @@ class FontScaleLayoutTest {
         assertGrows("setting-normal", "setting-large")
     }
 
+    @Test fun navigationRowGrowsAtTwoHundredPercentFontScale() {
+        rule.setContent {
+            TestTheme {
+                Box {
+                    TaggedNavigationRow("navigation-normal")
+                    DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(2f)) {
+                        TaggedNavigationRow("navigation-large")
+                    }
+                }
+            }
+        }
+
+        assertGrows("navigation-normal", "navigation-large")
+    }
+
+    @Test fun choiceRowGrowsAtTwoHundredPercentFontScale() {
+        rule.setContent {
+            TestTheme {
+                Box {
+                    TaggedChoiceRow("choice-normal")
+                    DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(2f)) {
+                        TaggedChoiceRow("choice-large")
+                    }
+                }
+            }
+        }
+
+        assertGrows("choice-normal", "choice-large")
+    }
+
+    @Test fun passiveCompactSwitchDoesNotInflateNavigationRow() {
+        rule.setContent {
+            TestTheme {
+                Box {
+                    TaggedNavigationRow("navigation-plain")
+                    TaggedToggleNavigationRow("navigation-toggle")
+                }
+            }
+        }
+
+        rule.waitForIdle()
+        val plain = rule.onNodeWithTag("navigation-plain").assertIsDisplayed()
+            .fetchSemanticsNode().boundsInRoot.height
+        val toggle = rule.onNodeWithTag("navigation-toggle").assertIsDisplayed()
+            .fetchSemanticsNode().boundsInRoot.height
+
+        assertTrue("Expected toggle row ($toggle px) to match navigation row ($plain px)", toggle == plain)
+    }
+
     @Test fun segmentedControlGrowsAtTwoHundredPercentFontScale() {
         rule.setContent {
             TestTheme {
@@ -99,6 +148,52 @@ private fun TaggedSettingRow(tag: String) {
             title = "Applications routed through VPN",
             subtitle = "Selected routes and exclusions remain visible at large text sizes",
             iconRes = R.drawable.ic_routes,
+            onClick = {},
+        )
+    }
+}
+
+@Composable
+private fun TaggedNavigationRow(tag: String) {
+    Box(Modifier.width(320.dp).testTag(tag)) {
+        DetourNavigationRow(
+            title = "Applications routed through VPN",
+            subtitle = "Selected routes and exclusions remain visible at large text sizes",
+            iconRes = R.drawable.ic_routes,
+            onClick = {},
+        )
+    }
+}
+
+@Composable
+private fun TaggedToggleNavigationRow(tag: String) {
+    Box(Modifier.width(320.dp).testTag(tag)) {
+        DetourNavigationRow(
+            title = "Connect automatically",
+            subtitle = null,
+            iconRes = R.drawable.ic_power,
+            modifier = Modifier.detourToggleable(
+                value = true,
+                onValueChange = {},
+            ),
+            trailing = {
+                DetourSwitch(
+                    checked = true,
+                    onCheckedChange = null,
+                    compact = true,
+                )
+            },
+        )
+    }
+}
+
+@Composable
+private fun TaggedChoiceRow(tag: String) {
+    Box(Modifier.width(320.dp).testTag(tag)) {
+        ChoiceRow(
+            title = "Use the recommended connection profile",
+            subtitle = "This description must remain readable when the system font is enlarged",
+            selected = true,
             onClick = {},
         )
     }

@@ -193,7 +193,8 @@ $rules""".trim()
         val parsed = VlessKeyParser.parse(url) as? ParseResult.Ok
         require(parsed?.profile?.isSubscription == true) { "invalid subscription URL" }
         append("  $SUBSCRIPTION_PROVIDER:\n")
-        if (!localPath.isNullOrBlank()) {
+        if (SubscriptionProviderMaterializer.isInstalled()) {
+            require(!localPath.isNullOrBlank()) { "subscription could not be materialized" }
             append("    type: file\n")
             append("    path: ${yamlScalar(localPath)}")
         } else {

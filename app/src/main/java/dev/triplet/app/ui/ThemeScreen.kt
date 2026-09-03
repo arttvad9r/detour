@@ -63,7 +63,7 @@ fun ThemeScreen(viewModel: ThemeViewModel, onBack: () -> Unit, modifier: Modifie
                         onClick = { viewModel.selectTheme(theme.id) },
                         trailing = { ThemePalettePreview(theme) },
                     )
-                    if (index < AppTheme.entries.lastIndex) GroupDivider(startInset = 56)
+                    if (index < AppTheme.entries.lastIndex) GroupDivider(startInset = ChoiceRowDividerInset)
                 }
             }
             Spacer(Modifier.height(Spacing.space24))

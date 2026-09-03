@@ -10,6 +10,9 @@ plugins {
 val goVersion = providers.exec {
     commandLine("go", "version")
 }.standardOutput.asText
+val gomobileVersion = providers.exec {
+    commandLine("bash", "-c", "command -v gomobile >/dev/null && gomobile version || true")
+}.standardOutput.asText
 
 val engineGoSources = fileTree("engine/mihomo/go") {
     include("*.go")
@@ -26,6 +29,8 @@ tasks.register<Exec>("buildMihomoAar") {
     )
     inputs.files(engineGoSources)
     inputs.property("goVersion", goVersion)
+    inputs.property("gomobileVersion", gomobileVersion)
+    inputs.property("androidNdkHome", providers.environmentVariable("ANDROID_NDK_HOME").orElse(""))
     outputs.file("engine/libs/engine.aar")
     commandLine("bash", "engine/mihomo/build.sh")
 }

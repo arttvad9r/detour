@@ -39,8 +39,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonElevation
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
-import androidx.compose.material3.adaptive.navigation3.LocalListDetailSceneScope
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
@@ -55,7 +53,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -277,6 +274,7 @@ fun DetourCard(
     )
 }
 
+/** Compatibility wrapper; navigation-style settings rows share one geometry source. */
 @Composable
 fun SettingRow(
     title: String,
@@ -285,53 +283,13 @@ fun SettingRow(
     onClick: () -> Unit,
     trailing: @Composable (() -> Unit)? = null,
 ) {
-    val c = detourColors
-    Row(
-        Modifier.fillMaxWidth()
-            .detourClickable(
-                onClick = onClick,
-                role = Role.Button,
-                pressedColor = c.surfaceSelected.copy(alpha = 0.38f),
-                pressScale = Motion.PRESS_ROW,
-            )
-            .heightIn(min = 58.dp)
-            .padding(horizontal = Spacing.space16, vertical = Spacing.space8),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            Modifier.size(34.dp).background(c.accentSoft, AppShapes.extraSmall),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                painterResource(iconRes), null,
-                tint = c.accent,
-                modifier = Modifier.size(17.dp),
-            )
-        }
-        Column(Modifier.padding(start = 10.dp).weight(1f)) {
-            Text(
-                title, style = MaterialTheme.typography.titleSmall,
-                color = c.textPrimary,
-            )
-            if (subtitle != null) {
-                AnimatedContent(
-                    targetState = subtitle,
-                    transitionSpec = {
-                        fadeIn(tween(Motion.CONTENT_IN_MS)) togetherWith
-                            fadeOut(tween(Motion.CONTENT_OUT_MS))
-                    },
-                    label = "settingSubtitle",
-                ) { value ->
-                    Text(
-                        value, style = MaterialTheme.typography.bodySmall,
-                        color = c.textSecondary,
-                        modifier = Modifier.padding(top = 1.dp),
-                    )
-                }
-            }
-        }
-        trailing?.invoke() ?: Chevron()
-    }
+    DetourNavigationRow(
+        title = title,
+        subtitle = subtitle,
+        iconRes = iconRes,
+        onClick = onClick,
+        trailing = trailing,
+    )
 }
 
 @Composable
@@ -394,7 +352,9 @@ fun DetourSwitch(
     )
     val interactionSource = remember { MutableInteractionSource() }
     val switchModifier = if (onCheckedChange == null) {
-        Modifier.size(48.dp)
+        // The parent row owns the touch target and switch semantics in this mode.
+        // Reserve only the visual track so a 56 dp row does not inflate to 64 dp.
+        Modifier.size(trackWidth, trackHeight)
     } else {
         Modifier.size(48.dp).toggleable(
             value = checked,
@@ -561,40 +521,6 @@ fun SegmentedControl(
                 )
             }
         }
-    }
-}
-
-@OptIn(ExperimentalMaterial3AdaptiveApi::class)
-@Composable
-fun ScreenHeader(
-    title: String,
-    onBack: () -> Unit,
-    modifier: Modifier = Modifier,
-    hideBackInListDetail: Boolean = true,
-) {
-    val c = detourColors
-    val showBack = !hideBackInListDetail || LocalListDetailSceneScope.current == null
-    Row(
-        modifier
-            .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .padding(
-                start = if (showBack) Spacing.space4 else Spacing.space20,
-                end = Spacing.space20,
-            ),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (showBack) {
-            DetourIconButton(onClick = onBack) {
-                Icon(
-                    painterResource(R.drawable.ic_back), stringResource(R.string.cd_back),
-                    tint = c.textPrimary,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
-            Spacer(Modifier.width(Spacing.space4))
-        }
-        Text(title, style = MaterialTheme.typography.titleLarge, color = c.textPrimary)
     }
 }
 

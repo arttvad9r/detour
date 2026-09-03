@@ -21,6 +21,7 @@
     <string name="subscription_selection_error">Could not select this server. The previous selection is still active.</string>
     <string name="subscription_latency_test">Test ping</string>
     <string name="subscription_latency_testing">Testing…</string>
+    <string name="subscription_latency_failed">Ping failed</string>
     <string name="subscription_latency_connect_hint">Test all VLESS servers with one tap before connecting.</string>
     <string name="subscription_node_online">Online</string>
     <string name="subscription_node_offline">Offline</string>

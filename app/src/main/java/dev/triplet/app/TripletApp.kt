@@ -8,6 +8,8 @@ import android.content.IntentFilter
 import androidx.core.content.ContextCompat
 import dev.triplet.app.data.AppInventory
 import dev.triplet.app.data.RoutesStore
+import dev.triplet.app.core.SubscriptionProviderMaterializer
+import dev.triplet.engine.engine.Engine
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
 import dev.triplet.app.vpn.resolveRouteSnapshot
@@ -72,6 +74,11 @@ class TripletApp : Application() {
     override fun onCreate() {
         super.onCreate()
         routesStore = RoutesStore(this)
+        SubscriptionProviderMaterializer.install { url ->
+            runCatching {
+                Engine.prepareSubscriptionProvider(url, cacheDir.absolutePath)
+            }.getOrNull()?.takeIf { it.isNotBlank() } ?: ""
+        }
 
         val packageFilter = IntentFilter().apply {
             addAction(Intent.ACTION_PACKAGE_ADDED)

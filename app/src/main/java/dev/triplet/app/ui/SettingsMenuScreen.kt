@@ -3,28 +3,22 @@ package dev.triplet.app.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -122,8 +116,6 @@ internal fun SettingsMenuScreen(
             .background(c.background)
             .statusBarsPadding()
             .navigationBarsPadding()
-            // Kept only as an accessibility fallback. At normal font scale the
-            // compact card fits a standard phone height without scrolling.
             .verticalScroll(scrollState)
             .detourHighRefresh(scrollState.isScrollInProgress),
     ) {
@@ -138,39 +130,30 @@ internal fun SettingsMenuScreen(
                 SettingsSectionDivider()
                 SettingsSectionLabel(R.string.settings_section_connection)
                 SettingsRows(listOf(dpi, dns), selectedSection)
-                GroupDivider(startInset = 48)
-                Row(
-                    Modifier.fillMaxWidth()
-                        .detourToggleable(
-                            value = state.autoConnect,
-                            onValueChange = { next ->
-                                haptics.performHapticFeedback(
-                                    if (next) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff,
-                                )
-                                viewModel.setAutoConnect(next)
-                            },
-                            pressedColor = c.surfaceSelected.copy(alpha = 0.34f),
-                            pressScale = Motion.PRESS_ROW,
+                GroupDivider(startInset = NavigationRowDividerInset)
+                DetourNavigationRow(
+                    title = stringResource(R.string.auto_connect),
+                    subtitle = null,
+                    iconRes = R.drawable.ic_power,
+                    modifier = Modifier.detourToggleable(
+                        value = state.autoConnect,
+                        onValueChange = { next ->
+                            haptics.performHapticFeedback(
+                                if (next) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff,
+                            )
+                            viewModel.setAutoConnect(next)
+                        },
+                        pressedColor = c.surfaceSelected.copy(alpha = 0.34f),
+                        pressScale = Motion.PRESS_ROW,
+                    ),
+                    trailing = {
+                        DetourSwitch(
+                            checked = state.autoConnect,
+                            onCheckedChange = null,
+                            compact = true,
                         )
-                        .heightIn(min = 52.dp)
-                        .padding(start = Spacing.space12, end = Spacing.space12),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    CompactSettingsIcon(R.drawable.ic_power)
-                    Text(
-                        stringResource(R.string.auto_connect),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = c.textPrimary,
-                        modifier = Modifier
-                            .padding(start = Spacing.space8)
-                            .weight(1f),
-                    )
-                    DetourSwitch(
-                        checked = state.autoConnect,
-                        onCheckedChange = null,
-                        compact = true,
-                    )
-                }
+                    },
+                )
 
                 SettingsSectionDivider()
                 SettingsSectionLabel(R.string.settings_section_app)
@@ -227,94 +210,14 @@ private fun SettingsRows(
 ) {
     items.forEachIndexed { index, (item, onClick) ->
         val selected = item.section == selectedSection
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .background(
-                    if (selected) detourColors.accentSoft
-                    else androidx.compose.ui.graphics.Color.Transparent,
-                )
-                .semantics { this.selected = selected },
-        ) {
-            CompactSettingRow(
-                title = stringResource(item.titleRes),
-                subtitle = item.sub(),
-                iconRes = item.iconRes,
-                onClick = onClick,
-                selected = selected,
-            )
-        }
-        if (index < items.lastIndex) GroupDivider(startInset = 48)
-    }
-}
-
-@Composable
-private fun CompactSettingRow(
-    title: String,
-    subtitle: String?,
-    iconRes: Int,
-    onClick: () -> Unit,
-    selected: Boolean,
-) {
-    val c = detourColors
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .detourClickable(
-                onClick = onClick,
-                role = androidx.compose.ui.semantics.Role.Button,
-                pressedColor = c.surfaceSelected.copy(alpha = 0.38f),
-                pressScale = Motion.PRESS_ROW,
-            )
-            .heightIn(min = 52.dp)
-            .padding(horizontal = Spacing.space12, vertical = Spacing.space4),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        CompactSettingsIcon(iconRes)
-        Column(
-            Modifier
-                .padding(start = Spacing.space8)
-                .weight(1f),
-        ) {
-            Text(
-                title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = c.textPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (!subtitle.isNullOrBlank()) {
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = c.textSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
-        if (selected) {
-            SelectionMark(selected = true, modifier = Modifier.padding(end = Spacing.space4))
-        } else {
-            Chevron()
-        }
-    }
-}
-
-@Composable
-private fun CompactSettingsIcon(iconRes: Int) {
-    val c = detourColors
-    Box(
-        Modifier
-            .size(30.dp)
-            .background(c.accentSoft, AppShapes.extraSmall),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            painter = painterResource(iconRes),
-            contentDescription = null,
-            tint = c.accent,
-            modifier = Modifier.size(15.dp),
+        DetourNavigationRow(
+            title = stringResource(item.titleRes),
+            subtitle = item.sub(),
+            iconRes = item.iconRes,
+            onClick = onClick,
+            selectedBackground = selected,
+            modifier = Modifier.semantics { this.selected = selected },
         )
+        if (index < items.lastIndex) GroupDivider(startInset = NavigationRowDividerInset)
     }
 }

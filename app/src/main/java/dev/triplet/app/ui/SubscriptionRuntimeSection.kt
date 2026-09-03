@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -26,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -62,7 +64,7 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
     LaunchedEffect(state.catalog, state.selectedNode, state.selectionStatus) {
         if (
             state.catalog.isNotEmpty() &&
-            state.selectionStatus != SubscriptionSelectionStatus.SAVING &&
+            shouldAutoSelectSubscriptionNode(state.selectionStatus) &&
             state.selectedNode.isNullOrBlank()
         ) {
             runtimeViewModel.selectNode(state.catalog.first().name)
@@ -208,7 +210,7 @@ private fun SubscriptionServerList(
                 latencyError = latencyErrorByName[node.name],
                 onSelect = { onSelect(node.name) },
             )
-            if (index < nodes.lastIndex) GroupDivider(startInset = 56)
+            if (index < nodes.lastIndex) GroupDivider(startInset = ChoiceRowDividerInset)
         }
     }
 }
@@ -224,6 +226,7 @@ private fun SubscriptionNodeRow(
     onSelect: () -> Unit,
 ) {
     val c = detourColors
+    val theme = LocalDetourTheme.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -234,8 +237,8 @@ private fun SubscriptionNodeRow(
                 pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
                 pressScale = Motion.PRESS_RADIO,
             )
-            .heightIn(min = 52.dp)
-            .padding(horizontal = Spacing.space16, vertical = Spacing.space4),
+            .heightIn(min = 56.dp)
+            .padding(horizontal = Spacing.space16, vertical = Spacing.space8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SelectionMark(selected = selected)
@@ -246,28 +249,32 @@ private fun SubscriptionNodeRow(
         ) {
             Text(
                 text = name,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.titleSmall,
                 color = c.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
             if (latencyError != null) {
                 Text(
-                    text = "${latencyError.errorClass}: ${latencyError.errorText}",
+                    text = stringResource(R.string.subscription_latency_failed),
                     style = MaterialTheme.typography.bodySmall,
-                    color = c.error,
-                    maxLines = 2,
+                    color = latencyBadColor(theme),
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = Spacing.space2),
                 )
             }
         }
         if (delayMs != null || latencyTested) {
+            val delayColor = if (latencyError != null) latencyBadColor(theme) else latencyColorFor(theme, delayMs)
             Text(
                 text = delayMs?.let { stringResource(R.string.subscription_node_delay, it) } ?: "—",
-                style = MaterialTheme.typography.labelMedium,
-                color = if (delayMs != null) c.textSecondary else c.textMuted,
-                modifier = Modifier.padding(start = Spacing.space8),
+                style = MaterialTheme.typography.labelMedium.copy(fontFeatureSettings = "tnum"),
+                color = delayColor,
+                textAlign = TextAlign.End,
+                modifier = Modifier
+                    .padding(start = Spacing.space8)
+                    .widthIn(min = 64.dp),
             )
         }
         if (!enabled && selected) {
@@ -325,3 +332,6 @@ private fun SubscriptionNotice(
         )
     }
 }
+
+internal fun shouldAutoSelectSubscriptionNode(status: SubscriptionSelectionStatus): Boolean =
+    status == SubscriptionSelectionStatus.IDLE

@@ -6,6 +6,7 @@
 package engine
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,8 +24,8 @@ import (
 
 	"github.com/metacubex/mihomo/adapter/outboundgroup"
 	"github.com/metacubex/mihomo/common/convert"
-	mihomoYaml "github.com/metacubex/mihomo/common/yaml"
 	"github.com/metacubex/mihomo/common/observable"
+	mihomoYaml "github.com/metacubex/mihomo/common/yaml"
 	"github.com/metacubex/mihomo/component/process"
 	"github.com/metacubex/mihomo/component/profile/cachefile"
 	"github.com/metacubex/mihomo/config"
@@ -53,18 +54,28 @@ type ProcessResolver interface {
 }
 
 var hostResolver ProcessResolver
+var runtimeMu sync.Mutex
+var runtimeMuAcquiredHook func(string)
+var resolverMu sync.RWMutex
 var readyMu sync.RWMutex
 var ready bool
 
 // SetProcessResolver registers the host-side resolver (call once from Android).
-func SetProcessResolver(r ProcessResolver) { hostResolver = r }
+func SetProcessResolver(r ProcessResolver) {
+	resolverMu.Lock()
+	hostResolver = r
+	resolverMu.Unlock()
+}
 
 func init() {
 	process.TripletHostFinder = func(network string, srcIP netip.Addr, srcPort int, dstIP netip.Addr, dstPort int) (uint32, string, bool) {
-		if hostResolver == nil {
+		resolverMu.RLock()
+		resolver := hostResolver
+		resolverMu.RUnlock()
+		if resolver == nil {
 			return 0, "", false
 		}
-		resp := hostResolver.Resolve(network, srcIP.String(), int64(srcPort), dstIP.String(), int64(dstPort))
+		resp := resolver.Resolve(network, srcIP.String(), int64(srcPort), dstIP.String(), int64(dstPort))
 		if resp == "" {
 			return 0, "", false
 		}
@@ -82,9 +93,11 @@ func init() {
 
 // Start parses configYAML and applies it. Logs are mirrored to logPath when non-empty.
 func Start(configYAML string, logPath string) (err error) {
-	readyMu.Lock()
-	ready = false
-	readyMu.Unlock()
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+	if hook := runtimeMuAcquiredHook; hook != nil {
+		hook("Start")
+	}
 	defer func() {
 		if err != nil {
 			err = redactError(err)
@@ -107,7 +120,15 @@ func Start(configYAML string, logPath string) (err error) {
 	if err != nil {
 		return err
 	}
-	executor.ApplyConfig(cfg, true)
+	stopRuntimeLocked()
+	if applyErr := executor.ApplyConfig(cfg, true); applyErr != nil {
+		stopRuntimeLocked()
+		return applyErr
+	}
+	if cfg.General.Tun.Enable && !listener.LastTunConf.Enable {
+		stopRuntimeLocked()
+		return errors.New("failed to create TUN")
+	}
 	readyMu.Lock()
 	ready = true
 	readyMu.Unlock()
@@ -127,6 +148,8 @@ func Ready() bool {
 // node/runtime metadata but not the secret subscription URL.
 // An empty string means the subscription provider is not active.
 func SubscriptionProviderState() string {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
 	if !Ready() {
 		return ""
 	}
@@ -145,6 +168,8 @@ func SubscriptionProviderState() string {
 // replaced its app-private file. Latency checks are an explicit, separate user
 // action and must not fan out connections merely because the list was refreshed.
 func RefreshSubscriptionProvider() error {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
 	if !Ready() {
 		return errors.New("engine is not ready")
 	}
@@ -251,6 +276,8 @@ func FetchSubscriptionCatalog(subscriptionURL string) string {
 // and always writes the choice into mihomo's selected-group cache. Writing the
 // cache while disconnected makes the selection effective on the next Start.
 func SelectSubscriptionNode(name string, homeDir string) error {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
 	name = strings.TrimSpace(name)
 	if name == "" || len(name) > 256 || strings.IndexFunc(name, func(r rune) bool { return r < 0x20 || r == 0x7f }) >= 0 {
 		return errors.New("invalid subscription node")
@@ -274,8 +301,16 @@ func SelectSubscriptionNode(name string, homeDir string) error {
 			return redactError(err)
 		}
 	}
-	cachefile.Cache().SetSelected(subscriptionGroupName, name)
+	cachefile.Cache().SetSelected(subscriptionSelectionKey(homeDir), name)
 	return nil
+}
+
+func subscriptionSelectionKey(homeDir string) string {
+	if homeDir == "" {
+		return subscriptionGroupName
+	}
+	hash := sha256.Sum256([]byte(filepath.Clean(homeDir)))
+	return subscriptionGroupName + "-" + fmt.Sprintf("%x", hash[:])
 }
 
 // resolveSubscriptionSelection prevents mihomo's temporary empty-group proxy
@@ -296,6 +331,8 @@ func resolveSubscriptionSelection(live string, emptyFallback string, cached stri
 // selector wins after the provider is ready; while it only exposes its internal
 // empty fallback, the persisted desired selection remains the source of truth.
 func SubscriptionSelectedNode(homeDir string) string {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
 	if homeDir != "" {
 		if err := os.MkdirAll(homeDir, 0o700); err == nil {
 			C.SetHomeDir(homeDir)
@@ -317,7 +354,7 @@ func SubscriptionSelectedNode(homeDir string) string {
 
 	cached := ""
 	if selected := cachefile.Cache().SelectedMap(); selected != nil {
-		cached = selected[subscriptionGroupName]
+		cached = resolveSubscriptionCache(selected, homeDir)
 	}
 	return resolveSubscriptionSelection(live, emptyFallback, cached)
 }
@@ -350,9 +387,24 @@ func safeCatalogLabel(value any, maxChars int) (string, bool) {
 
 // Stop shuts down the mihomo runtime.
 func Stop() {
+	runtimeMu.Lock()
+	defer runtimeMu.Unlock()
+	if hook := runtimeMuAcquiredHook; hook != nil {
+		hook("Stop")
+	}
+	stopRuntimeLocked()
+}
+
+func stopRuntimeLocked() {
 	readyMu.Lock()
 	ready = false
 	readyMu.Unlock()
+	for _, provider := range tunnel.Providers() {
+		closeProvider(provider)
+	}
+	for _, provider := range tunnel.RuleProviders() {
+		closeProvider(provider)
+	}
 	executor.Shutdown()
 	// Shutdown closes the TUN listener but leaves LastTunConf behind. The next
 	// Start typically gets an equal conf (the OS reuses the fd number), and
@@ -360,6 +412,24 @@ func Stop() {
 	// a live engine with no TUN reader. Reset so it always rebuilds.
 	listener.LastTunConf = LC.Tun{}
 	unsubscribeLogs()
+}
+
+func closeProvider(provider any) {
+	if closer, ok := provider.(interface{ Close() error }); ok {
+		if err := closer.Close(); err != nil {
+			log.Warnln("provider cleanup failed: %v", err)
+		}
+	}
+}
+
+func resolveSubscriptionCache(selected map[string]string, homeDir string) string {
+	if cached := selected[subscriptionSelectionKey(homeDir)]; cached != "" {
+		return cached
+	}
+	if homeDir != "" {
+		return selected[subscriptionGroupName]
+	}
+	return ""
 }
 
 var (
