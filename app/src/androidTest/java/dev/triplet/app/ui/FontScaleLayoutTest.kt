@@ -67,6 +67,25 @@ class FontScaleLayoutTest {
         assertGrows("choice-normal", "choice-large")
     }
 
+    @Test fun passiveCompactSwitchDoesNotInflateNavigationRow() {
+        rule.setContent {
+            TestTheme {
+                Box {
+                    TaggedNavigationRow("navigation-plain")
+                    TaggedToggleNavigationRow("navigation-toggle")
+                }
+            }
+        }
+
+        rule.waitForIdle()
+        val plain = rule.onNodeWithTag("navigation-plain").assertIsDisplayed()
+            .fetchSemanticsNode().boundsInRoot.height
+        val toggle = rule.onNodeWithTag("navigation-toggle").assertIsDisplayed()
+            .fetchSemanticsNode().boundsInRoot.height
+
+        assertTrue("Expected toggle row ($toggle px) to match navigation row ($plain px)", toggle == plain)
+    }
+
     @Test fun segmentedControlGrowsAtTwoHundredPercentFontScale() {
         rule.setContent {
             TestTheme {
@@ -142,6 +161,28 @@ private fun TaggedNavigationRow(tag: String) {
             subtitle = "Selected routes and exclusions remain visible at large text sizes",
             iconRes = R.drawable.ic_routes,
             onClick = {},
+        )
+    }
+}
+
+@Composable
+private fun TaggedToggleNavigationRow(tag: String) {
+    Box(Modifier.width(320.dp).testTag(tag)) {
+        DetourNavigationRow(
+            title = "Connect automatically",
+            subtitle = null,
+            iconRes = R.drawable.ic_power,
+            modifier = Modifier.detourToggleable(
+                value = true,
+                onValueChange = {},
+            ),
+            trailing = {
+                DetourSwitch(
+                    checked = true,
+                    onCheckedChange = null,
+                    compact = true,
+                )
+            },
         )
     }
 }
