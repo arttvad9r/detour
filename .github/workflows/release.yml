@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: release-${{ github.ref }}
@@ -32,9 +33,6 @@ jobs:
           MAJOR="${BASH_REMATCH[1]}"
           MINOR="${BASH_REMATCH[2]}"
           PATCH="${BASH_REMATCH[3]}"
-          # Bound decimal widths before Bash arithmetic. Otherwise a malicious or
-          # accidental tag with hundreds of digits can overflow the shell integer
-          # while evaluating 10#VALUE and potentially wrap into a valid-looking code.
           if (( ${#MAJOR} > 4 || ${#MINOR} > 3 || ${#PATCH} > 3 )); then
             echo "Release version components exceed Android versionCode bounds" >&2
             exit 1
@@ -50,9 +48,9 @@ jobs:
             exit 1
           fi
 
-          git fetch origin master
-          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/master; then
-            echo "Release tag must point to a commit contained in master" >&2
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "Release tag must point to a commit contained in main" >&2
             exit 1
           fi
 
@@ -60,6 +58,26 @@ jobs:
           echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
           echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
           echo "APK_NAME=detour-$VERSION_NAME-arm64.apk" >> "$GITHUB_ENV"
+      - name: Require successful Android CI on main
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          SUCCESSFUL_RUNS="$(
+            gh run list \
+              --workflow Android \
+              --branch main \
+              --commit "$GITHUB_SHA" \
+              --event push \
+              --limit 20 \
+              --json conclusion,headSha \
+              --jq '[.[] | select(.headSha == env.GITHUB_SHA and .conclusion == "success")] | length'
+          )"
+          if [[ "$SUCCESSFUL_RUNS" -lt 1 ]]; then
+            echo "Release commit must have a successful Android push workflow on main" >&2
+            exit 1
+          fi
       - name: Validate signing secrets
         shell: bash
         env:
@@ -67,15 +85,21 @@ jobs:
           STORE_PASSWORD: ${{ secrets.DETOUR_RELEASE_STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.DETOUR_RELEASE_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.DETOUR_RELEASE_KEY_PASSWORD }}
+          EXPECTED_CERT_SHA256: ${{ secrets.DETOUR_RELEASE_CERT_SHA256 }}
         run: |
           set -euo pipefail
           missing=0
-          for name in KEYSTORE_B64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+          for name in KEYSTORE_B64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD EXPECTED_CERT_SHA256; do
             if [[ -z "${!name}" ]]; then
               echo "Missing required release secret backing $name" >&2
               missing=1
             fi
           done
+          normalized="$(printf '%s' "$EXPECTED_CERT_SHA256" | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          if [[ -n "$EXPECTED_CERT_SHA256" && ! "$normalized" =~ ^[0-9A-F]{64}$ ]]; then
+            echo "DETOUR_RELEASE_CERT_SHA256 must be a SHA-256 certificate fingerprint" >&2
+            missing=1
+          fi
           exit "$missing"
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
@@ -134,6 +158,8 @@ jobs:
         run: bash engine/vulnscan.sh
       - name: Verify release APK
         shell: bash
+        env:
+          EXPECTED_CERT_SHA256: ${{ secrets.DETOUR_RELEASE_CERT_SHA256 }}
         run: |
           set -euo pipefail
           APK="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' -print -quit)"
@@ -142,7 +168,24 @@ jobs:
             exit 1
           fi
 
-          "$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$APK"
+          APKSIGNER="$ANDROID_SDK_ROOT/build-tools/36.0.0/apksigner"
+          CERT_OUTPUT="$("$APKSIGNER" verify --verbose --print-certs "$APK")"
+          printf '%s\n' "$CERT_OUTPUT"
+          ACTUAL_CERT_SHA256="$(
+            printf '%s\n' "$CERT_OUTPUT" |
+              sed -n 's/^Signer #1 certificate SHA-256 digest: //p' |
+              head -n 1 |
+              tr -d ':' |
+              tr '[:lower:]' '[:upper:]'
+          )"
+          EXPECTED_CERT_SHA256="$(printf '%s' "$EXPECTED_CERT_SHA256" | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          if [[ "$ACTUAL_CERT_SHA256" != "$EXPECTED_CERT_SHA256" ]]; then
+            echo "Release signing certificate mismatch" >&2
+            echo "Expected: $EXPECTED_CERT_SHA256" >&2
+            echo "Actual:   $ACTUAL_CERT_SHA256" >&2
+            exit 1
+          fi
+
           "$ANDROID_SDK_ROOT/build-tools/36.0.0/zipalign" -c -P 16 -v 4 "$APK"
           python3 tools/check_elf_alignment.py "$APK" \
             --readelf "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
