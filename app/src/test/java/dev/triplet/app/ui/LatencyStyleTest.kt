@@ -21,14 +21,26 @@ class LatencyStyleTest {
     @Test fun `latency colors remain readable on cards`() {
         AppTheme.entries.forEach { theme ->
             listOf(99, 100, 200, 201).forEach { delayMs ->
-                val color = latencyColorFor(theme, delayMs)
-                val ratio = contrast(color, theme.colors.surface)
+                val background = theme.colors.surface
+                val color = composite(latencyColorFor(theme, delayMs), background)
+                val ratio = contrast(color, background)
                 assertTrue(
                     "${theme.id} delay=$delayMs contrast=$ratio",
                     ratio >= MIN_TEXT_CONTRAST,
                 )
             }
         }
+    }
+
+    private fun composite(foreground: Color, background: Color): Color {
+        if (foreground.alpha >= 0.999f) return foreground
+        val a = foreground.alpha
+        return Color(
+            red = foreground.red * a + background.red * (1f - a),
+            green = foreground.green * a + background.green * (1f - a),
+            blue = foreground.blue * a + background.blue * (1f - a),
+            alpha = 1f,
+        )
     }
 
     private fun contrast(a: Color, b: Color): Double {
