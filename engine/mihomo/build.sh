@@ -80,6 +80,31 @@ else:
     raise SystemExit(f"FATAL: listener Cleanup layout changed: {p}")
 PYEOF
 
+# Mihomo v1.19.30's VLESS share-link converter drops the explicit `flow` query
+# entirely. NekoBox carries this field into the VLESS outbound (and strips the
+# legacy -udp443 suffix). Reality/TCP servers using xtls-rprx-vision can accept
+# the TCP connection and then close it on first payload when flow is missing,
+# which surfaces as URLTest/HTTPS EOF. Preserve only an explicitly supplied flow;
+# do not invent a default for links that omit it.
+python3 - <<'PYEOF'
+p = 'common/convert/v.go'
+s = open(p).read()
+old = '''\tproxy["uuid"] = url.User.Username()
+\tproxy["udp"] = true'''
+new = '''\tproxy["uuid"] = url.User.Username()
+\tif flow := strings.TrimSuffix(query.Get("flow"), "-udp443"); flow != "" {
+\t\tproxy["flow"] = flow
+\t}
+\tproxy["udp"] = true'''
+if old in s:
+    open(p, 'w').write(s.replace(old, new, 1))
+    print("VLESS flow compatibility patch applied")
+elif new in s:
+    print("VLESS flow compatibility patch already applied")
+else:
+    raise SystemExit(f"FATAL: VLESS flow converter layout changed: {p}")
+PYEOF
+
 # Mihomo v1.19.30 converts a VLESS gRPC share link with an omitted serviceName
 # into grpc-service-name: "". Xray/sing-box-compatible clients use the conventional
 # "grpc" fallback, while Mihomo then fails the transport with the connection
