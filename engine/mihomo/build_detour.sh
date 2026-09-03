@@ -20,6 +20,15 @@ src = Path(sys.argv[1])
 out = Path(sys.argv[2])
 s = src.read_text()
 
+# The implementation is executed from a temporary path, so its original
+# BASH_SOURCE-relative root would resolve to /. Inject the real checkout root
+# supplied by this wrapper instead; this keeps local and CI builds identical.
+old_root = 'REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"'
+new_root = 'REPO_ROOT="${DETOUR_REPO_ROOT:?}"'
+if old_root not in s:
+    raise SystemExit("FATAL: Mihomo REPO_ROOT layout changed")
+s = s.replace(old_root, new_root, 1)
+
 # The earlier URI compatibility experiment forced omitted serviceName to "grpc".
 # That is not Xray semantics. Preserve the empty value so YAML and URI providers
 # behave identically; the VLESS-only runtime patch below maps it to //Tun.
@@ -76,4 +85,5 @@ s = s.replace(marker, xray_empty_service_patch + marker, 1)
 out.write_text(s)
 PYWRAP
 
+export DETOUR_REPO_ROOT="$ROOT"
 exec bash "$TMP"
