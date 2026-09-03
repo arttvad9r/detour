@@ -144,22 +144,38 @@ class HomeViewModel(
     @OptIn(ExperimentalCoroutinesApi::class)
     private val selectedSubscriptionNode = combine(
         settings
-            .map { value -> value?.let { it.activeVpn to it.vlessUri } }
+            .map { value ->
+                value?.let {
+                    Triple(
+                        it.activeVpn,
+                        it.vlessKeys.active?.id to it.vlessUri,
+                        it.vlessKeys.active?.selectedNode,
+                    )
+                }
+            }
             .distinctUntilChanged(),
         vpnState,
         routeRefresh,
     ) { profile, _, _ -> profile }
         .mapLatest { profile ->
-            val (kind, uri) = profile ?: return@mapLatest SubscriptionNodeRead(null, null)
-            if (kind != VpnProfileKind.SUBSCRIPTION || uri.isBlank()) {
+            val (kind, identity, persistedNode) = profile
+                ?: return@mapLatest SubscriptionNodeRead(null, null)
+            val (profileId, uri) = identity
+            if (kind != VpnProfileKind.SUBSCRIPTION || profileId == null || uri.isBlank()) {
                 return@mapLatest SubscriptionNodeRead(null, null)
             }
-            val profileKey = uri.trim()
-            val node = runCatching { readSubscriptionNode() }
+            val profileKey = "$profileId:$uri"
+            val durable = persistedNode?.trim()?.takeIf { it.isNotBlank() }
+            if (durable != null) return@mapLatest SubscriptionNodeRead(profileKey, durable)
+
+            // Compatibility fallback for profiles created before durable node
+            // persistence. Once the subscription screen observes this value it
+            // is written back into the encrypted VlessKey.
+            val runtime = runCatching { readSubscriptionNode() }
                 .getOrNull()
                 ?.trim()
                 ?.takeIf { it.isNotBlank() }
-            SubscriptionNodeRead(profileKey, node)
+            SubscriptionNodeRead(profileKey, runtime)
         }
         .scan(SubscriptionNodeRead(null, null)) { previous, current ->
             when {
