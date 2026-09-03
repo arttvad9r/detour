@@ -2,7 +2,7 @@ package engine
 
 import "testing"
 
-func TestPreparedSubscriptionDefaultsMissingGRPCServiceName(t *testing.T) {
+func TestPreparedSubscriptionPreservesMissingGRPCServiceName(t *testing.T) {
 	const link = "vless://a1b2c3d4-eacc-4433-981b-7e5f9a8b1234@grpc.example.com:443?encryption=none&security=reality&type=grpc&sni=www.starlink.com&fp=firefox&pbk=" + compatRealityPublicKey + "&sid=6ba85179f3a2b4c5#GrpcDefault"
 
 	proxies, err := parsePreparedSubscriptionProxies([]byte(link))
@@ -19,8 +19,8 @@ func TestPreparedSubscriptionDefaultsMissingGRPCServiceName(t *testing.T) {
 	if !ok {
 		t.Fatalf("grpc-opts = %#v, want map", proxies[0]["grpc-opts"])
 	}
-	if got := grpcOpts["grpc-service-name"]; got != "grpc" {
-		t.Fatalf("grpc-service-name = %v, want compatibility default grpc", got)
+	if got := grpcOpts["grpc-service-name"]; got != "" {
+		t.Fatalf("grpc-service-name = %v, want omitted service name preserved as empty", got)
 	}
 }
 
