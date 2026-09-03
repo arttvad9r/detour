@@ -58,3 +58,50 @@ func TestSubscriptionLatencyTargetsExposeTransportErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestSubscriptionLatencyDiagnosticsPayloadKeepsTransportAndDropsSecrets(t *testing.T) {
+	proxy := map[string]any{
+		"name":               "Main - 2",
+		"type":               "vless",
+		"server":             "edge.example.com",
+		"port":               443,
+		"uuid":               "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+		"network":            "tcp",
+		"tls":                true,
+		"servername":         "www.starlink.com",
+		"client-fingerprint": "firefox",
+		"flow":               "xtls-rprx-vision",
+		"encryption":         "none",
+		"reality-opts": map[string]any{
+			"public-key": "secret-pbk",
+			"short-id":   "secret-sid",
+		},
+	}
+
+	payload := subscriptionLatencyDiagnosticsPayload(proxy)
+	for _, want := range []string{
+		`"name":"Main - 2"`,
+		`"network":"tcp"`,
+		`"tls":true`,
+		`"reality":true`,
+		`"servername":"www.starlink.com"`,
+		`"client-fingerprint":"firefox"`,
+		`"flow":"xtls-rprx-vision"`,
+		`"encryption":"none"`,
+	} {
+		if !strings.Contains(payload, want) {
+			t.Fatalf("payload %q does not contain %q", payload, want)
+		}
+	}
+	for _, secret := range []string{
+		"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
+		"secret-pbk",
+		"secret-sid",
+		"public-key",
+		"short-id",
+	} {
+		if strings.Contains(payload, secret) {
+			t.Fatalf("payload leaked %q: %s", secret, payload)
+		}
+	}
+}
