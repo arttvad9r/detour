@@ -147,6 +147,7 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
                     selecting = state.selectionStatus == SubscriptionSelectionStatus.SAVING,
                     latencyByName = latencyByName,
                     latencyTestedNames = latencyTestedNames,
+                    latencyErrorByName = state.latencyErrorByName,
                     onSelect = runtimeViewModel::selectNode,
                 )
                 val hiddenCount = (state.catalog.size - MAX_SUBSCRIPTION_NODE_ROWS).coerceAtLeast(0)
@@ -193,6 +194,7 @@ private fun SubscriptionServerList(
     selecting: Boolean,
     latencyByName: Map<String, Int>,
     latencyTestedNames: Set<String>,
+    latencyErrorByName: Map<String, SubscriptionLatencyError>,
     onSelect: (String) -> Unit,
 ) {
     DetourCard(Modifier.selectableGroup()) {
@@ -203,6 +205,7 @@ private fun SubscriptionServerList(
                 enabled = !selecting,
                 delayMs = latencyByName[node.name],
                 latencyTested = node.name in latencyTestedNames,
+                latencyError = latencyErrorByName[node.name],
                 onSelect = { onSelect(node.name) },
             )
             if (index < nodes.lastIndex) GroupDivider(startInset = 56)
@@ -217,6 +220,7 @@ private fun SubscriptionNodeRow(
     enabled: Boolean,
     delayMs: Int?,
     latencyTested: Boolean,
+    latencyError: SubscriptionLatencyError?,
     onSelect: () -> Unit,
 ) {
     val c = detourColors
@@ -231,20 +235,33 @@ private fun SubscriptionNodeRow(
                 pressScale = Motion.PRESS_RADIO,
             )
             .heightIn(min = 52.dp)
-            .padding(horizontal = Spacing.space16, vertical = Spacing.space4),
+            .padding(horizontal = Spacing.space16, vertical = Spacing.space6),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         SelectionMark(selected = selected)
-        Text(
-            text = name,
-            style = MaterialTheme.typography.bodyMedium,
-            color = c.textPrimary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+        Column(
             modifier = Modifier
                 .padding(start = Spacing.space12)
                 .weight(1f),
-        )
+        ) {
+            Text(
+                text = name,
+                style = MaterialTheme.typography.bodyMedium,
+                color = c.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (latencyError != null) {
+                Text(
+                    text = "${latencyError.errorClass}: ${latencyError.errorText}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = c.error,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = Spacing.space2),
+                )
+            }
+        }
         if (delayMs != null || latencyTested) {
             Text(
                 text = delayMs?.let { stringResource(R.string.subscription_node_delay, it) } ?: "—",
