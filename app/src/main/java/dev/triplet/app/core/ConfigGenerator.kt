@@ -203,6 +203,10 @@ $rules""".trim()
             append("    url: ${yamlScalar(url)}\n")
             append("    interval: 3600\n")
             append("    size-limit: 4194304\n")
+            // Provider downloads are INNER connections inside mihomo. Force them
+            // through DIRECT so Detour's fail-closed MATCH,REJECT does not reject
+            // the subscription fetch before UID-attributed app traffic exists.
+            append("    proxy: DIRECT\n")
             append("    header:\n")
             append("      User-Agent:\n")
             append("        - $SUBSCRIPTION_USER_AGENT")
