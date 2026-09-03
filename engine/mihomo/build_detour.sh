@@ -12,7 +12,7 @@ IMPL="$ROOT/engine/mihomo/build.sh"
 TMP="$(mktemp)"
 trap 'rm -f "$TMP"' EXIT
 
-python3 - "$IMPL" "$TMP" <<'PYEOF'
+python3 - "$IMPL" "$TMP" <<'PYWRAP'
 from pathlib import Path
 import sys
 
@@ -74,6 +74,6 @@ PYEOF
 """
 s = s.replace(marker, xray_empty_service_patch + marker, 1)
 out.write_text(s)
-PYEOF
+PYWRAP
 
 exec bash "$TMP"
