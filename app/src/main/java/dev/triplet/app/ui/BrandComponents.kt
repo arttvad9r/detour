@@ -104,27 +104,34 @@ fun DetourIconTile(
     iconRes: Int,
     modifier: Modifier = Modifier,
     selected: Boolean = false,
+    size: Dp = 42.dp,
+    iconSize: Dp = 20.dp,
+    bordered: Boolean = true,
 ) {
     val c = detourColors
+    val tileModifier = modifier
+        .size(size)
+        .background(
+            if (selected) c.accentSoft else c.surfaceSoft,
+            AppShapes.extraSmall,
+        )
     Box(
-        modifier = modifier
-            .size(42.dp)
-            .background(
-                if (selected) c.accentSoft else c.surfaceSoft,
-                AppShapes.extraSmall,
-            )
-            .border(
+        modifier = if (bordered) {
+            tileModifier.border(
                 1.dp,
                 if (selected) c.accentBorder.copy(alpha = 0.65f) else c.border.copy(alpha = 0.72f),
                 AppShapes.extraSmall,
-            ),
+            )
+        } else {
+            tileModifier
+        },
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             painter = painterResource(iconRes),
             contentDescription = null,
             tint = if (selected) c.accent else c.textSecondary,
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier.size(iconSize),
         )
     }
 }
