@@ -133,6 +133,90 @@ else:
     raise SystemExit(f"FATAL: VLESS NewVless layout changed: {p}")
 PYEOF
 
+# Preserve the exact VLESS gRPC request/response exchange in device diagnostics.
+# This is diagnostic-only: it does not change serviceName, request path, headers,
+# retries, fallback behavior, or any proxy selection. Immediate response headers
+# distinguish an HTTP/2 path rejection; trailers capture grpc-status when the
+# server returns it only after the streaming body terminates.
+python3 - <<'PYEOF'
+p = 'transport/gun/gun.go'
+s = open(p).read()
+old_import = '''\tC "github.com/metacubex/mihomo/constant"
+\t"github.com/metacubex/mihomo/transport/vmess"'''
+new_import = '''\tC "github.com/metacubex/mihomo/constant"
+\t"github.com/metacubex/mihomo/log"
+\t"github.com/metacubex/mihomo/transport/vmess"'''
+old_config = '''type Config struct {
+\tServiceName  string
+\tUserAgent    string
+\tHost         string
+\tPingInterval int
+}'''
+new_config = '''type Config struct {
+\tServiceName  string
+\tUserAgent    string
+\tHost         string
+\tPingInterval int
+}
+
+type detourGRPCResponseBody struct {
+\tio.ReadCloser
+\tresponse *http.Response
+\tpath     string
+\tonce     sync.Once
+}
+
+func (b *detourGRPCResponseBody) logEnd(err error) {
+\tb.once.Do(func() {
+\t\tlog.Infoln("[DETOUR_GRPC] stage=body_end path=%q status=%d grpc-status=%q grpc-message=%q error=%v", b.path, b.response.StatusCode, b.response.Trailer.Get("Grpc-Status"), b.response.Trailer.Get("Grpc-Message"), err)
+\t})
+}
+
+func (b *detourGRPCResponseBody) Read(p []byte) (int, error) {
+\tn, err := b.ReadCloser.Read(p)
+\tif err != nil {
+\t\tb.logEnd(err)
+\t}
+\treturn n, err
+}
+
+func (b *detourGRPCResponseBody) Close() error {
+\terr := b.ReadCloser.Close()
+\tb.logEnd(err)
+\treturn err
+}'''
+old_path = '''\tpath := ServiceNameToPath(serviceName)
+
+\treader, writer := io.Pipe()'''
+new_path = '''\tpath := ServiceNameToPath(serviceName)
+\tlog.Infoln("[DETOUR_GRPC] stage=request host=%q service=%q path=%q", t.cfg.Host, serviceName, path)
+
+\treader, writer := io.Pipe()'''
+old_response = '''\t\t\tresponse, err := t.transport.RoundTrip(request)
+\t\t\tif err != nil {
+\t\t\t\treturn nil, err
+\t\t\t}
+\t\t\treturn response.Body, nil'''
+new_response = '''\t\t\tresponse, err := t.transport.RoundTrip(request)
+\t\t\tif err != nil {
+\t\t\t\tlog.Infoln("[DETOUR_GRPC] stage=roundtrip_error path=%q error=%v", path, err)
+\t\t\t\treturn nil, err
+\t\t\t}
+\t\t\tlog.Infoln("[DETOUR_GRPC] stage=response path=%q status=%d content-type=%q grpc-status=%q grpc-message=%q", path, response.StatusCode, response.Header.Get("Content-Type"), response.Header.Get("Grpc-Status"), response.Header.Get("Grpc-Message"))
+\t\t\treturn &detourGRPCResponseBody{ReadCloser: response.Body, response: response, path: path}, nil'''
+if old_import in s and old_config in s and old_path in s and old_response in s:
+    s = s.replace(old_import, new_import, 1)
+    s = s.replace(old_config, new_config, 1)
+    s = s.replace(old_path, new_path, 1)
+    s = s.replace(old_response, new_response, 1)
+    open(p, 'w').write(s)
+    print("VLESS gRPC transport diagnostics patch applied")
+elif new_import in s and new_config in s and new_path in s and new_response in s:
+    print("VLESS gRPC transport diagnostics patch already applied")
+else:
+    raise SystemExit(f"FATAL: gRPC transport diagnostics layout changed: {p}")
+PYEOF
+
 # Xray-core v26.7.11+ defaults REALITY minClientVer to 26.3.27. Mihomo
 # v1.19.30 still advertises 1.8.2 in the encrypted ClientHello SessionId, so a
 # default modern Xray REALITY server rejects the handshake and the client sees
