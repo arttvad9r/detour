@@ -24,9 +24,9 @@ import (
 
 const (
 	subscriptionProviderFileName = "detour-subscription.yaml"
-	// Match NekoBox's default connectivity-test target. HTTP intentionally avoids
-	// measuring a second, destination-side TLS handshake on top of VLESS/Reality.
-	subscriptionLatencyTestURL = "http://cp.cloudflare.com/"
+	// cp.cloudflare.com has a history of returning EOF/timeouts for otherwise
+	// usable proxies. Use sing-box's stable generate_204 URLTest target instead.
+	subscriptionLatencyTestURL = "https://www.gstatic.com/generate_204"
 	subscriptionLatencyTimeout = 5 * time.Second
 	// Keep mobile-radio pressure modest. This is only a parallelism cap; every
 	// prepared node is still tested before the method returns.
