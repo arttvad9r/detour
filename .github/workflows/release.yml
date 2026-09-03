@@ -20,6 +20,18 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      - name: Validate distribution licensing
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f THIRD_PARTY_NOTICES.md || {
+            echo "THIRD_PARTY_NOTICES.md is required for binary distribution" >&2
+            exit 1
+          }
+          test -f LICENSE || {
+            echo "A project-owner-selected root LICENSE is required before distributing Detour binaries" >&2
+            exit 1
+          }
       - name: Validate release tag
         shell: bash
         run: |
@@ -64,15 +76,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          SUCCESSFUL_RUNS="$(
+          RUNS_JSON="$(
             gh run list \
               --workflow Android \
               --branch main \
               --commit "$GITHUB_SHA" \
               --event push \
               --limit 20 \
-              --json conclusion,headSha \
-              --jq '[.[] | select(.headSha == env.GITHUB_SHA and .conclusion == "success")] | length'
+              --json conclusion,headSha
+          )"
+          SUCCESSFUL_RUNS="$(
+            printf '%s' "$RUNS_JSON" |
+              jq --arg sha "$GITHUB_SHA" '[.[] | select(.headSha == $sha and .conclusion == "success")] | length'
           )"
           if [[ "$SUCCESSFUL_RUNS" -lt 1 ]]; then
             echo "Release commit must have a successful Android push workflow on main" >&2
