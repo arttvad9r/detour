@@ -120,8 +120,8 @@ proxies:
 }
 
 func TestSubscriptionLatencyDefaultsMatchMobileServerListTesting(t *testing.T) {
-	if subscriptionLatencyTestURL != "http://cp.cloudflare.com/" {
-		t.Fatalf("latency URL = %q, want Cloudflare HTTP endpoint", subscriptionLatencyTestURL)
+	if subscriptionLatencyTestURL != "https://www.gstatic.com/generate_204" {
+		t.Fatalf("latency URL = %q, want stable generate_204 endpoint", subscriptionLatencyTestURL)
 	}
 	if subscriptionLatencyParallel != 5 {
 		t.Fatalf("latency parallelism = %d, want 5", subscriptionLatencyParallel)
