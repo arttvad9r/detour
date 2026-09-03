@@ -17,6 +17,14 @@
 
 - Final `go test -race ./...`: **FAIL** (`engine 0.374s`) on the same pre-existing AmneziaWG goroutine/logging race in `TestStopReleasesCustomProbeListener`.
 
+## Round 3
+
+- Replaced the timing-based overlap test with two barrier-controlled goroutines. Both signal intent before the lifecycle mutex is released; all assertions run after the mutex is no longer held, and cleanup releases it if setup fails.
+- `go test -tags with_gvisor ./... -run 'TestConcurrentStartAndStopLeaveEngineStopped'`: **PASS** (`ok engine 0.031s`).
+- `go test -race -tags with_gvisor ./... -run 'TestConcurrentStartAndStopLeaveEngineStopped'`: **PASS** (`ok engine 1.157s`).
+- `go test -tags with_gvisor ./...`: **PASS** (`ok engine 0.177s`).
+- `go test -race ./...`: **FAIL** (`engine 0.311s`) on the pre-existing AmneziaWG background-goroutine/logging race.
+
 ## Scoped Reviewer Round 2
 
 - Failed replacement now tears down the newly partial runtime on both ApplyConfig and TUN failure paths; config parse failures occur before teardown so the existing runtime is preserved.

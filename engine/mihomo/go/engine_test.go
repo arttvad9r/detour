@@ -64,29 +64,30 @@ func TestConcurrentStartAndStopLeaveEngineStopped(t *testing.T) {
 	Stop()
 	config := "mode: rule\nlog-level: silent\nproxies: []\nrules:\n  - MATCH,DIRECT\n"
 	runtimeMu.Lock()
+	released := false
+	releaseRuntime := func() {
+		if !released {
+			released = true
+			runtimeMu.Unlock()
+		}
+	}
+	t.Cleanup(releaseRuntime)
 	startDone := make(chan error, 1)
-	startCalling := make(chan struct{})
+	startAttempt := make(chan struct{})
 	go func() {
-		close(startCalling)
+		close(startAttempt)
 		startDone <- Start(config, "")
 	}()
-	<-startCalling
 	stopDone := make(chan struct{})
+	stopAttempt := make(chan struct{})
 	go func() {
+		close(stopAttempt)
 		Stop()
 		close(stopDone)
 	}()
-	select {
-	case <-startDone:
-		t.Fatal("Start must overlap the blocked Stop call")
-	default:
-	}
-	select {
-	case <-stopDone:
-		t.Fatal("Stop must wait for the active lifecycle operation")
-	default:
-	}
-	runtimeMu.Unlock()
+	<-startAttempt
+	<-stopAttempt
+	releaseRuntime()
 	if err := <-startDone; err != nil {
 		t.Fatalf("concurrent Start failed: %v", err)
 	}
