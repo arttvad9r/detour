@@ -80,6 +80,35 @@ else:
     raise SystemExit(f"FATAL: listener Cleanup layout changed: {p}")
 PYEOF
 
+# Mihomo v1.19.30 converts a VLESS gRPC share link with an omitted serviceName
+# into grpc-service-name: "". Xray/sing-box-compatible clients use the conventional
+# "grpc" fallback, while Mihomo then fails the transport with the connection
+# closing before the useful stream is established. Apply the compatibility
+# default only when the URI omitted/emptied serviceName; explicit values win.
+python3 - <<'PYEOF'
+p = 'common/convert/v.go'
+s = open(p).read()
+old = '''\tcase "grpc":
+\t\tgrpcOpts := make(map[string]any)
+\t\tgrpcOpts["grpc-service-name"] = query.Get("serviceName")
+\t\tproxy["grpc-opts"] = grpcOpts'''
+new = '''\tcase "grpc":
+\t\tgrpcOpts := make(map[string]any)
+\t\tserviceName := query.Get("serviceName")
+\t\tif serviceName == "" {
+\t\t\tserviceName = "grpc"
+\t\t}
+\t\tgrpcOpts["grpc-service-name"] = serviceName
+\t\tproxy["grpc-opts"] = grpcOpts'''
+if old in s:
+    open(p, 'w').write(s.replace(old, new, 1))
+    print("VLESS gRPC service-name compatibility patch applied")
+elif new in s:
+    print("VLESS gRPC service-name compatibility patch already applied")
+else:
+    raise SystemExit(f"FATAL: VLESS gRPC converter layout changed: {p}")
+PYEOF
+
 # Triplet host-side UID resolver bridge (Task 3 round 2):
 # tunnel.go consults process.TripletHostFinder (wired to the app's
 # ConnectivityManager.getConnectionOwnerUid via engine.SetProcessResolver)
