@@ -5,7 +5,12 @@ import org.json.JSONObject
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 
-data class VlessKey(val id: String, val name: String, val uri: String)
+data class VlessKey(
+    val id: String,
+    val name: String,
+    val uri: String,
+    val selectedNode: String? = null,
+)
 
 data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
     val active: VlessKey? get() = items.firstOrNull { it.id == activeId }
@@ -23,7 +28,14 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
     fun toJson(): String = JSONObject().apply {
         put("activeId", activeId ?: JSONObject.NULL)
         put("items", JSONArray().apply {
-            items.forEach { put(JSONObject().apply { put("id", it.id); put("name", it.name); put("uri", it.uri) }) }
+            items.forEach { key ->
+                put(JSONObject().apply {
+                    put("id", key.id)
+                    put("name", key.name)
+                    put("uri", key.uri)
+                    put("selectedNode", key.selectedNode ?: JSONObject.NULL)
+                })
+            }
         })
     }.toString()
 
@@ -51,7 +63,12 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
                     require(id.isNotBlank() && id == id.trim())
                     require(name.isNotBlank() && name == name.trim())
                     require(uri.isNotBlank() && VlessKeyParser.parse(uri) is ParseResult.Ok)
-                    VlessKey(id, name, uri)
+                    val selectedNode = if (!obj.has("selectedNode") || obj.isNull("selectedNode")) {
+                        null
+                    } else {
+                        obj.getString("selectedNode").also(::validateSelectedNode)
+                    }
+                    VlessKey(id, name, uri, selectedNode)
                 } catch (e: IllegalArgumentException) {
                     throw e
                 } catch (e: Exception) {
@@ -79,6 +96,11 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
             if (legacyUri.isBlank()) return VlessKeys(emptyList(), null)
             val key = VlessKey(stableLegacyId(legacyUri), "VLESS", legacyUri)
             return VlessKeys(listOf(key), key.id)
+        }
+
+        private fun validateSelectedNode(value: String) {
+            require(value.isNotBlank() && value == value.trim() && value.length <= 256)
+            require(value.none { it.code < 0x20 || it.code == 0x7f })
         }
 
         private fun stableLegacyId(uri: String): String =
