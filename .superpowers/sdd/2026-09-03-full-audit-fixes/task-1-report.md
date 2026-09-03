@@ -81,3 +81,10 @@
 - Prepared-tree focused concurrency test: **PASS** (`go test ./... -run '^TestConcurrentStartAndStopLeaveEngineStopped$' -count=10`).
 - Prepared-tree focused concurrency race test: **PASS** (`go test -race ./... -run '^TestConcurrentStartAndStopLeaveEngineStopped$' -count=10`).
 - Prepared-tree Task 1 focused normal and race selectors: **PASS** (`ok engine 0.169s` and `ok engine 1.387s`).
+
+## Round 5
+
+- Fixed the test cleanup deadlock by separating goroutine completion channels from the consumed Start result and Stop completion events.
+- Increased the acquisition channel capacity and consumed the third `Stop` hook signal from the explicit final stop.
+- `GOFLAGS=-mod=mod go test -tags with_gvisor ./... -run 'Test(StartDoesNotReportReadyWhenTunCreationFails|FailedReplacementLeavesRuntimeStopped|ConcurrentStartAndStopLeaveEngineStopped|SubscriptionSelectionIsScopedToProfile|SubscriptionSelectionUsesLegacyKeyAsMigrationFallback|ProviderCleanupCallsPinnedCloseHook|StopTraversesAndClosesProviders|SubscriptionLatency)'`: **PASS** (`ok engine 0.172s`).
+- `GOFLAGS=-mod=mod go test -race -tags with_gvisor ./... -run 'Test(StartDoesNotReportReadyWhenTunCreationFails|FailedReplacementLeavesRuntimeStopped|ConcurrentStartAndStopLeaveEngineStopped|SubscriptionSelectionIsScopedToProfile|SubscriptionSelectionUsesLegacyKeyAsMigrationFallback|ProviderCleanupCallsPinnedCloseHook|StopTraversesAndClosesProviders|SubscriptionLatency)'`: **PASS** (`ok engine 1.382s`).

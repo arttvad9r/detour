@@ -65,8 +65,9 @@ func TestConcurrentStartAndStopLeaveEngineStopped(t *testing.T) {
 	Stop()
 	config := "mode: rule\nlog-level: silent\nproxies: []\nrules:\n  - MATCH,DIRECT\n"
 	startDone := make(chan error, 1)
-	stopDone := make(chan struct{})
-	acquired := make(chan string, 2)
+	startFinished := make(chan struct{})
+	stopFinished := make(chan struct{})
+	acquired := make(chan string, 3)
 	releaseStart := make(chan struct{})
 	var releaseOnce sync.Once
 	release := func() { releaseOnce.Do(func() { close(releaseStart) }) }
@@ -78,17 +79,20 @@ func TestConcurrentStartAndStopLeaveEngineStopped(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		release()
-		<-startDone
-		<-stopDone
+		<-startFinished
+		<-stopFinished
 		runtimeMuAcquiredHook = nil
 	})
-	go func() { startDone <- Start(config, "") }()
+	go func() {
+		defer close(startFinished)
+		startDone <- Start(config, "")
+	}()
 	if operation := <-acquired; operation != "Start" {
 		t.Fatalf("first runtime mutex owner = %q, want Start", operation)
 	}
 	go func() {
+		defer close(stopFinished)
 		Stop()
-		close(stopDone)
 	}()
 	release()
 	if operation := <-acquired; operation != "Stop" {
@@ -98,7 +102,9 @@ func TestConcurrentStartAndStopLeaveEngineStopped(t *testing.T) {
 		t.Fatalf("concurrent Start failed: %v", err)
 	}
 	Stop()
-	<-stopDone
+	if operation := <-acquired; operation != "Stop" {
+		t.Fatalf("third runtime mutex owner = %q, want Stop", operation)
+	}
 	if Ready() {
 		t.Fatal("engine must be stopped after concurrent Start and Stop")
 	}
