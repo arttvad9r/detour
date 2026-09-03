@@ -448,6 +448,7 @@ func parsePreparedSubscriptionProxies(body []byte) ([]map[string]any, error) {
 		proxy["type"] = "vless"
 		proxy["name"] = name
 		normalizeVlessHTTPUpgrade(proxy)
+		normalizeVlessGRPCServiceName(proxy)
 
 		parsedProxy, parseErr := adapter.ParseProxy(proxy)
 		if parseErr != nil {
@@ -465,6 +466,26 @@ func parsePreparedSubscriptionProxies(body []byte) ([]map[string]any, error) {
 		return nil, errors.New("subscription has no supported VLESS nodes")
 	}
 	return prepared, nil
+}
+
+// Mihomo's URI converter patch already defaults omitted VLESS gRPC serviceName
+// to "grpc", but YAML subscriptions bypass that converter. Normalize at the
+// common prepared-proxy boundary so URI and YAML inputs produce the same runtime
+// path. Explicit non-empty service names are preserved.
+func normalizeVlessGRPCServiceName(proxy map[string]any) {
+	network, _ := proxy["network"].(string)
+	if !strings.EqualFold(strings.TrimSpace(network), "grpc") {
+		return
+	}
+	grpcOpts, ok := proxy["grpc-opts"].(map[string]any)
+	if !ok || grpcOpts == nil {
+		grpcOpts = make(map[string]any)
+		proxy["grpc-opts"] = grpcOpts
+	}
+	serviceName, _ := grpcOpts["grpc-service-name"].(string)
+	if strings.TrimSpace(serviceName) == "" {
+		grpcOpts["grpc-service-name"] = "grpc"
+	}
 }
 
 // Mihomo 1.19.30 (and current Meta at the time of this fix) converts VLESS
