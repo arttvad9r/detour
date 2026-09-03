@@ -13,7 +13,11 @@ class SubscriptionLatencyResultTest {
             {
               "nodes": [
                 {"name":"Finland - 1","delayMs":83},
-                {"name":"Germany - 3"},
+                {
+                  "name":"Germany - 3",
+                  "errorClass":"reality",
+                  "errorText":"REALITY handshake failed: connection closed"
+                },
                 {"name":"Too slow","delayMs":70000}
               ]
             }
@@ -24,17 +28,36 @@ class SubscriptionLatencyResultTest {
         assertEquals(83, result.delayByName["Finland - 1"])
         assertFalse(result.delayByName.containsKey("Germany - 3"))
         assertFalse(result.delayByName.containsKey("Too slow"))
+        assertEquals(
+            SubscriptionLatencyError(
+                errorClass = "reality",
+                errorText = "REALITY handshake failed: connection closed",
+            ),
+            result.errorByName["Germany - 3"],
+        )
+        assertFalse(result.errorByName.containsKey("Finland - 1"))
+        assertFalse(result.errorByName.containsKey("Too slow"))
     }
 
     @Test
-    fun `latency parser rejects unsafe names and malformed payloads`() {
+    fun `latency parser rejects unsafe names diagnostics and malformed payloads`() {
         val result = parseSubscriptionLatencyResult(
-            """{"nodes":[{"name":"bad\u0001name","delayMs":10},{"name":"ok","delayMs":42}]}""",
+            """
+            {
+              "nodes": [
+                {"name":"bad\u0001name","delayMs":10},
+                {"name":"ok","delayMs":42},
+                {"name":"bad diagnostic","errorClass":"tls","errorText":"bad\u0001text"}
+              ]
+            }
+            """.trimIndent(),
         )
-        assertEquals(setOf("ok"), result.testedNames)
+        assertEquals(setOf("ok", "bad diagnostic"), result.testedNames)
         assertEquals(mapOf("ok" to 42), result.delayByName)
+        assertTrue(result.errorByName.isEmpty())
 
         assertTrue(parseSubscriptionLatencyResult("").testedNames.isEmpty())
         assertTrue(parseSubscriptionLatencyResult("not-json").delayByName.isEmpty())
+        assertTrue(parseSubscriptionLatencyResult("not-json").errorByName.isEmpty())
     }
 }
