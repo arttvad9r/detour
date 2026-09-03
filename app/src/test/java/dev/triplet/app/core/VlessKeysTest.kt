@@ -10,6 +10,7 @@ class VlessKeysTest {
         "?type=tcp&security=reality&fp=chrome&sni=example.com" +
         "&pbk=SbVKOEMjK0sIlbwg4akyBg5mL5KZwwB-ed4eEE7YnRc&sid=6ba85179" +
         "&flow=xtls-rprx-vision"
+    private val subscriptionUri = "https://subscription.example/token"
 
     @Test
     fun `legacy uri migrates to one active key`() {
@@ -29,13 +30,23 @@ class VlessKeysTest {
     }
 
     @Test
-    fun `json round trip preserves keys and active selection`() {
+    fun `json round trip preserves keys active selection and subscription node`() {
         val original = VlessKeys(
-            listOf(VlessKey("a", "Primary", validUri), VlessKey("b", "Backup", validUri)),
+            listOf(
+                VlessKey("a", "Primary", validUri),
+                VlessKey("b", "Subscription", subscriptionUri, selectedNode = "Node B"),
+            ),
             "b",
         )
 
         assertEquals(original, VlessKeys.fromJson(original.toJson()))
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `json rejects malformed selected node`() {
+        VlessKeys.fromJson(
+            """{"activeId":"b","items":[{"id":"b","name":"Subscription","uri":"$subscriptionUri","selectedNode":"bad\nnode"}]}""",
+        )
     }
 
     @Test(expected = IllegalArgumentException::class)
