@@ -97,6 +97,10 @@ fun DetourNavigationRow(
                 )
             }
         }
-        trailing?.invoke() ?: if (onClick != null) Chevron()
+        if (trailing != null) {
+            trailing()
+        } else if (onClick != null) {
+            Chevron()
+        }
     }
 }
