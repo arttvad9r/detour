@@ -1,6 +1,11 @@
 package engine
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 func TestSanitizedSubscriptionNodeDiagnosticsKeepsTransportFieldsAndDropsSecrets(t *testing.T) {
 	proxy := map[string]any{
@@ -43,6 +48,43 @@ func TestSanitizedSubscriptionNodeDiagnosticsKeepsTransportFieldsAndDropsSecrets
 	for _, secret := range []string{"uuid", "public-key", "short-id", "pbk", "sid"} {
 		if _, exists := got[secret]; exists {
 			t.Fatalf("secret field %q leaked: %#v", secret, got)
+		}
+	}
+}
+
+func TestSubscriptionNodeDiagnosticsReadsPreparedProviderAndDoesNotLeakSecrets(t *testing.T) {
+	home := t.TempDir()
+	provider := `proxies:
+  - name: Main - 2
+    type: vless
+    server: 203.0.113.9
+    port: 443
+    uuid: aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee
+    network: tcp
+    tls: true
+    servername: www.example.com
+    client-fingerprint: firefox
+    flow: xtls-rprx-vision
+    reality-opts:
+      public-key: secret-pbk
+      short-id: secret-sid
+`
+	if err := os.WriteFile(filepath.Join(home, subscriptionProviderFileName), []byte(provider), 0o600); err != nil {
+		t.Fatalf("write provider: %v", err)
+	}
+
+	raw := SubscriptionNodeDiagnostics(home, "Main - 2")
+	if raw == "" {
+		t.Fatal("diagnostics are empty")
+	}
+	for _, expected := range []string{`"name":"Main - 2"`, `"network":"tcp"`, `"tls":true`, `"reality":true`, `"flow":"xtls-rprx-vision"`, `"servername":"www.example.com"`} {
+		if !strings.Contains(raw, expected) {
+			t.Fatalf("diagnostics %s missing %s", raw, expected)
+		}
+	}
+	for _, secret := range []string{"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", "secret-pbk", "secret-sid", "public-key", "short-id", "uuid"} {
+		if strings.Contains(raw, secret) {
+			t.Fatalf("secret %q leaked in %s", secret, raw)
 		}
 	}
 }
