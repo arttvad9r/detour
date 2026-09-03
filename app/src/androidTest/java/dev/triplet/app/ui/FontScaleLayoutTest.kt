@@ -37,6 +37,36 @@ class FontScaleLayoutTest {
         assertGrows("setting-normal", "setting-large")
     }
 
+    @Test fun navigationRowGrowsAtTwoHundredPercentFontScale() {
+        rule.setContent {
+            TestTheme {
+                Box {
+                    TaggedNavigationRow("navigation-normal")
+                    DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(2f)) {
+                        TaggedNavigationRow("navigation-large")
+                    }
+                }
+            }
+        }
+
+        assertGrows("navigation-normal", "navigation-large")
+    }
+
+    @Test fun choiceRowGrowsAtTwoHundredPercentFontScale() {
+        rule.setContent {
+            TestTheme {
+                Box {
+                    TaggedChoiceRow("choice-normal")
+                    DeviceConfigurationOverride(DeviceConfigurationOverride.FontScale(2f)) {
+                        TaggedChoiceRow("choice-large")
+                    }
+                }
+            }
+        }
+
+        assertGrows("choice-normal", "choice-large")
+    }
+
     @Test fun segmentedControlGrowsAtTwoHundredPercentFontScale() {
         rule.setContent {
             TestTheme {
@@ -99,6 +129,30 @@ private fun TaggedSettingRow(tag: String) {
             title = "Applications routed through VPN",
             subtitle = "Selected routes and exclusions remain visible at large text sizes",
             iconRes = R.drawable.ic_routes,
+            onClick = {},
+        )
+    }
+}
+
+@Composable
+private fun TaggedNavigationRow(tag: String) {
+    Box(Modifier.width(320.dp).testTag(tag)) {
+        DetourNavigationRow(
+            title = "Applications routed through VPN",
+            subtitle = "Selected routes and exclusions remain visible at large text sizes",
+            iconRes = R.drawable.ic_routes,
+            onClick = {},
+        )
+    }
+}
+
+@Composable
+private fun TaggedChoiceRow(tag: String) {
+    Box(Modifier.width(320.dp).testTag(tag)) {
+        ChoiceRow(
+            title = "Use the recommended connection profile",
+            subtitle = "This description must remain readable when the system font is enlarged",
+            selected = true,
             onClick = {},
         )
     }
