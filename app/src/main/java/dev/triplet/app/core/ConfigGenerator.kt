@@ -30,7 +30,8 @@ object ConfigGenerator {
         require(input.vpnUids.keys.containsAll(input.vpnApps + input.dpiApps)) {
             "missing uid resolution for routed packages"
         }
-        val subscriptionUrl = (input.vpn as? VpnOutbound.Subscription)?.url
+        val subscription = input.vpn as? VpnOutbound.Subscription
+        val subscriptionUrl = subscription?.url
         val subscriptionProviderPath = subscriptionUrl?.let(SubscriptionProviderMaterializer::localPath)
         val vpnTag = when (input.vpn) {
             is VpnOutbound.Vless -> "VLESS"
@@ -91,9 +92,9 @@ object ConfigGenerator {
         val proxyProviders = subscriptionUrl?.let { url ->
             "\nproxy-providers:\n" + renderSubscriptionProvider(url, subscriptionProviderPath)
         }.orEmpty()
-        val proxyGroups = when (input.vpn) {
+        val proxyGroups = when (val vpn = input.vpn) {
             is VpnOutbound.Warp -> "\nproxy-groups:\n" + renderWarpGroup(warpProxies.size)
-            is VpnOutbound.Subscription -> "\nproxy-groups:\n" + renderSubscriptionGroup()
+            is VpnOutbound.Subscription -> "\nproxy-groups:\n" + renderSubscriptionGroup(vpn.selectedNode)
             else -> ""
         }
 
@@ -140,7 +141,7 @@ ipv6: false
 unified-delay: true
 find-process-mode: strict
 profile:
-  store-selected: true
+  store-selected: false
 tun:
   enable: true
   stack: gvisor
@@ -219,13 +220,15 @@ $rules""".trim()
         // testing is explicit from the subscription screen instead.
     }
 
-    private fun renderSubscriptionGroup(): String =
-        """
-        - name: $SUBSCRIPTION_GROUP
-          type: select
-          use:
-            - $SUBSCRIPTION_PROVIDER
-        """.trimIndent()
+    private fun renderSubscriptionGroup(selectedNode: String?): String = buildString {
+        append("- name: $SUBSCRIPTION_GROUP\n")
+        append("  type: select\n")
+        selectedNode?.takeIf { it.isNotBlank() }?.let {
+            append("  default-selected: ${yamlScalar(it)}\n")
+        }
+        append("  use:\n")
+        append("    - $SUBSCRIPTION_PROVIDER")
+    }
 
     private fun renderWarp(p: WarpProxy, index: Int): String {
         val fields = mutableListOf(
