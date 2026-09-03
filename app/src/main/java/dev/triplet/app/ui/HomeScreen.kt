@@ -632,7 +632,7 @@ private fun DetailsDivider() {
     Box(
         Modifier
             .fillMaxWidth()
-            .padding(start = 62.dp, end = Spacing.space12)
+            .padding(start = NavigationRowDividerInset.dp, end = NavigationRowHorizontalPadding)
             .height(1.dp)
             .background(detourColors.divider),
     )
@@ -670,7 +670,7 @@ private fun HomeInfoRow(
     val c = detourColors
     val baseModifier = modifier
         .fillMaxWidth()
-        .heightIn(min = 56.dp)
+        .heightIn(min = NavigationRowMinHeight)
     val rowModifier = if (onClick != null) {
         baseModifier.detourClickable(
             onClick = onClick,
@@ -683,12 +683,15 @@ private fun HomeInfoRow(
     }
 
     Row(
-        rowModifier.padding(horizontal = Spacing.space12, vertical = Spacing.space8),
+        rowModifier.padding(
+            horizontal = NavigationRowHorizontalPadding,
+            vertical = NavigationRowVerticalPadding,
+        ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             Modifier
-                .size(34.dp)
+                .size(NavigationRowLeadingTileSize)
                 .background(c.accentSoft, AppShapes.extraSmall),
             contentAlignment = Alignment.Center,
         ) {
@@ -696,12 +699,12 @@ private fun HomeInfoRow(
                 painter = painterResource(iconRes),
                 contentDescription = null,
                 tint = c.accent,
-                modifier = Modifier.size(17.dp),
+                modifier = Modifier.size(NavigationRowLeadingIconSize),
             )
         }
         Column(
             Modifier
-                .padding(start = 10.dp)
+                .padding(start = NavigationRowContentGap)
                 .weight(1f),
         ) {
             Text(
@@ -723,7 +726,7 @@ private fun HomeInfoRow(
                     color = c.textSecondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 1.dp),
+                    modifier = Modifier.padding(top = NavigationRowSubtitleGap),
                 )
             }
         }
