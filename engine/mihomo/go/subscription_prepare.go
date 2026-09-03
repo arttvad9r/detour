@@ -18,6 +18,7 @@ import (
 	"github.com/metacubex/mihomo/common/convert"
 	mihomoYaml "github.com/metacubex/mihomo/common/yaml"
 	C "github.com/metacubex/mihomo/constant"
+	"github.com/metacubex/mihomo/log"
 	"github.com/metacubex/mihomo/tunnel"
 )
 
@@ -37,8 +38,10 @@ type preparedProxySchema struct {
 }
 
 type subscriptionLatencyNode struct {
-	Name    string `json:"name"`
-	DelayMs int    `json:"delayMs,omitempty"`
+	Name       string `json:"name"`
+	DelayMs    int    `json:"delayMs,omitempty"`
+	ErrorClass string `json:"errorClass,omitempty"`
+	ErrorText  string `json:"errorText,omitempty"`
 }
 
 type subscriptionLatencyProbe func(context.Context, map[string]any) (int, error)
@@ -220,7 +223,22 @@ func runSubscriptionLatencyTargets(targets []subscriptionLatencyTarget) []subscr
 			delay, testErr := probe(ctx)
 			if testErr == nil && delay > 0 {
 				results[i].DelayMs = delay
+				return
 			}
+
+			if testErr != nil {
+				results[i].ErrorClass = adapter.DetourURLTestErrorClass(testErr)
+				results[i].ErrorText = adapter.DetourURLTestErrorText(testErr)
+			} else {
+				results[i].ErrorClass = "other"
+				results[i].ErrorText = "URLTest returned non-positive delay"
+			}
+			log.Errorln(
+				"[DETOUR_SUBSCRIPTION_TEST] node=%q class=%s error=%s",
+				results[i].Name,
+				results[i].ErrorClass,
+				results[i].ErrorText,
+			)
 		}(index, target.Probe)
 	}
 	wg.Wait()
