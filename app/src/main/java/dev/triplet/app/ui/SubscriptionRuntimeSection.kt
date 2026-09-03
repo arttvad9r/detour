@@ -50,15 +50,40 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val store = remember(context) { (context.applicationContext as TripletApp).routesStore }
     val settings by store.settings.collectAsStateWithLifecycle()
-    val activeUri = settings?.vlessKeys?.active?.uri.orEmpty()
+    val activeKey = settings?.vlessKeys?.active
+    val activeUri = activeKey?.uri.orEmpty()
+    val persistedSelectedNode = activeKey?.selectedNode
     val subscriptionUrl = remember(activeUri) {
         (VlessKeyParser.parse(activeUri) as? ParseResult.Ok)?.profile?.subscriptionUrl
     }
     val cacheDir = remember(context) { context.cacheDir.absolutePath }
     val c = detourColors
 
-    LaunchedEffect(subscriptionUrl, connected, cacheDir) {
-        subscriptionUrl?.let { runtimeViewModel.bind(it, connected, cacheDir) }
+    LaunchedEffect(subscriptionUrl, connected, cacheDir, persistedSelectedNode) {
+        subscriptionUrl?.let {
+            runtimeViewModel.bind(
+                subscriptionUrl = it,
+                connected = connected,
+                cacheDir = cacheDir,
+                persistedSelectedNode = persistedSelectedNode,
+            )
+        }
+    }
+
+    // Persist the selector's confirmed value in the encrypted profile. This also
+    // records a controlled fallback when a previously selected node disappears
+    // from an updated subscription.
+    LaunchedEffect(activeKey, state.catalog, state.selectedNode, state.selectionStatus) {
+        val key = activeKey ?: return@LaunchedEffect
+        val selected = state.selectedNode?.trim()?.takeIf { it.isNotBlank() }
+            ?: return@LaunchedEffect
+        if (
+            state.selectionStatus == SubscriptionSelectionStatus.IDLE &&
+            state.catalog.any { it.name == selected } &&
+            key.selectedNode != selected
+        ) {
+            store.updateVlessKey(key.copy(selectedNode = selected))
+        }
     }
 
     LaunchedEffect(state.catalog, state.selectedNode, state.selectionStatus) {
