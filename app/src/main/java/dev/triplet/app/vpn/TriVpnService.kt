@@ -8,6 +8,7 @@ import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import dev.triplet.app.R
+import dev.triplet.app.TripletApp
 import dev.triplet.app.core.AppRoute
 import dev.triplet.app.core.ConfigGenerator
 import dev.triplet.app.core.DnsOptions
@@ -53,7 +54,7 @@ class TriVpnService : VpnService() {
     override fun onCreate() {
         super.onCreate()
         destroyed.set(false)
-        store = (applicationContext as dev.triplet.app.TripletApp).routesStore
+        store = (applicationContext as TripletApp).routesStore
         dpi = DpiBackend(this) {
             runCatching {
                 executor.execute {
@@ -103,7 +104,10 @@ class TriVpnService : VpnService() {
         stopQueued.set(true)
         healthExecutor.shutdownNow()
         executor.shutdownNow()
-        stopSequence(stopSelf = false)
+        // Native shutdown remains synchronous so the TUN and child resources are
+        // definitely closed before service destruction. Persistence is delegated
+        // to the Application IO scope to avoid DataStore runBlocking on main.
+        stopSequence(stopSelf = false, persistSessionSynchronously = false)
         super.onDestroy()
     }
 
@@ -244,6 +248,19 @@ class TriVpnService : VpnService() {
             ServiceLog.i("engine: start returned")
             engineAdopted = true
             check(Engine.ready()) { "engine TUN is not ready" }
+
+            if (settings.activeVpn == VpnProfileKind.SUBSCRIPTION) {
+                val activeKey = settings.vlessKeys.active
+                val actualNode = runCatching {
+                    Engine.subscriptionSelectedNode(cacheDir.absolutePath)
+                }.getOrNull()?.trim()?.takeIf { it.isNotBlank() }
+                if (activeKey != null && actualNode != null && activeKey.selectedNode != actualNode) {
+                    runBlocking {
+                        store.updateVlessKey(activeKey.copy(selectedNode = actualNode))
+                    }
+                    ServiceLog.i("subscription: persisted active node after engine start")
+                }
+            }
         } catch (e: Exception) {
             ServiceLog.e("engine: ${e.message}")
             VpnController.setState(VpnState.Failed(getString(R.string.err_engine)))
@@ -303,10 +320,17 @@ class TriVpnService : VpnService() {
         }
     }
 
-    private fun stopSequence(stopSelf: Boolean) {
+    private fun stopSequence(
+        stopSelf: Boolean,
+        persistSessionSynchronously: Boolean = true,
+    ) {
         synchronized(lifecycleLock) {
             validationGeneration.incrementAndGet()
-            runCatching { runBlocking { store.setSessionStartedAt(null) } }
+            if (persistSessionSynchronously) {
+                runCatching { runBlocking { store.setSessionStartedAt(null) } }
+            } else {
+                (applicationContext as TripletApp).clearVpnSessionTimestampAsync()
+            }
             runCatching { Engine.stop() }
             dpi.stop()
             if (VpnController.state.value !is VpnState.Failed) VpnController.setState(VpnState.Idle)
