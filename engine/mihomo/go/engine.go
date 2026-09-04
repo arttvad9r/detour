@@ -331,9 +331,10 @@ func resolveSubscriptionSelection(live string, emptyFallback string, cached stri
 	return cached
 }
 
-// SubscriptionSelectedNode returns the selected provider node. The live
-// selector wins after the provider is ready; while it only exposes its internal
-// empty fallback, the persisted desired selection remains the source of truth.
+// SubscriptionSelectedNode returns the live selector value while the engine is
+// active. The Mihomo cache is consulted only while disconnected for legacy
+// compatibility; an active Detour session must never let stale native cache
+// overwrite the encrypted per-profile selection owned by Android DataStore.
 func SubscriptionSelectedNode(homeDir string) string {
 	runtimeMu.Lock()
 	defer runtimeMu.Unlock()
@@ -343,9 +344,9 @@ func SubscriptionSelectedNode(homeDir string) string {
 		}
 	}
 
-	live := ""
-	emptyFallback := ""
 	if Ready() {
+		live := ""
+		emptyFallback := ""
 		if proxy, ok := tunnel.Proxies()[subscriptionGroupName]; ok {
 			if selector, ok := proxy.Adapter().(*outboundgroup.Selector); ok {
 				live = selector.Now()
@@ -354,13 +355,13 @@ func SubscriptionSelectedNode(homeDir string) string {
 				}
 			}
 		}
+		return resolveSubscriptionSelection(live, emptyFallback, "")
 	}
 
-	cached := ""
 	if selected := cachefile.Cache().SelectedMap(); selected != nil {
-		cached = resolveSubscriptionCache(selected, homeDir)
+		return resolveSubscriptionCache(selected, homeDir)
 	}
-	return resolveSubscriptionSelection(live, emptyFallback, cached)
+	return ""
 }
 
 func parseSubscriptionURL(value string) (*url.URL, error) {
