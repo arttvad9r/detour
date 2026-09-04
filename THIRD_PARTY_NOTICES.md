@@ -2,6 +2,10 @@
 
 Detour embeds and distributes native code built from exact upstream revisions. The authoritative revisions are also recorded in `docs/pins.md`.
 
+## Detour-authored code
+
+Code authored for Detour is licensed under the MIT License in the repository root `LICENSE`, except where a file or directory explicitly states different terms. The root MIT License does not replace, relicense, or override the licenses of bundled third-party components.
+
 ## Mihomo
 
 - Project: MetaCubeX/mihomo
@@ -24,4 +28,4 @@ Detour applies a build-time Android authentication patch to the pinned ByeDPI so
 
 ## Distribution requirement
 
-This notice describes third-party components; it does not select a license for Detour itself. Before publishing a Detour APK, the repository must contain an explicit root `LICENSE` chosen by the project owner and compatible with all distribution obligations, including the GPL-3.0 obligations of the embedded Mihomo engine.
+Binary distribution of Detour must comply with the licenses of all bundled components. In particular, the root MIT License applies to Detour-authored code and does not remove the GPL-3.0 obligations associated with the embedded Mihomo engine. `LICENSE`, this notice, the pinned upstream revisions, and the corresponding source/build material must remain available as required by the applicable licenses.
