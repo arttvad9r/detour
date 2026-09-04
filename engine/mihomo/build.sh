@@ -77,6 +77,72 @@ else:
     raise SystemExit(f"FATAL: listener Cleanup layout changed: {p}")
 PYEOF
 
+# Mihomo v1.19.30 stores the global log level in an unsynchronized package
+# variable. WireGuard/AmneziaWG goroutines read it while configuration apply can
+# change it during restart, which is a real race even when shutdown is otherwise
+# ordered. Keep the upstream API but back it with sync/atomic.
+python3 - <<'PYEOF'
+p = 'log/log.go'
+s = open(p).read()
+old_import = '''import (
+	"fmt"
+	"os"'''
+new_import = '''import (
+	"fmt"
+	"os"
+	"sync/atomic"'''
+old_var = '''var (
+	logCh  = make(chan Event)
+	source = observable.NewObservable[Event](logCh)
+	level  = INFO
+)'''
+new_var = '''var (
+	logCh  = make(chan Event)
+	source = observable.NewObservable[Event](logCh)
+	level  atomic.Int32
+)'''
+old_init = '''func init() {
+	log.SetOutput(os.Stdout)'''
+new_init = '''func init() {
+	level.Store(int32(INFO))
+	log.SetOutput(os.Stdout)'''
+old_access = '''func Level() LogLevel {
+	return level
+}
+
+func SetLevel(newLevel LogLevel) {
+	level = newLevel
+}
+
+func print(data Event) {
+	if data.LogLevel < level {
+		return
+	}'''
+new_access = '''func Level() LogLevel {
+	return LogLevel(level.Load())
+}
+
+func SetLevel(newLevel LogLevel) {
+	level.Store(int32(newLevel))
+}
+
+func print(data Event) {
+	if data.LogLevel < LogLevel(level.Load()) {
+		return
+	}'''
+if old_import in s and old_var in s and old_init in s and old_access in s:
+    s = s.replace(old_import, new_import, 1)
+    s = s.replace(old_var, new_var, 1)
+    s = s.replace(old_init, new_init, 1)
+    s = s.replace(old_access, new_access, 1)
+    open(p, 'w').write(s)
+    print("race-safe Mihomo log-level patch applied")
+elif new_import in s and new_var in s and new_init in s and new_access in s:
+    print("race-safe Mihomo log-level patch already applied")
+else:
+    raise SystemExit(f"FATAL: Mihomo log-level layout changed: {p}")
+PYEOF
+
 # XTLS Vision is a raw-TCP VLESS flow. Ignore the invalid gRPC+Vision
 # combination emitted by some subscription generators.
 python3 - <<'PYEOF'
