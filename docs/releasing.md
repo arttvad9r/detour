@@ -2,6 +2,14 @@
 
 Signed distribution builds are created only from semantic-version tags in the form `vMAJOR.MINOR.PATCH`.
 
+## Licensing
+
+Detour-authored code is licensed under the repository root MIT `LICENSE`. Bundled third-party components retain their own licenses; see `THIRD_PARTY_NOTICES.md` and `docs/pins.md` for the exact pinned revisions and integration details.
+
+The MIT license for Detour-authored code does not replace the GPL-3.0 terms of the embedded Mihomo engine. Every binary distribution must continue to satisfy all applicable third-party obligations and keep the corresponding license/source/build material available as required.
+
+The release workflow validates that both `LICENSE` and `THIRD_PARTY_NOTICES.md` are present before building a distributable APK.
+
 ## Version mapping
 
 The tag controls both Android version fields for the release build:
@@ -46,18 +54,19 @@ git push origin v0.1.0
 
 The `Release` workflow then:
 
-1. validates the tag and derives `versionName` / `versionCode`;
-2. verifies that the commit belongs to `main` and has successful Android CI;
-3. validates all signing secrets and the expected certificate fingerprint;
-4. rebuilds the pinned native engine and ByeDPI binaries;
-5. runs debug unit tests and lint, builds the debug APK, and compiles the instrumentation-test APK;
-6. builds a signed `arm64-v8a` release APK;
-7. runs the pinned engine tests plus source and shipped-binary `govulncheck` scans against the exact Mihomo AAR produced for the release;
-8. verifies the APK signature and signing-certificate identity;
-9. enforces the exact `arm64-v8a` ABI set, 16 KB ELF alignment and the 30 MiB APK budget;
-10. writes a SHA-256 checksum;
-11. uploads the APK, checksum and size report as a workflow artifact;
-12. creates or updates the matching GitHub Release and attaches the APK and checksum without overwriting existing release assets.
+1. validates distribution licensing files;
+2. validates the tag and derives `versionName` / `versionCode`;
+3. verifies that the commit belongs to `main` and has successful Android CI;
+4. validates all signing secrets and the expected certificate fingerprint;
+5. rebuilds the pinned native engine and ByeDPI binaries;
+6. runs debug unit tests and lint, builds the debug APK, and compiles the instrumentation-test APK;
+7. builds a signed `arm64-v8a` release APK;
+8. runs the pinned engine tests plus source and shipped-binary `govulncheck` scans against the exact Mihomo AAR produced for the release;
+9. verifies the APK signature and signing-certificate identity;
+10. enforces the exact `arm64-v8a` ABI set, 16 KB ELF alignment and the 30 MiB APK budget;
+11. writes a SHA-256 checksum;
+12. uploads the APK, checksum and size report as a workflow artifact;
+13. creates or updates the matching GitHub Release and attaches the APK and checksum without overwriting existing release assets.
 
 The published APK is named `detour-MAJOR.MINOR.PATCH-arm64.apk`.
 
