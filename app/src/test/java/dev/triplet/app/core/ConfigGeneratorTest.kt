@@ -194,7 +194,7 @@ class ConfigGeneratorTest {
             |unified-delay: true
             |find-process-mode: strict
             |profile:
-            |  store-selected: true
+            |  store-selected: false
             |tun:
             |  enable: true
             |  stack: gvisor
