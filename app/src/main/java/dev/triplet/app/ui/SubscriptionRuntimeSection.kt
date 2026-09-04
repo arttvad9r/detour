@@ -59,6 +59,18 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
     val cacheDir = remember(context) { context.cacheDir.absolutePath }
     val c = detourColors
 
+    val persistSelectedNode: suspend (String) -> Unit = { selected ->
+        val key = activeKey
+        if (key != null) {
+            val latest = store.snapshot().vlessKeys.items.firstOrNull {
+                it.id == key.id && it.uri == key.uri
+            }
+            if (latest != null && latest.selectedNode != selected) {
+                store.updateVlessKey(latest.copy(selectedNode = selected))
+            }
+        }
+    }
+
     LaunchedEffect(subscriptionUrl, connected, cacheDir, persistedSelectedNode) {
         subscriptionUrl?.let {
             runtimeViewModel.bind(
@@ -70,9 +82,8 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
         }
     }
 
-    // Persist the selector's confirmed value in the encrypted profile. This also
-    // records a controlled fallback when a previously selected node disappears
-    // from an updated subscription.
+    // Reconcile a live selector value that was chosen by the engine itself, for
+    // example after a provider refresh removed the previously selected node.
     LaunchedEffect(activeKey, state.catalog, state.selectedNode, state.selectionStatus) {
         val key = activeKey ?: return@LaunchedEffect
         val selected = state.selectedNode?.trim()?.takeIf { it.isNotBlank() }
@@ -92,7 +103,7 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
             shouldAutoSelectSubscriptionNode(state.selectionStatus) &&
             state.selectedNode.isNullOrBlank()
         ) {
-            runtimeViewModel.selectNode(state.catalog.first().name)
+            runtimeViewModel.selectNode(state.catalog.first().name, persistSelectedNode)
         }
     }
 
@@ -175,7 +186,7 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
                     latencyByName = latencyByName,
                     latencyTestedNames = latencyTestedNames,
                     latencyErrorByName = state.latencyErrorByName,
-                    onSelect = runtimeViewModel::selectNode,
+                    onSelect = { name -> runtimeViewModel.selectNode(name, persistSelectedNode) },
                 )
                 val hiddenCount = (state.catalog.size - MAX_SUBSCRIPTION_NODE_ROWS).coerceAtLeast(0)
                 if (hiddenCount > 0) {
