@@ -101,7 +101,6 @@ func Start(configYAML string, logPath string) (err error) {
 	defer func() {
 		if err != nil {
 			err = redactError(err)
-			unsubscribeLogs()
 		}
 	}()
 	if logPath != "" {
