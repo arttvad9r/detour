@@ -103,6 +103,8 @@ func Start(configYAML string, logPath string) (err error) {
 			err = redactError(err)
 		}
 	}()
+	previousHomeDir := C.Path.HomeDir()
+	homeDirChanged := false
 	if logPath != "" {
 		// Embedded mihomo has no CLI -d flag. Use the app-private log directory as
 		// HomeDir so HTTP proxy-providers can persist their cache inside Android's
@@ -112,9 +114,13 @@ func Start(configYAML string, logPath string) (err error) {
 			return mkdirErr
 		}
 		C.SetHomeDir(homeDir)
+		homeDirChanged = true
 	}
 	cfg, err := config.Parse([]byte(configYAML))
 	if err != nil {
+		if homeDirChanged {
+			C.SetHomeDir(previousHomeDir)
+		}
 		return err
 	}
 	// The prior runtime can still have background goroutines reading mihomo's
