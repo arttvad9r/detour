@@ -8,7 +8,7 @@ Detour-authored code is licensed under the repository root MIT `LICENSE`. Bundle
 
 The MIT license for Detour-authored code does not replace the GPL-3.0 terms of the embedded Mihomo engine. Every binary distribution must continue to satisfy all applicable third-party obligations and keep the corresponding license/source/build material available as required.
 
-The release workflow validates that both `LICENSE` and `THIRD_PARTY_NOTICES.md` are present before building a distributable APK.
+The release workflow validates that both `LICENSE` and `THIRD_PARTY_NOTICES.md` are present before building a distributable APK. With the root MIT license now selected, this licensing-file preflight is satisfied as long as both files remain present.
 
 ## Version mapping
 
