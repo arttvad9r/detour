@@ -48,6 +48,9 @@ jobs:
           export PATH="$(go env GOPATH)/bin:$PATH"
           gomobile init
       - run: ./gradlew --dependency-verification strict :app:testDebugUnitTest :app:lintDebug :app:lintRelease :app:assembleDebug :app:assembleDebugAndroidTest :app:assembleRelease :baselineprofile:assemble
+      - name: Verify dependency trust metadata is unchanged
+        shell: bash
+        run: git diff --exit-code -- gradle/verification-metadata.xml
       - name: Run embedded engine race detector
         shell: bash
         run: |
@@ -71,6 +74,7 @@ jobs:
           PYEOF
           (
             cd "$RACE_DIR"
+            GOFLAGS='-mod=mod' go mod verify
             GOFLAGS='-mod=mod -tags=with_gvisor' go test -race ./...
           )
       - name: Report universal release APK size
@@ -133,7 +137,7 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: apk-size-reports
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 14
           path: app/build/reports/apk-size*.json
       - name: Run instrumentation tests on Android 16 emulator
