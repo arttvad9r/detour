@@ -207,9 +207,6 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
                 text = stringResource(R.string.subscription_selection_error),
                 error = true,
             )
-            LaunchedEffect(state.selectionStatus) {
-                runtimeViewModel.clearSelectionError()
-            }
         }
     }
 }
