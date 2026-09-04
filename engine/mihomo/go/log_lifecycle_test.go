@@ -1,6 +1,10 @@
 package engine
 
-import "testing"
+import (
+	"testing"
+
+	C "github.com/metacubex/mihomo/constant"
+)
 
 func TestParseFailureKeepsExistingRuntimeLogging(t *testing.T) {
 	Stop()
@@ -14,6 +18,7 @@ func TestParseFailureKeepsExistingRuntimeLogging(t *testing.T) {
 	if !Ready() {
 		t.Fatal("valid runtime must be ready")
 	}
+	originalHomeDir := C.Path.HomeDir()
 	logMu.Lock()
 	hadSubscription := logSub != nil
 	logMu.Unlock()
@@ -26,6 +31,9 @@ func TestParseFailureKeepsExistingRuntimeLogging(t *testing.T) {
 	}
 	if !Ready() {
 		t.Fatal("parse failure must leave the existing runtime ready")
+	}
+	if got := C.Path.HomeDir(); got != originalHomeDir {
+		t.Fatalf("parse failure changed active HomeDir to %q, want %q", got, originalHomeDir)
 	}
 	logMu.Lock()
 	stillSubscribed := logSub != nil
