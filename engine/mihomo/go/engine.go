@@ -113,14 +113,19 @@ func Start(configYAML string, logPath string) (err error) {
 			return mkdirErr
 		}
 		C.SetHomeDir(homeDir)
-		log.SetLevel(log.DEBUG)
-		subscribeLogs(logPath)
 	}
 	cfg, err := config.Parse([]byte(configYAML))
 	if err != nil {
 		return err
 	}
+	// The prior runtime can still have background goroutines reading mihomo's
+	// global logging state. Tear it down before mutating log level/subscriptions
+	// so restart cannot race those readers under the Go race detector.
 	stopRuntimeLocked()
+	if logPath != "" {
+		log.SetLevel(log.DEBUG)
+		subscribeLogs(logPath)
+	}
 	if applyErr := executor.ApplyConfig(cfg, true); applyErr != nil {
 		stopRuntimeLocked()
 		return applyErr
