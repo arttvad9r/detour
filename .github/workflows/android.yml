@@ -48,6 +48,31 @@ jobs:
           export PATH="$(go env GOPATH)/bin:$PATH"
           gomobile init
       - run: ./gradlew --dependency-verification strict :app:testDebugUnitTest :app:lintDebug :app:lintRelease :app:assembleDebug :app:assembleDebugAndroidTest :app:assembleRelease :baselineprofile:assemble
+      - name: Run embedded engine race detector
+        shell: bash
+        run: |
+          set -euo pipefail
+          RACE_DIR="$(mktemp -d)"
+          trap 'rm -rf "$RACE_DIR"' EXIT
+          cp engine/mihomo/go/go.mod engine/mihomo/go/go.sum engine/mihomo/go/*.go "$RACE_DIR/"
+          python3 - "$RACE_DIR/go.mod" "$GITHUB_WORKSPACE/.cache/mihomo-src" <<'PYEOF'
+          import pathlib
+          import re
+          import sys
+
+          mod = pathlib.Path(sys.argv[1])
+          mihomo = pathlib.Path(sys.argv[2]).resolve()
+          text = mod.read_text()
+          replacement = f"replace github.com/metacubex/mihomo => {mihomo}"
+          text, count = re.subn(r"replace github\.com/metacubex/mihomo => .*", replacement, text)
+          if count == 0:
+              text += "\n" + replacement + "\n"
+          mod.write_text(text)
+          PYEOF
+          (
+            cd "$RACE_DIR"
+            GOFLAGS='-mod=mod -tags=with_gvisor' go test -race ./...
+          )
       - name: Report universal release APK size
         run: >-
           python3 tools/apk_size_report.py app/build/outputs/apk/release
