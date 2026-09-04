@@ -9,16 +9,25 @@ Detour builds its native dependencies from exact upstream revisions. Do not repl
 - Android AAR build: `engine/mihomo/build.sh`
 - Go build tag: `with_gvisor`
 
-Detour applies two Android embedding adjustments during the build:
+`engine/mihomo/build.sh` resets the checkout to that exact commit before every build and applies fail-closed source transforms. Every transform matches an expected pinned-source layout and aborts the build if upstream code no longer matches the reviewed anchor.
+
+The current Detour embedding/compatibility patches are:
 
 1. Android package-rule discovery inside Mihomo is disabled because a normal application cannot read `/data/system/packages.xml`.
 2. Process/UID lookup is bridged to the Android host through `Engine.setProcessResolver` and `ConnectivityManager.getConnectionOwnerUid`.
+3. Named custom listeners are closed together with the TUN across engine stop/restart cycles.
+4. Invalid VLESS gRPC + XTLS Vision combinations emitted by some subscriptions are normalized to Mihomo-compatible semantics.
+5. Empty VLESS gRPC service names use Xray-compatible `//Tun` semantics.
+6. The embedded REALITY client advertises the minimum client version required by current Xray deployments supported by Detour.
+7. URLTest exposes bounded, sanitized error classification/text to the Android bridge without logging subscription credentials.
+8. Mihomo configuration apply propagates recovered panics back to the embedding bridge instead of silently leaving a partially applied runtime.
+9. Mihomo's process-wide log level is backed by `sync/atomic`; the pinned upstream revision otherwise races when WireGuard/AmneziaWG logging overlaps a configuration-level change during restart.
 
 The host app resolves package→UID deterministically and remains the primary owner of per-app routing. Engine-side UID attribution is a supporting mechanism; PROCESS-NAME routing is not relied on because shared UIDs and Android visibility rules make it unsuitable as the product contract.
 
-The embedded API is intentionally small: install the resolver, start generated YAML, report readiness, stop, and forward logs. Mihomo still implements the current data plane: gVisor TUN, DNS, TCP/UDP forwarding, VLESS/Reality, WireGuard/AmneziaWG and outbound chaining.
+The embedded API is intentionally small: install the resolver, start generated YAML, report readiness, stop, query subscription runtime state, run detached subscription latency probes, and forward logs. Mihomo still implements the current data plane: gVisor TUN, DNS, TCP/UDP forwarding, VLESS/Reality, WireGuard/AmneziaWG and outbound chaining.
 
-With a host-supplied TUN file descriptor, the Android `VpnService.Builder` must configure the fake-IP interface address itself. The current tunnel uses the validated IPv4 `/30` arrangement. Selected IPv6 traffic is captured and explicitly rejected while the routed data plane remains IPv4-only.
+With a host-supplied TUN file descriptor, the Android `VpnService.Builder` configures the IPv4 tunnel interface itself. Detour intentionally does not configure an IPv6 address, route or DNS server on the Android VPN; Android therefore blocks that unconfigured address family for routed apps. The generated Mihomo rules also reject IPv6 defensively, while the active routed data plane remains IPv4-only.
 
 ## ByeDPI
 
@@ -37,23 +46,23 @@ Detour applies a build-time source transform to the exact pinned ByeDPI commit s
 The CI/release contract currently pins:
 
 - JDK 17;
-- Android platform/target 36;
+- compile SDK 37 and target SDK 36;
 - build-tools 36.0.0;
 - NDK 28.0.13004108;
 - Go 1.26.7;
 - `golang.org/x/mobile/cmd/gomobile@v0.0.0-20260821190718-4776eadac327`;
 - `golang.org/x/vuln/cmd/govulncheck@v1.7.0`.
 
-GitHub Actions themselves are pinned by commit SHA in `.github/workflows/android.yml`.
+GitHub Actions themselves are pinned by commit SHA in `.github/workflows/android.yml` and `.github/workflows/release.yml`.
 
 ## Updating a native pin
 
 A native dependency update is not a version-only change. Before merging it:
 
 1. update the exact version/commit in the build script;
-2. re-check every Detour patch against the new upstream source;
-3. run the full Gradle gate and `engine/vulnscan.sh`;
-4. run a fresh device smoke covering connect/disconnect and Direct/VPN/DPI routing;
+2. re-check every Detour source transform against the new upstream source and preserve fail-closed anchors;
+3. run the full Gradle gate, `go mod verify`, the full `go test -race` embedded-engine gate and `engine/vulnscan.sh`;
+4. run a fresh device smoke covering connect/disconnect, subscription selection persistence and Direct/VPN/DPI routing;
 5. update this file with the new exact revision and any changed patch rationale.
 
 Generated AAR/SO outputs are build artifacts and remain ignored by git.
