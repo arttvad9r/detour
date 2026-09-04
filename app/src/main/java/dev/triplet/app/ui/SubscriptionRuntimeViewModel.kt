@@ -59,6 +59,9 @@ private fun safeLatencyDiagnostic(value: String, maxChars: Int): String? {
     return trimmed
 }
 
+internal fun retainedSubscriptionSelection(selectedNode: String?, availableNames: Set<String>): String? =
+    selectedNode?.takeIf { it in availableNames }
+
 internal fun parseSubscriptionLatencyResult(raw: String): SubscriptionLatencyResult {
     if (raw.isBlank() || raw.length > 512 * 1024) return SubscriptionLatencyResult()
     return runCatching {
@@ -253,12 +256,6 @@ class SubscriptionRuntimeViewModel : ViewModel() {
         }
     }
 
-    fun clearSelectionError() {
-        if (_uiState.value.selectionStatus == SubscriptionSelectionStatus.ERROR) {
-            _uiState.value = _uiState.value.copy(selectionStatus = SubscriptionSelectionStatus.IDLE)
-        }
-    }
-
     private fun loadCatalog(url: String, force: Boolean = false) {
         if (!force && boundUrl == url && _uiState.value.catalogStatus == SubscriptionCatalogStatus.LOADING) return
         catalogJob?.cancel()
@@ -276,6 +273,7 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                     } else {
                         SubscriptionCatalogStatus.READY
                     },
+                    selectedNode = retainedSubscriptionSelection(_uiState.value.selectedNode, names),
                     latencyTestedNames = _uiState.value.latencyTestedNames intersect names,
                     latencyByName = _uiState.value.latencyByName.filterKeys { it in names },
                     latencyErrorByName = _uiState.value.latencyErrorByName.filterKeys { it in names },
