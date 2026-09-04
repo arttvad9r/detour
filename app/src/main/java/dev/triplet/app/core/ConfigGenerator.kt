@@ -99,14 +99,15 @@ object ConfigGenerator {
         }
 
         val probes = buildList {
-            if (input.vpnApps.isNotEmpty() && input.vpn != null) {
+            if (input.vpnApps.isNotEmpty()) {
                 val name = when (input.vpn) {
                     is VpnOutbound.Subscription -> "PROBE_SUBSCRIPTION"
                     is VpnOutbound.Vless -> "PROBE_VLESS"
                     is VpnOutbound.Warp -> "PROBE_WARP"
-                    null -> error("unreachable")
+                    null -> null
                 }
-                add("""- name: $name
+                if (name != null) {
+                    add("""- name: $name
   type: mixed
   listen: 127.0.0.1
   port: 10810
@@ -114,6 +115,7 @@ object ConfigGenerator {
   users:
     - username: $loopbackUser
       password: $loopbackPassword""")
+                }
             }
             if (input.dpiApps.isNotEmpty()) {
                 add("""- name: PROBE_DPI
