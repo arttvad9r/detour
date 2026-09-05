@@ -17,6 +17,16 @@ class DpiAutoProbeTest {
         assertEquals(targets.size, targets.map { it.id }.distinct().size)
     }
 
+    @Test fun `built in probes expose intended broader rule scopes`() {
+        val targets = DpiDomainCatalog.default.flatMap { it.targets }.associateBy { it.id }
+
+        assertEquals("youtube.com", targets.getValue("youtube-web").scopeHost)
+        assertEquals("googlevideo.com", targets.getValue("googlevideo-redirector").scopeHost)
+        assertEquals("discord.com", targets.getValue("discord-web").scopeHost)
+        assertEquals("discord.gg", targets.getValue("discord-gateway").scopeHost)
+        assertEquals("telegram.org", targets.getValue("telegram-webapp").scopeHost)
+    }
+
     @Test fun `RFC1929 auth request encodes ephemeral credentials`() {
         val request = Socks5Wire.authRequest(ProbeCredentials("user", "pass"))
         assertArrayEquals(
