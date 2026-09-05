@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cross-compiles byedpi's ciadpi for Android ABIs and places it into
+# Cross-compiles ByeDPI's ciadpi for Android ABIs and places it into
 # app jniLibs as libciadpi.so (executable-from-nativeLibraryDir trick).
 set -euo pipefail
 
@@ -7,19 +7,18 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CACHE="${BYEDPI_CACHE:-$REPO_ROOT/.cache/byedpi-src}"
 OUT_DIR="$REPO_ROOT/app/src/main/jniLibs"
 AUTH_TRANSFORM="$REPO_ROOT/engine/byedpi/apply_socks_auth.py"
-BYEDPI_VERSION="v0.17.3"
-BYEDPI_COMMIT="7efde1b1296eaaa187b70e951894dde17527489c"
+# ByeByeDPI reference snapshot 01b080e2fe41898d8371495a9db887da54e28798
+# uses this exact post-v0.17.3 upstream revision for its proxy-test corpus.
+BYEDPI_COMMIT="ba532298de7b28cfe854aea83d061369d13ca290"
 
 [[ -n "${ANDROID_NDK_HOME:-}" ]] || { echo "ANDROID_NDK_HOME is required (NDK 28.0.13004108)" >&2; exit 127; }
 
-TAG="${BYEDPI_TAG:-$BYEDPI_VERSION}"
-echo "byedpi tag: $TAG"
-
 if [[ ! -d "$CACHE/.git" ]]; then
-  mkdir -p "$CACHE"
-  git clone --depth 1 --branch "$TAG" https://github.com/hufrea/byedpi.git "$CACHE"
+  rm -rf "$CACHE"
+  git clone --filter=blob:none --no-checkout https://github.com/hufrea/byedpi.git "$CACHE"
 fi
-git -C "$CACHE" fetch --tags --force origin "$TAG"
+# Fetch the exact reviewed revision instead of relying on a moving branch/tag.
+git -C "$CACHE" fetch --depth 1 origin "$BYEDPI_COMMIT"
 git -C "$CACHE" reset --hard "$BYEDPI_COMMIT"
 git -C "$CACHE" clean -fdx
 ACTUAL_COMMIT="$(git -C "$CACHE" rev-parse HEAD)"
@@ -31,6 +30,8 @@ python3 "$AUTH_TRANSFORM" "$CACHE"
 git -C "$CACHE" diff --check
 grep -q -- "--socks5-auth-stdin" "$CACHE/main.c"
 grep -q "S_AUTH_USERPASS" "$CACHE/proxy.h"
+grep -q "FLAG_S5_AUTH" "$CACHE/conev.h"
+grep -q "auth_socks5_userpass" "$CACHE/proxy.c"
 echo "detour socks auth transform applied to $BYEDPI_COMMIT"
 
 TC="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"

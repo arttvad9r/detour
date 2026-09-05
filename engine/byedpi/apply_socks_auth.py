@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Apply Detour's minimal SOCKS5 RFC1929 auth extension to pinned ByeDPI.
+"""Apply Detour's SOCKS5 RFC1929 auth extension to pinned ByeDPI.
 
 The build script resets ByeDPI to one exact upstream commit before invoking this
-file. Every replacement below must match exactly once; any upstream/source drift
-fails closed instead of producing a partially patched binary.
+file. Every replacement below must match exactly once; source drift fails closed
+instead of producing a partially patched binary.
 """
 
 from pathlib import Path
@@ -77,53 +77,76 @@ replace_once(
 
 replace_once(
     "main.c",
-    """    {\"http-connect\",  0, 0, 'G'},
-    {\"help\",          0, 0, 'h'},
+    """    {\"max-conn\",      1, 0, 'c'},
+    {\"debug\",         1, 0, 'x'},
+    
+    #ifdef TCP_FASTOPEN_CONNECT
 """,
-    """    {\"http-connect\",  0, 0, 'G'},
+    """    {\"max-conn\",      1, 0, 'c'},
+    {\"debug\",         1, 0, 'x'},
     {\"socks5-auth-stdin\", 0, 0, 'J'},
-    {\"help\",          0, 0, 'h'},
+    
+    #ifdef TCP_FASTOPEN_CONNECT
 """,
 )
 
 replace_once(
     "main.c",
-    """    const char *pid_file = 0;
-    bool daemonize = 0;
+    """    long val = 0;
+    char *end = 0;
+    bool all_limited = 1;
+    
+    int curr_optind = 1;
 """,
-    """    const char *pid_file = 0;
-    bool daemonize = 0;
+    """    long val = 0;
+    char *end = 0;
+    bool all_limited = 1;
     bool socks5_auth_stdin = 0;
+    
+    int curr_optind = 1;
 """,
 )
 
 replace_once(
     "main.c",
-    """        case 'G':
-            params.http_connect = 1;
+    """        case 'x': //
+            params.debug = strtol(optarg, 0, 0);
+            if (params.debug < 0)
+                invalid = 1;
             break;
-        #ifdef __linux__
+            
+        case 'y':
 """,
-    """        case 'G':
-            params.http_connect = 1;
+    """        case 'x': //
+            params.debug = strtol(optarg, 0, 0);
+            if (params.debug < 0)
+                invalid = 1;
             break;
         case 'J':
             socks5_auth_stdin = 1;
             break;
-        #ifdef __linux__
+            
+        case 'y':
 """,
 )
 
 replace_once(
     "main.c",
-    """    params.mempool = mem_pool(MF_EXTRA, CMP_BYTES);
-""",
-    """    if (socks5_auth_stdin && load_socks5_auth_stdin() < 0) {
-        fprintf(stderr, \"invalid SOCKS5 auth on stdin\\n\");
-        clear_params();
+    """    if (invalid) {
+        fprintf(stderr, \"invalid value: -%c %s\\n\", rez, optarg);
         return -1;
     }
-    params.mempool = mem_pool(MF_EXTRA, CMP_BYTES);
+    if (all_limited) {
+""",
+    """    if (invalid) {
+        fprintf(stderr, \"invalid value: -%c %s\\n\", rez, optarg);
+        return -1;
+    }
+    if (socks5_auth_stdin && load_socks5_auth_stdin() < 0) {
+        fprintf(stderr, \"invalid SOCKS5 auth on stdin\\n\");
+        return -1;
+    }
+    if (all_limited) {
 """,
 )
 
@@ -258,19 +281,20 @@ static int auth_socks5_userpass(int fd, const char *buffer, ssize_t n)
 
 replace_once(
     "proxy.c",
-    """    int error = 0;
-""" + (" " * 4) + """
-    if (*buff->data == S_VER5) {
-        if (val->flag != FLAG_S5) {
-            if (auth_socks5(val->fd, buff->data, n)) {
-                return -1;
-            }
-            val->flag = FLAG_S5;
-            return 0;
+    """static int handle_s5(struct poolhd *pool, struct eval *val, 
+            struct buffer *buff, ssize_t n, union sockaddr_u *dst)
+{
+    if (val->flag != FLAG_S5) {
+        if (auth_socks5(val->fd, buff->data, n)) {
+            return -1;
         }
+        val->flag = FLAG_S5;
+        return 0;
+    }
 """,
-    """    int error = 0;
-""" + (" " * 4) + """
+    """static int handle_s5(struct poolhd *pool, struct eval *val, 
+            struct buffer *buff, ssize_t n, union sockaddr_u *dst)
+{
     if (val->flag == FLAG_S5_AUTH) {
         if (auth_socks5_userpass(val->fd, buff->data, n)) {
             return -1;
@@ -278,18 +302,17 @@ replace_once(
         val->flag = FLAG_S5;
         return 0;
     }
-    if (socks5_auth_enabled && *buff->data != S_VER5) {
+    if (socks5_auth_enabled && (n < 1 || (uint8_t)buff->data[0] != S_VER5)) {
         return -1;
     }
-    if (*buff->data == S_VER5) {
-        if (val->flag != FLAG_S5) {
-            int auth = auth_socks5(val->fd, buff->data, n);
-            if (auth < 0) {
-                return -1;
-            }
-            val->flag = auth == S_AUTH_USERPASS ? FLAG_S5_AUTH : FLAG_S5;
-            return 0;
+    if (val->flag != FLAG_S5) {
+        int auth = auth_socks5(val->fd, buff->data, n);
+        if (auth < 0) {
+            return -1;
         }
+        val->flag = auth == S_AUTH_USERPASS ? FLAG_S5_AUTH : FLAG_S5;
+        return 0;
+    }
 """,
 )
 

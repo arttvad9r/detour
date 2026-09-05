@@ -19,8 +19,9 @@ The upstream source and license for the pinned revision must remain available wi
 ## ByeDPI
 
 - Project: hufrea/byedpi
-- Version: v0.17.3
-- Commit: `7efde1b1296eaaa187b70e951894dde17527489c`
+- Source reports CLI version: 17.3
+- Commit: `ba532298de7b28cfe854aea83d061369d13ca290`
+- Reference consumer: romanvht/ByeByeDPI `01b080e2fe41898d8371495a9db887da54e28798`
 - Upstream license: MIT
 - Integration: built as the `ciadpi` child-process binary packaged in the APK.
 

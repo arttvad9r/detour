@@ -31,11 +31,14 @@ With a host-supplied TUN file descriptor, the Android `VpnService.Builder` confi
 
 ## ByeDPI
 
-- Version: `v0.17.3`
-- Commit: `7efde1b1296eaaa187b70e951894dde17527489c`
+- CLI version reported by upstream source: `17.3`
+- Commit: `ba532298de7b28cfe854aea83d061369d13ca290`
+- Reference consumer: ByeByeDPI snapshot `01b080e2fe41898d8371495a9db887da54e28798`
 - Build script: `engine/byedpi/build.sh`
 - Android targets: `arm64-v8a`, `x86_64`
 - API baseline: Android 21 native target
+
+This is a post-`v0.17.3` upstream revision selected to match the exact ByeDPI source used by the reviewed ByeByeDPI proxy-test corpus. The build fetches and resets to the commit directly; it does not trust a moving branch or tag.
 
 The build produces the dynamic-bionic `ciadpi` executable and packages it through Android `jniLibs` under a `.so` filename so it is delivered with the APK. `DpiBackend` executes it as a child process and exposes its loopback SOCKS listener to the embedded engine.
 
