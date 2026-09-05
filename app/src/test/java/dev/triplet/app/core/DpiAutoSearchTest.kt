@@ -10,7 +10,7 @@ class DpiAutoSearchTest {
     private val direct = DpiProbeTarget("direct", "direct.example")
     private val blocked = DpiProbeTarget("blocked", "blocked.example")
 
-    @Test fun `strategy search only receives targets that fail direct baseline`() {
+    @Test fun `global strategy tests failures first then regression checks direct targets`() {
         val searched = mutableListOf<List<DpiProbeTarget>>()
         val coordinator = DpiAutoSearchCoordinator(
             directProbe = DpiTargetProbe { target ->
@@ -24,10 +24,36 @@ class DpiAutoSearchTest {
 
         val report = coordinator.run(listOf(direct, blocked), attemptsPerTarget = 2)
 
-        assertEquals(listOf(blocked), searched.single())
+        assertEquals(listOf(blocked, direct), searched.single())
         assertEquals(listOf(blocked), report.problematicTargets)
         assertFalse(report.allDirect)
         assertEquals("winner", report.winner?.candidate?.id)
+    }
+
+    @Test fun `global candidate that fixes block but breaks direct peer is not applicable`() {
+        val coordinator = DpiAutoSearchCoordinator(
+            directProbe = DpiTargetProbe { target ->
+                DpiProbeAttempt(success = target == direct, latencyMs = 10)
+            },
+            strategySearcher = DpiStrategySearcher { targets, _ ->
+                val candidate = DpiStrategyCandidate("regression", listOf("-d", "1"))
+                listOf(
+                    DpiStrategyResult(
+                        candidate = candidate,
+                        backendStarted = true,
+                        targets = targets.map { target ->
+                            if (target == blocked) {
+                                DpiTargetResult(target, 2, 2, listOf(20, 21))
+                            } else {
+                                DpiTargetResult(target, 1, 0)
+                            }
+                        },
+                    ),
+                )
+            },
+        )
+
+        assertNull(coordinator.run(listOf(direct, blocked), attemptsPerTarget = 2).winner)
     }
 
     @Test fun `per-domain search retests direct peer inside affected broad scope`() {
