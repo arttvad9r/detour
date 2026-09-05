@@ -37,6 +37,32 @@ class RoutesStoreInstrumentedTest {
         "&pbk=SbVKOEMjK0sIlbwg4akyBg5mL5KZwwB-ed4eEE7YnRc&sid=6ba85179" +
         "&flow=xtls-rprx-vision"
 
+    private fun backupOf(settings: TriSettings) = SettingsBackup.Backup(
+        vlessKeys = settings.vlessKeys,
+        warpProfile = settings.warpProfile,
+        activeVpn = settings.activeVpn,
+        multiHopEntry = settings.multiHopEntry,
+        presetId = settings.preset.id,
+        dpiCustomArgs = settings.dpiCustomArgs,
+        autoConnect = settings.autoConnect,
+        themeId = settings.themeId,
+        dnsId = settings.dnsId,
+        dnsCustom = settings.dnsCustom,
+        routes = settings.routes.mapValues { it.value.name },
+        destinationRules = settings.destinationRules,
+        showSystemApps = settings.showSystemApps,
+    )
+
+    private suspend fun restoreSnapshot(settings: TriSettings) {
+        store.restoreBackup(backupOf(settings))
+        // Backup import is intentionally fail-closed for every auto-connect trigger,
+        // so test cleanup must restore those preferences explicitly after import.
+        store.setAutoConnect(settings.autoConnect)
+        store.setAutoConnectWifi(settings.autoConnectWifi)
+        store.setAutoConnectCellular(settings.autoConnectCellular)
+        store.setSessionStartedAt(settings.sessionStartedAt)
+    }
+
     @Test fun addUpdateDeleteRoundTrip() = runBlocking {
         store.addVlessKey(VlessKey("t1", "One", validUri))
         store.updateVlessKey(VlessKey("t1", "Renamed", validUri))
@@ -63,33 +89,27 @@ class RoutesStoreInstrumentedTest {
     }
 
     @Test fun importedAutoConnectIsForcedOff() = runBlocking {
+        val before = store.snapshot()
         val backup = SettingsBackup.Backup(
             vlessKeys = VlessKeys(listOf(VlessKey("k", "K", validUri)), "k"),
             presetId = DpiPreset.RECOMMENDED.id,
             autoConnect = true,
             routes = mapOf("com.example.imported" to AppRoute.VPN.name),
         )
-        store.restoreBackup(backup)
-        val s = store.snapshot()
-        assertFalse("import must not enable auto-connect", s.autoConnect)
-        assertEquals(AppRoute.VPN, s.routes["com.example.imported"])
+        try {
+            store.restoreBackup(backup)
+            val s = store.snapshot()
+            assertFalse("import must not enable launch auto-connect", s.autoConnect)
+            assertFalse("import must not enable Wi-Fi auto-connect", s.autoConnectWifi)
+            assertFalse("import must not enable cellular auto-connect", s.autoConnectCellular)
+            assertEquals(AppRoute.VPN, s.routes["com.example.imported"])
+        } finally {
+            restoreSnapshot(before)
+        }
     }
 
     @Test fun subscriptionSelectionsSurviveBackupParserAndDataStoreRestore() = runBlocking {
         val before = store.snapshot()
-        val original = SettingsBackup.Backup(
-            vlessKeys = before.vlessKeys,
-            warpProfile = before.warpProfile,
-            activeVpn = before.activeVpn,
-            presetId = before.preset.id,
-            dpiCustomArgs = before.dpiCustomArgs,
-            autoConnect = before.autoConnect,
-            themeId = before.themeId,
-            dnsId = before.dnsId,
-            dnsCustom = before.dnsCustom,
-            routes = before.routes.mapValues { it.value.name },
-            showSystemApps = before.showSystemApps,
-        )
         val expectedKeys = VlessKeys(
             items = listOf(
                 VlessKey("direct", "Direct VLESS", validUri),
@@ -127,9 +147,7 @@ class RoutesStoreInstrumentedTest {
             assertEquals("DE Frankfurt", restored.vlessKeys.items.single { it.id == "sub-a" }.selectedNode)
             assertEquals("NL Amsterdam", restored.vlessKeys.items.single { it.id == "sub-b" }.selectedNode)
         } finally {
-            store.restoreBackup(original)
-            store.setAutoConnect(before.autoConnect)
-            store.setSessionStartedAt(before.sessionStartedAt)
+            restoreSnapshot(before)
         }
     }
 
