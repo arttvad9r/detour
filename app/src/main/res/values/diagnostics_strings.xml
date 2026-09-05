@@ -8,6 +8,8 @@
     <string name="diagnostics_vpn_service">Detour VPN</string>
     <string name="diagnostics_engine">Mihomo engine</string>
     <string name="diagnostics_vpn_route">Internet via VPN</string>
+    <string name="diagnostics_vpn_latency">VPN latency</string>
+    <string name="diagnostics_latency_value">%1$d ms</string>
     <string name="diagnostics_dpi_route">Internet via DPI</string>
     <string name="diagnostics_profile">Profile</string>
     <string name="diagnostics_server">Server</string>
