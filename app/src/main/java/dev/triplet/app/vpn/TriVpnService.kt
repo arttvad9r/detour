@@ -21,6 +21,8 @@ import dev.triplet.app.core.RoutingInput
 import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.core.VpnOutbound
 import dev.triplet.app.core.VpnProfileKind
+import dev.triplet.app.core.formatTunnelTrafficRate
+import dev.triplet.app.core.parseTunnelTrafficStats
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.log.ServiceLog
 import dev.triplet.engine.engine.Engine
@@ -28,6 +30,8 @@ import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.net.InetAddress
 import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -41,6 +45,7 @@ class TriVpnService : VpnService() {
 
     private val executor = Executors.newSingleThreadExecutor()
     private val healthExecutor = Executors.newSingleThreadExecutor()
+    private val trafficExecutor = Executors.newSingleThreadScheduledExecutor()
     private val validationGeneration = AtomicInteger(0)
     private val restartQueued = AtomicBoolean(false)
     private val stopQueued = AtomicBoolean(false)
@@ -50,6 +55,7 @@ class TriVpnService : VpnService() {
     private lateinit var dpi: DpiBackend
     private lateinit var foreground: VpnForegroundNotifier
     private var netCallback: ConnectivityManager.NetworkCallback? = null
+    private var trafficTask: ScheduledFuture<*>? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -124,6 +130,8 @@ class TriVpnService : VpnService() {
         unregisterNetworkMonitor()
         lastNetwork = null
         stopQueued.set(true)
+        stopTrafficNotificationUpdates()
+        trafficExecutor.shutdownNow()
         healthExecutor.shutdownNow()
         executor.shutdownNow()
         // Native shutdown remains synchronous so the TUN and child resources are
@@ -300,8 +308,42 @@ class TriVpnService : VpnService() {
         VpnController.setState(VpnState.Active)
         runBlocking { store.setSessionStartedAt(System.currentTimeMillis()) }
         foreground.show(getString(R.string.notif_active), allowStop = !isAlwaysOn)
+        startTrafficNotificationUpdates()
         ServiceLog.i("active; validating routes")
         validateRoutesAsync(effVpn, effDpi, settings.activeVpn, probeCredentials)
+    }
+
+    private fun startTrafficNotificationUpdates() {
+        stopTrafficNotificationUpdates()
+        if (trafficExecutor.isShutdown) return
+        trafficTask = trafficExecutor.scheduleAtFixedRate(
+            {
+                if (
+                    destroyed.get() || stopQueued.get() ||
+                    VpnController.state.value != VpnState.Active
+                ) return@scheduleAtFixedRate
+
+                runCatching {
+                    val traffic = parseTunnelTrafficStats(Engine.trafficStats())
+                    foreground.update(
+                        text = getString(
+                            R.string.notif_active_speed,
+                            formatTunnelTrafficRate(traffic.downloadBytesPerSecond),
+                            formatTunnelTrafficRate(traffic.uploadBytesPerSecond),
+                        ),
+                        allowStop = !isAlwaysOn,
+                    )
+                }
+            },
+            1,
+            1,
+            TimeUnit.SECONDS,
+        )
+    }
+
+    private fun stopTrafficNotificationUpdates() {
+        trafficTask?.cancel(false)
+        trafficTask = null
     }
 
     private fun validateRoutesAsync(
@@ -352,6 +394,7 @@ class TriVpnService : VpnService() {
     ) {
         synchronized(lifecycleLock) {
             validationGeneration.incrementAndGet()
+            stopTrafficNotificationUpdates()
             if (persistSessionSynchronously) {
                 runCatching { runBlocking { store.setSessionStartedAt(null) } }
             } else {
