@@ -1,6 +1,8 @@
 package dev.triplet.app.vpn
 
 import dev.triplet.app.core.AppRoute
+import dev.triplet.app.core.DestinationRule
+import dev.triplet.app.core.DestinationRuleType
 import dev.triplet.app.core.DpiPreset
 import dev.triplet.app.core.VlessKeys
 import dev.triplet.app.core.VpnProfileKind
@@ -43,6 +45,25 @@ class AutoConnectCoordinatorTest {
 
         assertTrue(coordinator.runOnce())
         assertEquals(1, starts)
+    }
+
+    @Test fun `vpn destination override without profile does not auto-connect`() = runBlocking {
+        var starts = 0
+        val source = settings(AppRoute.DPI).copy(
+            destinationRules = listOf(
+                DestinationRule(DestinationRuleType.DOMAIN, "example.com", AppRoute.VPN),
+            ),
+        )
+        val coordinator = AutoConnectCoordinator(
+            loadSettings = { source },
+            resolveRoutes = { EffectiveRoutes(vpnPackages = emptySet(), dpiPackages = setOf("app")) },
+            vpnPermissionGranted = { true },
+            currentVpnState = { VpnState.Idle },
+            startVpn = { starts++ },
+        )
+
+        assertFalse(coordinator.runOnce())
+        assertEquals(0, starts)
     }
 
     @Test fun `disabled auto-connect skips state permission and route resolution`() = runBlocking {

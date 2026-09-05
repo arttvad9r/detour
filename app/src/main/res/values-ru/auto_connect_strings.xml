@@ -1,0 +1,8 @@
+<resources>
+    <string name="auto_connect_launch">При запуске Detour</string>
+    <string name="auto_connect_launch_sub">Подключаться при открытии Detour</string>
+    <string name="auto_connect_wifi">При подключении к Wi-Fi</string>
+    <string name="auto_connect_wifi_sub">Подключаться при появлении Wi-Fi сети с доступом в интернет</string>
+    <string name="auto_connect_cellular">В мобильной сети</string>
+    <string name="auto_connect_cellular_sub">Подключаться при появлении мобильной сети с доступом в интернет</string>
+</resources>

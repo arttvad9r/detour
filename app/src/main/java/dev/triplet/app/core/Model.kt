@@ -7,6 +7,7 @@ sealed interface VpnOutbound {
     data class Subscription(
         val url: String,
         val selectedNode: String? = null,
+        val selectionMode: SubscriptionSelectionMode = SubscriptionSelectionMode.MANUAL,
     ) : VpnOutbound {
         init {
             require(url.isNotBlank())
@@ -22,11 +23,15 @@ sealed interface VpnOutbound {
 data class RoutingInput(
     val tunFd: Int,
     val apiLevel: Int,
+    /** Exit hop selected by the user. */
     val vpn: VpnOutbound?,
     val vpnApps: Set<String>,
     val vpnUids: Map<String, Int>,
     val dpiApps: Set<String>,
+    val destinationRules: List<DestinationRule> = emptyList(),
     val nameserver: String = "8.8.8.8",
     val dpiPort: Int = 10808,
     val probeCredentials: ProbeCredentials = ProbeAuth.current(),
+    /** Optional first hop. When present, [vpn] is reached through this outbound. */
+    val chainEntry: VpnOutbound? = null,
 )

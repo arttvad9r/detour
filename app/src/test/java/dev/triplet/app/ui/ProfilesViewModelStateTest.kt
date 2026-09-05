@@ -1,6 +1,7 @@
 package dev.triplet.app.ui
 
 import dev.triplet.app.core.DpiPreset
+import dev.triplet.app.core.MultiHopEntryRef
 import dev.triplet.app.core.VlessKey
 import dev.triplet.app.core.VlessKeys
 import dev.triplet.app.core.VpnProfileKind
@@ -122,6 +123,23 @@ class ProfilesViewModelStateTest {
         )
     }
 
+    @Test fun `delete request treats multi-hop entry as active`() {
+        val key = VlessKey("entry", "Entry", "vless://example")
+        val vlessEntry = settings(
+            activeVpn = VpnProfileKind.WARP,
+            key = key,
+            multiHopEntry = MultiHopEntryRef.Vless(key.id),
+        )
+        assertTrue(vlessDeleteRequest(vlessEntry, key.id).active)
+
+        val warpEntry = settings(
+            activeVpn = VpnProfileKind.VLESS,
+            key = key,
+            multiHopEntry = MultiHopEntryRef.Warp,
+        )
+        assertTrue(warpDeleteRequest(warpEntry).active)
+    }
+
     @Test fun `delete request follows optimistic profile selection`() {
         val key = VlessKey("next", "Server", "vless://example")
         val settings = settings(activeVpn = VpnProfileKind.WARP, key = key)
@@ -166,6 +184,7 @@ class ProfilesViewModelStateTest {
     private fun settings(
         activeVpn: VpnProfileKind,
         key: VlessKey? = null,
+        multiHopEntry: MultiHopEntryRef? = null,
     ) = TriSettings(
         vlessKeys = if (key == null) VlessKeys(emptyList(), null) else VlessKeys(listOf(key), key.id),
         warpProfile = null,
@@ -179,5 +198,6 @@ class ProfilesViewModelStateTest {
         routes = emptyMap(),
         showSystemApps = false,
         sessionStartedAt = null,
+        multiHopEntry = multiHopEntry,
     )
 }

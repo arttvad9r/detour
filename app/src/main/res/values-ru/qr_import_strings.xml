@@ -1,0 +1,4 @@
+<resources>
+    <string name="profile_scan_qr">Сканировать QR</string>
+    <string name="profile_scan_qr_error">Не удалось прочитать QR-код. Попробуйте ещё раз или вставьте ссылку вручную.</string>
+</resources>

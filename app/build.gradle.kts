@@ -126,6 +126,9 @@ dependencies {
     implementation(files("../engine/libs/engine.aar"))
     implementation(libs.androidx.core)
     implementation(libs.androidx.activity.compose)
+    // Google Code Scanner can bring an old Fragment transitive; pin the current
+    // stable AndroidX runtime so Activity Result APIs keep their supported host.
+    implementation(libs.androidx.fragment)
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.androidx.lifecycle.runtime.compose)
@@ -137,8 +140,10 @@ dependencies {
     implementation(libs.androidx.compose.material3.adaptive)
     implementation(libs.androidx.compose.material3.adaptive.navigation3)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.profileinstaller)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.play.services.code.scanner)
     implementation(libs.snakeyaml)
     testImplementation(libs.junit)
 

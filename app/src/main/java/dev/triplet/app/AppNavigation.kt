@@ -1,7 +1,9 @@
 package dev.triplet.app
 
 import android.content.Context
+import android.content.Intent
 import android.net.VpnService
+import android.provider.Settings
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.slideInHorizontally
@@ -43,6 +45,10 @@ import dev.triplet.app.ui.AppsScreen
 import dev.triplet.app.ui.AppsViewModel
 import dev.triplet.app.ui.BackupScreen
 import dev.triplet.app.ui.BackupViewModel
+import dev.triplet.app.ui.DestinationRulesScreen
+import dev.triplet.app.ui.DestinationRulesViewModel
+import dev.triplet.app.ui.DiagnosticsScreen
+import dev.triplet.app.ui.DiagnosticsViewModel
 import dev.triplet.app.ui.DnsScreen
 import dev.triplet.app.ui.DnsViewModel
 import dev.triplet.app.ui.DpiScreen
@@ -60,7 +66,8 @@ import dev.triplet.app.ui.ThemeViewModel
 import dev.triplet.app.ui.VlessKeyScreen
 import dev.triplet.app.ui.detourColors
 import dev.triplet.app.ui.detourHighRefresh
-import dev.triplet.app.vpn.AutoConnectCoordinator
+import dev.triplet.app.ui.parseHomeTrafficStats
+import dev.triplet.app.vpn.HealthCheck
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
 import dev.triplet.app.vpn.resolveEffectiveRoutes
@@ -82,6 +89,9 @@ internal sealed interface AppDestination : NavKey {
     data object Routes : AppDestination
 
     @Serializable
+    data object DestinationRules : AppDestination
+
+    @Serializable
     data object Vless : AppDestination
 
     @Serializable
@@ -94,14 +104,19 @@ internal sealed interface AppDestination : NavKey {
     data object Dns : AppDestination
 
     @Serializable
+    data object Diagnostics : AppDestination
+
+    @Serializable
     data object Backup : AppDestination
 }
 
 private fun AppDestination.settingsSectionOrNull(): SettingsSection? = when (this) {
     AppDestination.Routes -> SettingsSection.ROUTES
+    AppDestination.DestinationRules -> SettingsSection.DESTINATION_RULES
     AppDestination.Vless -> SettingsSection.PROFILES
     AppDestination.Dpi -> SettingsSection.DPI
     AppDestination.Dns -> SettingsSection.DNS
+    AppDestination.Diagnostics -> SettingsSection.DIAGNOSTICS
     AppDestination.Backup -> SettingsSection.BACKUP
     AppDestination.Theme -> SettingsSection.APPEARANCE
     AppDestination.Home,
@@ -111,15 +126,29 @@ private fun AppDestination.settingsSectionOrNull(): SettingsSection? = when (thi
 
 private fun AppDestination.isSettingsDetail(): Boolean = when (this) {
     AppDestination.Routes,
+    AppDestination.DestinationRules,
     AppDestination.Vless,
     AppDestination.Dpi,
     AppDestination.Theme,
     AppDestination.Dns,
+    AppDestination.Diagnostics,
     AppDestination.Backup,
     -> true
     AppDestination.Home,
     AppDestination.Settings,
     -> false
+}
+
+private fun openAndroidVpnSettings(context: Context) {
+    val flags = Intent.FLAG_ACTIVITY_NEW_TASK
+    val opened = runCatching {
+        context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS).addFlags(flags))
+    }.isSuccess
+    if (!opened) {
+        runCatching {
+            context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(flags))
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
@@ -129,7 +158,6 @@ internal fun DetourNavigation(
     appContext: Context,
     modifier: Modifier = Modifier,
 ) {
-    val autoConnectLaunchViewModel = viewModel<AutoConnectLaunchViewModel>()
     val backStack = rememberNavBackStack(AppDestination.Home)
     val listDetailStrategy = rememberListDetailSceneStrategy<NavKey>()
     val currentDestination = backStack.lastOrNull()
@@ -143,22 +171,6 @@ internal fun DetourNavigation(
             navMotionActive = true
             delay(Motion.NAV_REFRESH_BOOST_MS)
             navMotionActive = false
-        }
-    }
-
-    LaunchedEffect(autoConnectLaunchViewModel) {
-        autoConnectLaunchViewModel.launchOnce {
-            AutoConnectCoordinator(
-                loadSettings = store::snapshot,
-                resolveRoutes = { routes ->
-                    withContext(Dispatchers.IO) {
-                        resolveEffectiveRoutes(appContext.packageManager, routes)
-                    }
-                },
-                vpnPermissionGranted = { VpnService.prepare(appContext) == null },
-                currentVpnState = { VpnController.state.value },
-                startVpn = { VpnController.startNow(appContext) },
-            ).runOnce()
         }
     }
 
@@ -242,6 +254,11 @@ internal fun DetourNavigation(
                                     .takeIf { it.isNotBlank() }
                             }
                         },
+                        readTrafficStats = {
+                            withContext(Dispatchers.IO) {
+                                parseHomeTrafficStats(Engine.trafficStats())
+                            }
+                        },
                     ),
                 )
                 HomeScreen(
@@ -272,11 +289,14 @@ internal fun DetourNavigation(
                     viewModel = settingsViewModel,
                     selectedSection = (currentDestination as? AppDestination)?.settingsSectionOrNull(),
                     onOpenRoutes = { openSettingsDetail(AppDestination.Routes) },
+                    onOpenDestinationRules = { openSettingsDetail(AppDestination.DestinationRules) },
                     onOpenVless = { openSettingsDetail(AppDestination.Vless) },
                     onOpenDpi = { openSettingsDetail(AppDestination.Dpi) },
                     onOpenTheme = { openSettingsDetail(AppDestination.Theme) },
                     onOpenDns = { openSettingsDetail(AppDestination.Dns) },
+                    onOpenDiagnostics = { openSettingsDetail(AppDestination.Diagnostics) },
                     onOpenBackup = { openSettingsDetail(AppDestination.Backup) },
+                    onOpenAlwaysOnVpnSettings = { openAndroidVpnSettings(appContext) },
                     onBack = popBack,
                 )
             }
@@ -295,6 +315,16 @@ internal fun DetourNavigation(
                     ),
                 )
                 AppsScreen(appsViewModel, onBack = popBack)
+            }
+
+            entry<AppDestination.DestinationRules>(metadata = ListDetailSceneStrategy.detailPane()) {
+                val destinationRulesViewModel = viewModel<DestinationRulesViewModel>(
+                    factory = DestinationRulesViewModel.factory(
+                        store = store,
+                        restartTunnel = { VpnController.restartIfActive(appContext) },
+                    ),
+                )
+                DestinationRulesScreen(destinationRulesViewModel, onBack = popBack)
             }
 
             entry<AppDestination.Vless>(metadata = ListDetailSceneStrategy.detailPane()) {
@@ -353,6 +383,29 @@ internal fun DetourNavigation(
                     ),
                 )
                 DnsScreen(dnsViewModel, onBack = popBack)
+            }
+
+            entry<AppDestination.Diagnostics>(metadata = ListDetailSceneStrategy.detailPane()) {
+                val diagnosticsViewModel = viewModel<DiagnosticsViewModel>(
+                    factory = DiagnosticsViewModel.factory(
+                        store = store,
+                        resolveRoutes = { routes ->
+                            withContext(Dispatchers.IO) {
+                                resolveEffectiveRoutes(appContext.packageManager, routes)
+                            }
+                        },
+                        hasVpnPermission = { VpnService.prepare(appContext) == null },
+                        isEngineReady = { Engine.ready() },
+                        readSubscriptionNode = {
+                            Engine.subscriptionSelectedNode(appContext.cacheDir.absolutePath)
+                                .trim()
+                                .takeIf { it.isNotBlank() }
+                        },
+                        probeVpn = { HealthCheck.generate204(10810, timeoutMs = 5_000) },
+                        probeDpi = { HealthCheck.generate204(10811) },
+                    ),
+                )
+                DiagnosticsScreen(diagnosticsViewModel, onBack = popBack)
             }
 
             entry<AppDestination.Backup>(metadata = ListDetailSceneStrategy.detailPane()) {

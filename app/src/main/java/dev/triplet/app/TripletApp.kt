@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import androidx.core.content.ContextCompat
+import dev.triplet.app.background.SubscriptionRefreshScheduler
 import dev.triplet.app.core.SubscriptionProviderMaterializer
 import dev.triplet.app.data.AppInventory
 import dev.triplet.app.data.RoutesStore
@@ -16,6 +17,7 @@ import dev.triplet.engine.engine.Engine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.launch
 
 internal fun shouldRestartVpnForPackageChange(action: String?, replacing: Boolean): Boolean = when (action) {
@@ -94,6 +96,23 @@ class TripletApp : Application() {
         )
 
         appScope.launch { AppInventory.warm(this@TripletApp) }
+        appScope.launch {
+            var lastScheduleKey: String? = null
+            routesStore.settings.filterNotNull().collect { settings ->
+                val active = settings.vlessKeys.active
+                val scheduleKey = buildString {
+                    append(settings.activeVpn.name)
+                    append('|')
+                    append(active?.id.orEmpty())
+                    append('|')
+                    append(active?.subscriptionUpdateIntervalHours ?: 0)
+                }
+                if (scheduleKey != lastScheduleKey) {
+                    lastScheduleKey = scheduleKey
+                    SubscriptionRefreshScheduler.reconcile(this@TripletApp, settings)
+                }
+            }
+        }
     }
 
     fun clearVpnSessionTimestampAsync() {

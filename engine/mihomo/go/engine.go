@@ -116,6 +116,12 @@ func Start(configYAML string, logPath string) (err error) {
 		C.SetHomeDir(homeDir)
 		homeDirChanged = true
 	}
+	// Detour owns a dual-stack Android TUN. Mihomo otherwise disables its
+	// inet6-address when the physical uplink has no IPv6, even though a proxy
+	// outbound can still carry IPv6 destinations over an IPv4-only underlay.
+	if envErr := os.Setenv("SKIP_SYSTEM_IPV6_CHECK", "1"); envErr != nil {
+		return envErr
+	}
 	cfg, err := config.Parse([]byte(configYAML))
 	if err != nil {
 		if homeDirChanged {
@@ -325,8 +331,8 @@ func subscriptionSelectionKey(homeDir string) string {
 
 // resolveSubscriptionSelection prevents mihomo's temporary empty-group proxy
 // (for example COMPATIBLE) from leaking into Android as the user's selection.
-// During provider startup the selector still remembers the cached desired node,
-// but Now() resolves to EmptyFallback() until provider proxies are available.
+// During provider startup a group can temporarily resolve to EmptyFallback()
+// until provider proxies are available.
 func resolveSubscriptionSelection(live string, emptyFallback string, cached string) string {
 	live = strings.TrimSpace(live)
 	emptyFallback = strings.TrimSpace(emptyFallback)
@@ -337,10 +343,32 @@ func resolveSubscriptionSelection(live string, emptyFallback string, cached stri
 	return cached
 }
 
-// SubscriptionSelectedNode returns the live selector value while the engine is
-// active. The Mihomo cache is consulted only while disconnected for legacy
-// compatibility; an active Detour session must never let stale native cache
-// overwrite the encrypted per-profile selection owned by Android DataStore.
+type subscriptionCurrentGroup interface {
+	Now() string
+	EmptyFallback() C.Proxy
+}
+
+func liveSubscriptionSelection() (live string, emptyFallback string) {
+	proxy, ok := tunnel.Proxies()[subscriptionGroupName]
+	if !ok {
+		return "", ""
+	}
+	group, ok := proxy.Adapter().(subscriptionCurrentGroup)
+	if !ok {
+		return "", ""
+	}
+	live = group.Now()
+	if fallback := group.EmptyFallback(); fallback != nil {
+		emptyFallback = fallback.Name()
+	}
+	return live, emptyFallback
+}
+
+// SubscriptionSelectedNode returns the live group value while the engine is
+// active. Both manual select and automatic url-test groups expose Now(). The
+// Mihomo cache is consulted only while disconnected for legacy compatibility;
+// an active Detour session must never let stale native cache overwrite the
+// encrypted per-profile selection owned by Android DataStore.
 func SubscriptionSelectedNode(homeDir string) string {
 	runtimeMu.Lock()
 	defer runtimeMu.Unlock()
@@ -351,16 +379,7 @@ func SubscriptionSelectedNode(homeDir string) string {
 	}
 
 	if Ready() {
-		live := ""
-		emptyFallback := ""
-		if proxy, ok := tunnel.Proxies()[subscriptionGroupName]; ok {
-			if selector, ok := proxy.Adapter().(*outboundgroup.Selector); ok {
-				live = selector.Now()
-				if fallback := selector.EmptyFallback(); fallback != nil {
-					emptyFallback = fallback.Name()
-				}
-			}
-		}
+		live, emptyFallback := liveSubscriptionSelection()
 		return resolveSubscriptionSelection(live, emptyFallback, "")
 	}
 

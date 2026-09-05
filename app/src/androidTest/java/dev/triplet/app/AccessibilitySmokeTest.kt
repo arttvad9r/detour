@@ -36,7 +36,7 @@ class AccessibilitySmokeTest {
             .assertHeightIsAtLeast(48.dp)
     }
 
-    @Test fun settingsBackAndAutoConnectExposeAccessibleTargets() {
+    @Test fun settingsBackAndAutoConnectTogglesExposeAccessibleTargets() {
         rule.onNodeWithContentDescription(rule.activity.getString(R.string.cd_settings))
             .performClick()
 
@@ -44,9 +44,15 @@ class AccessibilitySmokeTest {
             .assertHeightIsAtLeast(48.dp)
 
         val switchRole = SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Switch)
-        rule.onNodeWithText(rule.activity.getString(R.string.auto_connect))
-            .assert(switchRole)
-            .assertHeightIsAtLeast(48.dp)
+        listOf(
+            R.string.auto_connect_launch,
+            R.string.auto_connect_wifi,
+            R.string.auto_connect_cellular,
+        ).forEach { titleRes ->
+            rule.onNodeWithText(rule.activity.getString(titleRes))
+                .assert(switchRole)
+                .assertHeightIsAtLeast(48.dp)
+        }
     }
 
     @Test fun dnsCustomInputExposesAccessibleLabelAndValidationError() = withRestoredDnsState {

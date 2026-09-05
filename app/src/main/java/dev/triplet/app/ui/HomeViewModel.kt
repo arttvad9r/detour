@@ -5,19 +5,25 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import dev.triplet.app.core.AppRoute
 import dev.triplet.app.core.ParseResult
+import dev.triplet.app.core.TunnelTrafficStats
 import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.core.VpnProfileKind
+import dev.triplet.app.core.parseTunnelTrafficStats
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.data.TriSettings
 import dev.triplet.app.vpn.EffectiveRoutes
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.scan
@@ -30,6 +36,8 @@ internal data class HomeProfilePresentation(
     val server: String?,
     val endpointCount: Int = 0,
 )
+
+typealias HomeTrafficStats = TunnelTrafficStats
 
 private data class SubscriptionNodeRead(
     val profileKey: String?,
@@ -47,6 +55,7 @@ data class HomeUiState(
     val protocol: HomeProtocol = HomeProtocol.NONE,
     val dnsId: String = "google",
     val dnsCustom: String = "",
+    val traffic: HomeTrafficStats = HomeTrafficStats(),
 )
 
 fun homeProtocol(routes: EffectiveRoutes): HomeProtocol {
@@ -59,6 +68,9 @@ fun homeProtocol(routes: EffectiveRoutes): HomeProtocol {
         else -> HomeProtocol.NONE
     }
 }
+
+internal fun parseHomeTrafficStats(raw: String): HomeTrafficStats =
+    parseTunnelTrafficStats(raw)
 
 internal fun homeProfilePresentation(
     activeVpn: VpnProfileKind,
@@ -93,6 +105,7 @@ internal fun homeUiState(
     vpnState: VpnState,
     effectiveRoutes: EffectiveRoutes,
     subscriptionNode: String? = null,
+    traffic: HomeTrafficStats = HomeTrafficStats(),
 ): HomeUiState {
     val activeVpn = settings?.activeVpn ?: VpnProfileKind.VLESS
     val profile = homeProfilePresentation(
@@ -113,6 +126,7 @@ internal fun homeUiState(
         protocol = homeProtocol(effectiveRoutes),
         dnsId = settings?.dnsId?.ifBlank { null } ?: "google",
         dnsCustom = settings?.dnsCustom.orEmpty(),
+        traffic = traffic,
     )
 }
 
@@ -121,6 +135,7 @@ class HomeViewModel(
     vpnState: StateFlow<VpnState>,
     private val resolveRoutes: suspend (Map<String, AppRoute>) -> EffectiveRoutes,
     private val readSubscriptionNode: suspend () -> String? = { null },
+    private val readTrafficStats: suspend () -> HomeTrafficStats = { HomeTrafficStats() },
 ) : ViewModel() {
     private val routeRefresh = MutableStateFlow(0L)
 
@@ -192,17 +207,39 @@ class HomeViewModel(
             initialValue = null,
         )
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val trafficStats = vpnState
+        .flatMapLatest { state ->
+            if (state != VpnState.Active) {
+                flowOf(HomeTrafficStats())
+            } else {
+                flow {
+                    while (true) {
+                        emit(runCatching { readTrafficStats() }.getOrDefault(HomeTrafficStats()))
+                        delay(1_000)
+                    }
+                }
+            }
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = HomeTrafficStats(),
+        )
+
     val uiState: StateFlow<HomeUiState> = combine(
         settings,
         vpnState,
         effectiveRoutes,
         selectedSubscriptionNode,
-    ) { currentSettings, currentVpnState, routes, subscriptionNode ->
+        trafficStats,
+    ) { currentSettings, currentVpnState, routes, subscriptionNode, traffic ->
         homeUiState(
             settings = currentSettings,
             vpnState = currentVpnState,
             effectiveRoutes = routes,
             subscriptionNode = subscriptionNode,
+            traffic = traffic,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -220,6 +257,7 @@ class HomeViewModel(
             vpnState: StateFlow<VpnState>,
             resolveRoutes: suspend (Map<String, AppRoute>) -> EffectiveRoutes,
             readSubscriptionNode: suspend () -> String? = { null },
+            readTrafficStats: suspend () -> HomeTrafficStats = { HomeTrafficStats() },
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 require(modelClass.isAssignableFrom(HomeViewModel::class.java))
@@ -229,6 +267,7 @@ class HomeViewModel(
                     vpnState = vpnState,
                     resolveRoutes = resolveRoutes,
                     readSubscriptionNode = readSubscriptionNode,
+                    readTrafficStats = readTrafficStats,
                 ) as T
             }
         }
@@ -237,11 +276,13 @@ class HomeViewModel(
             store: RoutesStore,
             resolveRoutes: suspend (Map<String, AppRoute>) -> EffectiveRoutes,
             readSubscriptionNode: suspend () -> String? = { null },
+            readTrafficStats: suspend () -> HomeTrafficStats = { HomeTrafficStats() },
         ): ViewModelProvider.Factory = factory(
             settings = store.settings,
             vpnState = VpnController.state,
             resolveRoutes = resolveRoutes,
             readSubscriptionNode = readSubscriptionNode,
+            readTrafficStats = readTrafficStats,
         )
     }
 }

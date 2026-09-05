@@ -16,6 +16,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -29,7 +32,16 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
 
-internal enum class SettingsSection { ROUTES, PROFILES, DPI, DNS, BACKUP, APPEARANCE }
+internal enum class SettingsSection {
+    ROUTES,
+    DESTINATION_RULES,
+    PROFILES,
+    DPI,
+    DNS,
+    DIAGNOSTICS,
+    BACKUP,
+    APPEARANCE,
+}
 
 private data class MenuItem(
     val titleRes: Int,
@@ -43,19 +55,22 @@ internal fun SettingsMenuScreen(
     viewModel: SettingsMenuViewModel,
     selectedSection: SettingsSection?,
     onOpenRoutes: () -> Unit,
+    onOpenDestinationRules: () -> Unit,
     onOpenVless: () -> Unit,
     onOpenDpi: () -> Unit,
     onOpenTheme: () -> Unit,
     onOpenDns: () -> Unit,
+    onOpenDiagnostics: () -> Unit,
     onOpenBackup: () -> Unit,
+    onOpenAlwaysOnVpnSettings: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val haptics = LocalHapticFeedback.current
     val c = detourColors
     val theme = LocalDetourTheme.current
     val scrollState = rememberScrollState()
+    var showAlwaysOnDialog by rememberSaveable { mutableStateOf(false) }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.refreshRoutes()
@@ -67,13 +82,16 @@ internal fun SettingsMenuScreen(
         R.drawable.ic_routes,
         SettingsSection.ROUTES,
     ) to onOpenRoutes
+    val destinationRules = MenuItem(
+        R.string.nav_destination_rules,
+        { stringResource(R.string.nav_destination_rules_sub) },
+        R.drawable.ic_globe,
+        SettingsSection.DESTINATION_RULES,
+    ) to onOpenDestinationRules
     val profiles = MenuItem(
         R.string.nav_key,
         {
             val configured = buildList {
-                // A subscription is a source of VLESS nodes, not a separate VPN
-                // protocol. Keep the Settings summary protocol-oriented while the
-                // Profiles screen can still separate direct links/subscriptions.
                 if (state.hasVless || state.hasSubscription) {
                     add(stringResource(R.string.protocol_vless))
                 }
@@ -98,6 +116,12 @@ internal fun SettingsMenuScreen(
         R.drawable.ic_globe,
         SettingsSection.DNS,
     ) to onOpenDns
+    val diagnostics = MenuItem(
+        R.string.nav_diagnostics,
+        { stringResource(R.string.nav_diagnostics_sub) },
+        R.drawable.ic_check,
+        SettingsSection.DIAGNOSTICS,
+    ) to onOpenDiagnostics
     val backup = MenuItem(
         R.string.nav_backup,
         { stringResource(R.string.nav_backup_sub) },
@@ -125,39 +149,46 @@ internal fun SettingsMenuScreen(
             Spacer(Modifier.height(Spacing.space4))
             DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
                 SettingsSectionLabel(R.string.settings_section_routing)
-                SettingsRows(listOf(routes, profiles), selectedSection)
+                SettingsRows(listOf(routes, destinationRules, profiles), selectedSection)
 
                 SettingsSectionDivider()
                 SettingsSectionLabel(R.string.settings_section_connection)
                 SettingsRows(listOf(dpi, dns), selectedSection)
                 GroupDivider(startInset = NavigationRowDividerInset)
-                DetourNavigationRow(
-                    title = stringResource(R.string.auto_connect),
-                    subtitle = null,
+                AutoConnectToggleRow(
+                    titleRes = R.string.auto_connect_launch,
+                    subtitleRes = R.string.auto_connect_launch_sub,
+                    checked = state.autoConnect,
                     iconRes = R.drawable.ic_power,
-                    modifier = Modifier.detourToggleable(
-                        value = state.autoConnect,
-                        onValueChange = { next ->
-                            haptics.performHapticFeedback(
-                                if (next) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff,
-                            )
-                            viewModel.setAutoConnect(next)
-                        },
-                        pressedColor = c.surfaceSelected.copy(alpha = 0.34f),
-                        pressScale = Motion.PRESS_ROW,
-                    ),
-                    trailing = {
-                        DetourSwitch(
-                            checked = state.autoConnect,
-                            onCheckedChange = null,
-                            compact = true,
-                        )
-                    },
+                    onCheckedChange = viewModel::setAutoConnect,
+                )
+                GroupDivider(startInset = NavigationRowDividerInset)
+                AutoConnectToggleRow(
+                    titleRes = R.string.auto_connect_wifi,
+                    subtitleRes = R.string.auto_connect_wifi_sub,
+                    checked = state.autoConnectWifi,
+                    iconRes = R.drawable.ic_globe,
+                    onCheckedChange = viewModel::setAutoConnectWifi,
+                )
+                GroupDivider(startInset = NavigationRowDividerInset)
+                AutoConnectToggleRow(
+                    titleRes = R.string.auto_connect_cellular,
+                    subtitleRes = R.string.auto_connect_cellular_sub,
+                    checked = state.autoConnectCellular,
+                    iconRes = R.drawable.ic_globe,
+                    onCheckedChange = viewModel::setAutoConnectCellular,
+                )
+                GroupDivider(startInset = NavigationRowDividerInset)
+                DetourNavigationRow(
+                    title = stringResource(R.string.always_on_vpn),
+                    subtitle = stringResource(R.string.always_on_vpn_sub),
+                    iconRes = R.drawable.ic_lock,
+                    onClick = { showAlwaysOnDialog = true },
                 )
 
                 SettingsSectionDivider()
                 SettingsSectionLabel(R.string.settings_section_app)
-                SettingsRows(listOf(backup, appearance), selectedSection)
+                SettingsRows(listOf(diagnostics, backup, appearance), selectedSection)
             }
 
             Text(
@@ -175,6 +206,51 @@ internal fun SettingsMenuScreen(
             )
         }
     }
+
+    if (showAlwaysOnDialog) {
+        AlwaysOnVpnDialog(
+            onOpenSettings = {
+                showAlwaysOnDialog = false
+                onOpenAlwaysOnVpnSettings()
+            },
+            onDismiss = { showAlwaysOnDialog = false },
+        )
+    }
+}
+
+@Composable
+private fun AutoConnectToggleRow(
+    titleRes: Int,
+    subtitleRes: Int,
+    checked: Boolean,
+    iconRes: Int,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    val c = detourColors
+    DetourNavigationRow(
+        title = stringResource(titleRes),
+        subtitle = stringResource(subtitleRes),
+        iconRes = iconRes,
+        modifier = Modifier.detourToggleable(
+            value = checked,
+            onValueChange = { next ->
+                haptics.performHapticFeedback(
+                    if (next) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff,
+                )
+                onCheckedChange(next)
+            },
+            pressedColor = c.surfaceSelected.copy(alpha = 0.34f),
+            pressScale = Motion.PRESS_ROW,
+        ),
+        trailing = {
+            DetourSwitch(
+                checked = checked,
+                onCheckedChange = null,
+                compact = true,
+            )
+        },
+    )
 }
 
 @Composable

@@ -33,6 +33,8 @@ data class SettingsMenuUiState(
     val hasSubscription: Boolean = false,
     val hasWarp: Boolean = false,
     val autoConnect: Boolean = false,
+    val autoConnectWifi: Boolean = false,
+    val autoConnectCellular: Boolean = false,
     val vpnState: VpnState = VpnState.Idle,
     val sessionStartedAt: Long? = null,
     val protocol: HomeProtocol = HomeProtocol.NONE,
@@ -43,6 +45,8 @@ internal fun settingsMenuUiState(
     settings: TriSettings?,
     routedCount: Int,
     autoConnectOverride: Boolean? = null,
+    autoConnectWifiOverride: Boolean? = null,
+    autoConnectCellularOverride: Boolean? = null,
 ): SettingsMenuUiState {
     val keys = settings?.vlessKeys?.items.orEmpty()
     val subscriptionIds = keys.mapNotNull { key ->
@@ -55,6 +59,8 @@ internal fun settingsMenuUiState(
         hasSubscription = subscriptionIds.isNotEmpty(),
         hasWarp = settings?.warpProfile != null,
         autoConnect = autoConnectOverride ?: (settings?.autoConnect == true),
+        autoConnectWifi = autoConnectWifiOverride ?: (settings?.autoConnectWifi == true),
+        autoConnectCellular = autoConnectCellularOverride ?: (settings?.autoConnectCellular == true),
         sessionStartedAt = settings?.sessionStartedAt,
         activeVpn = settings?.activeVpn ?: VpnProfileKind.VLESS,
     )
@@ -65,10 +71,20 @@ class SettingsMenuViewModel(
     private val vpnState: StateFlow<VpnState>,
     private val resolveRoutes: suspend (Map<String, AppRoute>) -> EffectiveRoutes,
     private val persistAutoConnect: suspend (Boolean) -> Unit,
+    private val persistAutoConnectWifi: suspend (Boolean) -> Unit,
+    private val persistAutoConnectCellular: suspend (Boolean) -> Unit,
 ) : ViewModel() {
     private val routeRefresh = MutableStateFlow(0L)
     private val autoConnectOverride = MutableStateFlow<Boolean?>(null)
+    private val autoConnectWifiOverride = MutableStateFlow<Boolean?>(null)
+    private val autoConnectCellularOverride = MutableStateFlow<Boolean?>(null)
     private val autoConnectWriteMutex = Mutex()
+
+    private val autoConnectOverrides = combine(
+        autoConnectOverride,
+        autoConnectWifiOverride,
+        autoConnectCellularOverride,
+    ) { launch, wifi, cellular -> Triple(launch, wifi, cellular) }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val effectiveRoutes = combine(
@@ -90,13 +106,15 @@ class SettingsMenuViewModel(
     val uiState: StateFlow<SettingsMenuUiState> = combine(
         settings,
         effectiveRoutes,
-        autoConnectOverride,
+        autoConnectOverrides,
         vpnState,
-    ) { settings, effectiveRoutes, override, vpnState ->
+    ) { settings, effectiveRoutes, overrides, vpnState ->
         settingsMenuUiState(
             settings = settings,
             routedCount = effectiveRoutes.packages.size,
-            autoConnectOverride = override,
+            autoConnectOverride = overrides.first,
+            autoConnectWifiOverride = overrides.second,
+            autoConnectCellularOverride = overrides.third,
         ).copy(
             vpnState = vpnState,
             protocol = homeProtocol(effectiveRoutes),
@@ -124,6 +142,14 @@ class SettingsMenuViewModel(
                 val desired = autoConnectOverride.value ?: return@withLock
                 try {
                     if (settings.value?.autoConnect != desired) {
+                        // Network triggers initially inherit the legacy launch flag.
+                        // Persist their current effective values before changing that
+                        // legacy source so toggling launch cannot silently change the
+                        // Wi-Fi/mobile choices the user just saw in the UI.
+                        settings.value?.let { current ->
+                            persistAutoConnectWifi(current.autoConnectWifi)
+                            persistAutoConnectCellular(current.autoConnectCellular)
+                        }
                         persistAutoConnect(desired)
                     }
                     if (settings.value?.autoConnect != desired) {
@@ -141,6 +167,56 @@ class SettingsMenuViewModel(
         }
     }
 
+    fun setAutoConnectWifi(enabled: Boolean) {
+        val currentIntent = autoConnectWifiOverride.value ?: (settings.value?.autoConnectWifi == true)
+        if (currentIntent == enabled) return
+        autoConnectWifiOverride.value = enabled
+
+        viewModelScope.launch {
+            autoConnectWriteMutex.withLock {
+                val desired = autoConnectWifiOverride.value ?: return@withLock
+                try {
+                    if (settings.value?.autoConnectWifi != desired) persistAutoConnectWifi(desired)
+                    if (settings.value?.autoConnectWifi != desired) {
+                        settings.first { it?.autoConnectWifi == desired }
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    if (autoConnectWifiOverride.value == desired) autoConnectWifiOverride.value = null
+                    return@withLock
+                }
+
+                if (autoConnectWifiOverride.value == desired) autoConnectWifiOverride.value = null
+            }
+        }
+    }
+
+    fun setAutoConnectCellular(enabled: Boolean) {
+        val currentIntent = autoConnectCellularOverride.value ?: (settings.value?.autoConnectCellular == true)
+        if (currentIntent == enabled) return
+        autoConnectCellularOverride.value = enabled
+
+        viewModelScope.launch {
+            autoConnectWriteMutex.withLock {
+                val desired = autoConnectCellularOverride.value ?: return@withLock
+                try {
+                    if (settings.value?.autoConnectCellular != desired) persistAutoConnectCellular(desired)
+                    if (settings.value?.autoConnectCellular != desired) {
+                        settings.first { it?.autoConnectCellular == desired }
+                    }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    if (autoConnectCellularOverride.value == desired) autoConnectCellularOverride.value = null
+                    return@withLock
+                }
+
+                if (autoConnectCellularOverride.value == desired) autoConnectCellularOverride.value = null
+            }
+        }
+    }
+
     companion object {
         fun factory(
             store: RoutesStore,
@@ -154,6 +230,8 @@ class SettingsMenuViewModel(
                     vpnState = VpnController.state,
                     resolveRoutes = resolveRoutes,
                     persistAutoConnect = store::setAutoConnect,
+                    persistAutoConnectWifi = store::setAutoConnectWifi,
+                    persistAutoConnectCellular = store::setAutoConnectCellular,
                 ) as T
             }
         }

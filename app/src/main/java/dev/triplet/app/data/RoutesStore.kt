@@ -12,7 +12,10 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import dev.triplet.app.core.AppRoute
+import dev.triplet.app.core.DestinationRule
+import dev.triplet.app.core.DestinationRules
 import dev.triplet.app.core.DpiPreset
+import dev.triplet.app.core.MultiHopEntryRef
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.SettingsBackup
 import dev.triplet.app.core.VlessKey
@@ -60,8 +63,12 @@ data class TriSettings(
     val dnsId: String,
     val dnsCustom: String,
     val routes: Map<String, AppRoute>,
+    val destinationRules: List<DestinationRule> = emptyList(),
     val showSystemApps: Boolean,
     val sessionStartedAt: Long?,
+    val multiHopEntry: MultiHopEntryRef? = null,
+    val autoConnectWifi: Boolean = false,
+    val autoConnectCellular: Boolean = false,
 ) {
     val vlessUri: String get() = vlessKeys.active?.uri ?: ""
     val activeVpnConfigured: Boolean get() = when (activeVpn) {
@@ -75,12 +82,16 @@ object RoutesMapping {
     private const val KEY_KEYS = "vless_keys"
     private const val KEY_WARP_PROFILE = "warp_profile"
     private const val KEY_VPN_KIND = "vpn_profile_kind"
+    private const val KEY_MULTI_HOP_ENTRY = "multi_hop_entry"
     private const val KEY_PRESET = "dpi_preset"
     private const val KEY_CUSTOM_ARGS = "dpi_custom_args"
     private const val KEY_AUTO_CONNECT = "auto_connect"
+    private const val KEY_AUTO_CONNECT_WIFI = "auto_connect_wifi"
+    private const val KEY_AUTO_CONNECT_CELLULAR = "auto_connect_cellular"
     private const val KEY_THEME = "theme_id"
     private const val KEY_DNS = "dns_id"
     private const val KEY_DNS_CUSTOM = "dns_custom"
+    private const val KEY_DESTINATION_RULES = "destination_rules"
     private const val KEY_SESSION_STARTED = "session_started_at"
     private const val KEY_SHOW_SYSTEM = "show_system_apps"
     private const val KEY_VLESS_MIGRATED = "vless_legacy_migrated"
@@ -98,13 +109,14 @@ object RoutesMapping {
         // Falling back to another configured profile could silently change the
         // endpoint used by auto-connect; an unconfigured selection instead fails closed.
         val activeVpn = VpnProfileKind.fromStored(entries[KEY_VPN_KIND] as? String)
+        val autoConnect = entries[KEY_AUTO_CONNECT] as? Boolean ?: false
         return TriSettings(
             vlessKeys = vlessKeys,
             warpProfile = warpProfile,
             activeVpn = activeVpn,
             preset = DpiPreset.byId(entries[KEY_PRESET] as? String ?: ""),
             dpiCustomArgs = entries[KEY_CUSTOM_ARGS] as? String ?: "",
-            autoConnect = entries[KEY_AUTO_CONNECT] as? Boolean ?: false,
+            autoConnect = autoConnect,
             themeId = entries[KEY_THEME] as? String ?: "",
             dnsId = entries[KEY_DNS] as? String ?: "",
             dnsCustom = entries[KEY_DNS_CUSTOM] as? String ?: "",
@@ -113,8 +125,17 @@ object RoutesMapping {
                     AppRoute.entries.firstOrNull { it.name == v }?.let { k.removePrefix(PREFIX_ROUTE) to it }
                 } else null
             }.toMap(),
+            destinationRules = DestinationRules.fromStored(
+                entries[KEY_DESTINATION_RULES] as? String ?: "",
+            ),
             showSystemApps = entries[KEY_SHOW_SYSTEM] as? Boolean ?: false,
             sessionStartedAt = entries[KEY_SESSION_STARTED] as? Long,
+            multiHopEntry = MultiHopEntryRef.fromStored(entries[KEY_MULTI_HOP_ENTRY] as? String),
+            // Before these independent switches existed, autoConnect applied to
+            // every validated foreground network. Falling back to the legacy flag
+            // preserves that behavior until the user chooses explicit network rules.
+            autoConnectWifi = entries[KEY_AUTO_CONNECT_WIFI] as? Boolean ?: autoConnect,
+            autoConnectCellular = entries[KEY_AUTO_CONNECT_CELLULAR] as? Boolean ?: autoConnect,
         )
     }
 
@@ -123,11 +144,15 @@ object RoutesMapping {
     fun keysKey() = stringPreferencesKey(KEY_KEYS)
     fun warpProfileKey() = stringPreferencesKey(KEY_WARP_PROFILE)
     fun vpnKindKey() = stringPreferencesKey(KEY_VPN_KIND)
+    fun multiHopEntryKey() = stringPreferencesKey(KEY_MULTI_HOP_ENTRY)
     fun presetKey() = stringPreferencesKey(KEY_PRESET)
     fun autoConnectKey() = booleanPreferencesKey(KEY_AUTO_CONNECT)
+    fun autoConnectWifiKey() = booleanPreferencesKey(KEY_AUTO_CONNECT_WIFI)
+    fun autoConnectCellularKey() = booleanPreferencesKey(KEY_AUTO_CONNECT_CELLULAR)
     fun themeKey() = stringPreferencesKey(KEY_THEME)
     fun dnsKey() = stringPreferencesKey(KEY_DNS)
     fun dnsCustomKey() = stringPreferencesKey(KEY_DNS_CUSTOM)
+    fun destinationRulesKey() = stringPreferencesKey(KEY_DESTINATION_RULES)
     fun customArgsKey() = stringPreferencesKey(KEY_CUSTOM_ARGS)
     fun sessionStartedAtKey() = longPreferencesKey(KEY_SESSION_STARTED)
     fun showSystemKey() = booleanPreferencesKey(KEY_SHOW_SYSTEM)
@@ -266,9 +291,17 @@ class RoutesStore(context: Context) {
         }
         prefs[RoutesMapping.vpnKindKey()] = kind.name
     }
+    suspend fun setMultiHopEntry(ref: MultiHopEntryRef?) = store.edit { prefs ->
+        require(ref !is MultiHopEntryRef.Invalid) { "invalid multi-hop entry" }
+        val key = RoutesMapping.multiHopEntryKey()
+        val stored = MultiHopEntryRef.toStored(ref)
+        if (stored.isBlank()) prefs.remove(key) else prefs[key] = stored
+    }
     suspend fun setPreset(preset: DpiPreset) = store.edit { it[RoutesMapping.presetKey()] = preset.id }
     suspend fun setCustomArgs(raw: String) = store.edit { it[RoutesMapping.customArgsKey()] = raw }
     suspend fun setAutoConnect(v: Boolean) = store.edit { it[RoutesMapping.autoConnectKey()] = v }
+    suspend fun setAutoConnectWifi(v: Boolean) = store.edit { it[RoutesMapping.autoConnectWifiKey()] = v }
+    suspend fun setAutoConnectCellular(v: Boolean) = store.edit { it[RoutesMapping.autoConnectCellularKey()] = v }
     suspend fun setTheme(id: String) = store.edit { it[RoutesMapping.themeKey()] = id }
     suspend fun setDns(id: String, custom: String) = store.edit {
         it[RoutesMapping.dnsKey()] = id
@@ -278,6 +311,11 @@ class RoutesStore(context: Context) {
         val key = RoutesMapping.routeKey(pkg)
         if (route == AppRoute.DIRECT) it.remove(key) else it[key] = route.name
     }
+    suspend fun setDestinationRules(rules: List<DestinationRule>) = store.edit { prefs ->
+        DestinationRules.validate(rules)
+        val key = RoutesMapping.destinationRulesKey()
+        if (rules.isEmpty()) prefs.remove(key) else prefs[key] = DestinationRules.toJson(rules)
+    }
 
     /** Validated backup is committed in one transaction and replaces old routes. */
     suspend fun restoreBackup(b: SettingsBackup.Backup) = store.edit { prefs ->
@@ -286,14 +324,24 @@ class RoutesStore(context: Context) {
         if (b.warpProfile == null) prefs.remove(warpKey)
         else prefs[warpKey] = cipher.encrypt(warpKey.name, b.warpProfile.toJson())
         prefs[RoutesMapping.vpnKindKey()] = b.activeVpn.name
+        val multiHopKey = RoutesMapping.multiHopEntryKey()
+        val multiHopStored = MultiHopEntryRef.toStored(b.multiHopEntry)
+        if (multiHopStored.isBlank()) prefs.remove(multiHopKey)
+        else prefs[multiHopKey] = multiHopStored
         prefs[RoutesMapping.presetKey()] = b.presetId
         prefs[RoutesMapping.customArgsKey()] = b.dpiCustomArgs
         // Imported settings never start a VPN implicitly; the user must opt in
         // again after reviewing the imported routes and endpoint.
         prefs[RoutesMapping.autoConnectKey()] = false
+        prefs[RoutesMapping.autoConnectWifiKey()] = false
+        prefs[RoutesMapping.autoConnectCellularKey()] = false
         prefs[RoutesMapping.themeKey()] = b.themeId
         prefs[RoutesMapping.dnsKey()] = b.dnsId
         prefs[RoutesMapping.dnsCustomKey()] = b.dnsCustom
+        val destinationRulesKey = RoutesMapping.destinationRulesKey()
+        DestinationRules.validate(b.destinationRules)
+        if (b.destinationRules.isEmpty()) prefs.remove(destinationRulesKey)
+        else prefs[destinationRulesKey] = DestinationRules.toJson(b.destinationRules)
         prefs[RoutesMapping.showSystemKey()] = b.showSystemApps
         prefs.asMap().keys.filter { it.name.startsWith("route:") }.forEach { prefs.remove(stringPreferencesKey(it.name)) }
         b.routes.forEach { (pkg, route) ->

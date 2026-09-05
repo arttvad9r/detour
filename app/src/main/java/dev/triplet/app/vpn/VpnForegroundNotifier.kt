@@ -20,8 +20,11 @@ internal class VpnForegroundNotifier(private val service: VpnService) {
         private const val NOTIFICATION_ID = 1
     }
 
+    private val notificationManager: NotificationManager
+        get() = service.getSystemService(NotificationManager::class.java)
+
     fun createChannel() {
-        service.getSystemService(NotificationManager::class.java).createNotificationChannel(
+        notificationManager.createNotificationChannel(
             NotificationChannel(
                 CHANNEL_ID,
                 service.getString(R.string.notif_channel),
@@ -30,28 +33,8 @@ internal class VpnForegroundNotifier(private val service: VpnService) {
         )
     }
 
-    fun show(text: String) {
-        val content = PendingIntent.getActivity(
-            service,
-            0,
-            Intent(service, MainActivity::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        val stop = PendingIntent.getService(
-            service,
-            1,
-            Intent(service, TriVpnService::class.java).setAction(TriVpnService.ACTION_STOP),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-        val notification: Notification = NotificationCompat.Builder(service, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_lock)
-            .setContentTitle(service.getString(R.string.app_name))
-            .setContentText(text)
-            .setContentIntent(content)
-            .setOngoing(true)
-            .addAction(0, service.getString(R.string.notif_stop), stop)
-            .build()
-
+    fun show(text: String, allowStop: Boolean = true) {
+        val notification = buildNotification(text, allowStop)
         if (Build.VERSION.SDK_INT >= 34) {
             service.startForeground(
                 NOTIFICATION_ID,
@@ -61,5 +44,38 @@ internal class VpnForegroundNotifier(private val service: VpnService) {
         } else {
             service.startForeground(NOTIFICATION_ID, notification)
         }
+    }
+
+    fun update(text: String, allowStop: Boolean = true) {
+        notificationManager.notify(NOTIFICATION_ID, buildNotification(text, allowStop))
+    }
+
+    private fun buildNotification(text: String, allowStop: Boolean): Notification {
+        val content = PendingIntent.getActivity(
+            service,
+            0,
+            Intent(service, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val builder = NotificationCompat.Builder(service, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_lock)
+            .setContentTitle(service.getString(R.string.app_name))
+            .setContentText(text)
+            .setContentIntent(content)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+
+        if (allowStop) {
+            val stop = PendingIntent.getService(
+                service,
+                1,
+                Intent(service, TriVpnService::class.java)
+                    .setAction(TriVpnService.ACTION_STOP)
+                    .putExtra(DETOUR_VPN_EXTRA_STARTED_BY_APP, true),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+            builder.addAction(0, service.getString(R.string.notif_stop), stop)
+        }
+        return builder.build()
     }
 }

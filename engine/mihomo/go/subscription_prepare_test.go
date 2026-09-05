@@ -8,6 +8,24 @@ import (
 	"time"
 )
 
+func TestSupportedSubscriptionProxyTypeAllowList(t *testing.T) {
+	allowed := []string{
+		"vless", "VMESS", " trojan ", "ss", "ssr", "hysteria", "hysteria2", "tuic", "anytls", "mieru",
+	}
+	for _, value := range allowed {
+		if _, ok := canonicalSubscriptionProxyType(value); !ok {
+			t.Fatalf("supported proxy type %q was rejected", value)
+		}
+	}
+
+	blocked := []string{"socks5", "http", "direct", "reject", "dns", "wireguard", "openvpn", ""}
+	for _, value := range blocked {
+		if canonical, ok := canonicalSubscriptionProxyType(value); ok {
+			t.Fatalf("blocked proxy type %q was accepted as %q", value, canonical)
+		}
+	}
+}
+
 func TestPreparedSubscriptionFallsBackToV2RayConversion(t *testing.T) {
 	const body = "vless://a1b2c3d4-eacc-4433-981b-7e5f9a8b1234@142.98.76.54:34888?encryption=none&security=reality&type=tcp&sni=github.io&fp=chrome&pbk=ppQ9FwLrLIa0AOrp1WvcyiaQ37vg2WSy_CD4bIdiTUw&sid=6ba85179f3a2b4c5&flow=xtls-rprx-vision#My-VLESS-Reality-Vision"
 
@@ -59,7 +77,7 @@ func TestPreparedSubscriptionNormalizesHTTPUpgradeTransport(t *testing.T) {
 	}
 }
 
-func TestPreparedSubscriptionKeepsOnlyUniqueSupportedVlessNodes(t *testing.T) {
+func TestPreparedSubscriptionKeepsUniqueAllowedRemoteProxyNodes(t *testing.T) {
 	const body = `
 proxies:
   - name: Finland - 1
@@ -67,6 +85,11 @@ proxies:
     server: one.example.com
     port: 443
     uuid: 11111111-1111-4111-8111-111111111111
+  - name: Trojan - 1
+    type: TROJAN
+    server: trojan.example.com
+    port: 443
+    password: secret
   - name: Ignore SOCKS
     type: socks5
     server: socks.example.com
@@ -87,11 +110,14 @@ proxies:
 	if err != nil {
 		t.Fatalf("valid YAML provider was rejected: %v", err)
 	}
-	if len(proxies) != 2 {
-		t.Fatalf("got %d proxies, want 2 unique VLESS nodes", len(proxies))
+	if len(proxies) != 3 {
+		t.Fatalf("got %d proxies, want 3 unique allowed nodes", len(proxies))
 	}
-	if proxies[0]["name"] != "Finland - 1" || proxies[1]["name"] != "Russia - 2" {
-		t.Fatalf("unexpected retained nodes: %v, %v", proxies[0]["name"], proxies[1]["name"])
+	if proxies[0]["name"] != "Finland - 1" || proxies[1]["name"] != "Trojan - 1" || proxies[2]["name"] != "Russia - 2" {
+		t.Fatalf("unexpected retained nodes: %v, %v, %v", proxies[0]["name"], proxies[1]["name"], proxies[2]["name"])
+	}
+	if got := proxies[1]["type"]; got != "trojan" {
+		t.Fatalf("Trojan type = %v, want canonical trojan", got)
 	}
 }
 
@@ -159,6 +185,32 @@ func TestOfflineLatencyPreResolvesEndpointHostname(t *testing.T) {
 	}
 	if got := prepared["servername"]; got != "edge.example.com" {
 		t.Fatalf("prepared servername = %v, want original hostname", got)
+	}
+}
+
+func TestOfflineLatencyPreservesTrojanSNIWhenEndpointIsPreResolved(t *testing.T) {
+	original := map[string]any{
+		"name":     "Trojan endpoint",
+		"type":     "trojan",
+		"server":   "trojan.example.com",
+		"port":     443,
+		"password": "secret",
+	}
+	prepared, err := prepareOfflineLatencyProxyMapping(
+		context.Background(),
+		original,
+		func(context.Context, string) ([]string, error) {
+			return []string{"203.0.113.44"}, nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("pre-resolve failed: %v", err)
+	}
+	if got := prepared["server"]; got != "203.0.113.44" {
+		t.Fatalf("prepared server = %v, want 203.0.113.44", got)
+	}
+	if got := prepared["sni"]; got != "trojan.example.com" {
+		t.Fatalf("prepared sni = %v, want original hostname", got)
 	}
 }
 

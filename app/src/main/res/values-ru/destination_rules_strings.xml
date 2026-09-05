@@ -1,0 +1,26 @@
+<resources>
+    <string name="nav_destination_rules">Правила доменов / IP</string>
+    <string name="nav_destination_rules_sub">переопределения маршрута внутри туннеля</string>
+    <string name="destination_rules_title">Правила доменов / IP</string>
+    <string name="destination_rules_info_title">Переопределения назначения</string>
+    <string name="destination_rules_info">Эти правила действуют только на приложения, уже назначенные VPN или DPI в разделе маршрутов приложений. Приложения Direct остаются вне туннеля.</string>
+    <string name="destination_rules_type">Тип совпадения</string>
+    <string name="destination_rules_type_domain">Точный домен</string>
+    <string name="destination_rules_type_domain_sub">Только этот хост, например api.example.com</string>
+    <string name="destination_rules_type_suffix">Суффикс домена</string>
+    <string name="destination_rules_type_suffix_sub">Этот домен и его поддомены, например example.com</string>
+    <string name="destination_rules_type_cidr">IP-сеть</string>
+    <string name="destination_rules_type_cidr_sub">CIDR IPv4 или IPv6, например 203.0.113.0/24 или 2001:db8::/32</string>
+    <string name="destination_rules_value">Назначение</string>
+    <string name="destination_rules_value_domain_hint">example.com</string>
+    <string name="destination_rules_value_cidr_hint">203.0.113.0/24 или 2001:db8::/32</string>
+    <string name="destination_rules_route">Маршрут через</string>
+    <string name="destination_rules_add">Добавить правило</string>
+    <string name="destination_rules_saved">Правила</string>
+    <string name="destination_rules_empty">Переопределений назначения нет</string>
+    <string name="destination_rules_invalid">Введите корректный домен или CIDR IPv4/IPv6 для выбранного типа совпадения.</string>
+    <string name="destination_rules_duplicate">Правило для этого назначения и типа совпадения уже существует.</string>
+    <string name="destination_rules_limit">Достигнут максимум: 128 правил назначения.</string>
+    <string name="destination_rules_save_error">Не удалось сохранить правило.</string>
+    <string name="destination_rules_delete_cd">Удалить правило</string>
+</resources>

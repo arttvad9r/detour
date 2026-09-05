@@ -31,7 +31,7 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-37.0 build-tools;36.0.0 ndk;28.0.13004108'
       - name: Install Android 16 and Android 17 emulator images
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/vpn-roadmap'
         run: >-
           sdkmanager 'emulator'
           'system-images;android-36;google_apis;x86_64'
@@ -47,7 +47,7 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
           export PATH="$(go env GOPATH)/bin:$PATH"
           gomobile init
-      - run: ./gradlew --dependency-verification strict :app:testDebugUnitTest :app:lintDebug :app:lintRelease :app:assembleDebug :app:assembleDebugAndroidTest :app:assembleRelease :baselineprofile:assemble
+      - run: ./gradlew --dependency-verification strict :app:testDebugUnitTest :app:lintDebug :app:lintRelease :app:assembleDebug :app:assembleDebugAndroidTest :app:assembleRelease :app:bundleRelease :baselineprofile:assemble
       - name: Verify dependency trust metadata is unchanged
         shell: bash
         run: git diff --exit-code -- gradle/verification-metadata.xml
@@ -103,15 +103,30 @@ jobs:
             -validity 1 \
             -noprompt
           chmod 600 "$CI_KEYSTORE"
-      - name: Build CI-signed arm64 release APK
+          CI_CERT_SHA256="$(
+            keytool -list -v \
+              -keystore "$CI_KEYSTORE" \
+              -storepass detour-ci-password \
+              -alias detour-ci |
+              sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' |
+              head -n 1 |
+              tr -d ':' |
+              tr '[:lower:]' '[:upper:]'
+          )"
+          if [[ ! "$CI_CERT_SHA256" =~ ^[0-9A-F]{64}$ ]]; then
+            echo "Could not determine disposable CI certificate fingerprint" >&2
+            exit 1
+          fi
+          echo "CI_CERT_SHA256=$CI_CERT_SHA256" >> "$GITHUB_ENV"
+      - name: Build CI-signed arm64 release APK and AAB
         env:
           DETOUR_RELEASE_KEYSTORE: ${{ runner.temp }}/detour-ci-release.keystore
           DETOUR_RELEASE_STORE_PASSWORD: detour-ci-password
           DETOUR_RELEASE_KEY_ALIAS: detour-ci
           DETOUR_RELEASE_KEY_PASSWORD: detour-ci-password
         run: |
-          rm -rf app/build/outputs/apk/release
-          ./gradlew :app:assembleRelease \
+          rm -rf app/build/outputs/apk/release app/build/outputs/bundle/release
+          ./gradlew :app:assembleRelease :app:bundleRelease \
             -PdetourReleaseAbi=arm64-v8a \
             -PdetourVersionName=0.1.0-ci \
             -PdetourVersionCode=1001
@@ -132,6 +147,16 @@ jobs:
             --report app/build/reports/apk-size-arm64.json \
             --max-bytes 31457280 \
             --expected-abi arm64-v8a
+      - name: Verify CI-signed arm64 release AAB
+        shell: bash
+        run: |
+          set -euo pipefail
+          AAB="$(find app/build/outputs/bundle/release -maxdepth 1 -type f -name '*.aab' -print -quit)"
+          if [[ -z "$AAB" ]]; then
+            echo "Release AAB not found" >&2
+            exit 1
+          fi
+          bash tools/verify_release_aab.sh "$AAB" "$CI_CERT_SHA256" arm64-v8a
       - name: Upload APK size reports
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -141,12 +166,12 @@ jobs:
           retention-days: 14
           path: app/build/reports/apk-size*.json
       - name: Run instrumentation tests on Android 16 emulator
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/vpn-roadmap'
         timeout-minutes: 15
         shell: bash
         run: bash tools/run_android_instrumentation_emulator.sh 36
       - name: Run instrumentation tests on Android 17 emulator
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/vpn-roadmap'
         timeout-minutes: 15
         shell: bash
         run: >-
@@ -154,7 +179,7 @@ jobs:
           'system-images;android-37.0;google_apis_ps16k;x86_64'
           16384
       - name: Upload instrumentation diagnostics
-        if: ${{ always() && (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') }}
+        if: ${{ always() && (github.event_name == 'pull_request' || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/vpn-roadmap') }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: instrumentation-diagnostics

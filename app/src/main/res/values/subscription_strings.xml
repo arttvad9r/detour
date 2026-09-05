@@ -14,10 +14,22 @@
     <string name="subscription_catalog_error">Could not load VLESS servers from this subscription. Check the link and try refreshing.</string>
     <string name="subscription_selected_server">Selected server</string>
     <string name="subscription_select_server">Select a server</string>
+    <string name="subscription_selection_mode">Server selection</string>
+    <string name="subscription_selection_auto">Automatic</string>
+    <string name="subscription_selection_manual">Manual</string>
+    <string name="subscription_selection_auto_hint">Detour selects a healthy low-latency server and avoids switching for small latency changes.</string>
+    <string name="subscription_selection_auto_current">Automatic · currently %1$s</string>
+    <string name="subscription_selection_manual_hint">Tap a server below to keep using it until you change the selection.</string>
+    <string name="subscription_search_label">Search</string>
     <string name="subscription_search_hint">Search servers…</string>
+    <string name="subscription_filter_all">All</string>
+    <string name="subscription_filter_favorites">Favorites</string>
     <string name="subscription_sort_default">Default</string>
     <string name="subscription_sort_latency">Latency</string>
     <string name="subscription_sort_name">Name</string>
+    <string name="subscription_no_matches">No servers match the current filters.</string>
+    <string name="subscription_favorite_add">Add %1$s to favorites</string>
+    <string name="subscription_favorite_remove">Remove %1$s from favorites</string>
     <string name="subscription_selection_error">Could not select this server. The previous selection is still active.</string>
     <string name="subscription_latency_test">Test ping</string>
     <string name="subscription_latency_testing">Testing…</string>
@@ -28,4 +40,14 @@
     <string name="subscription_node_unknown">Not tested</string>
     <string name="subscription_node_delay">%1$d ms</string>
     <string name="subscription_nodes_more">+%1$d more servers</string>
+    <string name="subscription_metadata_usage">%1$s used of %2$s</string>
+    <string name="subscription_metadata_remaining">%1$s remaining</string>
+    <string name="subscription_metadata_expires">Expires %1$s</string>
+    <string name="subscription_metadata_update_interval">Provider refresh interval: %1$d h</string>
+    <string name="subscription_auto_update">Automatic updates</string>
+    <string name="subscription_update_interval">Update interval</string>
+    <string name="subscription_interval_hours">%1$d h</string>
+    <string name="subscription_provider_recommends_interval">Provider recommends every %1$d h</string>
+    <string name="subscription_last_updated">Last updated %1$s</string>
+    <string name="subscription_not_updated_yet">Not refreshed yet</string>
 </resources>

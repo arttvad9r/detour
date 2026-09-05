@@ -33,6 +33,19 @@ const (
 	subscriptionLatencyParallel = 5
 )
 
+var supportedSubscriptionProxyTypes = map[string]struct{}{
+	"vless":     {},
+	"vmess":     {},
+	"trojan":    {},
+	"ss":        {},
+	"ssr":       {},
+	"hysteria":  {},
+	"hysteria2": {},
+	"tuic":      {},
+	"anytls":    {},
+	"mieru":     {},
+}
+
 type preparedProxySchema struct {
 	Proxies []map[string]any `yaml:"proxies"`
 }
@@ -52,10 +65,23 @@ type subscriptionLatencyTarget struct {
 	Probe func(context.Context) (int, error)
 }
 
-// PrepareSubscriptionProvider downloads an HTTPS V2Ray subscription, converts
-// URI/base64 bodies to mihomo YAML and stores only VLESS nodes that Mihomo can
-// actually parse. The returned absolute path is safe to feed to a file provider.
-// Empty string means the subscription could not be prepared.
+func canonicalSubscriptionProxyType(value any) (string, bool) {
+	raw, ok := value.(string)
+	if !ok {
+		return "", false
+	}
+	canonical := strings.ToLower(strings.TrimSpace(raw))
+	if _, supported := supportedSubscriptionProxyTypes[canonical]; !supported {
+		return "", false
+	}
+	return canonical, true
+}
+
+// PrepareSubscriptionProvider downloads an HTTPS subscription, converts
+// URI/base64 bodies to mihomo YAML and stores only explicitly allowed remote
+// proxy nodes that Mihomo can actually parse. The returned absolute path is safe
+// to feed to a file provider. Empty string means the subscription could not be
+// prepared.
 func PrepareSubscriptionProvider(subscriptionURL string, homeDir string) string {
 	proxies, err := fetchPreparedSubscriptionProxies(subscriptionURL)
 	if err != nil || len(proxies) == 0 || homeDir == "" {
@@ -81,10 +107,10 @@ func PrepareSubscriptionProvider(subscriptionURL string, homeDir string) string 
 	return finalPath
 }
 
-// FetchPreparedSubscriptionCatalog returns the same validated VLESS set that
-// PrepareSubscriptionProvider writes for runtime. Keeping catalog and provider
-// on one normalization path prevents the UI from offering a node that would
-// later make Mihomo reject the complete file provider.
+// FetchPreparedSubscriptionCatalog returns the same validated remote-proxy set
+// that PrepareSubscriptionProvider writes for runtime. Keeping catalog and
+// provider on one normalization path prevents the UI from offering a node that
+// would later make Mihomo reject the complete file provider.
 func FetchPreparedSubscriptionCatalog(subscriptionURL string) string {
 	proxies, err := fetchPreparedSubscriptionProxies(subscriptionURL)
 	if err != nil || len(proxies) == 0 {
@@ -312,13 +338,44 @@ func prepareOfflineLatencyProxyMapping(
 	}
 
 	prepared := cloneProxyMapping(mapping)
-	if tls, _ := prepared["tls"].(bool); tls {
-		if serverName, _ := prepared["servername"].(string); strings.TrimSpace(serverName) == "" {
-			prepared["servername"] = inferredTLSName(prepared, server)
-		}
+	proxyType, _ := canonicalSubscriptionProxyType(prepared["type"])
+	if subscriptionProxyNeedsTLSName(proxyType, prepared) {
+		ensureOfflineTLSName(prepared, server)
 	}
 	prepared["server"] = ip.To4().String()
 	return prepared, nil
+}
+
+func subscriptionProxyNeedsTLSName(proxyType string, mapping map[string]any) bool {
+	if tls, _ := mapping["tls"].(bool); tls {
+		return true
+	}
+	switch proxyType {
+	case "trojan", "hysteria", "hysteria2", "tuic", "anytls":
+		return true
+	default:
+		return false
+	}
+}
+
+func ensureOfflineTLSName(mapping map[string]any, fallback string) {
+	serverName, _ := mapping["servername"].(string)
+	sni, _ := mapping["sni"].(string)
+	serverName = strings.TrimSpace(serverName)
+	sni = strings.TrimSpace(sni)
+	resolvedName := serverName
+	if resolvedName == "" {
+		resolvedName = sni
+	}
+	if resolvedName == "" {
+		resolvedName = inferredTLSName(mapping, fallback)
+	}
+	if serverName == "" {
+		mapping["servername"] = resolvedName
+	}
+	if sni == "" {
+		mapping["sni"] = resolvedName
+	}
 }
 
 func cloneProxyMapping(mapping map[string]any) map[string]any {
@@ -447,18 +504,25 @@ func parsePreparedSubscriptionProxies(body []byte) ([]map[string]any, error) {
 	schema := &preparedProxySchema{}
 	yamlErr := mihomoYaml.Unmarshal(body, schema)
 	if yamlErr != nil || len(schema.Proxies) == 0 {
-		proxies, convertErr := convert.ConvertsV2Ray(normalizeVlessSubscriptionBody(body))
-		if convertErr != nil || len(proxies) == 0 {
-			return nil, errors.New("unsupported subscription format")
+		if proxies, recognized := parseSingBoxSubscription(body); recognized {
+			if len(proxies) == 0 {
+				return nil, errors.New("subscription has no supported sing-box outbounds")
+			}
+			schema.Proxies = proxies
+		} else {
+			proxies, convertErr := convert.ConvertsV2Ray(normalizeVlessSubscriptionBody(body))
+			if convertErr != nil || len(proxies) == 0 {
+				return nil, errors.New("unsupported subscription format")
+			}
+			schema.Proxies = proxies
 		}
-		schema.Proxies = proxies
 	}
 
 	prepared := make([]map[string]any, 0, min(len(schema.Proxies), maxSubscriptionNodes))
 	seen := make(map[string]struct{}, len(schema.Proxies))
 	for _, proxy := range schema.Proxies {
-		proxyType, _ := proxy["type"].(string)
-		if !strings.EqualFold(strings.TrimSpace(proxyType), "vless") {
+		proxyType, supported := canonicalSubscriptionProxyType(proxy["type"])
+		if !supported {
 			continue
 		}
 		name, ok := safeCatalogLabel(proxy["name"], 256)
@@ -470,11 +534,13 @@ func parsePreparedSubscriptionProxies(body []byte) ([]map[string]any, error) {
 		}
 
 		// Normalize fields used as Mihomo/provider identifiers before parsing.
-		// The UI already compares type case-insensitively and trims labels, while
-		// Mihomo expects the canonical outbound type and exact selector names.
-		proxy["type"] = "vless"
+		// The UI compares types case-insensitively and trims labels, while Mihomo
+		// expects canonical outbound type names and exact selector names.
+		proxy["type"] = proxyType
 		proxy["name"] = name
-		normalizeVlessHTTPUpgrade(proxy)
+		if proxyType == "vless" {
+			normalizeVlessHTTPUpgrade(proxy)
+		}
 
 		parsedProxy, parseErr := adapter.ParseProxy(proxy)
 		if parseErr != nil {
@@ -489,7 +555,7 @@ func parsePreparedSubscriptionProxies(body []byte) ([]map[string]any, error) {
 		}
 	}
 	if len(prepared) == 0 {
-		return nil, errors.New("subscription has no supported VLESS nodes")
+		return nil, errors.New("subscription has no supported proxy nodes")
 	}
 	return prepared, nil
 }
