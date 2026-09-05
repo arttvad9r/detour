@@ -13,6 +13,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import dev.triplet.app.core.AppRoute
 import dev.triplet.app.core.DpiPreset
+import dev.triplet.app.core.DpiStrategyCatalog
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.SettingsBackup
 import dev.triplet.app.core.VlessKey
@@ -62,6 +63,7 @@ data class TriSettings(
     val routes: Map<String, AppRoute>,
     val showSystemApps: Boolean,
     val sessionStartedAt: Long?,
+    val dpiAutoCandidateId: String = "",
 ) {
     val vlessUri: String get() = vlessKeys.active?.uri ?: ""
     val activeVpnConfigured: Boolean get() = when (activeVpn) {
@@ -77,6 +79,7 @@ object RoutesMapping {
     private const val KEY_VPN_KIND = "vpn_profile_kind"
     private const val KEY_PRESET = "dpi_preset"
     private const val KEY_CUSTOM_ARGS = "dpi_custom_args"
+    private const val KEY_AUTO_CANDIDATE = "dpi_auto_candidate"
     private const val KEY_AUTO_CONNECT = "auto_connect"
     private const val KEY_THEME = "theme_id"
     private const val KEY_DNS = "dns_id"
@@ -115,6 +118,7 @@ object RoutesMapping {
             }.toMap(),
             showSystemApps = entries[KEY_SHOW_SYSTEM] as? Boolean ?: false,
             sessionStartedAt = entries[KEY_SESSION_STARTED] as? Long,
+            dpiAutoCandidateId = entries[KEY_AUTO_CANDIDATE] as? String ?: "",
         )
     }
 
@@ -129,6 +133,7 @@ object RoutesMapping {
     fun dnsKey() = stringPreferencesKey(KEY_DNS)
     fun dnsCustomKey() = stringPreferencesKey(KEY_DNS_CUSTOM)
     fun customArgsKey() = stringPreferencesKey(KEY_CUSTOM_ARGS)
+    fun autoCandidateKey() = stringPreferencesKey(KEY_AUTO_CANDIDATE)
     fun sessionStartedAtKey() = longPreferencesKey(KEY_SESSION_STARTED)
     fun showSystemKey() = booleanPreferencesKey(KEY_SHOW_SYSTEM)
     fun vlessMigratedKey() = booleanPreferencesKey(KEY_VLESS_MIGRATED)
@@ -268,6 +273,10 @@ class RoutesStore(context: Context) {
     }
     suspend fun setPreset(preset: DpiPreset) = store.edit { it[RoutesMapping.presetKey()] = preset.id }
     suspend fun setCustomArgs(raw: String) = store.edit { it[RoutesMapping.customArgsKey()] = raw }
+    suspend fun setAutoCandidateId(id: String) {
+        require(DpiStrategyCatalog.byId(id) != null) { "unknown automatic DPI strategy" }
+        store.edit { it[RoutesMapping.autoCandidateKey()] = id }
+    }
     suspend fun setAutoConnect(v: Boolean) = store.edit { it[RoutesMapping.autoConnectKey()] = v }
     suspend fun setTheme(id: String) = store.edit { it[RoutesMapping.themeKey()] = id }
     suspend fun setDns(id: String, custom: String) = store.edit {
@@ -288,6 +297,8 @@ class RoutesStore(context: Context) {
         prefs[RoutesMapping.vpnKindKey()] = b.activeVpn.name
         prefs[RoutesMapping.presetKey()] = b.presetId
         prefs[RoutesMapping.customArgsKey()] = b.dpiCustomArgs
+        if (b.dpiAutoCandidateId.isBlank()) prefs.remove(RoutesMapping.autoCandidateKey())
+        else prefs[RoutesMapping.autoCandidateKey()] = b.dpiAutoCandidateId
         // Imported settings never start a VPN implicitly; the user must opt in
         // again after reviewing the imported routes and endpoint.
         prefs[RoutesMapping.autoConnectKey()] = false
