@@ -22,7 +22,7 @@ class DiagnosticsViewModelTest {
     }
 
     @Test
-    fun `support report contains operational state and multi-hop without free text secrets`() {
+    fun `support report contains operational state latency and multi-hop without free text secrets`() {
         val report = buildDiagnosticsReport(
             DiagnosticsUiState(
                 loading = false,
@@ -31,6 +31,7 @@ class DiagnosticsViewModelTest {
                 engineReady = true,
                 vpnProbe = DiagnosticProbeState.PASS,
                 dpiProbe = DiagnosticProbeState.NOT_APPLICABLE,
+                vpnLatencyMs = 48L,
                 profileKind = VpnProfileKind.SUBSCRIPTION,
                 profileName = "Primary",
                 serverLabel = "node-1",
@@ -48,6 +49,7 @@ class DiagnosticsViewModelTest {
 
         assertTrue(report.contains("vpn_state=ACTIVE"))
         assertTrue(report.contains("vpn_probe=PASS"))
+        assertTrue(report.contains("vpn_latency_ms=48"))
         assertTrue(report.contains("vpn_routes=3"))
         assertTrue(report.contains("multi_hop_enabled=true"))
         assertTrue(report.contains("multi_hop_valid=true"))
