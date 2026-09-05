@@ -12,6 +12,7 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import dev.triplet.app.core.AppRoute
+import dev.triplet.app.core.DpiAutoDomainPlan
 import dev.triplet.app.core.DpiPreset
 import dev.triplet.app.core.DpiStrategyCatalog
 import dev.triplet.app.core.ParseResult
@@ -64,6 +65,7 @@ data class TriSettings(
     val showSystemApps: Boolean,
     val sessionStartedAt: Long?,
     val dpiAutoCandidateId: String = "",
+    val dpiAutoDomainPlan: DpiAutoDomainPlan? = null,
 ) {
     val vlessUri: String get() = vlessKeys.active?.uri ?: ""
     val activeVpnConfigured: Boolean get() = when (activeVpn) {
@@ -80,6 +82,7 @@ object RoutesMapping {
     private const val KEY_PRESET = "dpi_preset"
     private const val KEY_CUSTOM_ARGS = "dpi_custom_args"
     private const val KEY_AUTO_CANDIDATE = "dpi_auto_candidate"
+    private const val KEY_AUTO_DOMAIN_PLAN = "dpi_auto_domain_plan"
     private const val KEY_AUTO_CONNECT = "auto_connect"
     private const val KEY_THEME = "theme_id"
     private const val KEY_DNS = "dns_id"
@@ -119,6 +122,9 @@ object RoutesMapping {
             showSystemApps = entries[KEY_SHOW_SYSTEM] as? Boolean ?: false,
             sessionStartedAt = entries[KEY_SESSION_STARTED] as? Long,
             dpiAutoCandidateId = entries[KEY_AUTO_CANDIDATE] as? String ?: "",
+            dpiAutoDomainPlan = DpiAutoDomainPlan.fromStored(
+                entries[KEY_AUTO_DOMAIN_PLAN] as? String ?: "",
+            ),
         )
     }
 
@@ -134,6 +140,7 @@ object RoutesMapping {
     fun dnsCustomKey() = stringPreferencesKey(KEY_DNS_CUSTOM)
     fun customArgsKey() = stringPreferencesKey(KEY_CUSTOM_ARGS)
     fun autoCandidateKey() = stringPreferencesKey(KEY_AUTO_CANDIDATE)
+    fun autoDomainPlanKey() = stringPreferencesKey(KEY_AUTO_DOMAIN_PLAN)
     fun sessionStartedAtKey() = longPreferencesKey(KEY_SESSION_STARTED)
     fun showSystemKey() = booleanPreferencesKey(KEY_SHOW_SYSTEM)
     fun vlessMigratedKey() = booleanPreferencesKey(KEY_VLESS_MIGRATED)
@@ -275,7 +282,17 @@ class RoutesStore(context: Context) {
     suspend fun setCustomArgs(raw: String) = store.edit { it[RoutesMapping.customArgsKey()] = raw }
     suspend fun setAutoCandidateId(id: String) {
         require(DpiStrategyCatalog.byId(id) != null) { "unknown automatic DPI strategy" }
-        store.edit { it[RoutesMapping.autoCandidateKey()] = id }
+        store.edit { prefs ->
+            prefs[RoutesMapping.autoCandidateKey()] = id
+            prefs.remove(RoutesMapping.autoDomainPlanKey())
+        }
+    }
+    suspend fun setAutoDomainPlan(plan: DpiAutoDomainPlan) = store.edit { prefs ->
+        // compileArgs() performs the same fail-closed candidate and group validation
+        // that runtime will use, before any value is committed to DataStore.
+        plan.compileArgs()
+        prefs[RoutesMapping.autoDomainPlanKey()] = plan.toStored()
+        prefs.remove(RoutesMapping.autoCandidateKey())
     }
     suspend fun setAutoConnect(v: Boolean) = store.edit { it[RoutesMapping.autoConnectKey()] = v }
     suspend fun setTheme(id: String) = store.edit { it[RoutesMapping.themeKey()] = id }
@@ -299,6 +316,9 @@ class RoutesStore(context: Context) {
         prefs[RoutesMapping.customArgsKey()] = b.dpiCustomArgs
         if (b.dpiAutoCandidateId.isBlank()) prefs.remove(RoutesMapping.autoCandidateKey())
         else prefs[RoutesMapping.autoCandidateKey()] = b.dpiAutoCandidateId
+        // v4 backups do not contain structured per-domain plans. Never leave a
+        // stale local plan behind when replacing settings from a backup.
+        prefs.remove(RoutesMapping.autoDomainPlanKey())
         // Imported settings never start a VPN implicitly; the user must opt in
         // again after reviewing the imported routes and endpoint.
         prefs[RoutesMapping.autoConnectKey()] = false
