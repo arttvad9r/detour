@@ -5,6 +5,7 @@ import dev.triplet.app.core.AppRoute
 import dev.triplet.app.core.DestinationRule
 import dev.triplet.app.core.DestinationRuleType
 import dev.triplet.app.core.DpiPreset
+import dev.triplet.app.core.MultiHopEntryRef
 import dev.triplet.app.core.VlessKey
 import dev.triplet.app.core.VlessKeys
 import dev.triplet.app.core.VpnProfileKind
@@ -98,5 +99,36 @@ class AutoConnectTest {
             EffectiveRoutes(vpnPackages = emptySet(), dpiPackages = setOf("dpi-app")),
             activeVpnValid = false,
         ))
+    }
+
+    @Test fun `auto-connect preflight validates multi-hop with service resolver semantics`() {
+        val exit = VlessKey("a", "Exit", validVlessUri)
+        val entry = VlessKey(
+            "b",
+            "Entry",
+            validVlessUri.replace("example.com", "entry.example.com").replace("#MyServer", "#Entry"),
+        )
+        val base = settings(AppRoute.VPN, key = true).copy(
+            vlessKeys = VlessKeys(listOf(exit, entry), "a"),
+        )
+
+        assertTrue(autoConnectProfileValid(base.copy(multiHopEntry = MultiHopEntryRef.Vless("b"))))
+        assertFalse(autoConnectProfileValid(base.copy(multiHopEntry = MultiHopEntryRef.Vless("missing"))))
+        assertFalse(autoConnectProfileValid(base.copy(multiHopEntry = MultiHopEntryRef.Vless("a"))))
+
+        val subscription = VlessKey(
+            id = "subscription",
+            name = "Subscription",
+            uri = "https://subscription.example/token",
+        )
+        assertFalse(
+            autoConnectProfileValid(
+                base.copy(
+                    vlessKeys = base.vlessKeys.copy(items = base.vlessKeys.items + subscription),
+                    multiHopEntry = MultiHopEntryRef.Vless("subscription"),
+                ),
+            ),
+        )
+        assertFalse(autoConnectProfileValid(base.copy(multiHopEntry = MultiHopEntryRef.Warp)))
     }
 }
