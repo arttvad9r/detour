@@ -67,7 +67,6 @@ internal fun SettingsMenuScreen(
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val haptics = LocalHapticFeedback.current
     val c = detourColors
     val theme = LocalDetourTheme.current
     val scrollState = rememberScrollState()
