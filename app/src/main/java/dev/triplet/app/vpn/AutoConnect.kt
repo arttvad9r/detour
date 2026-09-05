@@ -19,16 +19,27 @@ fun canAutoConnect(
     return !usesVpn || activeVpnValid
 }
 
-internal fun autoConnectProfileValid(settings: TriSettings): Boolean = when (settings.activeVpn) {
-    VpnProfileKind.VLESS -> settings.vlessKeys.active?.uri?.let { uri ->
-        val parsed = VlessKeyParser.parse(uri) as? ParseResult.Ok
-        parsed?.profile?.isSubscription == false
-    } == true
-    VpnProfileKind.SUBSCRIPTION -> settings.vlessKeys.active?.uri?.let { uri ->
-        val parsed = VlessKeyParser.parse(uri) as? ParseResult.Ok
-        parsed?.profile?.isSubscription == true
-    } == true
-    VpnProfileKind.WARP -> settings.warpProfile != null
+internal fun autoConnectProfileValid(settings: TriSettings): Boolean {
+    val exitValid = when (settings.activeVpn) {
+        VpnProfileKind.VLESS -> settings.vlessKeys.active?.uri?.let { uri ->
+            val parsed = VlessKeyParser.parse(uri) as? ParseResult.Ok
+            parsed?.profile?.isSubscription == false
+        } == true
+        VpnProfileKind.SUBSCRIPTION -> settings.vlessKeys.active?.uri?.let { uri ->
+            val parsed = VlessKeyParser.parse(uri) as? ParseResult.Ok
+            parsed?.profile?.isSubscription == true
+        } == true
+        VpnProfileKind.WARP -> settings.warpProfile != null
+    }
+    if (!exitValid) return false
+
+    // Use the same fail-closed resolver as TriVpnService so automatic starts do
+    // not knowingly enter Starting only to fail on a stale, conflicting, or
+    // unsupported entry hop. A null entry is a valid one-hop configuration.
+    return runCatching {
+        resolveMultiHopEntry(settings)
+        true
+    }.getOrDefault(false)
 }
 
 class AutoConnectCoordinator(
