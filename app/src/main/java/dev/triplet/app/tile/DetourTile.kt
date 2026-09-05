@@ -1,14 +1,11 @@
 package dev.triplet.app.tile
 
-import android.Manifest
 import android.app.PendingIntent
 import android.annotation.SuppressLint
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
-import androidx.core.content.ContextCompat
 import dev.triplet.app.R
 import dev.triplet.app.TripletApp
 import dev.triplet.app.vpn.VpnConsentActivity
@@ -70,13 +67,10 @@ class DetourTile : TileService() {
             VpnState.Starting -> Unit
             else -> {
                 val vpnConsentRequired = android.net.VpnService.prepare(ctx) != null
-                val notificationPermissionRequired = Build.VERSION.SDK_INT >= 33 &&
-                    ContextCompat.checkSelfPermission(
-                        ctx,
-                        Manifest.permission.POST_NOTIFICATIONS,
-                    ) != PackageManager.PERMISSION_GRANTED
-
-                if (!vpnConsentRequired && !notificationPermissionRequired) {
+                if (!vpnConsentRequired) {
+                    // Once VPN consent exists, keep Quick Settings instantaneous.
+                    // Notification permission is optional for FGS operation and Home
+                    // owns the explanatory rationale if the user previously denied it.
                     VpnController.startNow(ctx)
                 } else {
                     val intent = Intent(ctx, VpnConsentActivity::class.java)
