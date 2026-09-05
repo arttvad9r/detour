@@ -33,6 +33,7 @@ internal fun backupFromSettings(settings: TriSettings): SettingsBackup.Backup = 
     vlessKeys = settings.vlessKeys,
     warpProfile = settings.warpProfile,
     activeVpn = settings.activeVpn,
+    multiHopEntry = settings.multiHopEntry,
     showSystemApps = settings.showSystemApps,
 )
 
