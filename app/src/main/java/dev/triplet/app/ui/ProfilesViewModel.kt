@@ -3,6 +3,7 @@ package dev.triplet.app.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import dev.triplet.app.core.MultiHopEntryRef
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.VlessKey
 import dev.triplet.app.core.VlessKeyParser
@@ -10,6 +11,7 @@ import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.core.WarpConfigImporter
 import dev.triplet.app.core.WarpImportResult
 import dev.triplet.app.core.WarpProfile
+import dev.triplet.app.core.conflictsWithExit
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.data.TriSettings
 import kotlinx.coroutines.CancellationException
@@ -67,6 +69,7 @@ data class ProfilesUiState(
     val activeVlessId: String? = null,
     val warpProfile: WarpProfile? = null,
     val activeVpn: VpnProfileKind = VpnProfileKind.VLESS,
+    val multiHopEntry: MultiHopEntryRef? = null,
     val warpImportStatus: WarpImportStatus = WarpImportStatus.IDLE,
     val vlessSaveStatus: VlessSaveStatus = VlessSaveStatus.IDLE,
 )
@@ -104,6 +107,7 @@ internal fun profilesUiState(
             ProfileSelection.Warp -> VpnProfileKind.WARP
             null -> settings?.activeVpn ?: VpnProfileKind.VLESS
         },
+        multiHopEntry = settings?.multiHopEntry,
         warpImportStatus = warpImportStatus,
         vlessSaveStatus = vlessSaveStatus,
     )
@@ -136,17 +140,29 @@ internal fun vlessMutationTunnelAction(
     activeVlessId: String?,
     keyId: String,
     deleting: Boolean,
+    multiHopEntry: MultiHopEntryRef? = null,
 ): ProfileTunnelAction {
-    if (activeVpn == VpnProfileKind.WARP || activeVlessId != keyId) return ProfileTunnelAction.NONE
+    val isExit = activeVpn != VpnProfileKind.WARP && activeVlessId == keyId
+    val isEntry = (multiHopEntry as? MultiHopEntryRef.Vless)?.keyId == keyId
+    if (!isExit && !isEntry) return ProfileTunnelAction.NONE
     return if (deleting) ProfileTunnelAction.STOP else ProfileTunnelAction.RESTART
 }
 
 internal fun warpMutationTunnelAction(
     activeVpn: VpnProfileKind,
     deleting: Boolean,
+    multiHopEntry: MultiHopEntryRef? = null,
 ): ProfileTunnelAction {
-    if (activeVpn != VpnProfileKind.WARP) return ProfileTunnelAction.NONE
+    val isExit = activeVpn == VpnProfileKind.WARP
+    val isEntry = multiHopEntry == MultiHopEntryRef.Warp
+    if (!isExit && !isEntry) return ProfileTunnelAction.NONE
     return if (deleting) ProfileTunnelAction.STOP else ProfileTunnelAction.RESTART
+}
+
+internal fun MultiHopEntryRef?.conflictsWithSelection(selection: ProfileSelection): Boolean = when (selection) {
+    is ProfileSelection.Vless ->
+        this is MultiHopEntryRef.Vless && keyId == selection.keyId
+    ProfileSelection.Warp -> this == MultiHopEntryRef.Warp
 }
 
 class ProfilesViewModel(
@@ -159,6 +175,7 @@ class ProfilesViewModel(
     private val setWarpProfile: suspend (WarpProfile) -> Unit,
     private val deleteWarpProfile: suspend () -> Unit,
     private val setActiveVpn: suspend (VpnProfileKind) -> Unit,
+    private val setMultiHopEntry: suspend (MultiHopEntryRef?) -> Unit,
     private val restartTunnel: () -> Unit,
     private val stopTunnelIfRunning: () -> Unit,
 ) : ViewModel() {
@@ -207,10 +224,11 @@ class ProfilesViewModel(
                 try {
                     val state = profilesUiState(settings.value)
                     val tunnelAction = vlessMutationTunnelAction(
-                        state.activeVpn,
-                        state.activeVlessId,
-                        key.id,
+                        activeVpn = state.activeVpn,
+                        activeVlessId = state.activeVlessId,
+                        keyId = key.id,
                         deleting = false,
+                        multiHopEntry = state.multiHopEntry,
                     )
                     if (!isNew && settings.value?.vlessKeys?.items?.none { it.id == key.id } != false) {
                         throw IllegalStateException("VLESS profile no longer exists")
@@ -252,6 +270,22 @@ class ProfilesViewModel(
         selectProfile(ProfileSelection.Vless(keyId))
     }
 
+    fun selectMultiHopEntry(entry: MultiHopEntryRef?) {
+        if (entry is MultiHopEntryRef.Invalid) return
+        viewModelScope.launch {
+            profileMutationMutex.withLock {
+                val state = profilesUiState(settings.value)
+                if (entry?.conflictsWithExit(state.activeVpn, state.activeVlessId) == true) return@withLock
+                if (settings.value?.multiHopEntry == entry) return@withLock
+                setMultiHopEntry(entry)
+                if (settings.value?.multiHopEntry != entry) {
+                    settings.first { it?.multiHopEntry == entry }
+                }
+                restartTunnel()
+            }
+        }
+    }
+
     fun importWarpDocument(uri: String) {
         if (!canStartWarpImport(warpImportStatus.value)) return
         warpImportStatus.value = WarpImportStatus.IMPORTING
@@ -265,9 +299,11 @@ class ProfilesViewModel(
                 when (val result = withContext(Dispatchers.Default) { WarpConfigImporter.parse(raw) }) {
                     is WarpImportResult.Ok -> {
                         profileMutationMutex.withLock {
+                            val state = profilesUiState(settings.value)
                             val tunnelAction = warpMutationTunnelAction(
-                                profilesUiState(settings.value).activeVpn,
+                                activeVpn = state.activeVpn,
                                 deleting = false,
+                                multiHopEntry = state.multiHopEntry,
                             )
                             setWarpProfile(result.profile)
                             if (settings.value?.warpProfile != result.profile) {
@@ -317,28 +353,42 @@ class ProfilesViewModel(
                     when (request) {
                         is ProfileDeleteRequest.Vless -> {
                             val state = profilesUiState(settings.value)
+                            val deletingEntry =
+                                (state.multiHopEntry as? MultiHopEntryRef.Vless)?.keyId == request.keyId
                             val tunnelAction = vlessMutationTunnelAction(
-                                state.activeVpn,
-                                state.activeVlessId,
-                                request.keyId,
+                                activeVpn = state.activeVpn,
+                                activeVlessId = state.activeVlessId,
+                                keyId = request.keyId,
                                 deleting = true,
+                                multiHopEntry = state.multiHopEntry,
                             )
+                            if (deletingEntry) setMultiHopEntry(null)
                             deleteVlessKey(request.keyId)
-                            if (settings.value?.vlessKeys?.items?.any { it.id == request.keyId } == true) {
+                            if (
+                                settings.value?.vlessKeys?.items?.any { it.id == request.keyId } == true ||
+                                (deletingEntry && settings.value?.multiHopEntry != null)
+                            ) {
                                 settings.first { current ->
-                                    current?.vlessKeys?.items?.none { it.id == request.keyId } != false
+                                    current?.vlessKeys?.items?.none { it.id == request.keyId } != false &&
+                                        (!deletingEntry || current.multiHopEntry == null)
                                 }
                             }
                             applyTunnelAction(tunnelAction)
                         }
                         is ProfileDeleteRequest.Warp -> {
+                            val state = profilesUiState(settings.value)
+                            val deletingEntry = state.multiHopEntry == MultiHopEntryRef.Warp
                             val tunnelAction = warpMutationTunnelAction(
-                                profilesUiState(settings.value).activeVpn,
+                                activeVpn = state.activeVpn,
                                 deleting = true,
+                                multiHopEntry = state.multiHopEntry,
                             )
+                            if (deletingEntry) setMultiHopEntry(null)
                             deleteWarpProfile()
-                            if (settings.value?.warpProfile != null) {
-                                settings.first { it?.warpProfile == null }
+                            if (settings.value?.warpProfile != null || (deletingEntry && settings.value?.multiHopEntry != null)) {
+                                settings.first {
+                                    it?.warpProfile == null && (!deletingEntry || it.multiHopEntry == null)
+                                }
                             }
                             applyTunnelAction(tunnelAction)
                         }
@@ -368,6 +418,12 @@ class ProfilesViewModel(
                 val desired = selectionOverride.value ?: return@withLock
                 try {
                     if (persistedProfileSelection(settings.value) != desired) {
+                        if (settings.value?.multiHopEntry.conflictsWithSelection(desired)) {
+                            setMultiHopEntry(null)
+                            if (settings.value?.multiHopEntry != null) {
+                                settings.first { it?.multiHopEntry == null }
+                            }
+                        }
                         when (desired) {
                             is ProfileSelection.Vless -> setActiveVlessKey(desired.keyId)
                             ProfileSelection.Warp -> setActiveVpn(VpnProfileKind.WARP)
@@ -422,6 +478,7 @@ class ProfilesViewModel(
                     setWarpProfile = { store.setWarpProfile(it) },
                     deleteWarpProfile = store::deleteWarpProfile,
                     setActiveVpn = store::setActiveVpn,
+                    setMultiHopEntry = store::setMultiHopEntry,
                     restartTunnel = restartTunnel,
                     stopTunnelIfRunning = stopTunnelIfRunning,
                 ) as T
