@@ -5,7 +5,7 @@ import org.json.JSONObject
 
 /** Versioned, validated user-settings export. Runtime session state is excluded. */
 object SettingsBackup {
-    const val VERSION = 4
+    const val VERSION = 5
     const val MAX_BYTES = 1024 * 1024
     private const val APP = "detour"
     private val themes = setOf(
@@ -27,6 +27,7 @@ object SettingsBackup {
         val vlessKeys: VlessKeys = VlessKeys(emptyList(), null),
         val warpProfile: WarpProfile? = null,
         val activeVpn: VpnProfileKind = VpnProfileKind.VLESS,
+        val multiHopEntry: MultiHopEntryRef? = null,
         val showSystemApps: Boolean = false,
     )
 
@@ -34,12 +35,14 @@ object SettingsBackup {
         val keys = if (b.vlessKeys.items.isNotEmpty()) b.vlessKeys
         else legacyKeys(b.vlessUri)
         DestinationRules.validate(b.destinationRules)
+        validateMultiHop(b.multiHopEntry, keys, b.warpProfile, b.activeVpn)
         return JSONObject().apply {
             put("v", VERSION)
             put("app", APP)
             put("vlessKeys", JSONObject(keys.toJson()))
             put("warpProfile", b.warpProfile?.let { JSONObject(it.toJson()) } ?: JSONObject.NULL)
             put("activeVpn", b.activeVpn.name)
+            put("multiHopEntry", b.multiHopEntry?.let(MultiHopEntryRef::toStored) ?: JSONObject.NULL)
             put("preset", b.presetId)
             put("customArgs", b.dpiCustomArgs)
             put("autoConnect", b.autoConnect)
@@ -60,7 +63,8 @@ object SettingsBackup {
             1 -> parseV1(o)
             2 -> parseV2(o)
             3 -> parseV3(o)
-            VERSION -> parseV4(o)
+            4 -> parseV4(o)
+            VERSION -> parseV5(o)
             else -> null
         }
     } catch (_: Exception) { null }
@@ -88,18 +92,32 @@ object SettingsBackup {
         )
     }
 
-    private fun parseV3(o: JSONObject): Backup = parseModern(o, emptyList())
+    private fun parseV3(o: JSONObject): Backup = parseModern(o, emptyList(), null)
 
     private fun parseV4(o: JSONObject): Backup {
         val rules = o.optJSONArray("destinationRules")?.let {
             DestinationRules.fromJsonStrict(it.toString())
         } ?: emptyList()
-        return parseModern(o, rules)
+        return parseModern(o, rules, null)
+    }
+
+    private fun parseV5(o: JSONObject): Backup {
+        val rules = o.optJSONArray("destinationRules")?.let {
+            DestinationRules.fromJsonStrict(it.toString())
+        } ?: emptyList()
+        val entry = when (val raw = o.opt("multiHopEntry")) {
+            null, JSONObject.NULL -> null
+            is String -> MultiHopEntryRef.fromStored(raw)
+            else -> throw IllegalArgumentException("invalid multi-hop entry")
+        }
+        require(entry !is MultiHopEntryRef.Invalid) { "invalid multi-hop entry" }
+        return parseModern(o, rules, entry)
     }
 
     private fun parseModern(
         o: JSONObject,
         destinationRules: List<DestinationRule>,
+        multiHopEntry: MultiHopEntryRef?,
     ): Backup {
         val b = base(o)
         val keysObject = o.optJSONObject("vlessKeys") ?: throw IllegalArgumentException("missing keys")
@@ -118,13 +136,39 @@ object SettingsBackup {
             VpnProfileKind.SUBSCRIPTION -> require(selectedKeyKind(keys) == VpnProfileKind.SUBSCRIPTION)
             VpnProfileKind.WARP -> require(warp != null)
         }
+        validateMultiHop(multiHopEntry, keys, warp, activeVpn)
         return b.copy(
             vlessKeys = keys,
             vlessUri = keys.active?.uri ?: "",
             warpProfile = warp,
             activeVpn = activeVpn,
+            multiHopEntry = multiHopEntry,
             destinationRules = destinationRules,
         )
+    }
+
+    private fun validateMultiHop(
+        entry: MultiHopEntryRef?,
+        keys: VlessKeys,
+        warp: WarpProfile?,
+        activeVpn: VpnProfileKind,
+    ) {
+        if (entry == null) return
+        require(entry !is MultiHopEntryRef.Invalid) { "invalid multi-hop entry" }
+        require(!entry.conflictsWithExit(activeVpn, keys.activeId)) {
+            "multi-hop entry conflicts with exit"
+        }
+        when (entry) {
+            is MultiHopEntryRef.Vless -> {
+                val key = keys.items.singleOrNull { it.id == entry.keyId }
+                    ?: throw IllegalArgumentException("multi-hop VLESS entry is unavailable")
+                val parsed = VlessKeyParser.parse(key.uri) as? ParseResult.Ok
+                    ?: throw IllegalArgumentException("multi-hop VLESS entry is invalid")
+                require(!parsed.profile.isSubscription) { "subscription cannot be a multi-hop entry" }
+            }
+            MultiHopEntryRef.Warp -> require(warp != null) { "multi-hop WARP entry is unavailable" }
+            MultiHopEntryRef.Invalid -> error("validated above")
+        }
     }
 
     private fun validateBase(b: Backup) {
