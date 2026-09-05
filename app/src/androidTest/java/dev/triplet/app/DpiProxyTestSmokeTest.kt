@@ -4,12 +4,16 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
-import androidx.compose.ui.test.onNode
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import dev.triplet.app.core.DpiBackend
+import dev.triplet.app.core.DpiProxyTestCatalog
+import dev.triplet.app.core.ProbeAuth
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,5 +40,34 @@ class DpiProxyTestSmokeTest {
         val startLabel = rule.activity.getString(R.string.dpi_proxy_test_start)
         rule.onNode(hasScrollAction()).performScrollToNode(hasText(startLabel))
         rule.onNodeWithText(startLabel).assertIsDisplayed()
+    }
+
+    @Test fun cancelledBackendStartDoesNotLeaveProcessRunning() {
+        val backend = DpiBackend(rule.activity)
+        val strategy = DpiProxyTestCatalog.strategies.first()
+        val port = 10828
+        try {
+            assertTrue(
+                backend.start(
+                    strategyArgs = strategy.args,
+                    port = port,
+                    credentials = ProbeAuth.current(),
+                ),
+            )
+            backend.stop()
+            assertFalse(backend.isAlive())
+
+            assertFalse(
+                backend.start(
+                    strategyArgs = strategy.args,
+                    port = port,
+                    credentials = ProbeAuth.current(),
+                    cancelled = { true },
+                ),
+            )
+            assertFalse(backend.isAlive())
+        } finally {
+            backend.stop()
+        }
     }
 }
