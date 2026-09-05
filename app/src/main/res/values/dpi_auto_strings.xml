@@ -1,0 +1,20 @@
+<resources>
+    <string name="preset_auto">Automatic</string>
+    <string name="dpi_auto_subtitle">Test selected services and choose a working strategy</string>
+    <string name="dpi_auto_targets">Test targets</string>
+    <string name="dpi_auto_youtube">YouTube</string>
+    <string name="dpi_auto_googlevideo">GoogleVideo</string>
+    <string name="dpi_auto_discord">Discord</string>
+    <string name="dpi_auto_telegram">Telegram</string>
+    <string name="dpi_auto_start">Start test</string>
+    <string name="dpi_auto_cancel">Cancel test</string>
+    <string name="dpi_auto_apply">Apply strategy</string>
+    <string name="dpi_auto_applying">Applying…</string>
+    <string name="dpi_auto_stop_vpn">Disconnect the VPN before testing. The baseline must use the normal network path.</string>
+    <string name="dpi_auto_testing">Checking direct access first, then testing DPI strategies only for failing targets…</string>
+    <string name="dpi_auto_direct_ok">All selected targets work directly. No DPI strategy is needed for this test set.</string>
+    <string name="dpi_auto_found">A strategy passed all %1$d targets that failed direct access: %2$s</string>
+    <string name="dpi_auto_not_found">No built-in strategy passed all %1$d targets that failed direct access.</string>
+    <string name="dpi_auto_applied">This automatic strategy is active.</string>
+    <string name="dpi_auto_error">The automatic strategy test failed. Check the connection and try again.</string>
+</resources>
