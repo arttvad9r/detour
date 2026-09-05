@@ -91,6 +91,48 @@ class ConfigGeneratorTest {
         assertFalse(yaml.contains("type: vless"))
     }
 
+    @Test fun `manual subscription keeps explicit selector`() {
+        val yaml = ConfigGenerator.build(
+            input(
+                vpn = VpnOutbound.Subscription(
+                    url = "https://subscription.example/token",
+                    selectedNode = "Finland 2",
+                    selectionMode = SubscriptionSelectionMode.MANUAL,
+                ),
+            ),
+        )
+        val group = yaml.substringAfter("- name: SUBSCRIPTION\n").substringBefore("listeners:")
+        assertTrue(group.contains("type: select"))
+        assertTrue(group.contains("default-selected: \"Finland 2\""))
+        assertTrue(group.contains("use:\n    - DETOUR_SUBSCRIPTION"))
+        assertFalse(group.contains("type: url-test"))
+        assertFalse(group.contains("tolerance:"))
+    }
+
+    @Test fun `auto subscription uses hysteretic url test without pinning manual node`() {
+        val yaml = ConfigGenerator.build(
+            input(
+                vpn = VpnOutbound.Subscription(
+                    url = "https://subscription.example/token",
+                    selectedNode = "Old manual node",
+                    selectionMode = SubscriptionSelectionMode.AUTO,
+                ),
+            ),
+        )
+        val group = yaml.substringAfter("- name: SUBSCRIPTION\n").substringBefore("listeners:")
+        assertTrue(group.contains("type: url-test"))
+        assertTrue(group.contains("url: https://cp.cloudflare.com/generate_204"))
+        assertTrue(group.contains("interval: 900"))
+        assertTrue(group.contains("lazy: true"))
+        assertTrue(group.contains("timeout: 3000"))
+        assertTrue(group.contains("max-failed-times: 2"))
+        assertTrue(group.contains("expected-status: 204"))
+        assertTrue(group.contains("tolerance: 100"))
+        assertTrue(group.contains("use:\n    - DETOUR_SUBSCRIPTION"))
+        assertFalse(group.contains("default-selected:"))
+        assertFalse(group.contains("Old manual node"))
+    }
+
     @Test fun `warp uses Detour dns instead of imported proxy dns`() {
         val yaml = ConfigGenerator.build(input(vpn = VpnOutbound.Warp(warp)))
         val warpBlock = yaml.substringAfter("- name: WARP_0").substringBefore("- name: DPI")
