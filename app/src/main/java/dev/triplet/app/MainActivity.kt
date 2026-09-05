@@ -1,5 +1,6 @@
 package dev.triplet.app
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -30,6 +31,7 @@ import dev.triplet.app.ui.LocalDetourTheme
 import dev.triplet.app.ui.Motion
 import dev.triplet.app.ui.colorSchemeFor
 import dev.triplet.app.ui.configureAdaptiveRefresh
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
@@ -37,8 +39,13 @@ internal fun themeTransitionDuration(previousDark: Boolean, targetDark: Boolean)
     if (previousDark == targetDark) Motion.THEME_MS else 0
 
 class MainActivity : ComponentActivity() {
+    // External profile credentials remain process-memory-only. They are consumed
+    // by the profile editor and are never placed in SavedState or navigation keys.
+    private val pendingProfileImport = MutableStateFlow<ProfileImportRequest?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingProfileImport.value = profileImportRequest(intent)
         enableEdgeToEdge()
         configureAdaptiveRefresh(window)
 
@@ -53,6 +60,7 @@ class MainActivity : ComponentActivity() {
                     .distinctUntilChanged()
             }
             val theme by themeFlow.collectAsStateWithLifecycle(initialValue = initialTheme)
+            val profileImport by pendingProfileImport.collectAsStateWithLifecycle()
             val target = theme.colors
             var previousDark by remember { mutableStateOf(theme.dark) }
             val themeAnimation = tween<Color>(themeTransitionDuration(previousDark, theme.dark))
@@ -188,10 +196,20 @@ class MainActivity : ComponentActivity() {
                         DetourNavigation(
                             store = store,
                             appContext = appContext,
+                            profileImportRequest = profileImport,
+                            onProfileImportConsumed = { consumed ->
+                                pendingProfileImport.compareAndSet(consumed, null)
+                            },
                         )
                     }
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        pendingProfileImport.value = profileImportRequest(intent)
     }
 }
