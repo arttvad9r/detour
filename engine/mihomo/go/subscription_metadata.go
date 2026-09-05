@@ -12,10 +12,10 @@ import (
 	"unicode/utf8"
 )
 
-// SubscriptionMetadata is deliberately returned to Android as JSON so the
+// subscriptionMetadata is deliberately returned to Android as JSON so the
 // gomobile boundary stays narrow and backwards-compatible with the existing
 // subscription catalog APIs.
-type SubscriptionMetadata struct {
+type subscriptionMetadata struct {
 	Title               string `json:"title,omitempty"`
 	UpdateIntervalHours int    `json:"updateIntervalHours,omitempty"`
 	UploadBytes         int64  `json:"uploadBytes,omitempty"`
@@ -75,8 +75,8 @@ func FetchSubscriptionMetadata(subscriptionURL string) string {
 	return string(payload)
 }
 
-func parseSubscriptionMetadataHeaders(headers http.Header) SubscriptionMetadata {
-	metadata := SubscriptionMetadata{
+func parseSubscriptionMetadataHeaders(headers http.Header) subscriptionMetadata {
+	metadata := subscriptionMetadata{
 		Title:             decodeSubscriptionMetadataText(headers.Get("profile-title"), 256, true),
 		SupportURL:        safeSubscriptionMetadataURL(headers.Get("support-url")),
 		ProfileWebPageURL: safeSubscriptionMetadataURL(headers.Get("profile-web-page-url")),
@@ -95,7 +95,7 @@ func parseSubscriptionMetadataHeaders(headers http.Header) SubscriptionMetadata 
 	return metadata
 }
 
-func parseSubscriptionUserInfo(raw string, metadata *SubscriptionMetadata) {
+func parseSubscriptionUserInfo(raw string, metadata *subscriptionMetadata) {
 	for _, part := range strings.Split(raw, ";") {
 		pair := strings.SplitN(strings.TrimSpace(part), "=", 2)
 		if len(pair) != 2 {
