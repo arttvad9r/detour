@@ -4,7 +4,7 @@ import org.json.JSONObject
 
 /** Versioned, validated user-settings export. Runtime session state is excluded. */
 object SettingsBackup {
-    const val VERSION = 3
+    const val VERSION = 4
     const val MAX_BYTES = 1024 * 1024
     private const val APP = "detour"
     private val themes = setOf(
@@ -26,6 +26,7 @@ object SettingsBackup {
         val warpProfile: WarpProfile? = null,
         val activeVpn: VpnProfileKind = VpnProfileKind.VLESS,
         val showSystemApps: Boolean = false,
+        val dpiAutoCandidateId: String = "",
     )
 
     fun toJson(b: Backup): String {
@@ -39,6 +40,7 @@ object SettingsBackup {
             put("activeVpn", b.activeVpn.name)
             put("preset", b.presetId)
             put("customArgs", b.dpiCustomArgs)
+            put("autoCandidate", b.dpiAutoCandidateId)
             put("autoConnect", b.autoConnect)
             put("theme", b.themeId)
             put("dns", b.dnsId)
@@ -55,7 +57,8 @@ object SettingsBackup {
         when (o.optInt("v", 1)) {
             1 -> parseV1(o)
             2 -> parseV2(o)
-            VERSION -> parseV3(o)
+            3 -> parseV3(o)
+            VERSION -> parseV4(o)
             else -> null
         }
     } catch (_: Exception) { null }
@@ -83,7 +86,11 @@ object SettingsBackup {
         )
     }
 
-    private fun parseV3(o: JSONObject): Backup {
+    private fun parseV3(o: JSONObject): Backup = parseModern(o, allowAuto = false)
+
+    private fun parseV4(o: JSONObject): Backup = parseModern(o, allowAuto = true)
+
+    private fun parseModern(o: JSONObject, allowAuto: Boolean): Backup {
         val b = base(o)
         val keysObject = o.optJSONObject("vlessKeys") ?: throw IllegalArgumentException("missing keys")
         val keys = VlessKeys.fromJson(keysObject.toString())
@@ -92,6 +99,7 @@ object SettingsBackup {
             ?: VpnProfileKind.VLESS.name
         val activeVpn = VpnProfileKind.entries.firstOrNull { it.name == activeVpnName }
             ?: throw IllegalArgumentException("unknown VPN profile kind")
+        if (!allowAuto) require(b.presetId != DpiPreset.AUTO.id)
         validateBase(b)
         validateKeys(keys)
         validateRoutes(b.routes)
@@ -113,6 +121,9 @@ object SettingsBackup {
         require(b.themeId in themes)
         require(DnsOptions.isSelectionValid(b.dnsId, b.dnsCustom))
         if (b.presetId == DpiPreset.CUSTOM.id) require(DpiArgs.isValid(b.dpiCustomArgs))
+        if (b.presetId == DpiPreset.AUTO.id) {
+            require(DpiStrategyCatalog.byId(b.dpiAutoCandidateId) != null)
+        }
     }
 
     private fun validateKeys(keys: VlessKeys) {
@@ -146,6 +157,7 @@ object SettingsBackup {
             dnsCustom = o.optString("dnsCustom"),
             routes = routes,
             showSystemApps = o.optBoolean("showSystemApps", false),
+            dpiAutoCandidateId = o.optString("autoCandidate"),
         )
     }
 
