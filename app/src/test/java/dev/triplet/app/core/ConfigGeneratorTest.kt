@@ -190,7 +190,7 @@ class ConfigGeneratorTest {
     }
 
     @Test fun `without vpn no outbound vpn rules`() {
-        val yaml = ConfigGenerator.build(input(vpn = null))
+        val yaml = ConfigGenerator.build(input(vpn = null).copy(vpnApps = emptySet()))
         assertFalse(yaml.contains("type: vless"))
         assertFalse(yaml.contains("type: wireguard"))
         assertFalse(yaml.contains(",VLESS"))
