@@ -94,10 +94,15 @@ data class DpiStrategyResult(
 }
 
 /**
- * App-authored candidate catalog for the bundled ByeDPI v0.17.3 binary.
+ * App-authored candidate registry for the bundled ByeDPI v0.17.3 binary.
  * It is deliberately independent from the narrow user CUSTOM validator: AUTO
  * may use additional upstream-documented strategy primitives while persisted
  * selection remains a trusted candidate ID rather than arbitrary argv.
+ *
+ * Candidate IDs are persistent data. Once shipped, an ID keeps its exact argv
+ * semantics in [all] even when a better variant replaces it in [searchDefault].
+ * This lets backups and DataStore plans continue to resolve without silently
+ * changing the strategy that a user previously tested and applied.
  *
  * The list is independently authored from ByeDPI's upstream documentation and
  * does not copy ByeByeDPI's GPL proxytest strategy asset.
@@ -108,45 +113,87 @@ object DpiStrategyCatalog {
         "-E", "--transparent", "-U", "--no-udp", "-J",
     )
 
-    val default: List<DpiStrategyCandidate> = listOf(
-        DpiStrategyCandidate(
-            id = "recommended",
-            args = DpiPreset.RECOMMENDED.args,
-        ),
-        DpiStrategyCandidate(
-            id = "disorder-1",
-            args = listOf("-d", "1", "--timeout", "3"),
-        ),
-        DpiStrategyCandidate(
-            id = "split-sni",
-            args = listOf("-s", "1+s", "--timeout", "3"),
-        ),
-        DpiStrategyCandidate(
-            id = "split-disorder-sni",
-            args = listOf("-s", "1+s", "-d", "3+s", "--timeout", "3"),
-        ),
-        DpiStrategyCandidate(
-            id = "split-middle-sni",
-            args = listOf("-s", "0+sm", "--timeout", "3"),
-        ),
-        DpiStrategyCandidate(
-            id = "tls-record-sni",
-            args = listOf("-r", "1+s", "--timeout", "3"),
-        ),
-        DpiStrategyCandidate(
-            id = "oob-sni",
-            args = listOf("-o", "1+s", "--timeout", "3"),
-        ),
-        DpiStrategyCandidate(
-            id = "disoob-sni",
-            args = listOf("-q", "1+s", "--timeout", "3"),
-        ),
-    ).also { candidates ->
+    private val recommended = DpiStrategyCandidate(
+        id = "recommended",
+        args = DpiPreset.RECOMMENDED.args,
+    )
+    private val disorder1 = DpiStrategyCandidate(
+        id = "disorder-1",
+        args = listOf("-d", "1", "--timeout", "3"),
+    )
+    private val splitSni = DpiStrategyCandidate(
+        id = "split-sni",
+        args = listOf("-s", "1+s", "--timeout", "3"),
+    )
+    private val splitDisorderSni = DpiStrategyCandidate(
+        id = "split-disorder-sni",
+        args = listOf("-s", "1+s", "-d", "3+s", "--timeout", "3"),
+    )
+    private val splitMiddleSni = DpiStrategyCandidate(
+        id = "split-middle-sni",
+        args = listOf("-s", "0+sm", "--timeout", "3"),
+    )
+    private val tlsRecordSni = DpiStrategyCandidate(
+        id = "tls-record-sni",
+        args = listOf("-r", "1+s", "--timeout", "3"),
+    )
+
+    // Kept only for already-persisted AUTO state. New searches use the pinned
+    // upstream recommendation below, which places the OOB byte in SNI at 3+s.
+    private val legacyOobSni = DpiStrategyCandidate(
+        id = "oob-sni",
+        args = listOf("-o", "1+s", "--timeout", "3"),
+    )
+    private val oobSni3 = DpiStrategyCandidate(
+        id = "oob-sni-3",
+        args = listOf("-o", "3+s", "--timeout", "3"),
+    )
+    private val disoobSni = DpiStrategyCandidate(
+        id = "disoob-sni",
+        args = listOf("-q", "1+s", "--timeout", "3"),
+    )
+
+    /** Stable persistence registry: IDs here must not silently change argv. */
+    val all: List<DpiStrategyCandidate> = listOf(
+        recommended,
+        disorder1,
+        splitSni,
+        splitDisorderSni,
+        splitMiddleSni,
+        tlsRecordSni,
+        legacyOobSni,
+        oobSni3,
+        disoobSni,
+    ).also(::validateCatalog)
+
+    /** Candidates tested for newly-created automatic plans. */
+    val searchDefault: List<DpiStrategyCandidate> = listOf(
+        recommended,
+        disorder1,
+        splitSni,
+        splitDisorderSni,
+        splitMiddleSni,
+        tlsRecordSni,
+        oobSni3,
+        disoobSni,
+    ).also(::validateCatalog)
+
+    /** Compatibility name for existing callers; means the current search set. */
+    val default: List<DpiStrategyCandidate> = searchDefault
+
+    private val byId = all.associateBy { it.id }
+
+    init {
+        check(byId.size == all.size)
+        check(searchDefault.all { candidate -> byId[candidate.id] == candidate })
+    }
+
+    fun byId(id: String): DpiStrategyCandidate? = byId[id]
+
+    private fun validateCatalog(candidates: List<DpiStrategyCandidate>) {
         check(candidates.map { it.id }.distinct().size == candidates.size)
         check(candidates.none { candidate -> candidate.args.any { it in forbiddenProcessOptions } })
     }
-
-    fun byId(id: String): DpiStrategyCandidate? = default.firstOrNull { it.id == id }
 }
 
 /** Runtime adapter for starting and stopping a candidate-specific local proxy. */
