@@ -6,11 +6,12 @@ Detour is an Android-only VPN/network client with per-app routing. Selected appl
 
 - Android application module only (`:app`); no desktop/iOS/KMP target.
 - minSdk 29, compileSdk 37, targetSdk 36, Java 17.
-- Kotlin + Jetpack Compose + Navigation Compose.
-- Android `VpnService` supplies the TUN interface and per-app allow-list.
-- Mihomo is embedded as the current data plane for TUN/gVisor, DNS, UID rules, VLESS/Reality, WireGuard/AmneziaWG and outbound chaining.
-- ByeDPI is packaged as a local native `ciadpi` backend and exposed to the engine through a loopback SOCKS endpoint.
-- WARP/AmneziaWG and VLESS profiles are managed by Detour; imported proxy configs do not take ownership of Detour routing rules.
+- Kotlin + Jetpack Compose + Navigation 3.
+- Android `VpnService` supplies a dual-stack IPv4/IPv6 TUN interface and per-app allow-list.
+- Mihomo is embedded as the data plane for TUN/gVisor, DNS, UID/destination rules, multi-protocol subscription providers, VLESS/Reality, WireGuard/AmneziaWG and two-hop outbound chaining.
+- ByeDPI is packaged as a local native `ciadpi` backend and exposed to the engine through an authenticated loopback SOCKS endpoint.
+- WARP/AmneziaWG and direct VLESS profiles are managed by Detour; imported subscriptions may contain the explicitly allowed Mihomo-compatible remote proxy types, but imported configs never take ownership of Detour routing or DNS policy.
+- Android Always-on VPN is supported. Lockdown remains an Android system setting and can block apps intentionally left on Detour's Direct/outside-TUN path.
 
 See [docs/architecture.md](docs/architecture.md) for the current component boundaries and lifecycle.
 
@@ -51,14 +52,23 @@ Gradle builds the native artifacts required by the app before packaging. Generat
 
 ## Verification
 
-Run the same core gate as GitHub Actions:
+Run the Android/Gradle portion of the GitHub Actions gate with:
 
 ```bash
-./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest :app:assembleRelease
-bash engine/vulnscan.sh
+./gradlew --dependency-verification strict \
+  :app:testDebugUnitTest \
+  :app:lintDebug \
+  :app:lintRelease \
+  :app:assembleDebug \
+  :app:assembleDebugAndroidTest \
+  :app:assembleRelease \
+  :app:bundleRelease \
+  :baselineprofile:assemble
 ```
 
-`assembleDebugAndroidTest` compiles the instrumentation test APK in hosted CI. To execute those tests, connect a device or emulator and run:
+CI additionally verifies dependency metadata, runs the embedded Go package with the race detector, scans Go source/binaries for known vulnerabilities, checks 16 KB ELF alignment and APK size, and exercises both CI-signed arm64 APK and AAB release paths.
+
+`assembleDebugAndroidTest` compiles the instrumentation test APK. Pull requests and pushes to `main` execute it on hosted Android 16 and Android 17 (16 KB) emulators. With a local device/emulator connected, run:
 
 ```bash
 ./gradlew :app:connectedDebugAndroidTest
