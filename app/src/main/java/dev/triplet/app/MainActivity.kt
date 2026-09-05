@@ -69,6 +69,7 @@ class MainActivity : ComponentActivity() {
     private val activityScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val autoConnectAttemptInFlight = AtomicBoolean(false)
     private var autoConnectJob: Job? = null
+    private var autoConnectGeneration = 0L
     private var autoConnectNetworkCallback: ConnectivityManager.NetworkCallback? = null
     private var validatedAutoConnectNetwork: Network? = null
 
@@ -278,6 +279,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         unregisterForegroundAutoConnect()
+        autoConnectGeneration++
         autoConnectJob?.cancel()
         autoConnectJob = null
         autoConnectAttemptInFlight.set(false)
@@ -334,6 +336,7 @@ class MainActivity : ComponentActivity() {
 
     private fun attemptAutoConnect() {
         if (!autoConnectAttemptInFlight.compareAndSet(false, true)) return
+        val generation = ++autoConnectGeneration
         val appContext = applicationContext
         val store = (application as TripletApp).routesStore
         autoConnectJob = activityScope.launch {
@@ -350,8 +353,10 @@ class MainActivity : ComponentActivity() {
                     startVpn = { VpnController.startNow(appContext) },
                 ).runOnce()
             } finally {
-                autoConnectAttemptInFlight.set(false)
-                autoConnectJob = null
+                if (generation == autoConnectGeneration) {
+                    autoConnectAttemptInFlight.set(false)
+                    autoConnectJob = null
+                }
             }
         }
     }
