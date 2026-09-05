@@ -89,6 +89,26 @@ internal fun formatSessionElapsed(seconds: Int): String {
     return "%02d:%02d:%02d".format(h, m, sec)
 }
 
+internal fun formatTrafficBytes(bytes: Long): String {
+    val safe = bytes.coerceAtLeast(0L)
+    return when {
+        safe < 1_000L -> "$safe B"
+        safe < 1_000_000L -> formatScaledTraffic(safe, 1_000L, "KB")
+        safe < 1_000_000_000L -> formatScaledTraffic(safe, 1_000_000L, "MB")
+        safe < 1_000_000_000_000L -> formatScaledTraffic(safe, 1_000_000_000L, "GB")
+        else -> formatScaledTraffic(safe, 1_000_000_000_000L, "TB")
+    }
+}
+
+internal fun formatTrafficRate(bytesPerSecond: Long): String =
+    "${formatTrafficBytes(bytesPerSecond)}/s"
+
+private fun formatScaledTraffic(value: Long, divisor: Long, suffix: String): String {
+    val whole = value / divisor
+    val tenth = ((value % divisor) * 10L / divisor).toInt()
+    return if (whole >= 100L || tenth == 0) "$whole $suffix" else "$whole.$tenth $suffix"
+}
+
 internal fun homeUsesSplitLayout(windowSizeClass: WindowSizeClass): Boolean =
     windowSizeClass.isWidthAtLeastBreakpoint(WIDTH_DP_EXPANDED_LOWER_BOUND)
 
@@ -256,6 +276,7 @@ fun HomeScreen(
                     state = visualState,
                     statusContent = statusContent,
                     sessionStartedAt = uiState.sessionStartedAt,
+                    traffic = uiState.traffic,
                     profileName = uiState.profileName,
                     activeVpn = uiState.activeVpn,
                     serverHost = uiState.serverHost,
@@ -278,6 +299,7 @@ private fun HomeConnectionContent(
     state: VpnState,
     statusContent: Color,
     sessionStartedAt: Long?,
+    traffic: HomeTrafficStats,
     profileName: String?,
     activeVpn: VpnProfileKind,
     serverHost: String?,
@@ -305,6 +327,7 @@ private fun HomeConnectionContent(
                 state = state,
                 statusContent = statusContent,
                 sessionStartedAt = sessionStartedAt,
+                traffic = traffic,
                 protocol = protocol,
                 modifier = Modifier.weight(1f),
             )
@@ -331,6 +354,7 @@ private fun HomeConnectionContent(
                 state = state,
                 statusContent = statusContent,
                 sessionStartedAt = sessionStartedAt,
+                traffic = traffic,
                 protocol = protocol,
             )
             Spacer(Modifier.height(Spacing.space12))
@@ -397,6 +421,7 @@ private fun ConnectionHero(
     state: VpnState,
     statusContent: Color,
     sessionStartedAt: Long?,
+    traffic: HomeTrafficStats,
     protocol: String,
     modifier: Modifier = Modifier,
 ) {
@@ -476,6 +501,7 @@ private fun ConnectionHero(
                             sessionStartedAt = sessionStartedAt,
                             color = c.textPrimary,
                         )
+                        TrafficSummary(traffic)
                     }
                     if (routeDescription.isNotBlank()) {
                         Text(
@@ -658,6 +684,33 @@ private fun SessionTimer(sessionStartedAt: Long?, color: Color) {
             fontFeatureSettings = "tnum",
         ),
         color = color,
+        modifier = Modifier.padding(top = Spacing.space2),
+    )
+}
+
+@Composable
+private fun TrafficSummary(traffic: HomeTrafficStats) {
+    val c = detourColors
+    Row(
+        modifier = Modifier.padding(top = Spacing.space8),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.space16),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "↓ ${formatTrafficRate(traffic.downloadBytesPerSecond)}",
+            style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum"),
+            color = c.textPrimary,
+        )
+        Text(
+            text = "↑ ${formatTrafficRate(traffic.uploadBytesPerSecond)}",
+            style = MaterialTheme.typography.labelLarge.copy(fontFeatureSettings = "tnum"),
+            color = c.textPrimary,
+        )
+    }
+    Text(
+        text = stringResource(R.string.home_traffic_session, formatTrafficBytes(traffic.totalBytes)),
+        style = MaterialTheme.typography.bodySmall,
+        color = c.textSecondary,
         modifier = Modifier.padding(top = Spacing.space2),
     )
 }
