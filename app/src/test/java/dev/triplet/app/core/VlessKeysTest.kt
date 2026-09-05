@@ -30,7 +30,7 @@ class VlessKeysTest {
     }
 
     @Test
-    fun `json round trip preserves keys active selection favorites and subscription node`() {
+    fun `json round trip preserves subscription state`() {
         val original = VlessKeys(
             listOf(
                 VlessKey("a", "Primary", validUri),
@@ -40,12 +40,38 @@ class VlessKeysTest {
                     subscriptionUri,
                     selectedNode = "Node B",
                     favoriteNodes = setOf("Node A", "Node B"),
+                    subscriptionUpdateIntervalHours = 12,
+                    subscriptionUpdatedAt = 1_780_000_000_000L,
                 ),
             ),
             "b",
         )
 
         assertEquals(original, VlessKeys.fromJson(original.toJson()))
+    }
+
+    @Test
+    fun `old json defaults scheduled subscription refresh to disabled`() {
+        val keys = VlessKeys.fromJson(
+            """{"activeId":"b","items":[{"id":"b","name":"Subscription","uri":"$subscriptionUri"}]}""",
+        )
+
+        assertEquals(null, keys.active?.subscriptionUpdateIntervalHours)
+        assertEquals(null, keys.active?.subscriptionUpdatedAt)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `json rejects invalid subscription update interval`() {
+        VlessKeys.fromJson(
+            """{"activeId":"b","items":[{"id":"b","name":"Subscription","uri":"$subscriptionUri","subscriptionUpdateIntervalHours":0}]}""",
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `json rejects invalid subscription update timestamp`() {
+        VlessKeys.fromJson(
+            """{"activeId":"b","items":[{"id":"b","name":"Subscription","uri":"$subscriptionUri","subscriptionUpdatedAt":-1}]}""",
+        )
     }
 
     @Test(expected = IllegalArgumentException::class)
