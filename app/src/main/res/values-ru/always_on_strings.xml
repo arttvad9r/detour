@@ -1,0 +1,7 @@
+<resources>
+    <string name="always_on_vpn">Always-on VPN</string>
+    <string name="always_on_vpn_sub">Настраивается в системных настройках VPN Android</string>
+    <string name="always_on_vpn_message">Android может автоматически запускать Detour после перезагрузки устройства или остановки VPN-сервиса.</string>
+    <string name="always_on_vpn_lockdown_warning">Если какие-либо приложения используют маршруты DIRECT, не включайте «Блокировать подключения без VPN». Режим Lockdown Android может заблокировать приложения вне VPN allow-list Detour.</string>
+    <string name="always_on_vpn_open_settings">Открыть настройки VPN</string>
+</resources>
