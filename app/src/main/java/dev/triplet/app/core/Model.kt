@@ -7,6 +7,7 @@ sealed interface VpnOutbound {
     data class Subscription(
         val url: String,
         val selectedNode: String? = null,
+        val selectionMode: SubscriptionSelectionMode = SubscriptionSelectionMode.MANUAL,
     ) : VpnOutbound {
         init {
             require(url.isNotBlank())
