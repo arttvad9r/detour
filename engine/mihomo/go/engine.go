@@ -116,6 +116,12 @@ func Start(configYAML string, logPath string) (err error) {
 		C.SetHomeDir(homeDir)
 		homeDirChanged = true
 	}
+	// Detour owns a dual-stack Android TUN. Mihomo otherwise disables its
+	// inet6-address when the physical uplink has no IPv6, even though a proxy
+	// outbound can still carry IPv6 destinations over an IPv4-only underlay.
+	if envErr := os.Setenv("SKIP_SYSTEM_IPV6_CHECK", "1"); envErr != nil {
+		return envErr
+	}
 	cfg, err := config.Parse([]byte(configYAML))
 	if err != nil {
 		if homeDirChanged {
