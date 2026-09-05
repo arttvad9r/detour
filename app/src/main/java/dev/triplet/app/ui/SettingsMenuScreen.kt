@@ -93,9 +93,6 @@ internal fun SettingsMenuScreen(
         R.string.nav_key,
         {
             val configured = buildList {
-                // A subscription is a source of VLESS nodes, not a separate VPN
-                // protocol. Keep the Settings summary protocol-oriented while the
-                // Profiles screen can still separate direct links/subscriptions.
                 if (state.hasVless || state.hasSubscription) {
                     add(stringResource(R.string.protocol_vless))
                 }
@@ -159,28 +156,28 @@ internal fun SettingsMenuScreen(
                 SettingsSectionLabel(R.string.settings_section_connection)
                 SettingsRows(listOf(dpi, dns), selectedSection)
                 GroupDivider(startInset = NavigationRowDividerInset)
-                DetourNavigationRow(
-                    title = stringResource(R.string.auto_connect),
-                    subtitle = null,
+                AutoConnectToggleRow(
+                    titleRes = R.string.auto_connect_launch,
+                    subtitleRes = R.string.auto_connect_launch_sub,
+                    checked = state.autoConnect,
                     iconRes = R.drawable.ic_power,
-                    modifier = Modifier.detourToggleable(
-                        value = state.autoConnect,
-                        onValueChange = { next ->
-                            haptics.performHapticFeedback(
-                                if (next) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff,
-                            )
-                            viewModel.setAutoConnect(next)
-                        },
-                        pressedColor = c.surfaceSelected.copy(alpha = 0.34f),
-                        pressScale = Motion.PRESS_ROW,
-                    ),
-                    trailing = {
-                        DetourSwitch(
-                            checked = state.autoConnect,
-                            onCheckedChange = null,
-                            compact = true,
-                        )
-                    },
+                    onCheckedChange = viewModel::setAutoConnect,
+                )
+                GroupDivider(startInset = NavigationRowDividerInset)
+                AutoConnectToggleRow(
+                    titleRes = R.string.auto_connect_wifi,
+                    subtitleRes = R.string.auto_connect_wifi_sub,
+                    checked = state.autoConnectWifi,
+                    iconRes = R.drawable.ic_globe,
+                    onCheckedChange = viewModel::setAutoConnectWifi,
+                )
+                GroupDivider(startInset = NavigationRowDividerInset)
+                AutoConnectToggleRow(
+                    titleRes = R.string.auto_connect_cellular,
+                    subtitleRes = R.string.auto_connect_cellular_sub,
+                    checked = state.autoConnectCellular,
+                    iconRes = R.drawable.ic_globe,
+                    onCheckedChange = viewModel::setAutoConnectCellular,
                 )
                 GroupDivider(startInset = NavigationRowDividerInset)
                 DetourNavigationRow(
@@ -220,6 +217,41 @@ internal fun SettingsMenuScreen(
             onDismiss = { showAlwaysOnDialog = false },
         )
     }
+}
+
+@Composable
+private fun AutoConnectToggleRow(
+    titleRes: Int,
+    subtitleRes: Int,
+    checked: Boolean,
+    iconRes: Int,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    val haptics = LocalHapticFeedback.current
+    val c = detourColors
+    DetourNavigationRow(
+        title = stringResource(titleRes),
+        subtitle = stringResource(subtitleRes),
+        iconRes = iconRes,
+        modifier = Modifier.detourToggleable(
+            value = checked,
+            onValueChange = { next ->
+                haptics.performHapticFeedback(
+                    if (next) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff,
+                )
+                onCheckedChange(next)
+            },
+            pressedColor = c.surfaceSelected.copy(alpha = 0.34f),
+            pressScale = Motion.PRESS_ROW,
+        ),
+        trailing = {
+            DetourSwitch(
+                checked = checked,
+                onCheckedChange = null,
+                compact = true,
+            )
+        },
+    )
 }
 
 @Composable
