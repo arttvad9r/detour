@@ -38,9 +38,13 @@ fun MultiHopEntryCard(
     }
     val selectedLabel = when (selectedEntry) {
         null -> null
-        is MultiHopEntryRef.Vless -> vlessEntries.firstOrNull { it.id == selectedEntry.keyId }?.name?.let {
-            stringResource(R.string.multi_hop_vless_label, it)
-        }
+        is MultiHopEntryRef.Vless -> if (
+            activeVpn != VpnProfileKind.VLESS || selectedEntry.keyId != activeVlessId
+        ) {
+            vlessEntries.firstOrNull { it.id == selectedEntry.keyId }?.name?.let {
+                stringResource(R.string.multi_hop_vless_label, it)
+            }
+        } else null
         MultiHopEntryRef.Warp -> if (warpAvailable && activeVpn != VpnProfileKind.WARP) {
             stringResource(R.string.multi_hop_warp_label)
         } else null
