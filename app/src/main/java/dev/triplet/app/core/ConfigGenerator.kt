@@ -7,19 +7,23 @@ object ConfigGenerator {
 
     const val MTU = 1500
     const val INET4 = "172.19.0.1/30"
+    const val INET6 = "fdfe:dcba:9876::1/126"
 
-    val LAN_PREFIXES = listOf(
+    val IPV4_LOCAL_PREFIXES = listOf(
         "0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8",
         "169.254.0.0/16", "172.16.0.0/12", "192.0.0.0/24", "192.0.2.0/24",
         "192.168.0.0/16", "198.18.0.0/15", "224.0.0.0/3",
     )
+    val IPV6_LOCAL_PREFIXES = listOf(
+        "::/128", "::1/128", "fc00::/7", "fe80::/10", "ff00::/8",
+    )
+    val LAN_PREFIXES = IPV4_LOCAL_PREFIXES + IPV6_LOCAL_PREFIXES
 
-    val ANDROID_EXCLUDED_PREFIXES = LAN_PREFIXES - "127.0.0.0/8"
+    val ANDROID_EXCLUDED_PREFIXES = LAN_PREFIXES.filterNot {
+        it == "127.0.0.0/8" || it == "::1/128"
+    }
 
-    // The Android TUN is intentionally IPv4-only. Passing an IPv6 route to
-    // gVisor while ipv6=false makes Engine.start fail with EFAULT on some
-    // Android kernels.
-    private val ROUTE_ADDRESS = listOf("0.0.0.0/1", "128.0.0.0/1")
+    private val ROUTE_ADDRESS = listOf("0.0.0.0/1", "128.0.0.0/1", "::/0")
     private const val WARP_GROUP = "WARP"
     private const val SUBSCRIPTION_GROUP = "SUBSCRIPTION"
     private const val SUBSCRIPTION_PROVIDER = "DETOUR_SUBSCRIPTION"
@@ -60,12 +64,15 @@ object ConfigGenerator {
         // Приложения атрибутируются по UID (резолвится host-side через VpnService).
         val attr = { pkg: String -> "UID,${input.vpnUids[pkg]}" }
         val rules = buildList {
-            add("- IP-CIDR6,::/0,REJECT,no-resolve")
-            // Before API 33 VpnService has no excludeRoute(). LAN destinations
-            // therefore enter the TUN and must be rejected before user overrides;
-            // otherwise a broad DIRECT/VPN rule could proxy or bypass local traffic.
+            // Before API 33 VpnService has no excludeRoute(). Local/private
+            // destinations therefore enter the TUN and must be rejected before
+            // user overrides; otherwise a broad DIRECT/VPN rule could proxy or
+            // bypass traffic that should remain device/local-network scoped.
             if (input.apiLevel < 33) {
-                LAN_PREFIXES.forEach { add("- IP-CIDR,$it,REJECT,no-resolve") }
+                LAN_PREFIXES.forEach { prefix ->
+                    val matcher = if (':' in prefix) "IP-CIDR6" else "IP-CIDR"
+                    add("- $matcher,$prefix,REJECT,no-resolve")
+                }
             }
             orderedDestinationRules.forEach { rule ->
                 addAll(renderDestinationRule(rule, vpnTag))
@@ -153,7 +160,7 @@ object ConfigGenerator {
         return """
 mode: rule
 log-level: info
-ipv6: false
+ipv6: true
 unified-delay: true
 find-process-mode: strict
 profile:
@@ -168,7 +175,8 @@ tun:
   mtu: $MTU
   inet4-address:
     - $INET4
-  inet6-address: []
+  inet6-address:
+    - $INET6
   route-address:${items(ROUTE_ADDRESS)}
   route-exclude-address:$excludeLan
   dns-hijack:
@@ -190,7 +198,10 @@ $rules""".trim()
         val matcher = when (rule.type) {
             DestinationRuleType.DOMAIN -> "DOMAIN,${rule.value}"
             DestinationRuleType.DOMAIN_SUFFIX -> "DOMAIN-SUFFIX,${rule.value}"
-            DestinationRuleType.IP_CIDR -> "IP-CIDR,${rule.value}"
+            DestinationRuleType.IP_CIDR -> {
+                val type = if (':' in rule.value.substringBefore('/')) "IP-CIDR6" else "IP-CIDR"
+                "$type,${rule.value}"
+            }
         }
         val target = when (rule.route) {
             AppRoute.DIRECT -> "DIRECT"
