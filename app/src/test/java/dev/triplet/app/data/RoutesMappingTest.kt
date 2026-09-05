@@ -2,6 +2,8 @@ package dev.triplet.app.data
 
 import dev.triplet.app.core.AmneziaWgOptions
 import dev.triplet.app.core.AppRoute
+import dev.triplet.app.core.DestinationRuleType
+import dev.triplet.app.core.DestinationRules
 import dev.triplet.app.core.DpiPreset
 import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.core.WarpProfile
@@ -36,6 +38,29 @@ class RoutesMappingTest {
         assertEquals(AppRoute.DPI, s.routes["b"])
         // DIRECT не хранится как отдельная запись-маршрут
         assertFalse(s.routes.containsKey("c"))
+    }
+
+    @Test fun `destination rules restore from validated json`() {
+        val rule = requireNotNull(
+            DestinationRules.create(
+                DestinationRuleType.DOMAIN_SUFFIX,
+                "Example.COM.",
+                AppRoute.VPN,
+            ),
+        )
+        val settings = RoutesMapping.toSettings(
+            mapOf("destination_rules" to DestinationRules.toJson(listOf(rule))),
+        )
+
+        assertEquals(listOf(rule), settings.destinationRules)
+    }
+
+    @Test fun `corrupt destination rules fail closed`() {
+        val settings = RoutesMapping.toSettings(
+            mapOf("destination_rules" to "not-json"),
+        )
+
+        assertTrue(settings.destinationRules.isEmpty())
     }
 
     @Test fun `WARP profile and selection are restored`() {
@@ -81,6 +106,7 @@ class RoutesMappingTest {
         assertEquals(DpiPreset.RECOMMENDED, s.preset)
         assertEquals(VpnProfileKind.VLESS, s.activeVpn)
         assertTrue(s.routes.isEmpty())
+        assertTrue(s.destinationRules.isEmpty())
     }
 
     @Test fun `unknown preset falls back to recommended`() {
