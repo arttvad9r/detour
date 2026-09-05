@@ -23,7 +23,10 @@ sealed interface VpnOutbound {
 data class RoutingInput(
     val tunFd: Int,
     val apiLevel: Int,
+    /** Exit hop selected by the user. */
     val vpn: VpnOutbound?,
+    /** Optional first hop. When present, [vpn] is reached through this outbound. */
+    val chainEntry: VpnOutbound? = null,
     val vpnApps: Set<String>,
     val vpnUids: Map<String, Int>,
     val dpiApps: Set<String>,
