@@ -12,6 +12,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import dev.triplet.app.core.DpiBackend
 import dev.triplet.app.core.DpiProxyTestCatalog
 import dev.triplet.app.core.ProbeAuth
+import java.util.concurrent.CancellationException
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -57,14 +58,18 @@ class DpiProxyTestSmokeTest {
             backend.stop()
             assertFalse(backend.isAlive())
 
-            assertFalse(
+            var cancellationObserved = false
+            try {
                 backend.start(
                     strategyArgs = strategy.args,
                     port = port,
                     credentials = ProbeAuth.current(),
                     cancelled = { true },
-                ),
-            )
+                )
+            } catch (_: CancellationException) {
+                cancellationObserved = true
+            }
+            assertTrue(cancellationObserved)
             assertFalse(backend.isAlive())
         } finally {
             backend.stop()
