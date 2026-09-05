@@ -112,6 +112,8 @@ object DpiStrategyCatalog {
         check(candidates.map { it.id }.distinct().size == candidates.size)
         check(candidates.all { DpiArgs.isValid(it.args.joinToString(" ")) })
     }
+
+    fun byId(id: String): DpiStrategyCandidate? = default.firstOrNull { it.id == id }
 }
 
 /** Runtime adapter for starting and stopping a candidate-specific local proxy. */
@@ -150,9 +152,8 @@ class DpiStrategySearchRunner(
         for (candidate in candidates) {
             if (cancelled()) break
 
-            var started = false
             try {
-                started = backend.start(candidate)
+                val started = backend.start(candidate)
                 if (!started) {
                     results += DpiStrategyResult(
                         candidate = candidate,
