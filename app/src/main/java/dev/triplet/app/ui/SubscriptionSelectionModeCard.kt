@@ -1,12 +1,11 @@
 package dev.triplet.app.ui
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -21,11 +20,12 @@ internal fun SubscriptionSelectionModeCard(
     modifier: Modifier = Modifier,
 ) {
     val c = detourColors
+    val modes = listOf(SubscriptionSelectionMode.AUTO, SubscriptionSelectionMode.MANUAL)
     DetourCard(modifier) {
         Column(
             Modifier.padding(
                 horizontal = Spacing.space12,
-                vertical = Spacing.space10,
+                vertical = Spacing.space12,
             ),
         ) {
             Text(
@@ -34,20 +34,16 @@ internal fun SubscriptionSelectionModeCard(
                 color = c.textPrimary,
                 modifier = Modifier.padding(horizontal = Spacing.space4),
             )
-            Row(Modifier.fillMaxWidth()) {
-                SelectionModeButton(
-                    text = stringResource(R.string.subscription_selection_auto),
-                    selected = mode == SubscriptionSelectionMode.AUTO,
-                    onClick = { onModeChange(SubscriptionSelectionMode.AUTO) },
-                    modifier = Modifier.weight(1f),
-                )
-                SelectionModeButton(
-                    text = stringResource(R.string.subscription_selection_manual),
-                    selected = mode == SubscriptionSelectionMode.MANUAL,
-                    onClick = { onModeChange(SubscriptionSelectionMode.MANUAL) },
-                    modifier = Modifier.weight(1f),
-                )
-            }
+            Spacer(Modifier.height(Spacing.space8))
+            SegmentedControl(
+                options = listOf(
+                    stringResource(R.string.subscription_selection_auto),
+                    stringResource(R.string.subscription_selection_manual),
+                ),
+                selected = modes.indexOf(mode).coerceAtLeast(0),
+                onSelect = { index -> modes.getOrNull(index)?.let(onModeChange) },
+            )
+            Spacer(Modifier.height(Spacing.space8))
             Text(
                 text = when (mode) {
                     SubscriptionSelectionMode.AUTO -> currentNode?.let {
@@ -61,26 +57,5 @@ internal fun SubscriptionSelectionModeCard(
                 modifier = Modifier.padding(horizontal = Spacing.space4),
             )
         }
-    }
-}
-
-@Composable
-private fun SelectionModeButton(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val c = detourColors
-    TextButton(
-        onClick = onClick,
-        enabled = !selected,
-        modifier = modifier,
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelLarge,
-            color = if (selected) c.accent else c.textSecondary,
-        )
     }
 }
