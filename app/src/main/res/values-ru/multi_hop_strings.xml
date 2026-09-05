@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="multi_hop_title">Multi-hop</string>
+    <string name="multi_hop_off">Выключено</string>
+    <string name="multi_hop_summary_off">Подключаться напрямую к выбранному VPN-профилю.</string>
+    <string name="multi_hop_summary_on">Сначала направлять VPN-подключение через %1$s.</string>
+    <string name="multi_hop_entry_title">Входной узел</string>
+    <string name="multi_hop_vless_label">VLESS · %1$s</string>
+    <string name="multi_hop_warp_label">WARP</string>
+    <string name="multi_hop_unavailable">Выбранный входной узел недоступен.</string>
+    <string name="err_multi_hop_invalid">Входной узел Multi-hop недоступен или совпадает с выходным профилем.</string>
+</resources>
