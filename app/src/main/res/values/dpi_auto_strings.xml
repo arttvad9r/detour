@@ -6,6 +6,12 @@
     <string name="dpi_auto_googlevideo">GoogleVideo</string>
     <string name="dpi_auto_discord">Discord</string>
     <string name="dpi_auto_telegram">Telegram</string>
+    <plurals name="dpi_auto_target_count">
+        <item quantity="one">%1$d test domain</item>
+        <item quantity="other">%1$d test domains</item>
+    </plurals>
+    <string name="dpi_auto_attempts">Attempts per domain</string>
+    <string name="dpi_auto_attempts_hint">Repeat each check %1$d–%2$d times. More attempts improve repeatability but make the test longer.</string>
     <string name="dpi_auto_custom_domains">Custom domains</string>
     <string name="dpi_auto_custom_domains_placeholder">example.com\nsub.example.com</string>
     <string name="dpi_auto_custom_domains_hint">Optional. Enter domain names only, separated by spaces or new lines.</string>
