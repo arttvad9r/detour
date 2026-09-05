@@ -122,6 +122,30 @@ class DpiAutoStrategyTest {
         assertEquals(listOf(10L, 30L), result.targets.single().successfulLatenciesMs)
     }
 
+    @Test fun `global auto search short circuits a candidate after first failed attempt`() {
+        val backend = object : DpiStrategyBackend {
+            override fun start(candidate: DpiStrategyCandidate) = true
+            override fun stop() = Unit
+        }
+        var calls = 0
+        val probe = DpiTargetProbe {
+            calls++
+            DpiProbeAttempt(success = false)
+        }
+
+        val result = DpiStrategySearchRunner(backend, probe).run(
+            candidates = listOf(DpiStrategyCandidate("candidate", listOf("-d", "1"))),
+            targets = listOf(youtube, discord),
+            attemptsPerTarget = 2,
+            stopCandidateOnFailure = true,
+        ).single()
+
+        assertEquals(1, calls)
+        assertEquals(1, result.targets[0].attempts)
+        assertEquals(0, result.targets[1].attempts)
+        assertEquals(0, result.fullyWorkingTargets)
+    }
+
     private fun result(
         id: String,
         youtube: DpiTargetResult,
