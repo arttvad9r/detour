@@ -2,6 +2,8 @@ package dev.triplet.app.vpn
 
 import dev.triplet.app.core.AmneziaWgOptions
 import dev.triplet.app.core.AppRoute
+import dev.triplet.app.core.DestinationRule
+import dev.triplet.app.core.DestinationRuleType
 import dev.triplet.app.core.DpiPreset
 import dev.triplet.app.core.VlessKey
 import dev.triplet.app.core.VlessKeys
@@ -57,6 +59,29 @@ class AutoConnectTest {
             true,
             effective,
         ))
+    }
+
+    @Test fun `vpn destination override also requires selected profile`() {
+        val destinationVpn = DestinationRule(
+            DestinationRuleType.DOMAIN,
+            "example.com",
+            AppRoute.VPN,
+        )
+        val effective = EffectiveRoutes(emptySet(), setOf("app"))
+        assertFalse(
+            canAutoConnect(
+                settings(AppRoute.DPI).copy(destinationRules = listOf(destinationVpn)),
+                true,
+                effective,
+            ),
+        )
+        assertTrue(
+            canAutoConnect(
+                settings(AppRoute.DPI, key = true).copy(destinationRules = listOf(destinationVpn)),
+                true,
+                effective,
+            ),
+        )
     }
 
     @Test fun `dpi only needs no vpn profile`() {
