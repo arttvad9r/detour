@@ -49,7 +49,14 @@ class DpiBackend(context: Context, private val onUnexpectedExit: () -> Unit = {}
                 writer.append(credentials.password).append('\n')
             }
             val started = awaitPort(port, timeoutMs = 4000, cancelled = cancelled)
-            if (started) watchExit(process)
+            if (started) {
+                watchExit(process)
+            } else {
+                // A cancelled/timed-out startup can leave a perfectly healthy child
+                // running before its listener becomes observable. Failed start is a
+                // strict lifecycle boundary: never return with a retained process.
+                stop()
+            }
             started
         } catch (e: Exception) {
             stop()
@@ -93,14 +100,13 @@ class DpiBackend(context: Context, private val onUnexpectedExit: () -> Unit = {}
     }
 
     private fun awaitPort(port: Int, timeoutMs: Int, cancelled: () -> Boolean): Boolean {
-        val deadline = System.currentTimeMillis() + timeoutMs
-        while (System.currentTimeMillis() < deadline) {
+        val deadlineNs = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(timeoutMs.toLong())
+        while (System.nanoTime() < deadlineNs) {
             if (cancelled() || Thread.currentThread().isInterrupted) return false
             if (proc?.isAlive != true) return false
             try {
                 Socket().use { s ->
                     s.connect(InetSocketAddress("127.0.0.1", port), 250)
-                    s.close()
                     return true
                 }
             } catch (e: Exception) {
