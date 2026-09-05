@@ -1,15 +1,24 @@
 package dev.triplet.app.core
 
-/** A concrete HTTPS host selected for DPI strategy testing. */
+/**
+ * A concrete HTTPS endpoint selected for DPI strategy testing.
+ * [scopeHost] is the host suffix the resulting per-domain rule should cover;
+ * it may be broader than the concrete [host] used by the probe.
+ */
 data class DpiProbeTarget(
     val id: String,
     val host: String,
+    val scopeHost: String = host,
 ) {
     init {
         require(id.isNotBlank()) { "target id is blank" }
         require(host.isNotBlank()) { "target host is blank" }
+        require(scopeHost.isNotBlank()) { "target scope is blank" }
         require(host.none { it.isWhitespace() || it.code < 0x20 || it.code == 0x7f }) {
             "invalid target host"
+        }
+        require(scopeHost.none { it.isWhitespace() || it.code < 0x20 || it.code == 0x7f }) {
+            "invalid target scope"
         }
     }
 }
