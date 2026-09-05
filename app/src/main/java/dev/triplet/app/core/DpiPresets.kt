@@ -35,12 +35,20 @@ object DpiArgs {
         preset: DpiPreset,
         customRaw: String,
         autoCandidateId: String = "",
+        autoDomainPlan: DpiAutoDomainPlan? = null,
     ): List<String> = when (preset) {
         DpiPreset.RECOMMENDED -> preset.args
         DpiPreset.CUSTOM -> tokenize(customRaw)
-        DpiPreset.AUTO -> requireNotNull(DpiStrategyCatalog.byId(autoCandidateId)) {
-            "unknown automatic DPI strategy"
-        }.args
+        DpiPreset.AUTO -> {
+            if (autoDomainPlan != null) {
+                require(autoCandidateId.isBlank()) { "conflicting automatic DPI strategies" }
+                autoDomainPlan.compileArgs()
+            } else {
+                requireNotNull(DpiStrategyCatalog.byId(autoCandidateId)) {
+                    "unknown automatic DPI strategy"
+                }.args
+            }
+        }
     }
 
     fun isValid(raw: String): Boolean {
