@@ -85,12 +85,20 @@ data class DpiStrategyResult(
 }
 
 /**
- * The automatic catalog is intentionally app-authored rather than copied from
- * ByeByeDPI's GPL Android tester. Every entry is compatible with Detour's
- * pinned ByeDPI v0.17.3 and uses the narrow argument surface already exposed
- * by DpiArgs.
+ * App-authored candidate catalog for the bundled ByeDPI v0.17.3 binary.
+ * It is deliberately independent from the narrow user CUSTOM validator: AUTO
+ * may use additional upstream-documented strategy primitives while persisted
+ * selection remains a trusted candidate ID rather than arbitrary argv.
+ *
+ * The list is independently authored from ByeDPI's upstream documentation and
+ * does not copy ByeByeDPI's GPL proxytest strategy asset.
  */
 object DpiStrategyCatalog {
+    private val forbiddenProcessOptions = setOf(
+        "-i", "--ip", "-p", "--port", "-D", "--daemon", "-w", "--pidfile",
+        "-E", "--transparent", "-U", "--no-udp", "-J",
+    )
+
     val default: List<DpiStrategyCandidate> = listOf(
         DpiStrategyCandidate(
             id = "recommended",
@@ -108,9 +116,25 @@ object DpiStrategyCatalog {
             id = "split-disorder-sni",
             args = listOf("-s", "1+s", "-d", "3+s", "--timeout", "3"),
         ),
+        DpiStrategyCandidate(
+            id = "split-middle-sni",
+            args = listOf("-s", "0+sm", "--timeout", "3"),
+        ),
+        DpiStrategyCandidate(
+            id = "tls-record-sni",
+            args = listOf("-r", "1+s", "--timeout", "3"),
+        ),
+        DpiStrategyCandidate(
+            id = "oob-sni",
+            args = listOf("-o", "1+s", "--timeout", "3"),
+        ),
+        DpiStrategyCandidate(
+            id = "disoob-sni",
+            args = listOf("-q", "1+s", "--timeout", "3"),
+        ),
     ).also { candidates ->
         check(candidates.map { it.id }.distinct().size == candidates.size)
-        check(candidates.all { DpiArgs.isValid(it.args.joinToString(" ")) })
+        check(candidates.none { candidate -> candidate.args.any { it in forbiddenProcessOptions } })
     }
 
     fun byId(id: String): DpiStrategyCandidate? = default.firstOrNull { it.id == id }
