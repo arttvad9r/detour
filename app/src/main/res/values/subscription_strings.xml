@@ -38,4 +38,10 @@
     <string name="subscription_metadata_remaining">%1$s remaining</string>
     <string name="subscription_metadata_expires">Expires %1$s</string>
     <string name="subscription_metadata_update_interval">Provider refresh interval: %1$d h</string>
+    <string name="subscription_auto_update">Automatic updates</string>
+    <string name="subscription_update_interval">Update interval</string>
+    <string name="subscription_interval_hours">%1$d h</string>
+    <string name="subscription_provider_recommends_interval">Provider recommends every %1$d h</string>
+    <string name="subscription_last_updated">Last updated %1$s</string>
+    <string name="subscription_not_updated_yet">Not refreshed yet</string>
 </resources>
