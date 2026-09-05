@@ -43,9 +43,10 @@ import dev.triplet.app.ui.Motion
 import dev.triplet.app.ui.colorSchemeFor
 import dev.triplet.app.ui.configureAdaptiveRefresh
 import dev.triplet.app.vpn.AutoConnectCoordinator
+import dev.triplet.app.vpn.AutoConnectTrigger
 import dev.triplet.app.vpn.VpnController
+import dev.triplet.app.vpn.foregroundAutoConnectTrigger
 import dev.triplet.app.vpn.resolveEffectiveRoutes
-import dev.triplet.app.vpn.shouldAttemptForegroundAutoConnect
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -72,6 +73,8 @@ class MainActivity : ComponentActivity() {
     private var autoConnectGeneration = 0L
     private var autoConnectNetworkCallback: ConnectivityManager.NetworkCallback? = null
     private var validatedAutoConnectNetwork: Network? = null
+    private var launchAutoConnectAttempted = false
+    private var pendingAutoConnectTrigger: AutoConnectTrigger? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -274,12 +277,17 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        if (!launchAutoConnectAttempted) {
+            launchAutoConnectAttempted = true
+            attemptAutoConnect(AutoConnectTrigger.APP_LAUNCH)
+        }
         registerForegroundAutoConnect()
     }
 
     override fun onStop() {
         unregisterForegroundAutoConnect()
         autoConnectGeneration++
+        pendingAutoConnectTrigger = null
         autoConnectJob?.cancel()
         autoConnectJob = null
         autoConnectAttemptInFlight.set(false)
@@ -303,18 +311,20 @@ class MainActivity : ComponentActivity() {
         val connectivity = getSystemService(ConnectivityManager::class.java)
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
-                val validated = shouldAttemptForegroundAutoConnect(
+                val trigger = foregroundAutoConnectTrigger(
                     hasInternet = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET),
                     validated = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
                     vpnTransport = caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN),
+                    wifiTransport = caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI),
+                    cellularTransport = caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR),
                 )
-                if (!validated) {
+                if (trigger == null) {
                     if (validatedAutoConnectNetwork == network) validatedAutoConnectNetwork = null
                     return
                 }
                 if (validatedAutoConnectNetwork == network) return
                 validatedAutoConnectNetwork = network
-                attemptAutoConnect()
+                attemptAutoConnect(trigger)
             }
 
             override fun onLost(network: Network) {
@@ -334,8 +344,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun attemptAutoConnect() {
-        if (!autoConnectAttemptInFlight.compareAndSet(false, true)) return
+    private fun attemptAutoConnect(trigger: AutoConnectTrigger) {
+        if (!autoConnectAttemptInFlight.compareAndSet(false, true)) {
+            pendingAutoConnectTrigger = trigger
+            return
+        }
         val generation = ++autoConnectGeneration
         val appContext = applicationContext
         val store = (application as TripletApp).routesStore
@@ -351,12 +364,17 @@ class MainActivity : ComponentActivity() {
                     vpnPermissionGranted = { VpnService.prepare(appContext) == null },
                     currentVpnState = { VpnController.state.value },
                     startVpn = { VpnController.startNow(appContext) },
+                    trigger = trigger,
                 ).runOnce()
             } finally {
+                var nextTrigger: AutoConnectTrigger? = null
                 if (generation == autoConnectGeneration) {
                     autoConnectAttemptInFlight.set(false)
                     autoConnectJob = null
+                    nextTrigger = pendingAutoConnectTrigger
+                    pendingAutoConnectTrigger = null
                 }
+                nextTrigger?.let(::attemptAutoConnect)
             }
         }
     }
