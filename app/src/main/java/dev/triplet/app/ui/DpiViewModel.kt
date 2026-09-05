@@ -8,10 +8,11 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.triplet.app.core.DpiArgs
+import dev.triplet.app.core.DpiAutoDomainCatalog
 import dev.triplet.app.core.DpiAutoDomainPlan
 import dev.triplet.app.core.DpiAutoProgress
 import dev.triplet.app.core.DpiAutoSearchReport
-import dev.triplet.app.core.DpiDomainCatalog
+import dev.triplet.app.core.DpiAutoTestOptions
 import dev.triplet.app.core.DpiDomainInput
 import dev.triplet.app.core.DpiPerDomainPlan
 import dev.triplet.app.core.DpiPerDomainPlanner
@@ -46,9 +47,10 @@ data class DpiUiState(
     val customChanged: Boolean = false,
     val saveState: DpiSaveState = DpiSaveState.IDLE,
     val editingAuto: Boolean = false,
-    val selectedAutoGroups: Set<String> = DpiDomainCatalog.default.map { it.id }.toSet(),
+    val selectedAutoGroups: Set<String> = DpiAutoDomainCatalog.default.map { it.id }.toSet(),
     val customAutoDomains: String = "",
     val customAutoDomainsInvalid: Boolean = false,
+    val autoAttempts: Int = DpiAutoTestOptions.DEFAULT_ATTEMPTS,
     val autoRunState: DpiAutoRunState = DpiAutoRunState.IDLE,
     val autoProgress: DpiAutoProgress? = null,
     val autoReport: DpiAutoSearchReport? = null,
@@ -65,6 +67,7 @@ data class DpiUiState(
         get() = vpnIdle &&
             (selectedAutoGroups.isNotEmpty() || customAutoDomains.isNotBlank()) &&
             !customAutoDomainsInvalid &&
+            DpiAutoTestOptions.isValidAttempts(autoAttempts) &&
             autoRunState != DpiAutoRunState.RUNNING &&
             autoRunState != DpiAutoRunState.CANCELLING &&
             autoRunState != DpiAutoRunState.APPLYING
@@ -113,6 +116,7 @@ private data class DpiAutoTargetsDraft(
     val selectedGroups: Set<String>,
     val customDomains: String,
     val customDomainsInvalid: Boolean,
+    val attempts: Int,
 )
 
 private data class DpiAutoResult(
@@ -137,12 +141,39 @@ class DpiViewModel(
     private val vpnState: StateFlow<VpnState>,
     private val runAutoSearch: suspend (
         List<DpiProbeTarget>,
+        Int,
         () -> Boolean,
         (DpiAutoProgress) -> Unit,
     ) -> DpiAutoSearchReport,
     private val restartTunnel: () -> Unit,
     private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
+    constructor(
+        settings: StateFlow<TriSettings?>,
+        setPreset: suspend (DpiPreset) -> Unit,
+        setCustomArgs: suspend (String) -> Unit,
+        setAutoDomainPlan: suspend (DpiAutoDomainPlan) -> Unit,
+        vpnState: StateFlow<VpnState>,
+        runAutoSearch: suspend (
+            List<DpiProbeTarget>,
+            () -> Boolean,
+            (DpiAutoProgress) -> Unit,
+        ) -> DpiAutoSearchReport,
+        restartTunnel: () -> Unit,
+        savedStateHandle: SavedStateHandle,
+    ) : this(
+        settings = settings,
+        setPreset = setPreset,
+        setCustomArgs = setCustomArgs,
+        setAutoDomainPlan = setAutoDomainPlan,
+        vpnState = vpnState,
+        runAutoSearch = { targets, _, cancelled, progress ->
+            runAutoSearch(targets, cancelled, progress)
+        },
+        restartTunnel = restartTunnel,
+        savedStateHandle = savedStateHandle,
+    )
+
     constructor(
         settings: StateFlow<TriSettings?>,
         setPreset: suspend (DpiPreset) -> Unit,
@@ -158,7 +189,7 @@ class DpiViewModel(
         setCustomArgs = setCustomArgs,
         setAutoDomainPlan = setAutoDomainPlan,
         vpnState = vpnState,
-        runAutoSearch = { targets, cancelled, _ -> runAutoSearch(targets, cancelled) },
+        runAutoSearch = { targets, _, cancelled, _ -> runAutoSearch(targets, cancelled) },
         restartTunnel = restartTunnel,
         savedStateHandle = savedStateHandle,
     )
@@ -168,9 +199,13 @@ class DpiViewModel(
     private val editingAutoOverride = savedStateHandle.getStateFlow<Boolean?>(KEY_EDITING_AUTO, null)
     private val selectedAutoGroups = savedStateHandle.getStateFlow(
         KEY_AUTO_GROUPS,
-        DpiDomainCatalog.default.joinToString(",") { it.id },
+        DpiAutoDomainCatalog.default.joinToString(",") { it.id },
     )
     private val customAutoDomains = savedStateHandle.getStateFlow(KEY_AUTO_CUSTOM_DOMAINS, "")
+    private val autoAttempts = savedStateHandle.getStateFlow(
+        KEY_AUTO_ATTEMPTS,
+        DpiAutoTestOptions.DEFAULT_ATTEMPTS,
+    )
     private val presetOverride = MutableStateFlow<DpiPreset?>(null)
     private val saveState = MutableStateFlow(DpiSaveState.IDLE)
     private val autoRunState = MutableStateFlow(DpiAutoRunState.IDLE)
@@ -200,12 +235,17 @@ class DpiViewModel(
         )
     }
 
-    private val autoTargetsDraft = combine(selectedAutoGroups, customAutoDomains) { groupCsv, customDomains ->
+    private val autoTargetsDraft = combine(
+        selectedAutoGroups,
+        customAutoDomains,
+        autoAttempts,
+    ) { groupCsv, customDomains, attempts ->
         val parsed = DpiDomainInput.parse(customDomains)
         DpiAutoTargetsDraft(
             selectedGroups = decodeGroupIds(groupCsv),
             customDomains = customDomains,
             customDomainsInvalid = !parsed.isValid,
+            attempts = attempts,
         )
     }
 
@@ -237,6 +277,7 @@ class DpiViewModel(
             selectedAutoGroups = auto.targetsDraft.selectedGroups,
             customAutoDomains = auto.targetsDraft.customDomains,
             customAutoDomainsInvalid = auto.targetsDraft.customDomainsInvalid,
+            autoAttempts = auto.targetsDraft.attempts,
             autoRunState = auto.runState,
             autoProgress = auto.result.progress,
             autoReport = auto.result.report,
@@ -251,6 +292,7 @@ class DpiViewModel(
             selectedAutoGroups = decodeGroupIds(selectedAutoGroups.value),
             customAutoDomains = customAutoDomains.value,
             customAutoDomainsInvalid = !DpiDomainInput.parse(customAutoDomains.value).isValid,
+            autoAttempts = autoAttempts.value,
             vpnIdle = vpnState.value == VpnState.Idle,
         ),
     )
@@ -273,38 +315,31 @@ class DpiViewModel(
     }
 
     fun setAutoCustomDomains(value: String) {
-        if (
-            autoRunState.value == DpiAutoRunState.RUNNING ||
-            autoRunState.value == DpiAutoRunState.CANCELLING ||
-            autoRunState.value == DpiAutoRunState.APPLYING
-        ) return
+        if (!autoControlsMutable()) return
         savedStateHandle[KEY_AUTO_CUSTOM_DOMAINS] = value
             .replace("\r\n", "\n")
             .replace('\r', '\n')
             .take(MAX_CUSTOM_DOMAIN_DRAFT_CHARS)
-        autoProgress.value = null
-        autoReport.value = null
-        autoDomainPlan.value = null
-        if (autoRunState.value != DpiAutoRunState.IDLE) autoRunState.value = DpiAutoRunState.IDLE
+        invalidateAutoResult()
+    }
+
+    fun setAutoAttempts(value: Int) {
+        if (!autoControlsMutable() || !DpiAutoTestOptions.isValidAttempts(value)) return
+        if (value == autoAttempts.value) return
+        savedStateHandle[KEY_AUTO_ATTEMPTS] = value
+        invalidateAutoResult()
     }
 
     fun toggleAutoGroup(id: String) {
-        if (
-            autoRunState.value == DpiAutoRunState.RUNNING ||
-            autoRunState.value == DpiAutoRunState.CANCELLING ||
-            autoRunState.value == DpiAutoRunState.APPLYING
-        ) return
-        if (DpiDomainCatalog.default.none { it.id == id }) return
+        if (!autoControlsMutable()) return
+        if (DpiAutoDomainCatalog.default.none { it.id == id }) return
         val next = decodeGroupIds(selectedAutoGroups.value).toMutableSet()
         if (!next.add(id)) next.remove(id)
-        savedStateHandle[KEY_AUTO_GROUPS] = DpiDomainCatalog.default
+        savedStateHandle[KEY_AUTO_GROUPS] = DpiAutoDomainCatalog.default
             .map { it.id }
             .filter { it in next }
             .joinToString(",")
-        autoProgress.value = null
-        autoReport.value = null
-        autoDomainPlan.value = null
-        if (autoRunState.value != DpiAutoRunState.IDLE) autoRunState.value = DpiAutoRunState.IDLE
+        invalidateAutoResult()
     }
 
     fun startAutoTest() {
@@ -317,8 +352,10 @@ class DpiViewModel(
         val selected = decodeGroupIds(selectedAutoGroups.value)
         val customParsed = DpiDomainInput.parse(customAutoDomains.value)
         if (!customParsed.isValid) return
+        val attempts = autoAttempts.value
+        if (!DpiAutoTestOptions.isValidAttempts(attempts)) return
         val targets = (
-            DpiDomainCatalog.default
+            DpiAutoDomainCatalog.default
                 .filter { it.id in selected }
                 .flatMap { it.targets } + customParsed.targets
             ).distinctBy { it.host }
@@ -334,6 +371,7 @@ class DpiViewModel(
             try {
                 val report = runAutoSearch(
                     targets,
+                    attempts,
                     {
                         val shouldCancel = autoGeneration.get() != generation || vpnState.value != VpnState.Idle
                         if (shouldCancel) invalidated.set(true)
@@ -527,6 +565,18 @@ class DpiViewModel(
         }
     }
 
+    private fun autoControlsMutable(): Boolean =
+        autoRunState.value != DpiAutoRunState.RUNNING &&
+            autoRunState.value != DpiAutoRunState.CANCELLING &&
+            autoRunState.value != DpiAutoRunState.APPLYING
+
+    private fun invalidateAutoResult() {
+        autoProgress.value = null
+        autoReport.value = null
+        autoDomainPlan.value = null
+        if (autoRunState.value != DpiAutoRunState.IDLE) autoRunState.value = DpiAutoRunState.IDLE
+    }
+
     private fun cancelAutoTest(resetReport: Boolean) {
         if (autoRunState.value == DpiAutoRunState.RUNNING) {
             autoGeneration.incrementAndGet()
@@ -550,10 +600,11 @@ class DpiViewModel(
         private const val KEY_EDITING_AUTO = "dpi_editing_auto"
         private const val KEY_AUTO_GROUPS = "dpi_auto_groups"
         private const val KEY_AUTO_CUSTOM_DOMAINS = "dpi_auto_custom_domains"
+        private const val KEY_AUTO_ATTEMPTS = "dpi_auto_attempts"
         private const val MAX_CUSTOM_DOMAIN_DRAFT_CHARS = 8192
 
         internal fun decodeGroupIds(csv: String): Set<String> {
-            val allowed = DpiDomainCatalog.default.map { it.id }.toSet()
+            val allowed = DpiAutoDomainCatalog.default.map { it.id }.toSet()
             return csv.split(',').map { it.trim() }.filter { it in allowed }.toSet()
         }
 
@@ -562,6 +613,7 @@ class DpiViewModel(
             vpnState: StateFlow<VpnState>,
             runAutoSearch: suspend (
                 List<DpiProbeTarget>,
+                Int,
                 () -> Boolean,
                 (DpiAutoProgress) -> Unit,
             ) -> DpiAutoSearchReport,
@@ -584,12 +636,30 @@ class DpiViewModel(
         fun factory(
             store: RoutesStore,
             vpnState: StateFlow<VpnState>,
+            runAutoSearch: suspend (
+                List<DpiProbeTarget>,
+                () -> Boolean,
+                (DpiAutoProgress) -> Unit,
+            ) -> DpiAutoSearchReport,
+            restartTunnel: () -> Unit,
+        ): ViewModelProvider.Factory = factory(
+            store = store,
+            vpnState = vpnState,
+            runAutoSearch = { targets, _, cancelled, progress ->
+                runAutoSearch(targets, cancelled, progress)
+            },
+            restartTunnel = restartTunnel,
+        )
+
+        fun factory(
+            store: RoutesStore,
+            vpnState: StateFlow<VpnState>,
             runAutoSearch: suspend (List<DpiProbeTarget>, () -> Boolean) -> DpiAutoSearchReport,
             restartTunnel: () -> Unit,
         ): ViewModelProvider.Factory = factory(
             store = store,
             vpnState = vpnState,
-            runAutoSearch = { targets, cancelled, _ -> runAutoSearch(targets, cancelled) },
+            runAutoSearch = { targets, _, cancelled, _ -> runAutoSearch(targets, cancelled) },
             restartTunnel = restartTunnel,
         )
     }
