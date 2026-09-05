@@ -43,6 +43,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import dev.triplet.app.R
 import dev.triplet.app.TripletApp
 import dev.triplet.app.core.ParseResult
+import dev.triplet.app.core.SubscriptionSelectionMode
 import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
@@ -67,6 +68,7 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
     val activeUri = activeKey?.uri.orEmpty()
     val persistedSelectedNode = activeKey?.selectedNode
     val favoriteNodes = activeKey?.favoriteNodes.orEmpty()
+    val selectionMode = activeKey?.subscriptionSelectionMode ?: SubscriptionSelectionMode.MANUAL
     val subscriptionUpdateIntervalHours = activeKey?.subscriptionUpdateIntervalHours
     val subscriptionUpdatedAt = activeKey?.subscriptionUpdatedAt
     val subscriptionUrl = remember(activeUri) {
@@ -101,6 +103,20 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
             }
             if (latest != null && latest.subscriptionUpdatedAt != refreshedAt) {
                 store.updateVlessKey(latest.copy(subscriptionUpdatedAt = refreshedAt))
+            }
+        }
+    }
+
+    val setSelectionMode: (SubscriptionSelectionMode) -> Unit = { mode ->
+        val keyId = activeKey?.id
+        if (keyId != null && mode != selectionMode) {
+            scope.launch {
+                val latest = store.snapshot().vlessKeys.items.firstOrNull { it.id == keyId }
+                    ?: return@launch
+                if (latest.subscriptionSelectionMode != mode) {
+                    store.updateVlessKey(latest.copy(subscriptionSelectionMode = mode))
+                    VpnController.restartIfActive(context)
+                }
             }
         }
     }
@@ -147,8 +163,9 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
         }
     }
 
-    // Reconcile a live selector value that was chosen by the engine itself, for
-    // example after a provider refresh removed the previously selected node.
+    // Reconcile the live group value. In MANUAL this captures provider fallback
+    // after a removed node; in AUTO it records the currently chosen url-test node
+    // for Home/status presentation without pinning the next automatic choice.
     LaunchedEffect(activeKey, state.catalog, state.selectedNode, state.selectionStatus) {
         val key = activeKey ?: return@LaunchedEffect
         val selected = state.selectedNode?.trim()?.takeIf { it.isNotBlank() }
@@ -162,10 +179,12 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
         }
     }
 
-    LaunchedEffect(state.catalog, state.selectedNode, state.selectionStatus) {
+    // Existing profiles remain MANUAL after migration. Give a new manual profile
+    // a deterministic first node, but never call Set() while AUTO uses url-test.
+    LaunchedEffect(state.catalog, state.selectedNode, state.selectionStatus, selectionMode) {
         if (
+            shouldChooseInitialManualSubscriptionNode(selectionMode, state.selectionStatus) &&
             state.catalog.isNotEmpty() &&
-            shouldAutoSelectSubscriptionNode(state.selectionStatus) &&
             state.selectedNode.isNullOrBlank()
         ) {
             runtimeViewModel.selectNode(state.catalog.first().name, persistSelectedNode)
@@ -268,6 +287,13 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
             Spacer(Modifier.height(Spacing.space12))
         }
 
+        SubscriptionSelectionModeCard(
+            mode = selectionMode,
+            currentNode = state.selectedNode ?: persistedSelectedNode,
+            onModeChange = setSelectionMode,
+        )
+        Spacer(Modifier.height(Spacing.space12))
+
         SubscriptionAutoUpdateCard(
             intervalHours = subscriptionUpdateIntervalHours,
             providerRecommendedHours = state.metadata?.updateIntervalHours,
@@ -293,6 +319,7 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
                 SubscriptionServerList(
                     nodes = visibleNodes.take(MAX_SUBSCRIPTION_NODE_ROWS),
                     selectedNode = state.selectedNode,
+                    manualSelectionEnabled = selectionMode == SubscriptionSelectionMode.MANUAL,
                     selecting = state.selectionStatus == SubscriptionSelectionStatus.SAVING,
                     favoriteNodes = favoriteNodes,
                     latencyByName = latencyByName,
@@ -492,6 +519,7 @@ private fun CatalogControlButton(
 private fun SubscriptionServerList(
     nodes: List<SubscriptionCatalogNode>,
     selectedNode: String?,
+    manualSelectionEnabled: Boolean,
     selecting: Boolean,
     favoriteNodes: Set<String>,
     latencyByName: Map<String, Int>,
@@ -505,7 +533,8 @@ private fun SubscriptionServerList(
             SubscriptionNodeRow(
                 name = node.name,
                 selected = node.name == selectedNode,
-                enabled = !selecting,
+                selectionEnabled = manualSelectionEnabled && !selecting,
+                selecting = selecting,
                 favorite = node.name in favoriteNodes,
                 delayMs = latencyByName[node.name],
                 latencyTested = node.name in latencyTestedNames,
@@ -522,7 +551,8 @@ private fun SubscriptionServerList(
 private fun SubscriptionNodeRow(
     name: String,
     selected: Boolean,
-    enabled: Boolean,
+    selectionEnabled: Boolean,
+    selecting: Boolean,
     favorite: Boolean,
     delayMs: Int?,
     latencyTested: Boolean,
@@ -541,7 +571,7 @@ private fun SubscriptionNodeRow(
             .fillMaxWidth()
             .detourSelectable(
                 selected = selected,
-                onClick = { if (enabled && !selected) onSelect() },
+                onClick = { if (selectionEnabled && !selected) onSelect() },
                 idleColor = if (selected) c.accentSoft else Color.Transparent,
                 pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
                 pressScale = Motion.PRESS_RADIO,
@@ -596,7 +626,7 @@ private fun SubscriptionNodeRow(
                 color = if (favorite) c.accent else c.textMuted,
             )
         }
-        if (!enabled && selected) {
+        if (selecting && selected) {
             CircularProgressIndicator(
                 modifier = Modifier
                     .padding(start = Spacing.space4)
@@ -652,5 +682,7 @@ private fun SubscriptionNotice(
     }
 }
 
-internal fun shouldAutoSelectSubscriptionNode(status: SubscriptionSelectionStatus): Boolean =
-    status == SubscriptionSelectionStatus.IDLE
+internal fun shouldChooseInitialManualSubscriptionNode(
+    mode: SubscriptionSelectionMode,
+    status: SubscriptionSelectionStatus,
+): Boolean = mode == SubscriptionSelectionMode.MANUAL && status == SubscriptionSelectionStatus.IDLE
