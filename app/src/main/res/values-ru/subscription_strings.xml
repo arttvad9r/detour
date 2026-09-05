@@ -14,10 +14,16 @@
     <string name="subscription_catalog_error">Не удалось получить VLESS-серверы из подписки. Проверьте ссылку и попробуйте обновить.</string>
     <string name="subscription_selected_server">Выбранный сервер</string>
     <string name="subscription_select_server">Выберите сервер</string>
+    <string name="subscription_search_label">Поиск</string>
     <string name="subscription_search_hint">Поиск серверов…</string>
+    <string name="subscription_filter_all">Все</string>
+    <string name="subscription_filter_favorites">Избранные</string>
     <string name="subscription_sort_default">По порядку</string>
     <string name="subscription_sort_latency">Задержка</string>
     <string name="subscription_sort_name">Имя</string>
+    <string name="subscription_no_matches">Нет серверов, подходящих под текущие фильтры.</string>
+    <string name="subscription_favorite_add">Добавить %1$s в избранное</string>
+    <string name="subscription_favorite_remove">Убрать %1$s из избранного</string>
     <string name="subscription_selection_error">Не удалось выбрать сервер. Предыдущий выбор сохранён.</string>
     <string name="subscription_latency_test">Проверить пинг</string>
     <string name="subscription_latency_testing">Проверка…</string>
@@ -28,4 +34,8 @@
     <string name="subscription_node_unknown">Не проверен</string>
     <string name="subscription_node_delay">%1$d мс</string>
     <string name="subscription_nodes_more">Ещё серверов: %1$d</string>
+    <string name="subscription_metadata_usage">Использовано %1$s из %2$s</string>
+    <string name="subscription_metadata_remaining">Осталось %1$s</string>
+    <string name="subscription_metadata_expires">Действует до %1$s</string>
+    <string name="subscription_metadata_update_interval">Интервал обновления провайдера: %1$d ч</string>
 </resources>
