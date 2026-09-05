@@ -130,20 +130,18 @@ object DpiPerDomainCommandCompiler {
         val byTargetId = plan.assignments.groupBy { it.target.id }
         require(byTargetId.values.all { it.size == 1 }) { "duplicate target id assignment" }
 
-        val byHost = plan.assignments.groupBy { it.target.host.lowercase() }
+        val normalized = plan.assignments.map { assignment ->
+            DpiTargetStrategyAssignment(
+                target = assignment.target.copy(host = normalizeHost(assignment.target.host)),
+                candidate = assignment.candidate,
+            )
+        }
+        val byHost = normalized.groupBy { it.target.host }
         require(byHost.values.all { assignments ->
             assignments.map { it.candidate.id }.distinct().size == 1
         }) { "same host assigned to multiple strategies" }
 
-        val normalizedAssignments = byHost.values.map { sameHost ->
-            val first = sameHost.first()
-            val normalized = normalizeHost(first.target.host)
-            DpiTargetStrategyAssignment(
-                target = first.target.copy(host = normalized),
-                candidate = first.candidate,
-            )
-        }
-
+        val normalizedAssignments = byHost.values.map { sameHost -> sameHost.first() }
         val candidateDefinitions = normalizedAssignments
             .groupBy { it.candidate.id }
             .mapValues { (_, values) -> values.map { it.candidate }.distinct() }
@@ -270,7 +268,7 @@ object DpiPerDomainCommandCompiler {
         val ordered = mutableListOf<DpiHostStrategyGroup>()
         while (available.isNotEmpty()) {
             available.sortWith(
-                compareByDescending<Int> { index -> groups[index].hosts.maxOf(::hostDepth) }
+                compareByDescending<Int> { index -> groups[index].hosts.maxOf { host -> hostDepth(host) } }
                     .thenBy { index -> groups[index].candidate.id }
                     .thenBy { index -> groups[index].hosts.joinToString("\u0000") },
             )
