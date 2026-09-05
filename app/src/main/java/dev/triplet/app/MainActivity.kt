@@ -1,7 +1,13 @@
 package dev.triplet.app
 
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.VpnService
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -36,11 +42,22 @@ import dev.triplet.app.ui.LocalDetourTheme
 import dev.triplet.app.ui.Motion
 import dev.triplet.app.ui.colorSchemeFor
 import dev.triplet.app.ui.configureAdaptiveRefresh
+import dev.triplet.app.vpn.AutoConnectCoordinator
+import dev.triplet.app.vpn.VpnController
+import dev.triplet.app.vpn.resolveEffectiveRoutes
+import dev.triplet.app.vpn.shouldAttemptForegroundAutoConnect
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 
 internal fun themeTransitionDuration(previousDark: Boolean, targetDark: Boolean): Int =
     if (previousDark == targetDark) Motion.THEME_MS else 0
@@ -49,6 +66,11 @@ class MainActivity : ComponentActivity() {
     // External profile credentials remain process-memory-only until the user
     // explicitly confirms the import. They are never placed in SavedState.
     private val pendingProfileImport = MutableStateFlow<ProfileImportRequest?>(null)
+    private val activityScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val autoConnectAttemptInFlight = AtomicBoolean(false)
+    private var autoConnectJob: Job? = null
+    private var autoConnectNetworkCallback: ConnectivityManager.NetworkCallback? = null
+    private var validatedAutoConnectNetwork: Network? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -249,9 +271,88 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        registerForegroundAutoConnect()
+    }
+
+    override fun onStop() {
+        unregisterForegroundAutoConnect()
+        autoConnectJob?.cancel()
+        autoConnectJob = null
+        autoConnectAttemptInFlight.set(false)
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        unregisterForegroundAutoConnect()
+        activityScope.cancel()
+        super.onDestroy()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         pendingProfileImport.value = profileImportRequest(intent)
+    }
+
+    private fun registerForegroundAutoConnect() {
+        if (autoConnectNetworkCallback != null) return
+        val connectivity = getSystemService(ConnectivityManager::class.java)
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                val validated = shouldAttemptForegroundAutoConnect(
+                    hasInternet = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET),
+                    validated = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED),
+                    vpnTransport = caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN),
+                )
+                if (!validated) {
+                    if (validatedAutoConnectNetwork == network) validatedAutoConnectNetwork = null
+                    return
+                }
+                if (validatedAutoConnectNetwork == network) return
+                validatedAutoConnectNetwork = network
+                attemptAutoConnect()
+            }
+
+            override fun onLost(network: Network) {
+                if (validatedAutoConnectNetwork == network) validatedAutoConnectNetwork = null
+            }
+        }
+        connectivity.registerDefaultNetworkCallback(callback, Handler(Looper.getMainLooper()))
+        autoConnectNetworkCallback = callback
+    }
+
+    private fun unregisterForegroundAutoConnect() {
+        val callback = autoConnectNetworkCallback ?: return
+        autoConnectNetworkCallback = null
+        validatedAutoConnectNetwork = null
+        runCatching {
+            getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(callback)
+        }
+    }
+
+    private fun attemptAutoConnect() {
+        if (!autoConnectAttemptInFlight.compareAndSet(false, true)) return
+        val appContext = applicationContext
+        val store = (application as TripletApp).routesStore
+        autoConnectJob = activityScope.launch {
+            try {
+                AutoConnectCoordinator(
+                    loadSettings = store::snapshot,
+                    resolveRoutes = { routes ->
+                        withContext(Dispatchers.IO) {
+                            resolveEffectiveRoutes(appContext.packageManager, routes)
+                        }
+                    },
+                    vpnPermissionGranted = { VpnService.prepare(appContext) == null },
+                    currentVpnState = { VpnController.state.value },
+                    startVpn = { VpnController.startNow(appContext) },
+                ).runOnce()
+            } finally {
+                autoConnectAttemptInFlight.set(false)
+                autoConnectJob = null
+            }
+        }
     }
 }
