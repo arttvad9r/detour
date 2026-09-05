@@ -132,6 +132,17 @@ internal fun DiagnosticsScreen(
                 )
                 GroupDivider(startInset = NavigationRowDividerInset)
                 DiagnosticRow(
+                    stringResource(R.string.diagnostics_multi_hop),
+                    when {
+                        !state.multiHopEnabled -> stringResource(R.string.diagnostics_disabled)
+                        !state.multiHopValid -> stringResource(R.string.diagnostics_unavailable)
+                        else -> state.multiHopEntryLabel ?: stringResource(R.string.diagnostics_no_value)
+                    },
+                    good = state.multiHopEnabled && state.multiHopValid,
+                    bad = state.multiHopEnabled && !state.multiHopValid,
+                )
+                GroupDivider(startInset = NavigationRowDividerInset)
+                DiagnosticRow(
                     stringResource(R.string.diagnostics_dns),
                     dnsLabel(state.dnsId),
                     good = state.dnsValid,
