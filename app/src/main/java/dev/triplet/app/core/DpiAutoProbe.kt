@@ -2,6 +2,7 @@ package dev.triplet.app.core
 
 import android.content.Context
 import android.net.ConnectivityManager
+import android.net.Network
 import android.net.NetworkCapabilities
 import java.io.EOFException
 import java.io.IOException
@@ -74,25 +75,70 @@ internal class DpiAutoNetworkGuard(
 ) {
     private val contaminated = AtomicBoolean(false)
 
+    fun markContaminated() {
+        contaminated.set(true)
+    }
+
     fun isCancelled(cancelled: () -> Boolean): Boolean {
         val callerCancelled = cancelled()
         val active = vpnActive()
-        if (active) contaminated.set(true)
-        return callerCancelled || active
+        if (active) markContaminated()
+        return callerCancelled || active || contaminated.get()
     }
 
     fun requireClean() {
-        if (vpnActive()) contaminated.set(true)
+        if (vpnActive()) markContaminated()
         check(!contaminated.get()) { "system VPN active during automatic DPI test" }
     }
 }
 
 internal object DpiAutoNetworkState {
-    fun isVpnActive(context: Context): Boolean {
-        val connectivity = context.getSystemService(ConnectivityManager::class.java)
+    fun isVpnActive(context: Context): Boolean =
+        isVpnActive(context.getSystemService(ConnectivityManager::class.java))
+
+    fun isVpnActive(connectivity: ConnectivityManager): Boolean {
         val activeNetwork = connectivity.activeNetwork ?: return false
         return connectivity.getNetworkCapabilities(activeNetwork)
             ?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
+    }
+}
+
+/**
+ * Watches the app's default network for the whole AUTO session. Polling still
+ * protects synchronous boundaries; the callback closes the gap where a VPN can
+ * appear and disappear while a blocking HTTPS/TLS operation is in progress.
+ */
+internal class DpiAutoNetworkSession(context: Context) : AutoCloseable {
+    private val connectivity = context.getSystemService(ConnectivityManager::class.java)
+    private val guard = DpiAutoNetworkGuard { DpiAutoNetworkState.isVpnActive(connectivity) }
+    private var registered = false
+    private val callback = object : ConnectivityManager.NetworkCallback() {
+        override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+            if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) {
+                guard.markContaminated()
+            }
+        }
+    }
+
+    init {
+        connectivity.registerDefaultNetworkCallback(callback)
+        registered = true
+        try {
+            guard.requireClean()
+        } catch (error: Throwable) {
+            close()
+            throw error
+        }
+    }
+
+    fun isCancelled(cancelled: () -> Boolean): Boolean = guard.isCancelled(cancelled)
+
+    fun requireClean() = guard.requireClean()
+
+    override fun close() {
+        if (!registered) return
+        registered = false
+        runCatching { connectivity.unregisterNetworkCallback(callback) }
     }
 }
 
@@ -113,17 +159,14 @@ class DpiAutoSelector(
     /** Fast global-winner mode: abandon a candidate after its first failed probe. */
     fun searchWithBaseline(
         targets: List<DpiProbeTarget>,
-        candidates: List<DpiStrategyCandidate> = DpiStrategyCatalog.default,
+        candidates: List<DpiStrategyCandidate> = DpiStrategyCatalog.searchDefault,
         attemptsPerTarget: Int = 2,
         cancelled: () -> Boolean = { false },
-    ): DpiAutoSearchReport {
-        val networkGuard = DpiAutoNetworkGuard { DpiAutoNetworkState.isVpnActive(appContext) }
-        networkGuard.requireClean()
-        val guardedCancelled = { networkGuard.isCancelled(cancelled) }
-        val report = DpiAutoSearchCoordinator(
+    ): DpiAutoSearchReport = withCleanNetwork(cancelled) { guardedCancelled ->
+        DpiAutoSearchCoordinator(
             directProbe = DirectHttpsDpiProbe(timeoutMs = timeoutMs, cancelled = guardedCancelled),
             strategySearcher = DpiStrategySearcher { problematicTargets, searchCancelled ->
-                search(
+                searchInternal(
                     targets = problematicTargets,
                     candidates = candidates,
                     attemptsPerTarget = attemptsPerTarget,
@@ -136,8 +179,6 @@ class DpiAutoSelector(
             attemptsPerTarget = attemptsPerTarget,
             cancelled = guardedCancelled,
         )
-        networkGuard.requireClean()
-        return report
     }
 
     /**
@@ -147,17 +188,14 @@ class DpiAutoSelector(
      */
     fun searchPerDomainWithBaseline(
         targets: List<DpiProbeTarget>,
-        candidates: List<DpiStrategyCandidate> = DpiStrategyCatalog.default,
+        candidates: List<DpiStrategyCandidate> = DpiStrategyCatalog.searchDefault,
         attemptsPerTarget: Int = 2,
         cancelled: () -> Boolean = { false },
-    ): DpiAutoSearchReport {
-        val networkGuard = DpiAutoNetworkGuard { DpiAutoNetworkState.isVpnActive(appContext) }
-        networkGuard.requireClean()
-        val guardedCancelled = { networkGuard.isCancelled(cancelled) }
-        val report = DpiPerDomainSearchCoordinator(
+    ): DpiAutoSearchReport = withCleanNetwork(cancelled) { guardedCancelled ->
+        DpiPerDomainSearchCoordinator(
             directProbe = DirectHttpsDpiProbe(timeoutMs = timeoutMs, cancelled = guardedCancelled),
             strategySearcher = DpiStrategySearcher { affectedTargets, searchCancelled ->
-                search(
+                searchInternal(
                     targets = affectedTargets,
                     candidates = candidates,
                     attemptsPerTarget = attemptsPerTarget,
@@ -170,20 +208,31 @@ class DpiAutoSelector(
             attemptsPerTarget = attemptsPerTarget,
             cancelled = guardedCancelled,
         )
-        networkGuard.requireClean()
-        return report
     }
 
     fun search(
         targets: List<DpiProbeTarget>,
-        candidates: List<DpiStrategyCandidate> = DpiStrategyCatalog.default,
+        candidates: List<DpiStrategyCandidate> = DpiStrategyCatalog.searchDefault,
         attemptsPerTarget: Int = 2,
         cancelled: () -> Boolean = { false },
         stopCandidateOnFailure: Boolean = true,
+    ): List<DpiStrategyResult> = withCleanNetwork(cancelled) { guardedCancelled ->
+        searchInternal(
+            targets = targets,
+            candidates = candidates,
+            attemptsPerTarget = attemptsPerTarget,
+            cancelled = guardedCancelled,
+            stopCandidateOnFailure = stopCandidateOnFailure,
+        )
+    }
+
+    private fun searchInternal(
+        targets: List<DpiProbeTarget>,
+        candidates: List<DpiStrategyCandidate>,
+        attemptsPerTarget: Int,
+        cancelled: () -> Boolean,
+        stopCandidateOnFailure: Boolean,
     ): List<DpiStrategyResult> {
-        val networkGuard = DpiAutoNetworkGuard { DpiAutoNetworkState.isVpnActive(appContext) }
-        networkGuard.requireClean()
-        val guardedCancelled = { networkGuard.isCancelled(cancelled) }
         val runner = DpiStrategySearchRunner(
             backend = object : DpiStrategyBackend {
                 override fun start(candidate: DpiStrategyCandidate): Boolean =
@@ -191,7 +240,7 @@ class DpiAutoSelector(
                         strategyArgs = candidate.args,
                         port = port,
                         credentials = credentials,
-                        cancelled = guardedCancelled,
+                        cancelled = cancelled,
                     )
 
                 override fun stop() = backend.stop()
@@ -200,18 +249,24 @@ class DpiAutoSelector(
                 proxyPort = port,
                 timeoutMs = timeoutMs,
                 credentials = credentials,
-                cancelled = guardedCancelled,
+                cancelled = cancelled,
             ),
         )
-        val results = runner.run(
+        return runner.run(
             candidates = candidates,
             targets = targets,
             attemptsPerTarget = attemptsPerTarget,
             stopCandidateOnFailure = stopCandidateOnFailure,
-            cancelled = guardedCancelled,
+            cancelled = cancelled,
         )
-        networkGuard.requireClean()
-        return results
+    }
+
+    private fun <T> withCleanNetwork(
+        cancelled: () -> Boolean,
+        block: (guardedCancelled: () -> Boolean) -> T,
+    ): T = DpiAutoNetworkSession(appContext).use { session ->
+        val guardedCancelled = { session.isCancelled(cancelled) }
+        block(guardedCancelled).also { session.requireClean() }
     }
 
     companion object {
