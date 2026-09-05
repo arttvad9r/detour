@@ -1,0 +1,4 @@
+<resources>
+    <string name="external_profile_import_summary">Профиль %1$s\n%2$s\n\nСсылка будет сохранена только после подтверждения.</string>
+    <string name="external_profile_import_confirm">Импортировать</string>
+</resources>
