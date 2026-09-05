@@ -1,68 +1,101 @@
 package dev.triplet.app.core
 
-/** One tested host assigned to the strategy that worked best for it. */
-data class DpiTargetStrategyAssignment(
-    val target: DpiProbeTarget,
+/** One host scope assigned to the strategy that passed all of its probe endpoints. */
+data class DpiScopeStrategyAssignment(
+    val scopeHost: String,
+    val targets: List<DpiProbeTarget>,
     val candidate: DpiStrategyCandidate,
-)
-
-/**
- * Per-domain result derived from an exhaustive candidate x target test matrix.
- * Directly reachable targets intentionally have no ByeDPI rule.
- */
-data class DpiPerDomainPlan(
-    val directTargets: List<DpiProbeTarget>,
-    val assignments: List<DpiTargetStrategyAssignment>,
-    val unresolvedTargets: List<DpiProbeTarget>,
 ) {
-    val complete: Boolean get() = unresolvedTargets.isEmpty()
+    init {
+        require(scopeHost.isNotBlank()) { "scope host is blank" }
+        require(targets.isNotEmpty()) { "scope has no probe targets" }
+        require(targets.all { it.scopeHost == scopeHost }) { "probe target belongs to another scope" }
+    }
 }
 
 /**
- * Picks the best fully-working candidate independently for every target that
- * failed the direct baseline. More repeated observations win before latency;
- * latency and strategy complexity are only tie breakers.
+ * Per-domain result derived from an exhaustive candidate x affected-endpoint matrix.
+ * A scope gets a rule only when one candidate fully passes every selected probe
+ * endpoint that the broad rule would affect.
+ */
+data class DpiPerDomainPlan(
+    val directTargets: List<DpiProbeTarget>,
+    val assignments: List<DpiScopeStrategyAssignment>,
+    val unresolvedScopeHosts: List<String>,
+) {
+    val complete: Boolean get() = unresolvedScopeHosts.isEmpty()
+}
+
+/**
+ * Picks the best fully-working candidate independently for every affected rule
+ * scope. Stability across every probe in the scope comes before latency and
+ * strategy complexity.
  */
 object DpiPerDomainPlanner {
     fun fromReport(report: DpiAutoSearchReport): DpiPerDomainPlan {
-        val direct = report.baseline.filter { it.fullyWorking }.map { it.target }
-        val problematic = report.baseline.filterNot { it.fullyWorking }.map { it.target }
-        val assignments = mutableListOf<DpiTargetStrategyAssignment>()
-        val unresolved = mutableListOf<DpiProbeTarget>()
+        val baselineByScope = report.baseline.groupBy { it.target.scopeHost }
+        val affectedScopes = baselineByScope
+            .filterValues { results -> results.any { !it.fullyWorking } }
+            .keys
+        val direct = report.baseline
+            .filter { it.target.scopeHost !in affectedScopes }
+            .map { it.target }
+        val assignments = mutableListOf<DpiScopeStrategyAssignment>()
+        val unresolved = mutableListOf<String>()
 
-        for (target in problematic) {
+        for (scopeHost in affectedScopes.sorted()) {
+            val scopeTargets = baselineByScope.getValue(scopeHost).map { it.target }
+            val targetIds = scopeTargets.map { it.id }.toSet()
             val best = report.strategies
                 .asSequence()
                 .filter { it.backendStarted }
                 .mapNotNull { strategy ->
-                    val targetResult = strategy.targets.firstOrNull { it.target.id == target.id }
-                        ?: return@mapNotNull null
-                    if (!targetResult.fullyWorking || targetResult.target.host != target.host) {
-                        return@mapNotNull null
-                    }
-                    strategy to targetResult
+                    val results = strategy.targets.filter { it.target.id in targetIds }
+                    if (results.size != scopeTargets.size) return@mapNotNull null
+                    val byId = results.associateBy { it.target.id }
+                    if (scopeTargets.any { expected ->
+                            val actual = byId[expected.id]
+                            actual == null || actual.target.host != expected.host ||
+                                actual.target.scopeHost != scopeHost || !actual.fullyWorking
+                        }
+                    ) return@mapNotNull null
+                    val attempts = results.sumOf { it.attempts }
+                    val latencies = results.flatMap { it.successfulLatenciesMs }.sorted()
+                    val median = latencies.takeIf { it.isNotEmpty() }
+                        ?.let { it[(it.size - 1) / 2] }
+                    ScopeCandidate(strategy, attempts, median)
                 }
                 .sortedWith(
-                    compareByDescending<Pair<DpiStrategyResult, DpiTargetResult>> { it.second.attempts }
-                        .thenBy { it.second.medianLatencyMs ?: Long.MAX_VALUE }
-                        .thenBy { it.first.candidate.complexity }
-                        .thenBy { it.first.candidate.id },
+                    compareByDescending<ScopeCandidate> { it.attempts }
+                        .thenBy { it.medianLatencyMs ?: Long.MAX_VALUE }
+                        .thenBy { it.strategy.candidate.complexity }
+                        .thenBy { it.strategy.candidate.id },
                 )
                 .firstOrNull()
 
             if (best == null) {
-                unresolved += target
+                unresolved += scopeHost
             } else {
-                assignments += DpiTargetStrategyAssignment(target, best.first.candidate)
+                assignments += DpiScopeStrategyAssignment(
+                    scopeHost = scopeHost,
+                    targets = scopeTargets,
+                    candidate = best.strategy.candidate,
+                )
             }
         }
 
         return DpiPerDomainPlan(
             directTargets = direct,
             assignments = assignments,
-            unresolvedTargets = unresolved,
+            unresolvedScopeHosts = unresolved,
         )
     }
+
+    private data class ScopeCandidate(
+        val strategy: DpiStrategyResult,
+        val attempts: Int,
+        val medianLatencyMs: Long?,
+    )
 }
 
 /** A concrete host-restricted ByeDPI group emitted by the compiler. */
@@ -124,25 +157,23 @@ object DpiPerDomainCommandCompiler {
     )
 
     fun compile(plan: DpiPerDomainPlan): DpiCompiledDomainPlan {
-        require(plan.complete) { "cannot compile unresolved per-domain targets" }
+        require(plan.complete) { "cannot compile unresolved per-domain scopes" }
         require(plan.assignments.isNotEmpty()) { "per-domain plan has no DPI assignments" }
 
-        val byTargetId = plan.assignments.groupBy { it.target.id }
-        require(byTargetId.values.all { it.size == 1 }) { "duplicate target id assignment" }
-
-        val normalized = plan.assignments.map { assignment ->
-            DpiTargetStrategyAssignment(
-                target = assignment.target.copy(host = normalizeHost(assignment.target.host)),
-                candidate = assignment.candidate,
-            )
+        val normalizedAssignments = plan.assignments.map { assignment ->
+            val normalizedScope = normalizeHost(assignment.scopeHost)
+            require(assignment.targets.all { normalizeHost(it.scopeHost) == normalizedScope }) {
+                "probe target belongs to another normalized scope"
+            }
+            assignment.copy(scopeHost = normalizedScope)
         }
-        val byHost = normalized.groupBy { it.target.host }
-        require(byHost.values.all { assignments ->
+        val byScope = normalizedAssignments.groupBy { it.scopeHost }
+        require(byScope.values.all { assignments ->
             assignments.map { it.candidate.id }.distinct().size == 1
-        }) { "same host assigned to multiple strategies" }
+        }) { "same scope assigned to multiple strategies" }
+        val uniqueAssignments = byScope.values.map { it.first() }
 
-        val normalizedAssignments = byHost.values.map { sameHost -> sameHost.first() }
-        val candidateDefinitions = normalizedAssignments
+        val candidateDefinitions = uniqueAssignments
             .groupBy { it.candidate.id }
             .mapValues { (_, values) -> values.map { it.candidate }.distinct() }
         require(candidateDefinitions.values.all { it.size == 1 }) {
@@ -157,18 +188,18 @@ object DpiPerDomainCommandCompiler {
             "per-domain candidates use incompatible global timeouts"
         }
 
-        val grouped = normalizedAssignments
+        val grouped = uniqueAssignments
             .groupBy { it.candidate.id }
             .map { (candidateId, assignments) ->
                 DpiHostStrategyGroup(
                     candidate = prepared.getValue(candidateId).candidate,
-                    hosts = assignments.map { it.target.host }.distinct().sorted(),
+                    hosts = assignments.map { it.scopeHost }.distinct().sorted(),
                 )
             }
 
         val groups = orderGroups(grouped) ?: orderGroups(
-            normalizedAssignments.map { assignment ->
-                DpiHostStrategyGroup(assignment.candidate, listOf(assignment.target.host))
+            uniqueAssignments.map { assignment ->
+                DpiHostStrategyGroup(assignment.candidate, listOf(assignment.scopeHost))
             },
         ) ?: error("host precedence graph is cyclic")
 
