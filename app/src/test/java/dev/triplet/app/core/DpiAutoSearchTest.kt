@@ -56,7 +56,7 @@ class DpiAutoSearchTest {
         assertNull(coordinator.run(listOf(direct, blocked), attemptsPerTarget = 2).winner)
     }
 
-    @Test fun `per-domain search retests direct peer inside affected broad scope`() {
+    @Test fun `per-domain search tests blocked endpoint before direct peer in affected scope`() {
         val root = DpiProbeTarget("root", "example.com", "example.com")
         val web = DpiProbeTarget("web", "www.example.com", "example.com")
         val unrelated = DpiProbeTarget("other", "other.example", "other.example")
@@ -71,7 +71,7 @@ class DpiAutoSearchTest {
             },
         )
 
-        val report = coordinator.run(listOf(root, web, unrelated), attemptsPerTarget = 2)
+        val report = coordinator.run(listOf(web, root, unrelated), attemptsPerTarget = 2)
 
         assertEquals(listOf(root, web), searched.single())
         assertEquals(listOf(root), report.problematicTargets)
