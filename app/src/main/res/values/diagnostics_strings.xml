@@ -11,6 +11,9 @@
     <string name="diagnostics_dpi_route">Internet via DPI</string>
     <string name="diagnostics_profile">Profile</string>
     <string name="diagnostics_server">Server</string>
+    <string name="diagnostics_multi_hop">Multi-hop</string>
+    <string name="diagnostics_disabled">Off</string>
+    <string name="diagnostics_unavailable">Unavailable</string>
     <string name="diagnostics_dns">DNS</string>
     <string name="diagnostics_routes">App routes</string>
     <string name="diagnostics_last_error">Last error</string>
