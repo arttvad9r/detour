@@ -29,6 +29,7 @@ internal fun backupFromSettings(settings: TriSettings): SettingsBackup.Backup = 
     dnsId = settings.dnsId,
     dnsCustom = settings.dnsCustom,
     routes = settings.routes.mapValues { it.value.name },
+    destinationRules = settings.destinationRules,
     vlessKeys = settings.vlessKeys,
     warpProfile = settings.warpProfile,
     activeVpn = settings.activeVpn,
