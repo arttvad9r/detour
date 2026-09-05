@@ -93,6 +93,14 @@ internal fun DiagnosticsScreen(
                     good = state.vpnProbe == DiagnosticProbeState.PASS,
                     bad = state.vpnProbe == DiagnosticProbeState.FAIL,
                 )
+                state.vpnLatencyMs?.let { latencyMs ->
+                    GroupDivider(startInset = NavigationRowDividerInset)
+                    DiagnosticRow(
+                        stringResource(R.string.diagnostics_vpn_latency),
+                        stringResource(R.string.diagnostics_latency_value, latencyMs),
+                        good = true,
+                    )
+                }
                 GroupDivider(startInset = NavigationRowDividerInset)
                 DiagnosticRow(
                     stringResource(R.string.diagnostics_dpi_route),
