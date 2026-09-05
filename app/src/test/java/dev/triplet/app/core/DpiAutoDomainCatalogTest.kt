@@ -7,12 +7,18 @@ import org.junit.Test
 class DpiAutoDomainCatalogTest {
     private val byId = DpiAutoDomainCatalog.default.associateBy { it.id }
 
-    @Test fun `catalog matches pinned ByeByeDPI site counts`() {
-        assertEquals(13, byId.getValue("youtube").targets.size)
-        assertEquals(19, byId.getValue("googlevideo").targets.size)
-        assertEquals(21, byId.getValue("discord").targets.size)
+    @Test fun `catalog contains pinned ByeByeDPI hosts plus stable Detour anchors`() {
+        // ByeByeDPI contributes 13/19/21/52 hosts. Detour retains one existing
+        // anchor in YouTube, GoogleVideo and Discord respectively.
+        assertEquals(14, byId.getValue("youtube").targets.size)
+        assertEquals(20, byId.getValue("googlevideo").targets.size)
+        assertEquals(22, byId.getValue("discord").targets.size)
         assertEquals(52, byId.getValue("telegram").targets.size)
-        assertEquals(105, DpiAutoDomainCatalog.default.sumOf { it.targets.size })
+        assertEquals(108, DpiAutoDomainCatalog.default.sumOf { it.targets.size })
+
+        assertTrue(byId.getValue("youtube").targets.any { it.host == "www.youtube.com" })
+        assertTrue(byId.getValue("googlevideo").targets.any { it.host == "redirector.googlevideo.com" })
+        assertTrue(byId.getValue("discord").targets.any { it.host == "gateway.discord.gg" })
     }
 
     @Test fun `googlevideo probes use stable parent scope`() {
@@ -23,6 +29,7 @@ class DpiAutoDomainCatalogTest {
 
     @Test fun `youtube related hosts map to durable service scopes`() {
         val targets = byId.getValue("youtube").targets.associateBy { it.host }
+        assertEquals("youtube.com", targets.getValue("www.youtube.com").scopeHost)
         assertEquals("youtube.com", targets.getValue("signaler-pa.youtube.com").scopeHost)
         assertEquals("googlevideo.com", targets.getValue("manifest.googlevideo.com").scopeHost)
         assertEquals("googleapis.com", targets.getValue("youtubei.googleapis.com").scopeHost)
