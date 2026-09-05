@@ -224,15 +224,18 @@ class TriVpnService : VpnService() {
             stopSequence(stopSelf = true)
             return
         }
+
+        val destinationUsesVpn = settings.destinationRules.any { it.route == AppRoute.VPN }
+        val destinationUsesDpi = settings.destinationRules.any { it.route == AppRoute.DPI }
         val vpnApps = effective.vpnPackages
-        if (vpn == null && vpnApps.isNotEmpty()) {
+        if (vpn == null && (vpnApps.isNotEmpty() || destinationUsesVpn)) {
             VpnController.setState(VpnState.Failed(getString(R.string.err_vpn_profile_required)))
             stopSequence(stopSelf = true)
             return
         }
 
         val dpiApps = effective.dpiPackages
-        if (dpiApps.isNotEmpty()) {
+        if (dpiApps.isNotEmpty() || destinationUsesDpi) {
             ServiceLog.i("dpi: starting (${settings.preset.id})")
             if (settings.preset == dev.triplet.app.core.DpiPreset.CUSTOM &&
                 !DpiArgs.isValid(settings.dpiCustomArgs)
@@ -259,6 +262,8 @@ class TriVpnService : VpnService() {
         }
         val effVpn = vpnApps intersect vpnUids.keys
         val effDpi = dpiApps intersect vpnUids.keys
+        val usesVpn = effVpn.isNotEmpty() || destinationUsesVpn
+        val usesDpi = effDpi.isNotEmpty() || destinationUsesDpi
 
         var fd: Int? = null
         var engineAdopted = false
@@ -271,6 +276,7 @@ class TriVpnService : VpnService() {
                     tunFd = tunFd, apiLevel = Build.VERSION.SDK_INT,
                     vpn = vpn, vpnApps = effVpn, vpnUids = vpnUids,
                     dpiApps = effDpi,
+                    destinationRules = settings.destinationRules,
                     nameserver = DnsOptions.resolve(settings.dnsId, settings.dnsCustom),
                     probeCredentials = probeCredentials,
                 ),
@@ -310,7 +316,7 @@ class TriVpnService : VpnService() {
         foreground.show(getString(R.string.notif_active), allowStop = !isAlwaysOn)
         startTrafficNotificationUpdates()
         ServiceLog.i("active; validating routes")
-        validateRoutesAsync(effVpn, effDpi, settings.activeVpn, probeCredentials)
+        validateRoutesAsync(usesVpn, usesDpi, settings.activeVpn, probeCredentials)
     }
 
     private fun startTrafficNotificationUpdates() {
@@ -347,8 +353,8 @@ class TriVpnService : VpnService() {
     }
 
     private fun validateRoutesAsync(
-        effVpn: Set<String>,
-        effDpi: Set<String>,
+        usesVpn: Boolean,
+        usesDpi: Boolean,
         vpnKind: VpnProfileKind,
         probeCredentials: ProbeCredentials,
     ) {
@@ -364,14 +370,14 @@ class TriVpnService : VpnService() {
                     VpnProfileKind.VLESS -> 2500
                     VpnProfileKind.SUBSCRIPTION, VpnProfileKind.WARP -> 5000
                 }
-                val vpnHealthy = effVpn.isEmpty() ||
+                val vpnHealthy = !usesVpn ||
                     HealthCheck.generate204(
                         10810,
                         timeoutMs = vpnTimeout,
                         cancelled = cancelled,
                         credentials = probeCredentials,
                     )
-                val dpiHealthy = effDpi.isEmpty() ||
+                val dpiHealthy = !usesDpi ||
                     (dpi.isAlive() && HealthCheck.generate204(
                         10811,
                         cancelled = cancelled,
