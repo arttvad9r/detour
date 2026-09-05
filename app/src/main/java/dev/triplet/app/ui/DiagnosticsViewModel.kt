@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import dev.triplet.app.core.DnsOptions
+import dev.triplet.app.core.MultiHopEntryRef
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.core.VpnProfileKind
@@ -12,6 +13,7 @@ import dev.triplet.app.data.TriSettings
 import dev.triplet.app.vpn.EffectiveRoutes
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
+import dev.triplet.app.vpn.resolveMultiHopEntry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -37,6 +39,9 @@ internal data class DiagnosticsUiState(
     val profileName: String? = null,
     val serverLabel: String? = null,
     val endpointCount: Int = 0,
+    val multiHopEnabled: Boolean = false,
+    val multiHopEntryLabel: String? = null,
+    val multiHopValid: Boolean = true,
     val dnsId: String = "google",
     val dnsValid: Boolean = true,
     val vpnRouteCount: Int = 0,
@@ -118,6 +123,21 @@ internal class DiagnosticsViewModel(
                         VpnProfileKind.WARP -> settings.warpProfile?.proxies?.size ?: 0
                         else -> 0
                     }
+                    val multiHopEntry = settings.multiHopEntry
+                    val multiHopEnabled = multiHopEntry != null
+                    val multiHopValid = runCatching {
+                        resolveMultiHopEntry(settings)
+                        true
+                    }.getOrDefault(false)
+                    val multiHopEntryLabel = when (multiHopEntry) {
+                        is MultiHopEntryRef.Vless -> settings.vlessKeys.items
+                            .firstOrNull { it.id == multiHopEntry.keyId }
+                            ?.name
+                            ?.takeIf { it.isNotBlank() }
+                            ?: "VLESS"
+                        MultiHopEntryRef.Warp -> "WARP"
+                        MultiHopEntryRef.Invalid, null -> null
+                    }
                     val dnsId = settings.dnsId.ifBlank { "google" }
                     val dnsValid = DnsOptions.isSelectionValid(dnsId, settings.dnsCustom)
 
@@ -165,6 +185,9 @@ internal class DiagnosticsViewModel(
                         profileName = profileName,
                         serverLabel = serverLabel,
                         endpointCount = endpointCount,
+                        multiHopEnabled = multiHopEnabled,
+                        multiHopEntryLabel = multiHopEntryLabel,
+                        multiHopValid = multiHopValid,
                         dnsId = dnsId,
                         dnsValid = dnsValid,
                         vpnRouteCount = vpnRouteCount,
@@ -251,6 +274,9 @@ internal fun buildDiagnosticsReport(state: DiagnosticsUiState): String = buildSt
     appendLine("profile_name=${state.profileName?.let(::redactDiagnosticText) ?: "none"}")
     appendLine("server=${state.serverLabel?.let(::redactDiagnosticText) ?: "none"}")
     appendLine("endpoint_count=${state.endpointCount}")
+    appendLine("multi_hop_enabled=${state.multiHopEnabled}")
+    appendLine("multi_hop_valid=${state.multiHopValid}")
+    appendLine("multi_hop_entry=${state.multiHopEntryLabel?.let(::redactDiagnosticText) ?: "none"}")
     appendLine("dns=${state.dnsId}")
     appendLine("dns_valid=${state.dnsValid}")
     appendLine("vpn_routes=${state.vpnRouteCount}")
