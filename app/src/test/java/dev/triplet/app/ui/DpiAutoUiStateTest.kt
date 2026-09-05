@@ -37,7 +37,7 @@ class DpiAutoUiStateTest {
         unresolvedScopeHosts = emptyList(),
     )
 
-    @Test fun `automatic test requires idle vpn valid targets and released test proxy`() {
+    @Test fun `automatic test requires idle vpn valid targets attempts and released test proxy`() {
         assertTrue(DpiUiState(vpnIdle = true, selectedAutoGroups = setOf("youtube")).canRunAuto)
         assertTrue(
             DpiUiState(
@@ -48,6 +48,20 @@ class DpiAutoUiStateTest {
         )
         assertFalse(DpiUiState(vpnIdle = false, selectedAutoGroups = setOf("youtube")).canRunAuto)
         assertFalse(DpiUiState(vpnIdle = true, selectedAutoGroups = emptySet()).canRunAuto)
+        assertFalse(
+            DpiUiState(
+                vpnIdle = true,
+                selectedAutoGroups = setOf("youtube"),
+                autoAttempts = 0,
+            ).canRunAuto,
+        )
+        assertFalse(
+            DpiUiState(
+                vpnIdle = true,
+                selectedAutoGroups = setOf("youtube"),
+                autoAttempts = 21,
+            ).canRunAuto,
+        )
         assertFalse(
             DpiUiState(
                 vpnIdle = true,
