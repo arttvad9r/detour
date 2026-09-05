@@ -11,6 +11,10 @@ data class VlessKey(
     val uri: String,
     val selectedNode: String? = null,
     val favoriteNodes: Set<String> = emptySet(),
+    /** Null disables scheduled refresh; a positive value is the requested interval in hours. */
+    val subscriptionUpdateIntervalHours: Int? = null,
+    /** Epoch millis of the last successfully prepared subscription cache. */
+    val subscriptionUpdatedAt: Long? = null,
 )
 
 data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
@@ -38,6 +42,8 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
                     put("favoriteNodes", JSONArray().apply {
                         key.favoriteNodes.sorted().forEach { nodeName -> put(nodeName) }
                     })
+                    put("subscriptionUpdateIntervalHours", key.subscriptionUpdateIntervalHours ?: JSONObject.NULL)
+                    put("subscriptionUpdatedAt", key.subscriptionUpdatedAt ?: JSONObject.NULL)
                 })
             }
         })
@@ -83,7 +89,27 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
                             }
                         }
                     }
-                    VlessKey(id, name, uri, selectedNode, favoriteNodes)
+                    val subscriptionUpdateIntervalHours =
+                        if (!obj.has("subscriptionUpdateIntervalHours") || obj.isNull("subscriptionUpdateIntervalHours")) {
+                            null
+                        } else {
+                            obj.getInt("subscriptionUpdateIntervalHours").also(::validateUpdateIntervalHours)
+                        }
+                    val subscriptionUpdatedAt =
+                        if (!obj.has("subscriptionUpdatedAt") || obj.isNull("subscriptionUpdatedAt")) {
+                            null
+                        } else {
+                            obj.getLong("subscriptionUpdatedAt").also(::validateUpdatedAt)
+                        }
+                    VlessKey(
+                        id = id,
+                        name = name,
+                        uri = uri,
+                        selectedNode = selectedNode,
+                        favoriteNodes = favoriteNodes,
+                        subscriptionUpdateIntervalHours = subscriptionUpdateIntervalHours,
+                        subscriptionUpdatedAt = subscriptionUpdatedAt,
+                    )
                 } catch (e: IllegalArgumentException) {
                     throw e
                 } catch (e: Exception) {
@@ -118,9 +144,21 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
             require(value.none { it.code < 0x20 || it.code == 0x7f })
         }
 
+        private fun validateUpdateIntervalHours(value: Int) {
+            require(value in MIN_UPDATE_INTERVAL_HOURS..MAX_UPDATE_INTERVAL_HOURS) {
+                "invalid subscription update interval"
+            }
+        }
+
+        private fun validateUpdatedAt(value: Long) {
+            require(value > 0L) { "invalid subscription update timestamp" }
+        }
+
         private fun stableLegacyId(uri: String): String =
             UUID.nameUUIDFromBytes(uri.toByteArray(StandardCharsets.UTF_8)).toString()
 
+        const val MIN_UPDATE_INTERVAL_HOURS = 1
+        const val MAX_UPDATE_INTERVAL_HOURS = 24 * 365
         private const val MAX_FAVORITE_NODES = 256
     }
 }
