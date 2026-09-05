@@ -26,7 +26,7 @@ func parseSingBoxSubscription(body []byte) (proxies []map[string]any, recognized
 	if err := json.Unmarshal(body, &envelope); err != nil {
 		return nil, false
 	}
-	rawOutbounds, ok := envelope["outbounds"]
+	_, ok := envelope["outbounds"]
 	if !ok {
 		return nil, false
 	}
