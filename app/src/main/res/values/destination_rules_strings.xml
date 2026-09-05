@@ -1,0 +1,26 @@
+<resources>
+    <string name="nav_destination_rules">Domain / IP rules</string>
+    <string name="nav_destination_rules_sub">destination overrides inside the tunnel</string>
+    <string name="destination_rules_title">Domain / IP rules</string>
+    <string name="destination_rules_info_title">Destination overrides</string>
+    <string name="destination_rules_info">These rules only affect apps already assigned to VPN or DPI in App routes. Direct apps stay outside the tunnel.</string>
+    <string name="destination_rules_type">Match type</string>
+    <string name="destination_rules_type_domain">Exact domain</string>
+    <string name="destination_rules_type_domain_sub">Only this hostname, for example api.example.com</string>
+    <string name="destination_rules_type_suffix">Domain suffix</string>
+    <string name="destination_rules_type_suffix_sub">This domain and its subdomains, for example example.com</string>
+    <string name="destination_rules_type_cidr">IPv4 network</string>
+    <string name="destination_rules_type_cidr_sub">CIDR such as 203.0.113.0/24</string>
+    <string name="destination_rules_value">Destination</string>
+    <string name="destination_rules_value_domain_hint">example.com</string>
+    <string name="destination_rules_value_cidr_hint">203.0.113.0/24</string>
+    <string name="destination_rules_route">Route through</string>
+    <string name="destination_rules_add">Add rule</string>
+    <string name="destination_rules_saved">Rules</string>
+    <string name="destination_rules_empty">No destination overrides</string>
+    <string name="destination_rules_invalid">Enter a valid domain name or IPv4 CIDR for the selected match type.</string>
+    <string name="destination_rules_duplicate">A rule for this destination and match type already exists.</string>
+    <string name="destination_rules_limit">The maximum of 128 destination rules has been reached.</string>
+    <string name="destination_rules_save_error">Could not save the rule.</string>
+    <string name="destination_rules_delete_cd">Delete rule</string>
+</resources>
