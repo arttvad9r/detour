@@ -26,6 +26,14 @@ class DpiDomainInputTest {
         assertTrue(result.targets.isEmpty())
     }
 
+    @Test fun `rejects ipv4 literals but keeps valid domain targets`() {
+        val result = DpiDomainInput.parse("1.2.3.4 192.168.001.010 example.com")
+
+        assertFalse(result.isValid)
+        assertEquals(listOf("1.2.3.4", "192.168.001.010"), result.invalid)
+        assertEquals(listOf("example.com"), result.targets.map { it.host })
+    }
+
     @Test fun `accepts trailing dns root dot and converts to probe target`() {
         val result = DpiDomainInput.parse("sub.example.com.")
 
