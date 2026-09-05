@@ -33,6 +33,38 @@ class DpiAutoPersistenceTest {
         assertEquals(DpiPreset.AUTO, settings.preset)
         assertEquals("-d 7", settings.dpiCustomArgs)
         assertEquals("split-sni", settings.dpiAutoCandidateId)
+        assertNull(settings.dpiAutoDomainPlan)
+    }
+
+    @Test fun `routes mapping restores validated structured domain plan`() {
+        val plan = DpiAutoDomainPlan.of(
+            mapOf(
+                "youtube.com" to "split-sni",
+                "discord.com" to "disorder-1",
+            ),
+        )
+        val settings = RoutesMapping.toSettings(
+            mapOf(
+                "dpi_preset" to "auto",
+                "dpi_auto_domain_plan" to plan.toStored(),
+            ),
+        )
+
+        assertEquals(DpiPreset.AUTO, settings.preset)
+        assertEquals(plan, settings.dpiAutoDomainPlan)
+        assertEquals("", settings.dpiAutoCandidateId)
+    }
+
+    @Test fun `routes mapping drops corrupt structured domain plan`() {
+        val settings = RoutesMapping.toSettings(
+            mapOf(
+                "dpi_preset" to "auto",
+                "dpi_auto_domain_plan" to "{broken",
+            ),
+        )
+
+        assertNull(settings.dpiAutoDomainPlan)
+        assertEquals("", settings.dpiAutoCandidateId)
     }
 
     @Test fun `backup v4 round trips trusted auto strategy`() {
