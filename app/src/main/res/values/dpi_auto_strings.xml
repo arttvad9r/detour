@@ -12,6 +12,7 @@
     <string name="dpi_auto_applying">Applying…</string>
     <string name="dpi_auto_stop_vpn">Disconnect the VPN before testing. The baseline must use the normal network path.</string>
     <string name="dpi_auto_testing">Checking direct access first, then testing DPI strategies only for failing targets…</string>
+    <string name="dpi_auto_stopping">Stopping the test proxy…</string>
     <string name="dpi_auto_direct_ok">All selected targets work directly. No DPI strategy is needed for this test set.</string>
     <string name="dpi_auto_found">A strategy passed all %1$d targets that failed direct access: %2$s</string>
     <string name="dpi_auto_not_found">No built-in strategy passed all %1$d targets that failed direct access.</string>
