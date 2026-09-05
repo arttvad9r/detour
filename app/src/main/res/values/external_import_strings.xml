@@ -1,0 +1,4 @@
+<resources>
+    <string name="external_profile_import_summary">%1$s profile\n%2$s\n\nThe link will be stored only after you confirm.</string>
+    <string name="external_profile_import_confirm">Import</string>
+</resources>
