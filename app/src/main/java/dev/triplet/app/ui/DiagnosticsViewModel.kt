@@ -18,7 +18,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -64,7 +63,7 @@ class DiagnosticsViewModel(
     init {
         refresh(runProbes = false)
         viewModelScope.launch {
-            vpnState.distinctUntilChanged().collect {
+            vpnState.collect {
                 refresh(runProbes = false)
             }
         }
@@ -234,10 +233,17 @@ internal fun redactDiagnosticText(value: String): String =
         .trim()
         .take(240)
 
+private fun vpnStateCode(state: VpnState): String = when (state) {
+    VpnState.Idle -> "IDLE"
+    VpnState.Starting -> "STARTING"
+    VpnState.Active -> "ACTIVE"
+    is VpnState.Failed -> "FAILED"
+}
+
 internal fun buildDiagnosticsReport(state: DiagnosticsUiState): String = buildString {
     appendLine("Detour diagnostics")
     appendLine("vpn_permission=${state.vpnPermissionGranted}")
-    appendLine("vpn_state=${state.vpnState::class.simpleName}")
+    appendLine("vpn_state=${vpnStateCode(state.vpnState)}")
     appendLine("engine_ready=${state.engineReady}")
     appendLine("vpn_probe=${state.vpnProbe.name}")
     appendLine("dpi_probe=${state.dpiProbe.name}")
