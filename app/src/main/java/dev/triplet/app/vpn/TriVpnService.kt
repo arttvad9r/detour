@@ -163,9 +163,12 @@ class TriVpnService : VpnService() {
                             stopSequence(stopSelf = true)
                             return
                         }
+                        val activeKey = settings.vlessKeys.active
                         VpnOutbound.Subscription(
                             url = url,
-                            selectedNode = settings.vlessKeys.active?.selectedNode,
+                            selectedNode = activeKey?.selectedNode,
+                            selectionMode = activeKey?.subscriptionSelectionMode
+                                ?: dev.triplet.app.core.SubscriptionSelectionMode.MANUAL,
                         )
                     }
                     is ParseResult.Err -> {
