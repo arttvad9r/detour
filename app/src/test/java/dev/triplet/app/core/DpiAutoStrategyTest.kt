@@ -9,15 +9,22 @@ class DpiAutoStrategyTest {
     private val youtube = DpiProbeTarget("youtube", "www.youtube.com")
     private val discord = DpiProbeTarget("discord", "discord.com")
 
-    @Test fun `catalog uses only currently validated pinned arguments`() {
+    @Test fun `catalog is trusted and broader than user custom syntax`() {
         assertTrue(DpiStrategyCatalog.default.isNotEmpty())
         assertEquals(
             DpiStrategyCatalog.default.size,
             DpiStrategyCatalog.default.map { it.id }.distinct().size,
         )
-        assertTrue(
-            DpiStrategyCatalog.default.all { DpiArgs.isValid(it.args.joinToString(" ")) },
+        val forbidden = setOf(
+            "-i", "--ip", "-p", "--port", "-D", "--daemon", "-w", "--pidfile",
+            "-E", "--transparent", "-U", "--no-udp", "-J",
         )
+        assertTrue(DpiStrategyCatalog.default.none { candidate -> candidate.args.any { it in forbidden } })
+        assertTrue(DpiStrategyCatalog.default.any { "-r" in it.args })
+        assertTrue(DpiStrategyCatalog.default.any { "-o" in it.args })
+        assertTrue(DpiStrategyCatalog.default.any { "-q" in it.args })
+        // AUTO is an app-owned catalog; user CUSTOM deliberately remains narrower.
+        assertFalse(DpiArgs.isValid("-r 1+s --timeout 3"))
     }
 
     @Test fun `ranker prefers complete domain coverage over lower latency`() {
