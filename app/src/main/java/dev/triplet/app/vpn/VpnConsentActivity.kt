@@ -11,6 +11,12 @@ import androidx.activity.result.contract.ActivityResultContracts.StartActivityFo
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
+internal fun shouldRequestTileNotificationPermission(
+    sdkInt: Int,
+    granted: Boolean,
+    shouldShowRationale: Boolean,
+): Boolean = sdkInt >= 33 && !granted && !shouldShowRationale
+
 /** ActivityResult owner for VPN consent and notification permission; TileService cannot receive either result. */
 class VpnConsentActivity : ComponentActivity() {
     private val notificationLauncher = registerForActivityResult(RequestPermission()) {
@@ -32,18 +38,24 @@ class VpnConsentActivity : ComponentActivity() {
     }
 
     private fun continueAfterVpnConsent() {
-        val needsNotificationPermission = Build.VERSION.SDK_INT >= 33 &&
+        val notificationGranted = Build.VERSION.SDK_INT < 33 ||
             ContextCompat.checkSelfPermission(
                 this,
                 Manifest.permission.POST_NOTIFICATIONS,
-            ) != PackageManager.PERMISSION_GRANTED
-        val userAlreadyDenied = needsNotificationPermission && Build.VERSION.SDK_INT >= 33 &&
+            ) == PackageManager.PERMISSION_GRANTED
+        val shouldShowRationale = Build.VERSION.SDK_INT >= 33 &&
             ActivityCompat.shouldShowRequestPermissionRationale(
                 this,
                 Manifest.permission.POST_NOTIFICATIONS,
             )
 
-        if (needsNotificationPermission && !userAlreadyDenied) {
+        if (
+            shouldRequestTileNotificationPermission(
+                sdkInt = Build.VERSION.SDK_INT,
+                granted = notificationGranted,
+                shouldShowRationale = shouldShowRationale,
+            )
+        ) {
             notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         } else {
             // Do not nag from Quick Settings after a denial. Home owns the
