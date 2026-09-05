@@ -250,7 +250,7 @@ internal fun DetourNavigation(
             EnterTransition.None togetherWith slideOutHorizontally(
                 animationSpec = tween(
                     Motion.NAV_EXIT_MS,
-                    easing = Motion.EXIT_EASING,
+                    easing = Motion.STANDARD_EASING,
                 ),
                 targetOffsetX = { it },
             )
