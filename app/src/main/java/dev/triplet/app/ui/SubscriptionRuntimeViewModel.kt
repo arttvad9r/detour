@@ -23,6 +23,8 @@ enum class SubscriptionRuntimeStatus { IDLE, LOADING, REFRESHING, ERROR }
 enum class SubscriptionCatalogStatus { IDLE, LOADING, READY, ERROR }
 enum class SubscriptionSelectionStatus { IDLE, SAVING, ERROR }
 
+private const val MAX_METADATA_JSON_CHARS = 32 * 1024
+
 data class SubscriptionCatalogNode(
     val name: String,
     val type: String,
@@ -439,7 +441,6 @@ class SubscriptionRuntimeViewModel : ViewModel() {
         const val PROVIDER_POLL_DELAY_MS = 350L
         const val MAX_CATALOG_NODES = 256
         const val MAX_CATALOG_JSON_CHARS = 512 * 1024
-        const val MAX_METADATA_JSON_CHARS = 32 * 1024
         const val PROXY_CONFIG_LOG_TAG = "DetourProxyConfig"
     }
 }
