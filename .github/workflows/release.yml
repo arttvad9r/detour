@@ -70,6 +70,7 @@ jobs:
           echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
           echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
           echo "APK_NAME=detour-$VERSION_NAME-arm64.apk" >> "$GITHUB_ENV"
+          echo "AAB_NAME=detour-$VERSION_NAME-arm64.aab" >> "$GITHUB_ENV"
       - name: Require successful Android CI on main
         shell: bash
         env:
@@ -158,14 +159,14 @@ jobs:
           KEYSTORE_PATH="$RUNNER_TEMP/detour-release.keystore"
           printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
           chmod 600 "$KEYSTORE_PATH"
-      - name: Build signed arm64 release APK
+      - name: Build signed arm64 release APK and AAB
         env:
           DETOUR_RELEASE_KEYSTORE: ${{ runner.temp }}/detour-release.keystore
           DETOUR_RELEASE_STORE_PASSWORD: ${{ secrets.DETOUR_RELEASE_STORE_PASSWORD }}
           DETOUR_RELEASE_KEY_ALIAS: ${{ secrets.DETOUR_RELEASE_KEY_ALIAS }}
           DETOUR_RELEASE_KEY_PASSWORD: ${{ secrets.DETOUR_RELEASE_KEY_PASSWORD }}
         run: >-
-          ./gradlew :app:assembleRelease
+          ./gradlew :app:assembleRelease :app:bundleRelease
           -PdetourReleaseAbi=arm64-v8a
           -PdetourVersionName="$VERSION_NAME"
           -PdetourVersionCode="$VERSION_CODE"
@@ -215,8 +216,56 @@ jobs:
           cp "$APK" "$ARTIFACT"
           (cd "$ARTIFACT_DIR" && sha256sum "$(basename "$ARTIFACT")") > "$ARTIFACT.sha256"
           echo "RELEASE_APK=$ARTIFACT" >> "$GITHUB_ENV"
-          echo "RELEASE_SHA256=$ARTIFACT.sha256" >> "$GITHUB_ENV"
-      - name: Upload signed release artifact
+          echo "RELEASE_APK_SHA256=$ARTIFACT.sha256" >> "$GITHUB_ENV"
+      - name: Verify release AAB
+        shell: bash
+        env:
+          EXPECTED_CERT_SHA256: ${{ secrets.DETOUR_RELEASE_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          AAB="$(find app/build/outputs/bundle/release -maxdepth 1 -type f -name '*.aab' -print -quit)"
+          if [[ -z "$AAB" ]]; then
+            echo "Release AAB not found" >&2
+            exit 1
+          fi
+
+          jarsigner -verify -strict "$AAB"
+          CERT_OUTPUT="$(keytool -printcert -jarfile "$AAB")"
+          printf '%s\n' "$CERT_OUTPUT"
+          ACTUAL_CERT_SHA256="$(
+            printf '%s\n' "$CERT_OUTPUT" |
+              sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' |
+              head -n 1 |
+              tr -d ':' |
+              tr '[:lower:]' '[:upper:]'
+          )"
+          EXPECTED_CERT_SHA256="$(printf '%s' "$EXPECTED_CERT_SHA256" | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          if [[ "$ACTUAL_CERT_SHA256" != "$EXPECTED_CERT_SHA256" ]]; then
+            echo "Release AAB signing certificate mismatch" >&2
+            echo "Expected: $EXPECTED_CERT_SHA256" >&2
+            echo "Actual:   $ACTUAL_CERT_SHA256" >&2
+            exit 1
+          fi
+
+          ABI_SET="$(
+            unzip -Z1 "$AAB" |
+              sed -n 's#^base/lib/\([^/]*\)/.*#\1#p' |
+              sort -u
+          )"
+          if [[ "$ABI_SET" != "arm64-v8a" ]]; then
+            echo "Release AAB must contain only arm64-v8a native libraries" >&2
+            printf 'Found ABI set:\n%s\n' "$ABI_SET" >&2
+            exit 1
+          fi
+
+          ARTIFACT_DIR="app/build/release-artifacts"
+          mkdir -p "$ARTIFACT_DIR"
+          ARTIFACT="$ARTIFACT_DIR/$AAB_NAME"
+          cp "$AAB" "$ARTIFACT"
+          (cd "$ARTIFACT_DIR" && sha256sum "$(basename "$ARTIFACT")") > "$ARTIFACT.sha256"
+          echo "RELEASE_AAB=$ARTIFACT" >> "$GITHUB_ENV"
+          echo "RELEASE_AAB_SHA256=$ARTIFACT.sha256" >> "$GITHUB_ENV"
+      - name: Upload signed release artifacts
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: detour-${{ env.VERSION_NAME }}-arm64
@@ -232,11 +281,17 @@ jobs:
         run: |
           set -euo pipefail
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "$RELEASE_APK" "$RELEASE_SHA256"
+            gh release upload "$GITHUB_REF_NAME" \
+              "$RELEASE_APK" \
+              "$RELEASE_APK_SHA256" \
+              "$RELEASE_AAB" \
+              "$RELEASE_AAB_SHA256"
           else
             gh release create "$GITHUB_REF_NAME" \
               "$RELEASE_APK" \
-              "$RELEASE_SHA256" \
+              "$RELEASE_APK_SHA256" \
+              "$RELEASE_AAB" \
+              "$RELEASE_AAB_SHA256" \
               --verify-tag \
               --generate-notes \
               --title "Detour $VERSION_NAME"
