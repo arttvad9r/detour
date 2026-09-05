@@ -208,18 +208,24 @@ class TriVpnService : VpnService() {
                 stopSequence(stopSelf = true)
                 return
             }
-            if (settings.preset == DpiPreset.AUTO &&
-                DpiStrategyCatalog.byId(settings.dpiAutoCandidateId) == null
-            ) {
-                VpnController.setState(VpnState.Failed(getString(R.string.err_dpi_failed)))
-                stopSequence(stopSelf = true)
-                return
+            if (settings.preset == DpiPreset.AUTO) {
+                val domainPlan = settings.dpiAutoDomainPlan
+                val globalValid = DpiStrategyCatalog.byId(settings.dpiAutoCandidateId) != null
+                val domainValid = domainPlan != null &&
+                    settings.dpiAutoCandidateId.isBlank() &&
+                    runCatching { domainPlan.compileArgs() }.isSuccess
+                if (globalValid == domainValid) {
+                    VpnController.setState(VpnState.Failed(getString(R.string.err_dpi_failed)))
+                    stopSequence(stopSelf = true)
+                    return
+                }
             }
             if (!dpi.start(
                     DpiArgs.resolve(
                         settings.preset,
                         settings.dpiCustomArgs,
                         settings.dpiAutoCandidateId,
+                        settings.dpiAutoDomainPlan,
                     ), 10808,
                     credentials = probeCredentials,
                     cancelled = { stopQueued.get() || destroyed.get() },
