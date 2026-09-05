@@ -16,6 +16,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -49,6 +52,7 @@ internal fun SettingsMenuScreen(
     onOpenDns: () -> Unit,
     onOpenDiagnostics: () -> Unit,
     onOpenBackup: () -> Unit,
+    onOpenAlwaysOnVpnSettings: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -57,6 +61,7 @@ internal fun SettingsMenuScreen(
     val c = detourColors
     val theme = LocalDetourTheme.current
     val scrollState = rememberScrollState()
+    var showAlwaysOnDialog by rememberSaveable { mutableStateOf(false) }
 
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         viewModel.refreshRoutes()
@@ -161,6 +166,13 @@ internal fun SettingsMenuScreen(
                         )
                     },
                 )
+                GroupDivider(startInset = NavigationRowDividerInset)
+                DetourNavigationRow(
+                    title = stringResource(R.string.always_on_vpn),
+                    subtitle = stringResource(R.string.always_on_vpn_sub),
+                    iconRes = R.drawable.ic_lock,
+                    onClick = { showAlwaysOnDialog = true },
+                )
 
                 SettingsSectionDivider()
                 SettingsSectionLabel(R.string.settings_section_app)
@@ -181,6 +193,16 @@ internal fun SettingsMenuScreen(
                 ),
             )
         }
+    }
+
+    if (showAlwaysOnDialog) {
+        AlwaysOnVpnDialog(
+            onOpenSettings = {
+                showAlwaysOnDialog = false
+                onOpenAlwaysOnVpnSettings()
+            },
+            onDismiss = { showAlwaysOnDialog = false },
+        )
     }
 }
 
