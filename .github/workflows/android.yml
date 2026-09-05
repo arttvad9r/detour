@@ -103,6 +103,21 @@ jobs:
             -validity 1 \
             -noprompt
           chmod 600 "$CI_KEYSTORE"
+          CI_CERT_SHA256="$(
+            keytool -list -v \
+              -keystore "$CI_KEYSTORE" \
+              -storepass detour-ci-password \
+              -alias detour-ci |
+              sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' |
+              head -n 1 |
+              tr -d ':' |
+              tr '[:lower:]' '[:upper:]'
+          )"
+          if [[ ! "$CI_CERT_SHA256" =~ ^[0-9A-F]{64}$ ]]; then
+            echo "Could not determine disposable CI certificate fingerprint" >&2
+            exit 1
+          fi
+          echo "CI_CERT_SHA256=$CI_CERT_SHA256" >> "$GITHUB_ENV"
       - name: Build CI-signed arm64 release APK and AAB
         env:
           DETOUR_RELEASE_KEYSTORE: ${{ runner.temp }}/detour-ci-release.keystore
@@ -141,25 +156,7 @@ jobs:
             echo "Release AAB not found" >&2
             exit 1
           fi
-          VERIFY_OUTPUT="$(jarsigner -verify -verbose -certs "$AAB" 2>&1)"
-          printf '%s\n' "$VERIFY_OUTPUT"
-          grep -Fq 'jar verified.' <<<"$VERIFY_OUTPUT"
-          grep -Fq 'CN=Detour CI' <<<"$VERIFY_OUTPUT"
-          python3 - "$AAB" <<'PYEOF'
-          import sys
-          import zipfile
-
-          aab = sys.argv[1]
-          with zipfile.ZipFile(aab) as archive:
-              abis = sorted({
-                  name.split('/')[2]
-                  for name in archive.namelist()
-                  if name.startswith('base/lib/') and len(name.split('/')) >= 4
-              })
-          if abis != ['arm64-v8a']:
-              raise SystemExit(f'unexpected AAB native ABIs: {abis!r}')
-          print('AAB native ABIs:', ', '.join(abis))
-          PYEOF
+          bash tools/verify_release_aab.sh "$AAB" "$CI_CERT_SHA256" arm64-v8a
       - name: Upload APK size reports
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
