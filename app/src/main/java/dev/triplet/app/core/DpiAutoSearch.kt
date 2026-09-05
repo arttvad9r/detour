@@ -23,9 +23,10 @@ fun interface DpiStrategySearcher {
 }
 
 /**
- * Fast global strategy coordinator. Runs direct baseline first and excludes
- * already-working targets from the strategy search. A global strategy must
- * fully pass every target that failed the baseline.
+ * Fast global strategy coordinator. Runs direct baseline first, then puts the
+ * failing targets first so the runner can reject bad candidates cheaply. A
+ * surviving candidate is still regression-checked against every selected
+ * target because the global strategy is not host-scoped at runtime.
  */
 class DpiAutoSearchCoordinator(
     private val directProbe: DpiTargetProbe,
@@ -41,10 +42,12 @@ class DpiAutoSearchCoordinator(
 
         val problematic = baseline.filterNot { it.fullyWorking }.map { it.target }
         if (problematic.isEmpty()) return DpiAutoSearchReport(baseline, emptyList())
+        val alreadyDirect = baseline.filter { it.fullyWorking }.map { it.target }
+        val strategyTargets = problematic + alreadyDirect
 
         return DpiAutoSearchReport(
             baseline = baseline,
-            strategies = strategySearcher.search(problematic, cancelled),
+            strategies = strategySearcher.search(strategyTargets, cancelled),
         )
     }
 }
