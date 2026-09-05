@@ -101,6 +101,35 @@ class AutoConnectTest {
         ))
     }
 
+    @Test fun `network triggers use independent preferences`() {
+        val networkSettings = settings(AppRoute.DPI).copy(
+            autoConnect = false,
+            autoConnectWifi = true,
+            autoConnectCellular = false,
+        )
+        assertFalse(isAutoConnectEnabled(networkSettings, AutoConnectTrigger.APP_LAUNCH))
+        assertTrue(isAutoConnectEnabled(networkSettings, AutoConnectTrigger.WIFI))
+        assertFalse(isAutoConnectEnabled(networkSettings, AutoConnectTrigger.CELLULAR))
+
+        val effective = EffectiveRoutes(emptySet(), setOf("app"))
+        assertTrue(
+            canAutoConnect(
+                networkSettings,
+                vpnPermissionGranted = true,
+                effective = effective,
+                enabled = isAutoConnectEnabled(networkSettings, AutoConnectTrigger.WIFI),
+            ),
+        )
+        assertFalse(
+            canAutoConnect(
+                networkSettings,
+                vpnPermissionGranted = true,
+                effective = effective,
+                enabled = isAutoConnectEnabled(networkSettings, AutoConnectTrigger.CELLULAR),
+            ),
+        )
+    }
+
     @Test fun `auto-connect preflight validates multi-hop with service resolver semantics`() {
         val exit = VlessKey("a", "Exit", validVlessUri)
         val entry = VlessKey(
