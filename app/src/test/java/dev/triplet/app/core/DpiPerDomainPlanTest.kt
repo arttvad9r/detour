@@ -2,14 +2,14 @@ package dev.triplet.app.core
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DpiPerDomainPlanTest {
-    private val youtube = DpiProbeTarget("youtube", "youtube.com")
-    private val youtubeWeb = DpiProbeTarget("youtube-web", "www.youtube.com")
-    private val discord = DpiProbeTarget("discord", "discord.com")
+    private val youtube = DpiProbeTarget("youtube", "youtube.com", "youtube.com")
+    private val youtubeWeb = DpiProbeTarget("youtube-web", "www.youtube.com", "youtube.com")
+    private val discord = DpiProbeTarget("discord", "discord.com", "discord.com")
 
     private val split = DpiStrategyCandidate(
         "split",
@@ -20,31 +20,70 @@ class DpiPerDomainPlanTest {
         listOf("-d", "1", "--timeout", "3"),
     )
 
-    @Test fun `planner keeps direct targets out of DPI assignments`() {
+    @Test fun `planner keeps unaffected direct scopes out of DPI assignments`() {
         val report = DpiAutoSearchReport(
             baseline = listOf(
                 target(youtube, successes = 0),
+                target(youtubeWeb, successes = 2),
                 target(discord, successes = 2),
             ),
             strategies = listOf(
-                strategy(split, target(youtube, successes = 2, latencies = listOf(80, 90))),
+                strategy(
+                    split,
+                    target(youtube, successes = 2, latencies = listOf(80, 90)),
+                    target(youtubeWeb, successes = 2, latencies = listOf(70, 75)),
+                ),
             ),
         )
 
         val plan = DpiPerDomainPlanner.fromReport(report)
 
         assertEquals(listOf(discord), plan.directTargets)
-        assertEquals(listOf(youtube), plan.assignments.map { it.target })
+        assertEquals(listOf("youtube.com"), plan.assignments.map { it.scopeHost })
+        assertEquals(listOf(youtube, youtubeWeb), plan.assignments.single().targets)
         assertEquals("split", plan.assignments.single().candidate.id)
         assertTrue(plan.complete)
     }
 
-    @Test fun `planner chooses lower latency after equally stable success`() {
+    @Test fun `planner refuses broad scope strategy that regresses direct-working peer`() {
         val report = DpiAutoSearchReport(
-            baseline = listOf(target(youtube, successes = 0)),
+            baseline = listOf(
+                target(youtube, successes = 0),
+                target(youtubeWeb, successes = 2),
+            ),
             strategies = listOf(
-                strategy(split, target(youtube, successes = 2, latencies = listOf(200, 220))),
-                strategy(disorder, target(youtube, successes = 2, latencies = listOf(40, 50))),
+                strategy(
+                    split,
+                    target(youtube, successes = 2),
+                    target(youtubeWeb, successes = 1),
+                ),
+            ),
+        )
+
+        val plan = DpiPerDomainPlanner.fromReport(report)
+
+        assertFalse(plan.complete)
+        assertEquals(listOf("youtube.com"), plan.unresolvedScopeHosts)
+        assertTrue(plan.assignments.isEmpty())
+    }
+
+    @Test fun `planner chooses lower aggregate latency after equal scope stability`() {
+        val report = DpiAutoSearchReport(
+            baseline = listOf(
+                target(youtube, successes = 0),
+                target(youtubeWeb, successes = 2),
+            ),
+            strategies = listOf(
+                strategy(
+                    split,
+                    target(youtube, successes = 2, latencies = listOf(200, 220)),
+                    target(youtubeWeb, successes = 2, latencies = listOf(180, 210)),
+                ),
+                strategy(
+                    disorder,
+                    target(youtube, successes = 2, latencies = listOf(40, 50)),
+                    target(youtubeWeb, successes = 2, latencies = listOf(45, 55)),
+                ),
             ),
         )
 
@@ -54,30 +93,14 @@ class DpiPerDomainPlanTest {
         )
     }
 
-    @Test fun `planner reports target unresolved when no candidate fully works`() {
-        val report = DpiAutoSearchReport(
-            baseline = listOf(target(youtube, successes = 0)),
-            strategies = listOf(
-                strategy(split, target(youtube, successes = 1)),
-                DpiStrategyResult(disorder, backendStarted = false, targets = listOf(target(youtube, 0, 0))),
-            ),
-        )
-
-        val plan = DpiPerDomainPlanner.fromReport(report)
-
-        assertFalse(plan.complete)
-        assertEquals(listOf(youtube), plan.unresolvedTargets)
-        assertTrue(plan.assignments.isEmpty())
-    }
-
-    @Test fun `compiler groups hosts sharing a candidate and emits one global timeout`() {
+    @Test fun `compiler groups scopes sharing a candidate and emits one global timeout`() {
         val plan = DpiPerDomainPlan(
             directTargets = emptyList(),
             assignments = listOf(
-                DpiTargetStrategyAssignment(youtube, split),
-                DpiTargetStrategyAssignment(discord, split),
+                assignment("youtube.com", split, youtube, youtubeWeb),
+                assignment("discord.com", split, discord),
             ),
-            unresolvedTargets = emptyList(),
+            unresolvedScopeHosts = emptyList(),
         )
 
         val compiled = DpiPerDomainCommandCompiler.compile(plan)
@@ -94,10 +117,10 @@ class DpiPerDomainPlanTest {
         val plan = DpiPerDomainPlan(
             directTargets = emptyList(),
             assignments = listOf(
-                DpiTargetStrategyAssignment(youtube, split),
-                DpiTargetStrategyAssignment(discord, disorder),
+                assignment("youtube.com", split, youtube, youtubeWeb),
+                assignment("discord.com", disorder, discord),
             ),
-            unresolvedTargets = emptyList(),
+            unresolvedScopeHosts = emptyList(),
         )
 
         val compiled = DpiPerDomainCommandCompiler.compile(plan)
@@ -107,14 +130,16 @@ class DpiPerDomainPlanTest {
         assertFalse(compiled.args.takeLast(2) == listOf("-A", "n"))
     }
 
-    @Test fun `more specific host strategy precedes parent host strategy`() {
+    @Test fun `more specific rule scope precedes parent scope`() {
+        val child = DpiProbeTarget("child", "www.youtube.com", "www.youtube.com")
+        val parent = DpiProbeTarget("parent", "youtube.com", "youtube.com")
         val plan = DpiPerDomainPlan(
             directTargets = emptyList(),
             assignments = listOf(
-                DpiTargetStrategyAssignment(youtube, split),
-                DpiTargetStrategyAssignment(youtubeWeb, disorder),
+                assignment("youtube.com", split, parent),
+                assignment("www.youtube.com", disorder, child),
             ),
-            unresolvedTargets = emptyList(),
+            unresolvedScopeHosts = emptyList(),
         )
 
         val compiled = DpiPerDomainCommandCompiler.compile(plan)
@@ -125,14 +150,14 @@ class DpiPerDomainPlanTest {
         assertEquals(listOf("youtube.com"), compiled.groups[1].hosts)
     }
 
-    @Test fun `candidate grouping cycle falls back to correctly ordered singleton host groups`() {
+    @Test fun `candidate grouping cycle falls back to correctly ordered singleton scopes`() {
         val a = DpiStrategyCandidate("a", listOf("-s", "1+s", "--timeout", "3"))
         val b = DpiStrategyCandidate("b", listOf("-d", "1", "--timeout", "3"))
         val assignments = listOf(
-            DpiTargetStrategyAssignment(DpiProbeTarget("a-child", "a.example.com"), a),
-            DpiTargetStrategyAssignment(DpiProbeTarget("a-parent", "example.org"), a),
-            DpiTargetStrategyAssignment(DpiProbeTarget("b-parent", "example.com"), b),
-            DpiTargetStrategyAssignment(DpiProbeTarget("b-child", "b.example.org"), b),
+            scoped("a-child", "a.example.com", a),
+            scoped("a-parent", "example.org", a),
+            scoped("b-parent", "example.com", b),
+            scoped("b-child", "b.example.org", b),
         )
 
         val compiled = DpiPerDomainCommandCompiler.compile(
@@ -153,7 +178,7 @@ class DpiPerDomainPlanTest {
     @Test fun `compiler rejects unresolved plan`() {
         assertThrows(IllegalArgumentException::class.java) {
             DpiPerDomainCommandCompiler.compile(
-                DpiPerDomainPlan(emptyList(), emptyList(), listOf(youtube)),
+                DpiPerDomainPlan(emptyList(), emptyList(), listOf("youtube.com")),
             )
         }
     }
@@ -165,7 +190,7 @@ class DpiPerDomainPlanTest {
         )
         val plan = DpiPerDomainPlan(
             emptyList(),
-            listOf(DpiTargetStrategyAssignment(youtube, nested)),
+            listOf(assignment("youtube.com", nested, youtube, youtubeWeb)),
             emptyList(),
         )
 
@@ -179,8 +204,8 @@ class DpiPerDomainPlanTest {
         val plan = DpiPerDomainPlan(
             emptyList(),
             listOf(
-                DpiTargetStrategyAssignment(youtube, split),
-                DpiTargetStrategyAssignment(discord, slow),
+                assignment("youtube.com", split, youtube, youtubeWeb),
+                assignment("discord.com", slow, discord),
             ),
             emptyList(),
         )
@@ -192,9 +217,14 @@ class DpiPerDomainPlanTest {
 
     @Test fun `compiler caps explicit groups below unsafe pinned shift range`() {
         val assignments = (0..DpiPerDomainCommandCompiler.MAX_EXPLICIT_GROUPS).map { index ->
-            DpiTargetStrategyAssignment(
-                DpiProbeTarget("target-$index", "h$index.example$index.com"),
-                DpiStrategyCandidate("candidate-$index", listOf("-s", "1+s", "--timeout", "3")),
+            val scope = "h$index.example$index.com"
+            scoped(
+                id = "target-$index",
+                scope = scope,
+                candidate = DpiStrategyCandidate(
+                    "candidate-$index",
+                    listOf("-s", "1+s", "--timeout", "3"),
+                ),
             )
         }
 
@@ -205,10 +235,25 @@ class DpiPerDomainPlanTest {
         }
     }
 
+    private fun assignment(
+        scope: String,
+        candidate: DpiStrategyCandidate,
+        vararg targets: DpiProbeTarget,
+    ) = DpiScopeStrategyAssignment(scope, targets.toList(), candidate)
+
+    private fun scoped(
+        id: String,
+        scope: String,
+        candidate: DpiStrategyCandidate,
+    ): DpiScopeStrategyAssignment {
+        val target = DpiProbeTarget(id, scope, scope)
+        return assignment(scope, candidate, target)
+    }
+
     private fun strategy(
         candidate: DpiStrategyCandidate,
-        result: DpiTargetResult,
-    ) = DpiStrategyResult(candidate, backendStarted = true, targets = listOf(result))
+        vararg results: DpiTargetResult,
+    ) = DpiStrategyResult(candidate, backendStarted = true, targets = results.toList())
 
     private fun target(
         target: DpiProbeTarget,
