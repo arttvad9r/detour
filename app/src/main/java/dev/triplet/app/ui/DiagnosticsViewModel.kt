@@ -25,7 +25,7 @@ import kotlinx.coroutines.withContext
 
 internal enum class DiagnosticProbeState { NOT_RUN, RUNNING, PASS, FAIL, NOT_APPLICABLE }
 
-data class DiagnosticsUiState(
+internal data class DiagnosticsUiState(
     val loading: Boolean = true,
     val checking: Boolean = false,
     val vpnPermissionGranted: Boolean = false,
@@ -45,7 +45,7 @@ data class DiagnosticsUiState(
     val checkedAt: Long? = null,
 )
 
-class DiagnosticsViewModel(
+internal class DiagnosticsViewModel(
     private val loadSettings: suspend () -> TriSettings,
     private val vpnState: StateFlow<VpnState>,
     private val resolveRoutes: suspend (Map<String, dev.triplet.app.core.AppRoute>) -> EffectiveRoutes,
