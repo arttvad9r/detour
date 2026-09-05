@@ -5,8 +5,11 @@ import java.io.EOFException
 import java.io.IOException
 import java.io.InputStream
 import java.net.InetSocketAddress
+import java.net.Proxy
 import java.net.Socket
+import java.net.URL
 import java.nio.charset.StandardCharsets
+import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.SSLSocketFactory
 
@@ -67,6 +70,27 @@ class DpiAutoSelector(
 ) {
     private val backend = DpiBackend(context.applicationContext)
 
+    fun searchWithBaseline(
+        targets: List<DpiProbeTarget>,
+        candidates: List<DpiStrategyCandidate> = DpiStrategyCatalog.default,
+        attemptsPerTarget: Int = 2,
+        cancelled: () -> Boolean = { false },
+    ): DpiAutoSearchReport = DpiAutoSearchCoordinator(
+        directProbe = DirectHttpsDpiProbe(timeoutMs = timeoutMs, cancelled = cancelled),
+        strategySearcher = DpiStrategySearcher { problematicTargets, searchCancelled ->
+            search(
+                targets = problematicTargets,
+                candidates = candidates,
+                attemptsPerTarget = attemptsPerTarget,
+                cancelled = searchCancelled,
+            )
+        },
+    ).run(
+        targets = targets,
+        attemptsPerTarget = attemptsPerTarget,
+        cancelled = cancelled,
+    )
+
     fun search(
         targets: List<DpiProbeTarget>,
         candidates: List<DpiStrategyCandidate> = DpiStrategyCatalog.default,
@@ -102,6 +126,37 @@ class DpiAutoSelector(
 
     companion object {
         const val DEFAULT_PORT = 10818
+    }
+}
+
+/** Direct HTTPS baseline that explicitly bypasses JVM HTTP proxy configuration. */
+internal class DirectHttpsDpiProbe(
+    private val timeoutMs: Int,
+    private val cancelled: () -> Boolean = { false },
+) : DpiTargetProbe {
+    override fun probe(target: DpiProbeTarget): DpiProbeAttempt {
+        if (cancelled() || Thread.currentThread().isInterrupted) return DpiProbeAttempt(false)
+        val startedNs = System.nanoTime()
+        var connection: HttpsURLConnection? = null
+        return try {
+            require(timeoutMs > 0) { "timeout must be positive" }
+            connection = URL("https://${target.host}/")
+                .openConnection(Proxy.NO_PROXY) as HttpsURLConnection
+            connection.connectTimeout = timeoutMs
+            connection.readTimeout = timeoutMs
+            connection.instanceFollowRedirects = false
+            connection.requestMethod = "GET"
+            connection.setRequestProperty("User-Agent", "Detour-DPI-Probe")
+            connection.setRequestProperty("Accept", "*/*")
+            connection.setRequestProperty("Connection", "close")
+            val status = connection.responseCode
+            val latencyMs = (System.nanoTime() - startedNs) / 1_000_000L
+            DpiProbeAttempt(success = status in 200..499, latencyMs = latencyMs)
+        } catch (_: Exception) {
+            DpiProbeAttempt(success = false)
+        } finally {
+            connection?.disconnect()
+        }
     }
 }
 
