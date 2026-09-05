@@ -45,6 +45,8 @@ import dev.triplet.app.ui.AppsScreen
 import dev.triplet.app.ui.AppsViewModel
 import dev.triplet.app.ui.BackupScreen
 import dev.triplet.app.ui.BackupViewModel
+import dev.triplet.app.ui.DestinationRulesScreen
+import dev.triplet.app.ui.DestinationRulesViewModel
 import dev.triplet.app.ui.DiagnosticsScreen
 import dev.triplet.app.ui.DiagnosticsViewModel
 import dev.triplet.app.ui.DnsScreen
@@ -88,6 +90,9 @@ internal sealed interface AppDestination : NavKey {
     data object Routes : AppDestination
 
     @Serializable
+    data object DestinationRules : AppDestination
+
+    @Serializable
     data object Vless : AppDestination
 
     @Serializable
@@ -108,6 +113,7 @@ internal sealed interface AppDestination : NavKey {
 
 private fun AppDestination.settingsSectionOrNull(): SettingsSection? = when (this) {
     AppDestination.Routes -> SettingsSection.ROUTES
+    AppDestination.DestinationRules -> SettingsSection.DESTINATION_RULES
     AppDestination.Vless -> SettingsSection.PROFILES
     AppDestination.Dpi -> SettingsSection.DPI
     AppDestination.Dns -> SettingsSection.DNS
@@ -121,6 +127,7 @@ private fun AppDestination.settingsSectionOrNull(): SettingsSection? = when (thi
 
 private fun AppDestination.isSettingsDetail(): Boolean = when (this) {
     AppDestination.Routes,
+    AppDestination.DestinationRules,
     AppDestination.Vless,
     AppDestination.Dpi,
     AppDestination.Theme,
@@ -243,7 +250,7 @@ internal fun DetourNavigation(
             EnterTransition.None togetherWith slideOutHorizontally(
                 animationSpec = tween(
                     Motion.NAV_EXIT_MS,
-                    easing = Motion.STANDARD_EASING,
+                    easing = Motion.EXIT_EASING,
                 ),
                 targetOffsetX = { it },
             )
@@ -300,6 +307,7 @@ internal fun DetourNavigation(
                     viewModel = settingsViewModel,
                     selectedSection = (currentDestination as? AppDestination)?.settingsSectionOrNull(),
                     onOpenRoutes = { openSettingsDetail(AppDestination.Routes) },
+                    onOpenDestinationRules = { openSettingsDetail(AppDestination.DestinationRules) },
                     onOpenVless = { openSettingsDetail(AppDestination.Vless) },
                     onOpenDpi = { openSettingsDetail(AppDestination.Dpi) },
                     onOpenTheme = { openSettingsDetail(AppDestination.Theme) },
@@ -325,6 +333,16 @@ internal fun DetourNavigation(
                     ),
                 )
                 AppsScreen(appsViewModel, onBack = popBack)
+            }
+
+            entry<AppDestination.DestinationRules>(metadata = ListDetailSceneStrategy.detailPane()) {
+                val destinationRulesViewModel = viewModel<DestinationRulesViewModel>(
+                    factory = DestinationRulesViewModel.factory(
+                        store = store,
+                        restartTunnel = { VpnController.restartIfActive(appContext) },
+                    ),
+                )
+                DestinationRulesScreen(destinationRulesViewModel, onBack = popBack)
             }
 
             entry<AppDestination.Vless>(metadata = ListDetailSceneStrategy.detailPane()) {
