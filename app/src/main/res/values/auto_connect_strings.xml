@@ -1,0 +1,8 @@
+<resources>
+    <string name="auto_connect_launch">At Detour launch</string>
+    <string name="auto_connect_launch_sub">Connect when Detour is opened</string>
+    <string name="auto_connect_wifi">On Wi-Fi</string>
+    <string name="auto_connect_wifi_sub">Connect when a validated Wi-Fi network becomes active</string>
+    <string name="auto_connect_cellular">On mobile data</string>
+    <string name="auto_connect_cellular_sub">Connect when a validated cellular network becomes active</string>
+</resources>
