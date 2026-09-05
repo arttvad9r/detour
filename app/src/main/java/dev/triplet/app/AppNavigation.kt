@@ -328,11 +328,12 @@ internal fun DetourNavigation(
                     factory = DpiViewModel.factory(
                         store = store,
                         vpnState = VpnController.state,
-                        runAutoSearch = { targets, cancelled ->
+                        runAutoSearch = { targets, cancelled, onProgress ->
                             withContext(Dispatchers.IO) {
                                 DpiAutoSelector(appContext).searchPerDomainWithBaseline(
                                     targets = targets,
                                     cancelled = cancelled,
+                                    onProgress = onProgress,
                                 )
                             }
                         },
