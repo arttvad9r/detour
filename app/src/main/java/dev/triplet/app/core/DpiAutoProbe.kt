@@ -30,28 +30,32 @@ object DpiDomainCatalog {
         DpiDomainGroup(
             id = "youtube",
             targets = listOf(
-                DpiProbeTarget("youtube-web", "www.youtube.com"),
-                DpiProbeTarget("youtube-root", "youtube.com"),
+                DpiProbeTarget("youtube-web", "www.youtube.com", "youtube.com"),
+                DpiProbeTarget("youtube-root", "youtube.com", "youtube.com"),
             ),
         ),
         DpiDomainGroup(
             id = "googlevideo",
             targets = listOf(
-                DpiProbeTarget("googlevideo-redirector", "redirector.googlevideo.com"),
+                DpiProbeTarget(
+                    "googlevideo-redirector",
+                    "redirector.googlevideo.com",
+                    "googlevideo.com",
+                ),
             ),
         ),
         DpiDomainGroup(
             id = "discord",
             targets = listOf(
-                DpiProbeTarget("discord-web", "discord.com"),
-                DpiProbeTarget("discord-gateway", "gateway.discord.gg"),
+                DpiProbeTarget("discord-web", "discord.com", "discord.com"),
+                DpiProbeTarget("discord-gateway", "gateway.discord.gg", "discord.gg"),
             ),
         ),
         DpiDomainGroup(
             id = "telegram",
             targets = listOf(
-                DpiProbeTarget("telegram-web", "telegram.org"),
-                DpiProbeTarget("telegram-webapp", "web.telegram.org"),
+                DpiProbeTarget("telegram-web", "telegram.org", "telegram.org"),
+                DpiProbeTarget("telegram-webapp", "web.telegram.org", "telegram.org"),
             ),
         ),
     )
@@ -76,37 +80,6 @@ class DpiAutoSelector(
         candidates: List<DpiStrategyCandidate> = DpiStrategyCatalog.default,
         attemptsPerTarget: Int = 2,
         cancelled: () -> Boolean = { false },
-    ): DpiAutoSearchReport = searchWithBaselineMode(
-        targets = targets,
-        candidates = candidates,
-        attemptsPerTarget = attemptsPerTarget,
-        stopCandidateOnFailure = true,
-        cancelled = cancelled,
-    )
-
-    /**
-     * Exhaustive mode for per-domain planning. Every candidate is measured for
-     * every problematic target so the planner has a complete comparison matrix.
-     */
-    fun searchPerDomainWithBaseline(
-        targets: List<DpiProbeTarget>,
-        candidates: List<DpiStrategyCandidate> = DpiStrategyCatalog.default,
-        attemptsPerTarget: Int = 2,
-        cancelled: () -> Boolean = { false },
-    ): DpiAutoSearchReport = searchWithBaselineMode(
-        targets = targets,
-        candidates = candidates,
-        attemptsPerTarget = attemptsPerTarget,
-        stopCandidateOnFailure = false,
-        cancelled = cancelled,
-    )
-
-    private fun searchWithBaselineMode(
-        targets: List<DpiProbeTarget>,
-        candidates: List<DpiStrategyCandidate>,
-        attemptsPerTarget: Int,
-        stopCandidateOnFailure: Boolean,
-        cancelled: () -> Boolean,
     ): DpiAutoSearchReport = DpiAutoSearchCoordinator(
         directProbe = DirectHttpsDpiProbe(timeoutMs = timeoutMs, cancelled = cancelled),
         strategySearcher = DpiStrategySearcher { problematicTargets, searchCancelled ->
@@ -115,7 +88,34 @@ class DpiAutoSelector(
                 candidates = candidates,
                 attemptsPerTarget = attemptsPerTarget,
                 cancelled = searchCancelled,
-                stopCandidateOnFailure = stopCandidateOnFailure,
+                stopCandidateOnFailure = true,
+            )
+        },
+    ).run(
+        targets = targets,
+        attemptsPerTarget = attemptsPerTarget,
+        cancelled = cancelled,
+    )
+
+    /**
+     * Exhaustive mode for per-domain planning. If one endpoint in a rule scope
+     * fails direct baseline, every selected endpoint affected by that same
+     * scope is tested under every candidate.
+     */
+    fun searchPerDomainWithBaseline(
+        targets: List<DpiProbeTarget>,
+        candidates: List<DpiStrategyCandidate> = DpiStrategyCatalog.default,
+        attemptsPerTarget: Int = 2,
+        cancelled: () -> Boolean = { false },
+    ): DpiAutoSearchReport = DpiPerDomainSearchCoordinator(
+        directProbe = DirectHttpsDpiProbe(timeoutMs = timeoutMs, cancelled = cancelled),
+        strategySearcher = DpiStrategySearcher { affectedTargets, searchCancelled ->
+            search(
+                targets = affectedTargets,
+                candidates = candidates,
+                attemptsPerTarget = attemptsPerTarget,
+                cancelled = searchCancelled,
+                stopCandidateOnFailure = false,
             )
         },
     ).run(
