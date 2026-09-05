@@ -28,6 +28,25 @@ data class SubscriptionCatalogNode(
     val type: String,
 )
 
+data class SubscriptionMetadata(
+    val title: String? = null,
+    val updateIntervalHours: Int? = null,
+    val uploadBytes: Long = 0,
+    val downloadBytes: Long = 0,
+    val totalBytes: Long? = null,
+    val expireAtUnix: Long? = null,
+    val supportUrl: String? = null,
+    val profileWebPageUrl: String? = null,
+    val announcement: String? = null,
+) {
+    val usedBytes: Long get() = (uploadBytes + downloadBytes).coerceAtLeast(0)
+    val remainingBytes: Long? get() = totalBytes?.let { (it - usedBytes).coerceAtLeast(0) }
+
+    val isEmpty: Boolean get() =
+        title == null && updateIntervalHours == null && totalBytes == null && expireAtUnix == null &&
+            supportUrl == null && profileWebPageUrl == null && announcement == null && usedBytes == 0L
+}
+
 data class SubscriptionLatencyError(
     val errorClass: String,
     val errorText: String,
@@ -42,6 +61,7 @@ data class SubscriptionLatencyResult(
 data class SubscriptionRuntimeUiState(
     val provider: SubscriptionProviderState = SubscriptionProviderState.Unavailable,
     val catalog: List<SubscriptionCatalogNode> = emptyList(),
+    val metadata: SubscriptionMetadata? = null,
     val status: SubscriptionRuntimeStatus = SubscriptionRuntimeStatus.IDLE,
     val catalogStatus: SubscriptionCatalogStatus = SubscriptionCatalogStatus.IDLE,
     val selectedNode: String? = null,
@@ -61,6 +81,30 @@ private fun safeLatencyDiagnostic(value: String, maxChars: Int): String? {
 
 internal fun retainedSubscriptionSelection(selectedNode: String?, availableNames: Set<String>): String? =
     selectedNode?.takeIf { it in availableNames }
+
+internal fun parseSubscriptionMetadata(raw: String): SubscriptionMetadata? {
+    if (raw.isBlank() || raw.length > MAX_METADATA_JSON_CHARS) return null
+    return runCatching {
+        val json = JSONObject(raw)
+        fun text(name: String, maxChars: Int): String? =
+            safeLatencyDiagnostic(json.optString(name), maxChars)
+        fun positiveLong(name: String): Long? =
+            if (!json.has(name)) null else json.optLong(name, 0L).takeIf { it > 0L }
+
+        val metadata = SubscriptionMetadata(
+            title = text("title", 256),
+            updateIntervalHours = json.optInt("updateIntervalHours", 0).takeIf { it in 1..24 * 365 },
+            uploadBytes = json.optLong("uploadBytes", 0L).coerceAtLeast(0L),
+            downloadBytes = json.optLong("downloadBytes", 0L).coerceAtLeast(0L),
+            totalBytes = positiveLong("totalBytes"),
+            expireAtUnix = positiveLong("expireAtUnix"),
+            supportUrl = text("supportUrl", 2048),
+            profileWebPageUrl = text("profileWebPageUrl", 2048),
+            announcement = text("announcement", 2048),
+        )
+        metadata.takeUnless { it.isEmpty }
+    }.getOrNull()
+}
 
 internal fun parseSubscriptionLatencyResult(raw: String): SubscriptionLatencyResult {
     if (raw.isBlank() || raw.length > 512 * 1024) return SubscriptionLatencyResult()
@@ -105,6 +149,7 @@ class SubscriptionRuntimeViewModel : ViewModel() {
     private var boundUrl: String? = null
     private var boundCacheDir: String = ""
     private var catalogJob: Job? = null
+    private var metadataJob: Job? = null
     private var runtimeJob: Job? = null
 
     fun bind(
@@ -124,12 +169,15 @@ class SubscriptionRuntimeViewModel : ViewModel() {
 
         if (changed) {
             runtimeJob?.cancel()
+            metadataJob?.cancel()
             _uiState.value = SubscriptionRuntimeUiState(
                 selectedNode = durableSelected ?: previousSelected.takeIf { previousUrl == subscriptionUrl },
             )
             loadCatalog(subscriptionUrl)
+            loadMetadata(subscriptionUrl)
         } else if (_uiState.value.catalogStatus == SubscriptionCatalogStatus.IDLE) {
             loadCatalog(subscriptionUrl)
+            loadMetadata(subscriptionUrl)
         } else if (durableSelected != null && _uiState.value.selectedNode.isNullOrBlank()) {
             _uiState.value = _uiState.value.copy(selectedNode = durableSelected)
         }
@@ -154,6 +202,7 @@ class SubscriptionRuntimeViewModel : ViewModel() {
             latencyErrorByName = emptyMap(),
         )
         loadCatalog(url, force = true)
+        loadMetadata(url, force = true)
         if (connected) {
             runtimeJob?.cancel()
             runtimeJob = viewModelScope.launch {
@@ -286,6 +335,27 @@ class SubscriptionRuntimeViewModel : ViewModel() {
         }
     }
 
+    private fun loadMetadata(url: String, force: Boolean = false) {
+        if (!force && metadataJob?.isActive == true) return
+        metadataJob?.cancel()
+        metadataJob = viewModelScope.launch {
+            try {
+                val metadata = withContext(Dispatchers.IO) {
+                    parseSubscriptionMetadata(Engine.fetchSubscriptionMetadata(url))
+                }
+                if (boundUrl == url) {
+                    _uiState.value = _uiState.value.copy(metadata = metadata)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                if (boundUrl == url) {
+                    _uiState.value = _uiState.value.copy(metadata = null)
+                }
+            }
+        }
+    }
+
     private fun loadRuntimeWithPolling() {
         if (runtimeJob?.isActive == true && _uiState.value.provider.available) return
         runtimeJob?.cancel()
@@ -369,6 +439,7 @@ class SubscriptionRuntimeViewModel : ViewModel() {
         const val PROVIDER_POLL_DELAY_MS = 350L
         const val MAX_CATALOG_NODES = 256
         const val MAX_CATALOG_JSON_CHARS = 512 * 1024
+        const val MAX_METADATA_JSON_CHARS = 32 * 1024
         const val PROXY_CONFIG_LOG_TAG = "DetourProxyConfig"
     }
 }
