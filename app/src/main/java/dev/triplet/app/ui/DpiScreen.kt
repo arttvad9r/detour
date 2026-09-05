@@ -315,27 +315,39 @@ private fun AutoStrategyPanel(state: DpiUiState, viewModel: DpiViewModel) {
 private fun AutoResult(state: DpiUiState) {
     val c = detourColors
     val report = state.autoReport ?: return
-    val winner = report.winner
+    val plan = state.autoDomainPlan
+    val unresolved = plan?.unresolvedScopeHosts.orEmpty()
     val text = when {
         report.allDirect -> stringResource(R.string.dpi_auto_direct_ok)
-        winner != null -> stringResource(
-            R.string.dpi_auto_found,
-            report.problematicTargets.size,
-            winner.candidate.args.joinToString(" "),
+        plan == null -> stringResource(R.string.dpi_auto_not_found, report.problematicTargets.size)
+        unresolved.isNotEmpty() -> stringResource(
+            R.string.dpi_auto_plan_incomplete,
+            unresolved.joinToString(", "),
+        )
+        plan.assignments.isNotEmpty() -> stringResource(
+            R.string.dpi_auto_plan_found,
+            plan.assignments.size,
         )
         else -> stringResource(R.string.dpi_auto_not_found, report.problematicTargets.size)
     }
+    val hasError = !report.allDirect && (plan == null || unresolved.isNotEmpty() || plan.assignments.isEmpty())
     Text(
         text = text,
         style = MaterialTheme.typography.bodySmall,
-        color = if (winner == null && !report.allDirect) c.error else c.textSecondary,
+        color = if (hasError) c.error else c.textSecondary,
         modifier = Modifier.padding(horizontal = Spacing.space16, vertical = Spacing.space4),
     )
-    if (
-        winner != null && state.preset == DpiPreset.AUTO &&
-        state.appliedAutoCandidateId == winner.candidate.id &&
-        state.autoRunState != DpiAutoRunState.APPLYING
-    ) {
+
+    plan?.assignments?.forEach { assignment ->
+        Text(
+            text = "${assignment.scopeHost} → ${assignment.candidate.args.joinToString(" ")}",
+            style = MaterialTheme.typography.bodySmall,
+            color = c.textSecondary,
+            modifier = Modifier.padding(horizontal = Spacing.space16, vertical = Spacing.space2),
+        )
+    }
+
+    if (state.autoPlanApplied && state.autoRunState != DpiAutoRunState.APPLYING) {
         Text(
             text = stringResource(R.string.dpi_auto_applied),
             style = MaterialTheme.typography.bodySmall,
