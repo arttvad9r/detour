@@ -11,8 +11,9 @@ fun canAutoConnect(
     vpnPermissionGranted: Boolean,
     effective: EffectiveRoutes,
     activeVpnValid: Boolean = settings.activeVpnConfigured,
+    enabled: Boolean = settings.autoConnect,
 ): Boolean {
-    if (!settings.autoConnect || !vpnPermissionGranted) return false
+    if (!enabled || !vpnPermissionGranted) return false
     if (effective.isEmpty) return false
     val usesVpn = effective.vpnPackages.isNotEmpty() ||
         settings.destinationRules.any { it.route == AppRoute.VPN }
@@ -48,10 +49,12 @@ class AutoConnectCoordinator(
     private val vpnPermissionGranted: () -> Boolean,
     private val currentVpnState: () -> VpnState,
     private val startVpn: () -> Unit,
+    private val trigger: AutoConnectTrigger = AutoConnectTrigger.APP_LAUNCH,
 ) {
     suspend fun runOnce(): Boolean {
         val settings = loadSettings()
-        if (!settings.autoConnect) return false
+        val enabled = isAutoConnectEnabled(settings, trigger)
+        if (!enabled) return false
         if (currentVpnState() != VpnState.Idle) return false
         if (!vpnPermissionGranted()) return false
 
@@ -65,6 +68,7 @@ class AutoConnectCoordinator(
             vpnPermissionGranted = true,
             effective = effective,
             activeVpnValid = activeVpnValid,
+            enabled = enabled,
         )
         // Re-check after route resolution so another start path cannot race this one.
         if (!shouldStart || currentVpnState() != VpnState.Idle) return false
