@@ -330,7 +330,7 @@ internal fun DetourNavigation(
                         vpnState = VpnController.state,
                         runAutoSearch = { targets, cancelled ->
                             withContext(Dispatchers.IO) {
-                                DpiAutoSelector(appContext).searchWithBaseline(
+                                DpiAutoSelector(appContext).searchPerDomainWithBaseline(
                                     targets = targets,
                                     cancelled = cancelled,
                                 )
