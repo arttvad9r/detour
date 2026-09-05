@@ -15,6 +15,7 @@ import dev.triplet.app.core.AppRoute
 import dev.triplet.app.core.DestinationRule
 import dev.triplet.app.core.DestinationRules
 import dev.triplet.app.core.DpiPreset
+import dev.triplet.app.core.MultiHopEntryRef
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.SettingsBackup
 import dev.triplet.app.core.VlessKey
@@ -65,6 +66,7 @@ data class TriSettings(
     val destinationRules: List<DestinationRule> = emptyList(),
     val showSystemApps: Boolean,
     val sessionStartedAt: Long?,
+    val multiHopEntry: MultiHopEntryRef? = null,
 ) {
     val vlessUri: String get() = vlessKeys.active?.uri ?: ""
     val activeVpnConfigured: Boolean get() = when (activeVpn) {
@@ -78,6 +80,7 @@ object RoutesMapping {
     private const val KEY_KEYS = "vless_keys"
     private const val KEY_WARP_PROFILE = "warp_profile"
     private const val KEY_VPN_KIND = "vpn_profile_kind"
+    private const val KEY_MULTI_HOP_ENTRY = "multi_hop_entry"
     private const val KEY_PRESET = "dpi_preset"
     private const val KEY_CUSTOM_ARGS = "dpi_custom_args"
     private const val KEY_AUTO_CONNECT = "auto_connect"
@@ -122,6 +125,7 @@ object RoutesMapping {
             ),
             showSystemApps = entries[KEY_SHOW_SYSTEM] as? Boolean ?: false,
             sessionStartedAt = entries[KEY_SESSION_STARTED] as? Long,
+            multiHopEntry = MultiHopEntryRef.fromStored(entries[KEY_MULTI_HOP_ENTRY] as? String),
         )
     }
 
@@ -130,6 +134,7 @@ object RoutesMapping {
     fun keysKey() = stringPreferencesKey(KEY_KEYS)
     fun warpProfileKey() = stringPreferencesKey(KEY_WARP_PROFILE)
     fun vpnKindKey() = stringPreferencesKey(KEY_VPN_KIND)
+    fun multiHopEntryKey() = stringPreferencesKey(KEY_MULTI_HOP_ENTRY)
     fun presetKey() = stringPreferencesKey(KEY_PRESET)
     fun autoConnectKey() = booleanPreferencesKey(KEY_AUTO_CONNECT)
     fun themeKey() = stringPreferencesKey(KEY_THEME)
@@ -274,6 +279,12 @@ class RoutesStore(context: Context) {
         }
         prefs[RoutesMapping.vpnKindKey()] = kind.name
     }
+    suspend fun setMultiHopEntry(ref: MultiHopEntryRef?) = store.edit { prefs ->
+        require(ref !is MultiHopEntryRef.Invalid) { "invalid multi-hop entry" }
+        val key = RoutesMapping.multiHopEntryKey()
+        val stored = MultiHopEntryRef.toStored(ref)
+        if (stored.isBlank()) prefs.remove(key) else prefs[key] = stored
+    }
     suspend fun setPreset(preset: DpiPreset) = store.edit { it[RoutesMapping.presetKey()] = preset.id }
     suspend fun setCustomArgs(raw: String) = store.edit { it[RoutesMapping.customArgsKey()] = raw }
     suspend fun setAutoConnect(v: Boolean) = store.edit { it[RoutesMapping.autoConnectKey()] = v }
@@ -299,6 +310,9 @@ class RoutesStore(context: Context) {
         if (b.warpProfile == null) prefs.remove(warpKey)
         else prefs[warpKey] = cipher.encrypt(warpKey.name, b.warpProfile.toJson())
         prefs[RoutesMapping.vpnKindKey()] = b.activeVpn.name
+        // Backup v4 has no multi-hop field. Never carry a stale entry hop into
+        // restored profile state; a future backup version may restore it explicitly.
+        prefs.remove(RoutesMapping.multiHopEntryKey())
         prefs[RoutesMapping.presetKey()] = b.presetId
         prefs[RoutesMapping.customArgsKey()] = b.dpiCustomArgs
         // Imported settings never start a VPN implicitly; the user must opt in
