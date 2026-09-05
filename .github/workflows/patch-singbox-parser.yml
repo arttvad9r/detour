@@ -1,0 +1,36 @@
+name: Patch sing-box parser fallback
+
+on:
+  push:
+    branches: [feature/vpn-roadmap]
+    paths:
+      - .github/workflows/patch-singbox-parser.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: feature/vpn-roadmap
+      - name: Wire sing-box parser
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path("engine/mihomo/go/subscription_prepare.go")
+          text = path.read_text()
+          old = '''\tif yamlErr != nil || len(schema.Proxies) == 0 {\n\t\tproxies, convertErr := convert.ConvertsV2Ray(normalizeVlessSubscriptionBody(body))\n\t\tif convertErr != nil || len(proxies) == 0 {\n\t\t\treturn nil, errors.New("unsupported subscription format")\n\t\t}\n\t\tschema.Proxies = proxies\n\t}\n'''
+          new = '''\tif yamlErr != nil || len(schema.Proxies) == 0 {\n\t\tif proxies, recognized := parseSingBoxSubscription(body); recognized {\n\t\t\tif len(proxies) == 0 {\n\t\t\t\treturn nil, errors.New("subscription has no supported sing-box outbounds")\n\t\t\t}\n\t\t\tschema.Proxies = proxies\n\t\t} else {\n\t\t\tproxies, convertErr := convert.ConvertsV2Ray(normalizeVlessSubscriptionBody(body))\n\t\t\tif convertErr != nil || len(proxies) == 0 {\n\t\t\t\treturn nil, errors.New("unsupported subscription format")\n\t\t\t}\n\t\t\tschema.Proxies = proxies\n\t\t}\n\t}\n'''
+          if old not in text:
+              raise SystemExit("target block not found")
+          path.write_text(text.replace(old, new, 1))
+      - name: Commit parser wiring
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add engine/mihomo/go/subscription_prepare.go
+          git commit -m 'Recognize sing-box JSON subscriptions'
+          git push origin HEAD:feature/vpn-roadmap
