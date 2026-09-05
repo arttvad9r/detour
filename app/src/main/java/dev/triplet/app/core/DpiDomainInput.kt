@@ -11,9 +11,9 @@ data class DpiDomainInputResult(
 }
 
 /**
- * Parses whitespace/comma separated domain names. URLs, ports, paths and
- * wildcard patterns are intentionally rejected: the probe requires a concrete
- * TLS hostname and sends it unchanged through SOCKS5.
+ * Parses whitespace/comma separated domain names. URLs, ports, paths, IP
+ * literals and wildcard patterns are intentionally rejected: the probe
+ * requires a concrete TLS hostname and sends it unchanged through SOCKS5.
  */
 object DpiDomainInput {
     private const val MAX_INPUT_CHARS = 4096
@@ -57,9 +57,17 @@ object DpiDomainInput {
         val ascii = runCatching {
             IDN.toASCII(trimmed, IDN.USE_STD3_ASCII_RULES).lowercase()
         }.getOrNull() ?: return null
-        if (ascii.length !in 1..253 || '.' !in ascii) return null
+        if (ascii.length !in 1..253 || '.' !in ascii || isIpv4Literal(ascii)) return null
         val labels = ascii.split('.')
         if (labels.any { it.length !in 1..63 || !label.matches(it) }) return null
         return ascii
+    }
+
+    private fun isIpv4Literal(host: String): Boolean {
+        val parts = host.split('.')
+        return parts.size == 4 && parts.all { part ->
+            part.isNotEmpty() && part.all { it in '0'..'9' } &&
+                part.toIntOrNull()?.let { it in 0..255 } == true
+        }
     }
 }
