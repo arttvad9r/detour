@@ -79,6 +79,30 @@ class DpiAutoDomainPlanTest {
         }
     }
 
+    @Test fun `plan construction rejects more than thirty compiled groups`() {
+        val first = requireNotNull(DpiStrategyCatalog.byId("split-sni"))
+        val second = requireNotNull(DpiStrategyCatalog.byId("disorder-1"))
+        var scope = "example.com"
+        val assignments = (1..31).map { index ->
+            scope = "s$index.$scope"
+            val target = DpiProbeTarget("nested-$index", scope, scope)
+            DpiScopeStrategyAssignment(
+                scopeHost = scope,
+                targets = listOf(target),
+                candidate = if (index % 2 == 0) first else second,
+            )
+        }
+        val plan = DpiPerDomainPlan(
+            directTargets = emptyList(),
+            assignments = assignments,
+            unresolvedScopeHosts = emptyList(),
+        )
+
+        assertThrows(IllegalArgumentException::class.java) {
+            DpiAutoDomainPlan.fromPlan(plan)
+        }
+    }
+
     @Test fun `plan from search result stores scope rather than concrete probe endpoint`() {
         val redirector = DpiProbeTarget(
             "redirector",
