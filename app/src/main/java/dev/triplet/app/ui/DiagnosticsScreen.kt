@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,7 +26,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
 import dev.triplet.app.core.VpnProfileKind
@@ -195,7 +193,7 @@ private fun DiagnosticsSectionTitle(text: String) {
         modifier = Modifier.padding(
             start = Spacing.space12,
             end = Spacing.space12,
-            top = Spacing.space10,
+            top = Spacing.space8,
             bottom = Spacing.space4,
         ),
     )
