@@ -35,5 +35,7 @@ object VpnController {
     }
 
     private fun intent(ctx: Context, action: String): Intent =
-        Intent(ctx, TriVpnService::class.java).setAction(action)
+        Intent(ctx, TriVpnService::class.java)
+            .setAction(action)
+            .putExtra(DETOUR_VPN_EXTRA_STARTED_BY_APP, true)
 }
