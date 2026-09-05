@@ -57,6 +57,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import dev.triplet.app.R
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.VlessKey
@@ -127,6 +130,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
     // Credential drafts deliberately stay process-memory-only. Recreating the
     // Activity must not serialize a VLESS/subscription URI into saved instance state.
     var field by remember { mutableStateOf("") }
+    var qrScanFailed by remember { mutableStateOf(false) }
     val parse = remember(field) {
         field.trim().takeIf { it.isNotBlank() }?.let(VlessKeyParser::parse)
     }
@@ -142,7 +146,15 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
         confirmValueChange = confirmSheetValueChange,
     )
 
-    val activity = LocalContext.current.findActivity()
+    val context = LocalContext.current
+    val activity = context.findActivity()
+    val qrScanner = remember(context) {
+        val options = GmsBarcodeScannerOptions.Builder()
+            .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+            .enableAutoZoom()
+            .build()
+        GmsBarcodeScanning.getClient(context, options)
+    }
     DisposableEffect(showEditor, activity) {
         if (showEditor) {
             activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
@@ -164,6 +176,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
             runCatching { sheetState.hide() }
             showEditor = false
             field = ""
+            qrScanFailed = false
             viewModel.acknowledgeVlessSave()
         }
     }
@@ -178,6 +191,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
         viewModel.clearVlessSaveError()
         editingId = key?.id
         field = key?.uri ?: ""
+        qrScanFailed = false
         editorTab = key?.let { if (parsedProfile(it)?.isSubscription == true) 1 else 0 }
             ?: tab.coerceIn(0, 1)
         showEditor = true
@@ -188,6 +202,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
             runCatching { sheetState.hide() }
             showEditor = false
             field = ""
+            qrScanFailed = false
         }
     }
 
@@ -310,6 +325,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                 if (!vlessSaving) {
                     showEditor = false
                     field = ""
+                    qrScanFailed = false
                 }
             },
             sheetState = sheetState,
@@ -360,6 +376,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                     value = field,
                     onValueChange = { value ->
                         viewModel.clearVlessSaveError()
+                        qrScanFailed = false
                         field = value.replace("\r", "").replace("\n", "")
                     },
                     label = stringResource(
@@ -393,18 +410,54 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                 )
 
                 val clipboard = LocalClipboard.current
-                TextButton(
-                    onClick = {
-                        scope.launch {
-                            clipboard.getClipEntry()?.clipData?.getItemAt(0)?.text?.toString()?.let {
-                                viewModel.clearVlessSaveError()
-                                field = it.trim().replace("\r", "").replace("\n", "")
-                            }
-                        }
-                    },
-                    modifier = Modifier.align(Alignment.End),
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
                 ) {
-                    Text(stringResource(R.string.key_paste))
+                    TextButton(
+                        onClick = {
+                            qrScanFailed = false
+                            qrScanner.startScan()
+                                .addOnSuccessListener { barcode ->
+                                    val scanned = barcode.rawValue
+                                        ?.trim()
+                                        ?.replace("\r", "")
+                                        ?.replace("\n", "")
+                                    if (scanned.isNullOrBlank()) {
+                                        qrScanFailed = true
+                                    } else {
+                                        viewModel.clearVlessSaveError()
+                                        field = scanned
+                                    }
+                                }
+                                .addOnFailureListener {
+                                    qrScanFailed = true
+                                }
+                        },
+                    ) {
+                        Text(stringResource(R.string.profile_scan_qr))
+                    }
+                    TextButton(
+                        onClick = {
+                            scope.launch {
+                                clipboard.getClipEntry()?.clipData?.getItemAt(0)?.text?.toString()?.let {
+                                    viewModel.clearVlessSaveError()
+                                    qrScanFailed = false
+                                    field = it.trim().replace("\r", "").replace("\n", "")
+                                }
+                            }
+                        },
+                    ) {
+                        Text(stringResource(R.string.key_paste))
+                    }
+                }
+                if (qrScanFailed) {
+                    Text(
+                        text = stringResource(R.string.profile_scan_qr_error),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = c.error,
+                        modifier = Modifier.align(Alignment.End),
+                    )
                 }
 
                 Spacer(Modifier.height(Spacing.space8))
