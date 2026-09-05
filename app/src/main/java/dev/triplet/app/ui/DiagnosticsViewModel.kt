@@ -35,6 +35,7 @@ internal data class DiagnosticsUiState(
     val engineReady: Boolean = false,
     val vpnProbe: DiagnosticProbeState = DiagnosticProbeState.NOT_RUN,
     val dpiProbe: DiagnosticProbeState = DiagnosticProbeState.NOT_RUN,
+    val vpnLatencyMs: Long? = null,
     val profileKind: VpnProfileKind = VpnProfileKind.VLESS,
     val profileName: String? = null,
     val serverLabel: String? = null,
@@ -83,6 +84,7 @@ internal class DiagnosticsViewModel(
                         checking = true,
                         vpnProbe = DiagnosticProbeState.RUNNING,
                         dpiProbe = DiagnosticProbeState.RUNNING,
+                        vpnLatencyMs = null,
                     )
                 } else {
                     _uiState.value = _uiState.value.copy(loading = true)
@@ -151,15 +153,22 @@ internal class DiagnosticsViewModel(
                     } else {
                         DiagnosticProbeState.NOT_RUN
                     }
+                    var vpnLatencyMs: Long? = null
 
                     if (runProbes && active && engineReady) {
                         if (vpnRouteCount > 0) {
-                            vpnProbeState = withContext(Dispatchers.IO) {
-                                if (runCatching(probeVpn).getOrDefault(false)) {
-                                    DiagnosticProbeState.PASS
-                                } else {
-                                    DiagnosticProbeState.FAIL
-                                }
+                            val (healthy, latencyMs) = withContext(Dispatchers.IO) {
+                                val startedAt = System.nanoTime()
+                                val ok = runCatching(probeVpn).getOrDefault(false)
+                                val elapsedMs = ((System.nanoTime() - startedAt) / 1_000_000L)
+                                    .coerceAtLeast(0L)
+                                ok to elapsedMs
+                            }
+                            vpnProbeState = if (healthy) {
+                                vpnLatencyMs = latencyMs
+                                DiagnosticProbeState.PASS
+                            } else {
+                                DiagnosticProbeState.FAIL
                             }
                         }
                         if (dpiRouteCount > 0) {
@@ -181,6 +190,7 @@ internal class DiagnosticsViewModel(
                         engineReady = engineReady,
                         vpnProbe = vpnProbeState,
                         dpiProbe = dpiProbeState,
+                        vpnLatencyMs = vpnLatencyMs,
                         profileKind = settings.activeVpn,
                         profileName = profileName,
                         serverLabel = serverLabel,
@@ -203,6 +213,7 @@ internal class DiagnosticsViewModel(
                         checking = false,
                         vpnProbe = DiagnosticProbeState.FAIL,
                         dpiProbe = DiagnosticProbeState.FAIL,
+                        vpnLatencyMs = null,
                         lastError = redactDiagnosticText(e.message ?: e.javaClass.simpleName),
                         checkedAt = if (runProbes) System.currentTimeMillis() else _uiState.value.checkedAt,
                     )
@@ -269,6 +280,7 @@ internal fun buildDiagnosticsReport(state: DiagnosticsUiState): String = buildSt
     appendLine("vpn_state=${vpnStateCode(state.vpnState)}")
     appendLine("engine_ready=${state.engineReady}")
     appendLine("vpn_probe=${state.vpnProbe.name}")
+    appendLine("vpn_latency_ms=${state.vpnLatencyMs ?: "none"}")
     appendLine("dpi_probe=${state.dpiProbe.name}")
     appendLine("profile_kind=${state.profileKind.name}")
     appendLine("profile_name=${state.profileName?.let(::redactDiagnosticText) ?: "none"}")
