@@ -135,7 +135,7 @@ class DpiAutoStrategyTest {
         assertEquals(listOf(10L, 30L), result.targets.single().successfulLatenciesMs)
     }
 
-    @Test fun `per-domain runner prunes failed scope but still tests another scope`() {
+    @Test fun `per-domain runner stops failed target and prunes only its scope`() {
         val root = DpiProbeTarget("root", "example.com", "example.com")
         val peer = DpiProbeTarget("peer", "www.example.com", "example.com")
         val other = DpiProbeTarget("other", "other.test", "other.test")
@@ -158,10 +158,45 @@ class DpiAutoStrategyTest {
         ).single()
         val byId = result.targets.associateBy { it.target.id }
 
-        assertEquals(listOf("root", "root", "other", "other"), probed)
-        assertEquals(2, byId.getValue(root.id).attempts)
+        assertEquals(listOf("root", "other", "other"), probed)
+        assertEquals(1, byId.getValue(root.id).attempts)
         assertEquals(0, byId.getValue(peer.id).attempts)
         assertEquals(2, byId.getValue(other.id).attempts)
+        assertTrue(byId.getValue(other.id).fullyWorking)
+    }
+
+    @Test fun `per-domain runner stops remaining attempts after a later failure`() {
+        val root = DpiProbeTarget("root", "example.com", "example.com")
+        val other = DpiProbeTarget("other", "other.test", "other.test")
+        val probed = mutableListOf<String>()
+        var rootAttempt = 0
+        val backend = object : DpiStrategyBackend {
+            override fun start(candidate: DpiStrategyCandidate) = true
+            override fun stop() = Unit
+        }
+        val probe = DpiTargetProbe { target ->
+            probed += target.id
+            if (target == root) {
+                rootAttempt++
+                DpiProbeAttempt(success = rootAttempt == 1, latencyMs = if (rootAttempt == 1) 10 else null)
+            } else {
+                DpiProbeAttempt(success = true, latencyMs = 20)
+            }
+        }
+
+        val result = DpiStrategySearchRunner(backend, probe).run(
+            candidates = listOf(DpiStrategyCandidate("candidate", listOf("-d", "1"))),
+            targets = listOf(root, other),
+            attemptsPerTarget = 3,
+            stopScopeOnFailure = true,
+        ).single()
+        val byId = result.targets.associateBy { it.target.id }
+
+        assertEquals(listOf("root", "root", "other", "other", "other"), probed)
+        assertEquals(2, byId.getValue(root.id).attempts)
+        assertEquals(1, byId.getValue(root.id).successes)
+        assertEquals(listOf(10L), byId.getValue(root.id).successfulLatenciesMs)
+        assertEquals(3, byId.getValue(other.id).attempts)
         assertTrue(byId.getValue(other.id).fullyWorking)
     }
 
