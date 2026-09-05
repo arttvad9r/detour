@@ -43,7 +43,7 @@ internal fun autoConnectProfileValid(settings: TriSettings): Boolean {
     }.getOrDefault(false)
 }
 
-class AutoConnectCoordinator(
+internal class AutoConnectCoordinator(
     private val loadSettings: suspend () -> TriSettings,
     private val resolveRoutes: suspend (Map<String, AppRoute>) -> EffectiveRoutes,
     private val vpnPermissionGranted: () -> Boolean,
