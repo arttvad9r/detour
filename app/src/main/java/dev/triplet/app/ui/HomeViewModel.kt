@@ -5,8 +5,10 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import dev.triplet.app.core.AppRoute
 import dev.triplet.app.core.ParseResult
+import dev.triplet.app.core.TunnelTrafficStats
 import dev.triplet.app.core.VlessKeyParser
 import dev.triplet.app.core.VpnProfileKind
+import dev.triplet.app.core.parseTunnelTrafficStats
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.data.TriSettings
 import dev.triplet.app.vpn.EffectiveRoutes
@@ -26,7 +28,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
-import org.json.JSONObject
 
 enum class HomeProtocol { VLESS_DPI, DPI, VLESS, NONE }
 
@@ -36,14 +37,7 @@ internal data class HomeProfilePresentation(
     val endpointCount: Int = 0,
 )
 
-data class HomeTrafficStats(
-    val uploadBytesPerSecond: Long = 0,
-    val downloadBytesPerSecond: Long = 0,
-    val uploadedBytes: Long = 0,
-    val downloadedBytes: Long = 0,
-) {
-    val totalBytes: Long get() = (uploadedBytes + downloadedBytes).coerceAtLeast(0)
-}
+typealias HomeTrafficStats = TunnelTrafficStats
 
 private data class SubscriptionNodeRead(
     val profileKey: String?,
@@ -75,19 +69,8 @@ fun homeProtocol(routes: EffectiveRoutes): HomeProtocol {
     }
 }
 
-internal fun parseHomeTrafficStats(raw: String): HomeTrafficStats {
-    if (raw.isBlank() || raw.length > 8 * 1024) return HomeTrafficStats()
-    return runCatching {
-        val json = JSONObject(raw)
-        fun nonNegative(name: String): Long = json.optLong(name, 0L).coerceAtLeast(0L)
-        HomeTrafficStats(
-            uploadBytesPerSecond = nonNegative("uploadBytesPerSecond"),
-            downloadBytesPerSecond = nonNegative("downloadBytesPerSecond"),
-            uploadedBytes = nonNegative("uploadedBytes"),
-            downloadedBytes = nonNegative("downloadedBytes"),
-        )
-    }.getOrDefault(HomeTrafficStats())
-}
+internal fun parseHomeTrafficStats(raw: String): HomeTrafficStats =
+    parseTunnelTrafficStats(raw)
 
 internal fun homeProfilePresentation(
     activeVpn: VpnProfileKind,
