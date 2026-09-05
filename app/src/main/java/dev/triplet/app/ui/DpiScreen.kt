@@ -1,5 +1,6 @@
 package dev.triplet.app.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
@@ -38,16 +39,31 @@ fun DpiScreen(viewModel: DpiViewModel, onBack: () -> Unit, modifier: Modifier = 
     val haptics = LocalHapticFeedback.current
     val c = detourColors
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val scrollState = rememberScrollState()
-    val customVisibility = remember { MutableTransitionState(state.editingCustom) }
-    customVisibility.targetState = state.editingCustom
-    val spatialMotionActive = scrollState.isScrollInProgress || !customVisibility.isIdle
+    val proxyTestOpen by viewModel.proxyTestOpen.collectAsStateWithLifecycle()
 
     LaunchedEffect(viewModel) {
         viewModel.customSaved.collect {
             haptics.performHapticFeedback(HapticFeedbackType.Confirm)
         }
     }
+
+    BackHandler(enabled = proxyTestOpen) {
+        viewModel.closeProxyTest()
+    }
+
+    if (proxyTestOpen) {
+        DpiProxyTestScreen(
+            viewModel = viewModel,
+            onBack = viewModel::closeProxyTest,
+            modifier = modifier,
+        )
+        return
+    }
+
+    val scrollState = rememberScrollState()
+    val customVisibility = remember { MutableTransitionState(state.editingCustom) }
+    customVisibility.targetState = state.editingCustom
+    val spatialMotionActive = scrollState.isScrollInProgress || !customVisibility.isIdle
 
     Column(
         modifier.fillMaxSize()
@@ -83,6 +99,14 @@ fun DpiScreen(viewModel: DpiViewModel, onBack: () -> Unit, modifier: Modifier = 
                     onClick = viewModel::editCustom,
                 )
             }
+
+            Spacer(Modifier.height(Spacing.space16))
+            DetourButton(
+                text = stringResource(R.string.dpi_proxy_test_open),
+                onClick = viewModel::openProxyTest,
+                style = ButtonStyle.SECONDARY,
+                modifier = Modifier.padding(horizontal = Spacing.space16),
+            )
 
             AnimatedVisibility(
                 visibleState = customVisibility,

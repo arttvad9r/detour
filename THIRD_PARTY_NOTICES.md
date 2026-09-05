@@ -1,6 +1,6 @@
 # Third-party notices
 
-Detour embeds and distributes native code built from exact upstream revisions. The authoritative revisions are also recorded in `docs/pins.md`.
+Detour embeds and distributes native code and reference data from exact upstream revisions. The authoritative revisions are also recorded in `docs/pins.md`.
 
 ## Detour-authored code
 
@@ -19,13 +19,23 @@ The upstream source and license for the pinned revision must remain available wi
 ## ByeDPI
 
 - Project: hufrea/byedpi
-- Version: v0.17.3
-- Commit: `7efde1b1296eaaa187b70e951894dde17527489c`
+- Source reports CLI version: 17.3
+- Commit: `ba532298de7b28cfe854aea83d061369d13ca290`
 - Upstream license: MIT
 - Integration: built as the `ciadpi` child-process binary packaged in the APK.
 
 Detour applies a build-time Android authentication patch to the pinned ByeDPI source. The corresponding patch/build logic is part of this repository.
 
+## ByeByeDPI proxy-test reference data
+
+- Project: romanvht/ByeByeDPI
+- Commit: `01b080e2fe41898d8371495a9db887da54e28798`
+- Upstream license: GNU General Public License v3.0 (GPL-3.0)
+- Reference files: `proxytest_*.sites` and `proxytest_strategies.list`
+- Integration: the selected domain-list and strategy corpus values are kept in `DpiProxyTestReferenceData.kt` for an experimental phone-oriented DPI proxy test.
+
+These reference values retain their upstream licensing and provenance. Detour's test runner, TLS/SOCKS validation, ranking, UI and persistence code are separately authored for Detour.
+
 ## Distribution requirement
 
-Binary distribution of Detour must comply with the licenses of all bundled components. In particular, the root MIT License applies to Detour-authored code and does not remove the GPL-3.0 obligations associated with the embedded Mihomo engine. `LICENSE`, this notice, the pinned upstream revisions, and the corresponding source/build material must remain available as required by the applicable licenses.
+Binary distribution of Detour must comply with the licenses of all bundled components and reference material. In particular, the root MIT License applies only where stated and does not remove GPL-3.0 obligations associated with Mihomo or ByeByeDPI-derived proxy-test data. `LICENSE`, this notice, pinned upstream revisions and corresponding source/build material must remain available as required by the applicable licenses.

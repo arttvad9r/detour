@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dpi_proxy_test_open">Тест стратегий</string>
+    <string name="dpi_proxy_test_title">Тест стратегий</string>
+    <string name="dpi_proxy_test_summary_title">Проверка стратегий ByeDPI в этой сети</string>
+    <string name="dpi_proxy_test_summary">Проверяет закреплённый набор из 60 reference-стратегий через отдельный локальный прокси. Ничего не применяется автоматически.</string>
+    <string name="dpi_proxy_test_domains_title">Списки доменов</string>
+    <string name="dpi_proxy_test_domain_count">Доменов: %1$d</string>
+    <string name="dpi_proxy_test_selected_hosts">Выбрано хостов: %1$d</string>
+    <string name="dpi_proxy_test_parameters_title">Параметры теста</string>
+    <string name="dpi_proxy_test_attempts">Запросов на хост</string>
+    <string name="dpi_proxy_test_concurrency">Параллельных хостов</string>
+    <string name="dpi_proxy_test_timeout">Таймаут</string>
+    <string name="dpi_proxy_test_seconds_short"> с</string>
+    <string name="dpi_proxy_test_start">Запустить тест</string>
+    <string name="dpi_proxy_test_stop">Остановить тест</string>
+    <string name="dpi_proxy_test_starting">Запуск теста стратегий…</string>
+    <string name="dpi_proxy_test_progress">Стратегия %1$d/%2$d · хосты %3$d/%4$d</string>
+    <string name="dpi_proxy_test_cancelled">Тест остановлен. Ни одна стратегия не была применена.</string>
+    <string name="dpi_proxy_test_error_vpn">Перед тестом отключите системный VPN. Результаты сессии, во время которой появился VPN, отклоняются.</string>
+    <string name="dpi_proxy_test_error_generic">Тест стратегий завершился ошибкой. Проверьте сеть и повторите попытку.</string>
+    <string name="dpi_proxy_test_results_title">Результаты</string>
+    <string name="dpi_proxy_test_no_results">Нет завершённых результатов стратегий.</string>
+    <string name="dpi_proxy_test_strategy_number">Стратегия №%1$d</string>
+    <string name="dpi_proxy_test_full_coverage">Полное покрытие</string>
+    <string name="dpi_proxy_test_partial">Частично</string>
+    <string name="dpi_proxy_test_backend_failed">Не запустилась</string>
+    <string name="dpi_proxy_test_result_summary">Хосты %1$d/%2$d · запросы %3$d/%4$d</string>
+    <string name="dpi_proxy_test_median">Медиана: %1$d мс</string>
+    <string name="dpi_proxy_test_apply">Применить</string>
+    <string name="dpi_proxy_test_applying">Применение…</string>
+    <string name="dpi_proxy_test_applied">Применено</string>
+    <string name="dpi_proxy_test_apply_error">Не удалось сохранить эту стратегию.</string>
+</resources>
