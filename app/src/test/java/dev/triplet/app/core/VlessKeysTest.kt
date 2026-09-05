@@ -30,11 +30,17 @@ class VlessKeysTest {
     }
 
     @Test
-    fun `json round trip preserves keys active selection and subscription node`() {
+    fun `json round trip preserves keys active selection favorites and subscription node`() {
         val original = VlessKeys(
             listOf(
                 VlessKey("a", "Primary", validUri),
-                VlessKey("b", "Subscription", subscriptionUri, selectedNode = "Node B"),
+                VlessKey(
+                    "b",
+                    "Subscription",
+                    subscriptionUri,
+                    selectedNode = "Node B",
+                    favoriteNodes = setOf("Node A", "Node B"),
+                ),
             ),
             "b",
         )
@@ -46,6 +52,13 @@ class VlessKeysTest {
     fun `json rejects malformed selected node`() {
         VlessKeys.fromJson(
             """{"activeId":"b","items":[{"id":"b","name":"Subscription","uri":"$subscriptionUri","selectedNode":"bad\nnode"}]}""",
+        )
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `json rejects malformed favorite node`() {
+        VlessKeys.fromJson(
+            """{"activeId":"b","items":[{"id":"b","name":"Subscription","uri":"$subscriptionUri","favoriteNodes":["bad\nnode"]}]}""",
         )
     }
 
