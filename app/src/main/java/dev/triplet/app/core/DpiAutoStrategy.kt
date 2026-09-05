@@ -222,7 +222,7 @@ class DpiStrategySearchRunner(
         targets: List<DpiProbeTarget>,
         attemptsPerTarget: Int = 2,
         stopCandidateOnFailure: Boolean = false,
-        stopScopeOnFailure: Boolean = !stopCandidateOnFailure,
+        stopScopeOnFailure: Boolean = false,
         cancelled: () -> Boolean = { false },
     ): List<DpiStrategyResult> {
         require(candidates.isNotEmpty()) { "candidate list is empty" }
