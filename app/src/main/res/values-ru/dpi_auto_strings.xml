@@ -16,6 +16,8 @@
     <string name="dpi_auto_applying">Применение…</string>
     <string name="dpi_auto_stop_vpn">Перед проверкой отключите VPN. Базовый тест должен идти по обычному сетевому маршруту.</string>
     <string name="dpi_auto_testing">Сначала проверяем прямой доступ, затем перебираем DPI-стратегии для каждой затронутой группы доменов…</string>
+    <string name="dpi_auto_testing_baseline">Проверка прямого доступа: %1$d из %2$d целей</string>
+    <string name="dpi_auto_testing_strategy">Проверка DPI-стратегий: %1$d из %2$d вариантов</string>
     <string name="dpi_auto_stopping">Останавливаем тестовый прокси…</string>
     <string name="dpi_auto_direct_ok">Все выбранные цели работают напрямую. Для этого набора DPI-стратегия не требуется.</string>
     <string name="dpi_auto_found">Стратегия прошла все %1$d целей, не работавших напрямую: %2$s</string>
