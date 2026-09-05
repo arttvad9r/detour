@@ -103,8 +103,11 @@ class DpiViewModel(
     private val restartTunnel: () -> Unit,
     private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
-    private val customDraft = savedStateHandle.getStateFlow<String?>(KEY_CUSTOM_DRAFT, null)
-    private val editingOverride = savedStateHandle.getStateFlow<Boolean?>(KEY_EDITING_CUSTOM, null)
+    private val restoredCustomDraft: String? = savedStateHandle[KEY_CUSTOM_DRAFT]
+    private val restoredEditingOverride: Boolean? = savedStateHandle[KEY_EDITING_CUSTOM]
+    private val restoredProxyTestOpen: Boolean = savedStateHandle[KEY_PROXY_TEST_OPEN] ?: false
+    private val customDraft = savedStateHandle.getStateFlow(KEY_CUSTOM_DRAFT, restoredCustomDraft)
+    private val editingOverride = savedStateHandle.getStateFlow(KEY_EDITING_CUSTOM, restoredEditingOverride)
     private val presetOverride = MutableStateFlow<DpiPreset?>(null)
     private val saveState = MutableStateFlow(DpiSaveState.IDLE)
     private val writeMutex = Mutex()
@@ -113,7 +116,8 @@ class DpiViewModel(
 
     private val _proxyTestState = MutableStateFlow(DpiProxyTestUiState())
     val proxyTestState: StateFlow<DpiProxyTestUiState> = _proxyTestState
-    val proxyTestOpen: StateFlow<Boolean> = savedStateHandle.getStateFlow(KEY_PROXY_TEST_OPEN, false)
+    val proxyTestOpen: StateFlow<Boolean> =
+        savedStateHandle.getStateFlow(KEY_PROXY_TEST_OPEN, restoredProxyTestOpen)
     private var proxyTestJob: Job? = null
     private val proxyGeneration = AtomicInteger(0)
     private val proxyStopGeneration = AtomicInteger(-1)
@@ -137,8 +141,8 @@ class DpiViewModel(
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = dpiUiState(
             settings.value,
-            savedStateHandle[KEY_CUSTOM_DRAFT],
-            savedStateHandle[KEY_EDITING_CUSTOM],
+            restoredCustomDraft,
+            restoredEditingOverride,
         ),
     )
 
