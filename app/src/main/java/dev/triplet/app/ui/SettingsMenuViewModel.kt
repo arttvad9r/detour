@@ -130,6 +130,14 @@ class SettingsMenuViewModel(
                 val desired = autoConnectOverride.value ?: return@withLock
                 try {
                     if (settings.value?.autoConnect != desired) {
+                        // Network triggers initially inherit the legacy launch flag.
+                        // Persist their current effective values before changing that
+                        // legacy source so toggling launch cannot silently change the
+                        // Wi-Fi/mobile choices the user just saw in the UI.
+                        settings.value?.let { current ->
+                            persistAutoConnectWifi(current.autoConnectWifi)
+                            persistAutoConnectCellular(current.autoConnectCellular)
+                        }
                         persistAutoConnect(desired)
                     }
                     if (settings.value?.autoConnect != desired) {
