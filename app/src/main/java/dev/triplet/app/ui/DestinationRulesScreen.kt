@@ -215,7 +215,7 @@ fun DestinationRulesScreen(
                             onDelete = { viewModel.deleteRule(rule) },
                         )
                         if (index < state.rules.lastIndex) {
-                            GroupDivider(startInset = Spacing.space16)
+                            GroupDivider(startInset = Spacing.space16.value.toInt())
                         }
                     }
                 }
@@ -238,7 +238,7 @@ private fun DestinationRuleRow(
             .fillMaxWidth()
             .padding(start = Spacing.space16, end = Spacing.space8, top = Spacing.space10, bottom = Spacing.space10),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(Spacing.space12.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.space12),
     ) {
         Column(Modifier.weight(1f)) {
             Text(
@@ -246,7 +246,7 @@ private fun DestinationRuleRow(
                 style = MaterialTheme.typography.bodyLarge,
                 color = c.textPrimary,
             )
-            Spacer(Modifier.height(Spacing.space2.dp))
+            Spacer(Modifier.height(Spacing.space2))
             Text(
                 text = "${stringResource(destinationRuleTypeLabelRes(rule.type))} · " +
                     stringResource(destinationRuleRouteLabelRes(rule.route)),
