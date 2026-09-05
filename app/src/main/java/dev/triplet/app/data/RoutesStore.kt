@@ -62,7 +62,7 @@ data class TriSettings(
     val dnsId: String,
     val dnsCustom: String,
     val routes: Map<String, AppRoute>,
-    val destinationRules: List<DestinationRule>,
+    val destinationRules: List<DestinationRule> = emptyList(),
     val showSystemApps: Boolean,
     val sessionStartedAt: Long?,
 ) {
