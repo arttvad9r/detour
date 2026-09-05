@@ -140,6 +140,7 @@ dependencies {
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.androidx.profileinstaller)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.play.services.code.scanner)
     implementation(libs.snakeyaml)
     testImplementation(libs.junit)
 
