@@ -6,6 +6,10 @@
     <string name="dpi_auto_googlevideo">GoogleVideo</string>
     <string name="dpi_auto_discord">Discord</string>
     <string name="dpi_auto_telegram">Telegram</string>
+    <string name="dpi_auto_custom_domains">Свои домены</string>
+    <string name="dpi_auto_custom_domains_placeholder">example.com\nsub.example.com</string>
+    <string name="dpi_auto_custom_domains_hint">Необязательно. Укажите только доменные имена через пробел или с новой строки.</string>
+    <string name="dpi_auto_custom_domains_invalid">Укажите домены без схемы, порта, пути и wildcard. Не более 64 доменов.</string>
     <string name="dpi_auto_start">Начать проверку</string>
     <string name="dpi_auto_cancel">Остановить проверку</string>
     <string name="dpi_auto_apply">Применить стратегию</string>
