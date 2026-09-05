@@ -40,6 +40,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
+import dev.triplet.app.core.DpiAutoProgress
+import dev.triplet.app.core.DpiAutoProgressPhase
 import dev.triplet.app.core.DpiDomainCatalog
 import dev.triplet.app.core.DpiPreset
 
@@ -238,25 +240,17 @@ private fun AutoStrategyPanel(state: DpiUiState, viewModel: DpiViewModel) {
 
         when (state.autoRunState) {
             DpiAutoRunState.RUNNING -> {
-                LinearProgressIndicator(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = Spacing.space16),
-                )
+                AutoProgressIndicator(state.autoProgress)
                 Spacer(Modifier.height(Spacing.space8))
                 Text(
-                    text = stringResource(R.string.dpi_auto_testing),
+                    text = autoProgressText(state.autoProgress),
                     style = MaterialTheme.typography.bodySmall,
                     color = c.textSecondary,
                     modifier = Modifier.padding(horizontal = Spacing.space16),
                 )
             }
             DpiAutoRunState.CANCELLING -> {
-                LinearProgressIndicator(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = Spacing.space16),
-                )
+                AutoProgressIndicator(state.autoProgress)
                 Spacer(Modifier.height(Spacing.space8))
                 Text(
                     text = stringResource(R.string.dpi_auto_stopping),
@@ -309,6 +303,36 @@ private fun AutoStrategyPanel(state: DpiUiState, viewModel: DpiViewModel) {
             )
         }
     }
+}
+
+@Composable
+private fun AutoProgressIndicator(progress: DpiAutoProgress?) {
+    val modifier = Modifier
+        .fillMaxWidth()
+        .padding(horizontal = Spacing.space16)
+    if (progress == null) {
+        LinearProgressIndicator(modifier = modifier)
+    } else {
+        LinearProgressIndicator(
+            progress = { progress.fraction },
+            modifier = modifier,
+        )
+    }
+}
+
+@Composable
+private fun autoProgressText(progress: DpiAutoProgress?): String = when (progress?.phase) {
+    null -> stringResource(R.string.dpi_auto_testing)
+    DpiAutoProgressPhase.BASELINE -> stringResource(
+        R.string.dpi_auto_testing_baseline,
+        progress.completed,
+        progress.total,
+    )
+    DpiAutoProgressPhase.STRATEGY -> stringResource(
+        R.string.dpi_auto_testing_strategy,
+        progress.completed,
+        progress.total,
+    )
 }
 
 @Composable

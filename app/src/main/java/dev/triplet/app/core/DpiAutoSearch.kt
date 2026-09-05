@@ -18,6 +18,29 @@ data class DpiAutoSearchReport(
         }
 }
 
+enum class DpiAutoProgressPhase { BASELINE, STRATEGY }
+
+/**
+ * Deterministic AUTO-search progress. Counts completed targets during the
+ * direct baseline and completed trusted candidates during strategy search.
+ * It intentionally does not estimate wall-clock time because network latency
+ * and backend start time vary significantly between targets and devices.
+ */
+data class DpiAutoProgress(
+    val phase: DpiAutoProgressPhase,
+    val completed: Int,
+    val total: Int,
+    val currentId: String? = null,
+) {
+    init {
+        require(total > 0) { "progress total must be positive" }
+        require(completed in 0..total) { "progress completed is out of range" }
+        require(currentId == null || currentId.isNotBlank()) { "progress id is blank" }
+    }
+
+    val fraction: Float get() = completed.toFloat() / total.toFloat()
+}
+
 fun interface DpiStrategySearcher {
     fun search(targets: List<DpiProbeTarget>, cancelled: () -> Boolean): List<DpiStrategyResult>
 }
@@ -36,8 +59,9 @@ class DpiAutoSearchCoordinator(
         targets: List<DpiProbeTarget>,
         attemptsPerTarget: Int = 2,
         cancelled: () -> Boolean = { false },
+        onProgress: (DpiAutoProgress) -> Unit = {},
     ): DpiAutoSearchReport {
-        val baseline = runBaseline(targets, attemptsPerTarget, directProbe, cancelled)
+        val baseline = runBaseline(targets, attemptsPerTarget, directProbe, cancelled, onProgress)
         if (cancelled()) return DpiAutoSearchReport(baseline, emptyList())
 
         val problematic = baseline.filterNot { it.fullyWorking }.map { it.target }
@@ -66,8 +90,9 @@ class DpiPerDomainSearchCoordinator(
         targets: List<DpiProbeTarget>,
         attemptsPerTarget: Int = 2,
         cancelled: () -> Boolean = { false },
+        onProgress: (DpiAutoProgress) -> Unit = {},
     ): DpiAutoSearchReport {
-        val baseline = runBaseline(targets, attemptsPerTarget, directProbe, cancelled)
+        val baseline = runBaseline(targets, attemptsPerTarget, directProbe, cancelled, onProgress)
         if (cancelled()) return DpiAutoSearchReport(baseline, emptyList())
 
         val affectedScopes = baseline
@@ -89,15 +114,40 @@ private fun runBaseline(
     attemptsPerTarget: Int,
     directProbe: DpiTargetProbe,
     cancelled: () -> Boolean,
+    onProgress: (DpiAutoProgress) -> Unit,
 ): List<DpiTargetResult> {
     require(targets.isNotEmpty()) { "target list is empty" }
     require(attemptsPerTarget > 0) { "attempt count must be positive" }
     require(targets.map { it.id }.distinct().size == targets.size) { "duplicate target id" }
 
-    return targets.map { target ->
-        if (cancelled()) DpiTargetResult(target, attempts = 0, successes = 0)
-        else aggregateTarget(target, attemptsPerTarget, directProbe, cancelled)
+    val results = mutableListOf<DpiTargetResult>()
+    targets.forEachIndexed { index, target ->
+        if (cancelled()) {
+            results += DpiTargetResult(target, attempts = 0, successes = 0)
+            return@forEachIndexed
+        }
+
+        onProgress(
+            DpiAutoProgress(
+                phase = DpiAutoProgressPhase.BASELINE,
+                completed = index,
+                total = targets.size,
+                currentId = target.id,
+            ),
+        )
+        results += aggregateTarget(target, attemptsPerTarget, directProbe, cancelled)
+        if (!cancelled()) {
+            onProgress(
+                DpiAutoProgress(
+                    phase = DpiAutoProgressPhase.BASELINE,
+                    completed = index + 1,
+                    total = targets.size,
+                    currentId = target.id,
+                ),
+            )
+        }
     }
+    return results
 }
 
 internal fun aggregateTarget(

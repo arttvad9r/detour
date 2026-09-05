@@ -162,22 +162,25 @@ class DpiAutoSelector(
         candidates: List<DpiStrategyCandidate> = DpiStrategyCatalog.searchDefault,
         attemptsPerTarget: Int = 2,
         cancelled: () -> Boolean = { false },
+        onProgress: (DpiAutoProgress) -> Unit = {},
     ): DpiAutoSearchReport = withCleanNetwork(cancelled) { guardedCancelled ->
         DpiAutoSearchCoordinator(
             directProbe = DirectHttpsDpiProbe(timeoutMs = timeoutMs, cancelled = guardedCancelled),
             strategySearcher = DpiStrategySearcher { problematicTargets, searchCancelled ->
-                searchInternal(
+                searchCandidatesWithProgress(
                     targets = problematicTargets,
                     candidates = candidates,
                     attemptsPerTarget = attemptsPerTarget,
                     cancelled = searchCancelled,
                     stopCandidateOnFailure = true,
+                    onProgress = onProgress,
                 )
             },
         ).run(
             targets = targets,
             attemptsPerTarget = attemptsPerTarget,
             cancelled = guardedCancelled,
+            onProgress = onProgress,
         )
     }
 
@@ -191,22 +194,25 @@ class DpiAutoSelector(
         candidates: List<DpiStrategyCandidate> = DpiStrategyCatalog.searchDefault,
         attemptsPerTarget: Int = 2,
         cancelled: () -> Boolean = { false },
+        onProgress: (DpiAutoProgress) -> Unit = {},
     ): DpiAutoSearchReport = withCleanNetwork(cancelled) { guardedCancelled ->
         DpiPerDomainSearchCoordinator(
             directProbe = DirectHttpsDpiProbe(timeoutMs = timeoutMs, cancelled = guardedCancelled),
             strategySearcher = DpiStrategySearcher { affectedTargets, searchCancelled ->
-                searchInternal(
+                searchCandidatesWithProgress(
                     targets = affectedTargets,
                     candidates = candidates,
                     attemptsPerTarget = attemptsPerTarget,
                     cancelled = searchCancelled,
                     stopCandidateOnFailure = false,
+                    onProgress = onProgress,
                 )
             },
         ).run(
             targets = targets,
             attemptsPerTarget = attemptsPerTarget,
             cancelled = guardedCancelled,
+            onProgress = onProgress,
         )
     }
 
@@ -216,14 +222,57 @@ class DpiAutoSelector(
         attemptsPerTarget: Int = 2,
         cancelled: () -> Boolean = { false },
         stopCandidateOnFailure: Boolean = true,
+        onProgress: (DpiAutoProgress) -> Unit = {},
     ): List<DpiStrategyResult> = withCleanNetwork(cancelled) { guardedCancelled ->
-        searchInternal(
+        searchCandidatesWithProgress(
             targets = targets,
             candidates = candidates,
             attemptsPerTarget = attemptsPerTarget,
             cancelled = guardedCancelled,
             stopCandidateOnFailure = stopCandidateOnFailure,
+            onProgress = onProgress,
         )
+    }
+
+    private fun searchCandidatesWithProgress(
+        targets: List<DpiProbeTarget>,
+        candidates: List<DpiStrategyCandidate>,
+        attemptsPerTarget: Int,
+        cancelled: () -> Boolean,
+        stopCandidateOnFailure: Boolean,
+        onProgress: (DpiAutoProgress) -> Unit,
+    ): List<DpiStrategyResult> {
+        require(candidates.isNotEmpty()) { "candidate list is empty" }
+        val results = mutableListOf<DpiStrategyResult>()
+        candidates.forEachIndexed { index, candidate ->
+            if (cancelled()) return@forEachIndexed
+            onProgress(
+                DpiAutoProgress(
+                    phase = DpiAutoProgressPhase.STRATEGY,
+                    completed = index,
+                    total = candidates.size,
+                    currentId = candidate.id,
+                ),
+            )
+            results += searchInternal(
+                targets = targets,
+                candidates = listOf(candidate),
+                attemptsPerTarget = attemptsPerTarget,
+                cancelled = cancelled,
+                stopCandidateOnFailure = stopCandidateOnFailure,
+            )
+            if (!cancelled()) {
+                onProgress(
+                    DpiAutoProgress(
+                        phase = DpiAutoProgressPhase.STRATEGY,
+                        completed = index + 1,
+                        total = candidates.size,
+                        currentId = candidate.id,
+                    ),
+                )
+            }
+        }
+        return DpiStrategyRanker.rank(results)
     }
 
     private fun searchInternal(

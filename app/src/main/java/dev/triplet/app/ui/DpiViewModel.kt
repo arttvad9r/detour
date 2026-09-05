@@ -9,6 +9,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.triplet.app.core.DpiArgs
 import dev.triplet.app.core.DpiAutoDomainPlan
+import dev.triplet.app.core.DpiAutoProgress
 import dev.triplet.app.core.DpiAutoSearchReport
 import dev.triplet.app.core.DpiDomainCatalog
 import dev.triplet.app.core.DpiDomainInput
@@ -49,6 +50,7 @@ data class DpiUiState(
     val customAutoDomains: String = "",
     val customAutoDomainsInvalid: Boolean = false,
     val autoRunState: DpiAutoRunState = DpiAutoRunState.IDLE,
+    val autoProgress: DpiAutoProgress? = null,
     val autoReport: DpiAutoSearchReport? = null,
     val autoDomainPlan: DpiPerDomainPlan? = null,
     val vpnIdle: Boolean = true,
@@ -116,6 +118,7 @@ private data class DpiAutoTargetsDraft(
 private data class DpiAutoResult(
     val report: DpiAutoSearchReport?,
     val plan: DpiPerDomainPlan?,
+    val progress: DpiAutoProgress?,
 )
 
 private data class DpiAutoPresentation(
@@ -132,10 +135,34 @@ class DpiViewModel(
     private val setCustomArgs: suspend (String) -> Unit,
     private val setAutoDomainPlan: suspend (DpiAutoDomainPlan) -> Unit,
     private val vpnState: StateFlow<VpnState>,
-    private val runAutoSearch: suspend (List<DpiProbeTarget>, () -> Boolean) -> DpiAutoSearchReport,
+    private val runAutoSearch: suspend (
+        List<DpiProbeTarget>,
+        () -> Boolean,
+        (DpiAutoProgress) -> Unit,
+    ) -> DpiAutoSearchReport,
     private val restartTunnel: () -> Unit,
     private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
+    constructor(
+        settings: StateFlow<TriSettings?>,
+        setPreset: suspend (DpiPreset) -> Unit,
+        setCustomArgs: suspend (String) -> Unit,
+        setAutoDomainPlan: suspend (DpiAutoDomainPlan) -> Unit,
+        vpnState: StateFlow<VpnState>,
+        runAutoSearch: suspend (List<DpiProbeTarget>, () -> Boolean) -> DpiAutoSearchReport,
+        restartTunnel: () -> Unit,
+        savedStateHandle: SavedStateHandle,
+    ) : this(
+        settings = settings,
+        setPreset = setPreset,
+        setCustomArgs = setCustomArgs,
+        setAutoDomainPlan = setAutoDomainPlan,
+        vpnState = vpnState,
+        runAutoSearch = { targets, cancelled, _ -> runAutoSearch(targets, cancelled) },
+        restartTunnel = restartTunnel,
+        savedStateHandle = savedStateHandle,
+    )
+
     private val customDraft = savedStateHandle.getStateFlow<String?>(KEY_CUSTOM_DRAFT, null)
     private val editingOverride = savedStateHandle.getStateFlow<Boolean?>(KEY_EDITING_CUSTOM, null)
     private val editingAutoOverride = savedStateHandle.getStateFlow<Boolean?>(KEY_EDITING_AUTO, null)
@@ -147,6 +174,7 @@ class DpiViewModel(
     private val presetOverride = MutableStateFlow<DpiPreset?>(null)
     private val saveState = MutableStateFlow(DpiSaveState.IDLE)
     private val autoRunState = MutableStateFlow(DpiAutoRunState.IDLE)
+    private val autoProgress = MutableStateFlow<DpiAutoProgress?>(null)
     private val autoReport = MutableStateFlow<DpiAutoSearchReport?>(null)
     private val autoDomainPlan = MutableStateFlow<DpiPerDomainPlan?>(null)
     private val autoGeneration = AtomicInteger(0)
@@ -181,8 +209,8 @@ class DpiViewModel(
         )
     }
 
-    private val autoResult = combine(autoReport, autoDomainPlan) { report, plan ->
-        DpiAutoResult(report = report, plan = plan)
+    private val autoResult = combine(autoReport, autoDomainPlan, autoProgress) { report, plan, progress ->
+        DpiAutoResult(report = report, plan = plan, progress = progress)
     }
 
     private val autoPresentation = combine(
@@ -210,6 +238,7 @@ class DpiViewModel(
             customAutoDomains = auto.targetsDraft.customDomains,
             customAutoDomainsInvalid = auto.targetsDraft.customDomainsInvalid,
             autoRunState = auto.runState,
+            autoProgress = auto.result.progress,
             autoReport = auto.result.report,
             autoDomainPlan = auto.result.plan,
             vpnIdle = auto.vpnState == VpnState.Idle,
@@ -253,6 +282,7 @@ class DpiViewModel(
             .replace("\r\n", "\n")
             .replace('\r', '\n')
             .take(MAX_CUSTOM_DOMAIN_DRAFT_CHARS)
+        autoProgress.value = null
         autoReport.value = null
         autoDomainPlan.value = null
         if (autoRunState.value != DpiAutoRunState.IDLE) autoRunState.value = DpiAutoRunState.IDLE
@@ -271,6 +301,7 @@ class DpiViewModel(
             .map { it.id }
             .filter { it in next }
             .joinToString(",")
+        autoProgress.value = null
         autoReport.value = null
         autoDomainPlan.value = null
         if (autoRunState.value != DpiAutoRunState.IDLE) autoRunState.value = DpiAutoRunState.IDLE
@@ -295,17 +326,31 @@ class DpiViewModel(
 
         val generation = autoGeneration.incrementAndGet()
         val invalidated = AtomicBoolean(false)
+        autoProgress.value = null
         autoReport.value = null
         autoDomainPlan.value = null
         autoRunState.value = DpiAutoRunState.RUNNING
         viewModelScope.launch {
             try {
-                val report = runAutoSearch(targets) {
-                    val shouldCancel = autoGeneration.get() != generation || vpnState.value != VpnState.Idle
-                    if (shouldCancel) invalidated.set(true)
-                    shouldCancel
-                }
+                val report = runAutoSearch(
+                    targets,
+                    {
+                        val shouldCancel = autoGeneration.get() != generation || vpnState.value != VpnState.Idle
+                        if (shouldCancel) invalidated.set(true)
+                        shouldCancel
+                    },
+                    { progress ->
+                        if (
+                            autoGeneration.get() == generation &&
+                            vpnState.value == VpnState.Idle &&
+                            autoRunState.value == DpiAutoRunState.RUNNING
+                        ) {
+                            autoProgress.value = progress
+                        }
+                    },
+                )
                 if (invalidated.get() || autoGeneration.get() != generation) {
+                    autoProgress.value = null
                     if (
                         autoRunState.value == DpiAutoRunState.RUNNING ||
                         autoRunState.value == DpiAutoRunState.CANCELLING
@@ -315,6 +360,7 @@ class DpiViewModel(
                     return@launch
                 }
                 if (vpnState.value != VpnState.Idle) {
+                    autoProgress.value = null
                     autoRunState.value = DpiAutoRunState.IDLE
                     return@launch
                 }
@@ -324,10 +370,12 @@ class DpiViewModel(
                 if (plan.complete && plan.assignments.isNotEmpty()) {
                     DpiAutoDomainPlan.fromPlan(plan).compileArgs()
                 }
+                autoProgress.value = null
                 autoReport.value = report
                 autoDomainPlan.value = plan
                 autoRunState.value = DpiAutoRunState.COMPLETE
             } catch (cancelled: CancellationException) {
+                autoProgress.value = null
                 if (
                     autoRunState.value == DpiAutoRunState.RUNNING ||
                     autoRunState.value == DpiAutoRunState.CANCELLING
@@ -336,6 +384,7 @@ class DpiViewModel(
                 }
                 throw cancelled
             } catch (_: Exception) {
+                autoProgress.value = null
                 if (autoGeneration.get() == generation) autoRunState.value = DpiAutoRunState.ERROR
                 else if (autoRunState.value == DpiAutoRunState.CANCELLING) {
                     autoRunState.value = DpiAutoRunState.IDLE
@@ -484,6 +533,7 @@ class DpiViewModel(
             autoRunState.value = DpiAutoRunState.CANCELLING
         }
         if (resetReport) {
+            autoProgress.value = null
             autoReport.value = null
             autoDomainPlan.value = null
         }
@@ -510,7 +560,11 @@ class DpiViewModel(
         fun factory(
             store: RoutesStore,
             vpnState: StateFlow<VpnState>,
-            runAutoSearch: suspend (List<DpiProbeTarget>, () -> Boolean) -> DpiAutoSearchReport,
+            runAutoSearch: suspend (
+                List<DpiProbeTarget>,
+                () -> Boolean,
+                (DpiAutoProgress) -> Unit,
+            ) -> DpiAutoSearchReport,
             restartTunnel: () -> Unit,
         ): ViewModelProvider.Factory = viewModelFactory {
             initializer {
@@ -526,5 +580,17 @@ class DpiViewModel(
                 )
             }
         }
+
+        fun factory(
+            store: RoutesStore,
+            vpnState: StateFlow<VpnState>,
+            runAutoSearch: suspend (List<DpiProbeTarget>, () -> Boolean) -> DpiAutoSearchReport,
+            restartTunnel: () -> Unit,
+        ): ViewModelProvider.Factory = factory(
+            store = store,
+            vpnState = vpnState,
+            runAutoSearch = { targets, cancelled, _ -> runAutoSearch(targets, cancelled) },
+            restartTunnel = restartTunnel,
+        )
     }
 }
