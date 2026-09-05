@@ -263,6 +263,17 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                 )
                 Spacer(Modifier.height(Spacing.space16))
 
+                MultiHopEntryCard(
+                    activeVpn = activeVpn,
+                    activeVlessId = activeVlessId,
+                    vlessEntries = groups.vless,
+                    warpAvailable = groups.warp != null,
+                    selectedEntry = state.multiHopEntry,
+                    onSelectEntry = viewModel::selectMultiHopEntry,
+                    modifier = Modifier.padding(horizontal = Spacing.space16),
+                )
+                Spacer(Modifier.height(Spacing.space16))
+
                 when (selectedTab) {
                     0 -> ProfileKeyList(
                         items = groups.vless,
