@@ -1,10 +1,11 @@
 package dev.triplet.app.core
 
+import org.json.JSONArray
 import org.json.JSONObject
 
 /** Versioned, validated user-settings export. Runtime session state is excluded. */
 object SettingsBackup {
-    const val VERSION = 3
+    const val VERSION = 4
     const val MAX_BYTES = 1024 * 1024
     private const val APP = "detour"
     private val themes = setOf(
@@ -22,6 +23,7 @@ object SettingsBackup {
         val dnsId: String = "google",
         val dnsCustom: String = "",
         val routes: Map<String, String> = emptyMap(),
+        val destinationRules: List<DestinationRule> = emptyList(),
         val vlessKeys: VlessKeys = VlessKeys(emptyList(), null),
         val warpProfile: WarpProfile? = null,
         val activeVpn: VpnProfileKind = VpnProfileKind.VLESS,
@@ -31,6 +33,7 @@ object SettingsBackup {
     fun toJson(b: Backup): String {
         val keys = if (b.vlessKeys.items.isNotEmpty()) b.vlessKeys
         else legacyKeys(b.vlessUri)
+        DestinationRules.validate(b.destinationRules)
         return JSONObject().apply {
             put("v", VERSION)
             put("app", APP)
@@ -44,6 +47,7 @@ object SettingsBackup {
             put("dns", b.dnsId)
             put("dnsCustom", b.dnsCustom)
             put("routes", JSONObject(b.routes))
+            put("destinationRules", JSONArray(DestinationRules.toJson(b.destinationRules)))
             put("showSystemApps", b.showSystemApps)
         }.toString(2)
     }
@@ -55,7 +59,8 @@ object SettingsBackup {
         when (o.optInt("v", 1)) {
             1 -> parseV1(o)
             2 -> parseV2(o)
-            VERSION -> parseV3(o)
+            3 -> parseV3(o)
+            VERSION -> parseV4(o)
             else -> null
         }
     } catch (_: Exception) { null }
@@ -83,7 +88,19 @@ object SettingsBackup {
         )
     }
 
-    private fun parseV3(o: JSONObject): Backup {
+    private fun parseV3(o: JSONObject): Backup = parseModern(o, emptyList())
+
+    private fun parseV4(o: JSONObject): Backup {
+        val rules = o.optJSONArray("destinationRules")?.let {
+            DestinationRules.fromJsonStrict(it.toString())
+        } ?: emptyList()
+        return parseModern(o, rules)
+    }
+
+    private fun parseModern(
+        o: JSONObject,
+        destinationRules: List<DestinationRule>,
+    ): Backup {
         val b = base(o)
         val keysObject = o.optJSONObject("vlessKeys") ?: throw IllegalArgumentException("missing keys")
         val keys = VlessKeys.fromJson(keysObject.toString())
@@ -95,6 +112,7 @@ object SettingsBackup {
         validateBase(b)
         validateKeys(keys)
         validateRoutes(b.routes)
+        DestinationRules.validate(destinationRules)
         when (activeVpn) {
             VpnProfileKind.VLESS -> if (keys.active != null) require(selectedKeyKind(keys) == VpnProfileKind.VLESS)
             VpnProfileKind.SUBSCRIPTION -> require(selectedKeyKind(keys) == VpnProfileKind.SUBSCRIPTION)
@@ -105,6 +123,7 @@ object SettingsBackup {
             vlessUri = keys.active?.uri ?: "",
             warpProfile = warp,
             activeVpn = activeVpn,
+            destinationRules = destinationRules,
         )
     }
 
