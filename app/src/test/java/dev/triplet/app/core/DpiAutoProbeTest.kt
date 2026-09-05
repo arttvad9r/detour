@@ -2,6 +2,7 @@ package dev.triplet.app.core
 
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -42,5 +43,12 @@ class DpiAutoProbeTest {
         assertEquals(404, Socks5Wire.httpStatusCode("HTTP/2 404"))
         assertNull(Socks5Wire.httpStatusCode("ICY 200 OK"))
         assertNull(Socks5Wire.httpStatusCode("HTTP/1.1 nope"))
+    }
+
+    @Test fun `reachability policy rejects explicit legal block status`() {
+        assertTrue(DpiHttpPolicy.isReachable(204))
+        assertTrue(DpiHttpPolicy.isReachable(403))
+        assertFalse(DpiHttpPolicy.isReachable(451))
+        assertFalse(DpiHttpPolicy.isReachable(500))
     }
 }
