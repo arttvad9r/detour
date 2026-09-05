@@ -119,9 +119,11 @@ internal fun vlessDeleteRequest(
     selectionOverride: ProfileSelection? = null,
 ): ProfileDeleteRequest.Vless {
     val state = profilesUiState(settings, selectionOverride = selectionOverride)
+    val isExit = state.activeVpn != VpnProfileKind.WARP && state.activeVlessId == keyId
+    val isEntry = (state.multiHopEntry as? MultiHopEntryRef.Vless)?.keyId == keyId
     return ProfileDeleteRequest.Vless(
         keyId = keyId,
-        active = state.activeVpn != VpnProfileKind.WARP && state.activeVlessId == keyId,
+        active = isExit || isEntry,
     )
 }
 
@@ -130,7 +132,9 @@ internal fun warpDeleteRequest(
     selectionOverride: ProfileSelection? = null,
 ): ProfileDeleteRequest.Warp {
     val state = profilesUiState(settings, selectionOverride = selectionOverride)
-    return ProfileDeleteRequest.Warp(active = state.activeVpn == VpnProfileKind.WARP)
+    return ProfileDeleteRequest.Warp(
+        active = state.activeVpn == VpnProfileKind.WARP || state.multiHopEntry == MultiHopEntryRef.Warp,
+    )
 }
 
 internal enum class ProfileTunnelAction { NONE, RESTART, STOP }
