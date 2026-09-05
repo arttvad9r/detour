@@ -27,6 +27,33 @@ class DpiAutoProbeTest {
         assertEquals("telegram.org", targets.getValue("telegram-webapp").scopeHost)
     }
 
+    @Test fun `network guard permanently invalidates a session after vpn appears`() {
+        var vpnActive = false
+        val guard = DpiAutoNetworkGuard { vpnActive }
+
+        guard.requireClean()
+        assertFalse(guard.isCancelled { false })
+
+        vpnActive = true
+        assertTrue(guard.isCancelled { false })
+        vpnActive = false
+
+        var rejected = false
+        try {
+            guard.requireClean()
+        } catch (_: IllegalStateException) {
+            rejected = true
+        }
+        assertTrue(rejected)
+    }
+
+    @Test fun `caller cancellation does not contaminate network guard`() {
+        val guard = DpiAutoNetworkGuard { false }
+
+        assertTrue(guard.isCancelled { true })
+        guard.requireClean()
+    }
+
     @Test fun `RFC1929 auth request encodes ephemeral credentials`() {
         val request = Socks5Wire.authRequest(ProbeCredentials("user", "pass"))
         assertArrayEquals(
