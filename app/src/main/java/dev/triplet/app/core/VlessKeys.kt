@@ -36,7 +36,7 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
                     put("uri", key.uri)
                     put("selectedNode", key.selectedNode ?: JSONObject.NULL)
                     put("favoriteNodes", JSONArray().apply {
-                        key.favoriteNodes.sorted().forEach(::put)
+                        key.favoriteNodes.sorted().forEach { nodeName -> put(nodeName) }
                     })
                 })
             }
