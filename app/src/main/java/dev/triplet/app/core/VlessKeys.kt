@@ -10,6 +10,7 @@ data class VlessKey(
     val name: String,
     val uri: String,
     val selectedNode: String? = null,
+    val favoriteNodes: Set<String> = emptySet(),
 )
 
 data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
@@ -34,6 +35,9 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
                     put("name", key.name)
                     put("uri", key.uri)
                     put("selectedNode", key.selectedNode ?: JSONObject.NULL)
+                    put("favoriteNodes", JSONArray().apply {
+                        key.favoriteNodes.sorted().forEach(::put)
+                    })
                 })
             }
         })
@@ -66,9 +70,20 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
                     val selectedNode = if (!obj.has("selectedNode") || obj.isNull("selectedNode")) {
                         null
                     } else {
-                        obj.getString("selectedNode").also(::validateSelectedNode)
+                        obj.getString("selectedNode").also(::validateNodeName)
                     }
-                    VlessKey(id, name, uri, selectedNode)
+                    val favoriteNodes = if (!obj.has("favoriteNodes") || obj.isNull("favoriteNodes")) {
+                        emptySet()
+                    } else {
+                        val values = obj.getJSONArray("favoriteNodes")
+                        require(values.length() <= MAX_FAVORITE_NODES) { "too many favorite nodes" }
+                        buildSet {
+                            for (index in 0 until values.length()) {
+                                add(values.getString(index).also(::validateNodeName))
+                            }
+                        }
+                    }
+                    VlessKey(id, name, uri, selectedNode, favoriteNodes)
                 } catch (e: IllegalArgumentException) {
                     throw e
                 } catch (e: Exception) {
@@ -98,12 +113,14 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
             return VlessKeys(listOf(key), key.id)
         }
 
-        private fun validateSelectedNode(value: String) {
+        private fun validateNodeName(value: String) {
             require(value.isNotBlank() && value == value.trim() && value.length <= 256)
             require(value.none { it.code < 0x20 || it.code == 0x7f })
         }
 
         private fun stableLegacyId(uri: String): String =
             UUID.nameUUIDFromBytes(uri.toByteArray(StandardCharsets.UTF_8)).toString()
+
+        private const val MAX_FAVORITE_NODES = 256
     }
 }
