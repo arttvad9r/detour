@@ -47,6 +47,21 @@ class DpiAutoProbeTest {
         assertTrue(rejected)
     }
 
+    @Test fun `network callback contamination cancels even after vpn is gone`() {
+        val guard = DpiAutoNetworkGuard { false }
+
+        guard.markContaminated()
+
+        assertTrue(guard.isCancelled { false })
+        var rejected = false
+        try {
+            guard.requireClean()
+        } catch (_: IllegalStateException) {
+            rejected = true
+        }
+        assertTrue(rejected)
+    }
+
     @Test fun `caller cancellation does not contaminate network guard`() {
         val guard = DpiAutoNetworkGuard { false }
 
