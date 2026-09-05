@@ -2,6 +2,7 @@ package dev.triplet.app.core
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -29,6 +30,37 @@ class DpiArgsTest {
         assertTrue(DpiArgs.isValid("-s 1+s -d 3+s --timeout 3"))
         assertFalse(DpiArgs.isValid("-i 0.0.0.0 -p 9999"))
         assertFalse(DpiArgs.isValid("-U"))
+    }
+
+    @Test fun `auto domain plan resolves to compiled trusted host groups`() {
+        val plan = DpiAutoDomainPlan.of(
+            mapOf(
+                "youtube.com" to "split-sni",
+                "discord.com" to "disorder-1",
+            ),
+        )
+
+        val args = DpiArgs.resolve(
+            preset = DpiPreset.AUTO,
+            customRaw = "",
+            autoDomainPlan = plan,
+        )
+
+        assertTrue(args.contains(":youtube.com"))
+        assertTrue(args.contains(":discord.com"))
+        assertTrue(args.contains("-A"))
+    }
+
+    @Test fun `auto resolution rejects conflicting global and domain plans`() {
+        val plan = DpiAutoDomainPlan.of(mapOf("youtube.com" to "split-sni"))
+        assertThrows(IllegalArgumentException::class.java) {
+            DpiArgs.resolve(
+                preset = DpiPreset.AUTO,
+                customRaw = "",
+                autoCandidateId = "split-sni",
+                autoDomainPlan = plan,
+            )
+        }
     }
 
     @Test fun `udp fake count matches pinned ciadpi integer parser`() {
