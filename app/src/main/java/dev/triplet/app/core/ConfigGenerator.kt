@@ -24,6 +24,11 @@ object ConfigGenerator {
     private const val SUBSCRIPTION_GROUP = "SUBSCRIPTION"
     private const val SUBSCRIPTION_PROVIDER = "DETOUR_SUBSCRIPTION"
     private const val SUBSCRIPTION_USER_AGENT = "mihomo/1.19.30"
+    private const val SUBSCRIPTION_AUTO_TEST_URL = "https://cp.cloudflare.com/generate_204"
+    private const val SUBSCRIPTION_AUTO_INTERVAL_SECONDS = 900
+    private const val SUBSCRIPTION_AUTO_TIMEOUT_MS = 3000
+    private const val SUBSCRIPTION_AUTO_MAX_FAILED_TIMES = 2
+    private const val SUBSCRIPTION_AUTO_TOLERANCE_MS = 100
     private const val MAX_WARP_PROXIES = 128
 
     fun build(input: RoutingInput): String {
@@ -94,7 +99,7 @@ object ConfigGenerator {
         }.orEmpty()
         val proxyGroups = when (val vpn = input.vpn) {
             is VpnOutbound.Warp -> "\nproxy-groups:\n" + renderWarpGroup(warpProxies.size)
-            is VpnOutbound.Subscription -> "\nproxy-groups:\n" + renderSubscriptionGroup(vpn.selectedNode)
+            is VpnOutbound.Subscription -> "\nproxy-groups:\n" + renderSubscriptionGroup(vpn)
             else -> ""
         }
 
@@ -216,17 +221,31 @@ $rules""".trim()
             append("      User-Agent:\n")
             append("        - $SUBSCRIPTION_USER_AGENT")
         }
-        // A select group does not need provider-wide health checks. Running them
-        // eagerly on every VPN start fans out connections to the entire subscription
-        // and can interfere with the one server the user actually selected. Latency
-        // testing is explicit from the subscription screen instead.
     }
 
-    private fun renderSubscriptionGroup(selectedNode: String?): String = buildString {
+    private fun renderSubscriptionGroup(subscription: VpnOutbound.Subscription): String = buildString {
         append("- name: $SUBSCRIPTION_GROUP\n")
-        append("  type: select\n")
-        selectedNode?.takeIf { it.isNotBlank() }?.let {
-            append("  default-selected: ${yamlScalar(it)}\n")
+        when (subscription.selectionMode) {
+            SubscriptionSelectionMode.MANUAL -> {
+                append("  type: select\n")
+                subscription.selectedNode?.takeIf { it.isNotBlank() }?.let {
+                    append("  default-selected: ${yamlScalar(it)}\n")
+                }
+            }
+            SubscriptionSelectionMode.AUTO -> {
+                // Mihomo's url-test group keeps its current fast node until another
+                // node beats it by tolerance, and triggers provider health checks
+                // after repeated dial failures. This provides sticky failover without
+                // an Android-side polling or reconnection loop.
+                append("  type: url-test\n")
+                append("  url: $SUBSCRIPTION_AUTO_TEST_URL\n")
+                append("  interval: $SUBSCRIPTION_AUTO_INTERVAL_SECONDS\n")
+                append("  lazy: true\n")
+                append("  timeout: $SUBSCRIPTION_AUTO_TIMEOUT_MS\n")
+                append("  max-failed-times: $SUBSCRIPTION_AUTO_MAX_FAILED_TIMES\n")
+                append("  expected-status: 204\n")
+                append("  tolerance: $SUBSCRIPTION_AUTO_TOLERANCE_MS\n")
+            }
         }
         append("  use:\n")
         append("    - $SUBSCRIPTION_PROVIDER")
