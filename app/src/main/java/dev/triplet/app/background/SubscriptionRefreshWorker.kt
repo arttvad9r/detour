@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
@@ -82,6 +84,8 @@ class SubscriptionRefreshWorker(
 
 object SubscriptionRefreshScheduler {
     private const val UNIQUE_ACTIVE_SUBSCRIPTION_WORK = "detour-active-subscription-refresh"
+    private const val UNIQUE_ACTIVE_SUBSCRIPTION_OPPORTUNISTIC_WORK =
+        "detour-active-subscription-refresh-opportunistic"
 
     fun reconcile(context: Context, settings: TriSettings) {
         val workManager = WorkManager.getInstance(context)
@@ -92,29 +96,53 @@ object SubscriptionRefreshScheduler {
             (VlessKeyParser.parse(active.uri) as? ParseResult.Ok)?.profile?.isSubscription == true
         if (!isSubscription || intervalHours == null) {
             workManager.cancelUniqueWork(UNIQUE_ACTIVE_SUBSCRIPTION_WORK)
+            workManager.cancelUniqueWork(UNIQUE_ACTIVE_SUBSCRIPTION_OPPORTUNISTIC_WORK)
             return
         }
 
         val effectiveHours = SubscriptionRefreshPolicy.effectiveIntervalHours(intervalHours)
             ?: run {
                 workManager.cancelUniqueWork(UNIQUE_ACTIVE_SUBSCRIPTION_WORK)
+                workManager.cancelUniqueWork(UNIQUE_ACTIVE_SUBSCRIPTION_OPPORTUNISTIC_WORK)
                 return
             }
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+        val inputData = workDataOf(SubscriptionRefreshWorker.KEY_PROFILE_ID to active.id)
         val request = PeriodicWorkRequestBuilder<SubscriptionRefreshWorker>(
             effectiveHours.toLong(),
             TimeUnit.HOURS,
         )
-            .setConstraints(
-                Constraints.Builder()
-                    .setRequiredNetworkType(NetworkType.CONNECTED)
-                    .build(),
-            )
-            .setInputData(workDataOf(SubscriptionRefreshWorker.KEY_PROFILE_ID to active.id))
+            .setConstraints(constraints)
+            .setInputData(inputData)
             .build()
         workManager.enqueueUniquePeriodicWork(
             UNIQUE_ACTIVE_SUBSCRIPTION_WORK,
             ExistingPeriodicWorkPolicy.UPDATE,
             request,
         )
+
+        // reconcile() runs when the application observes the active subscription
+        // configuration. If the cached subscription is already stale, do not wait
+        // for the first periodic WorkManager window: enqueue the same guarded worker
+        // immediately. The worker re-checks isDue(), so this remains idempotent.
+        if (
+            SubscriptionRefreshPolicy.isDue(
+                active.subscriptionUpdatedAt,
+                effectiveHours,
+                System.currentTimeMillis(),
+            )
+        ) {
+            val opportunisticRequest = OneTimeWorkRequestBuilder<SubscriptionRefreshWorker>()
+                .setConstraints(constraints)
+                .setInputData(inputData)
+                .build()
+            workManager.enqueueUniqueWork(
+                UNIQUE_ACTIVE_SUBSCRIPTION_OPPORTUNISTIC_WORK,
+                ExistingWorkPolicy.REPLACE,
+                opportunisticRequest,
+            )
+        }
     }
 }
