@@ -70,11 +70,43 @@ class DpiAutoSelector(
 ) {
     private val backend = DpiBackend(context.applicationContext)
 
+    /** Fast global-winner mode: abandon a candidate after its first failed probe. */
     fun searchWithBaseline(
         targets: List<DpiProbeTarget>,
         candidates: List<DpiStrategyCandidate> = DpiStrategyCatalog.default,
         attemptsPerTarget: Int = 2,
         cancelled: () -> Boolean = { false },
+    ): DpiAutoSearchReport = searchWithBaselineMode(
+        targets = targets,
+        candidates = candidates,
+        attemptsPerTarget = attemptsPerTarget,
+        stopCandidateOnFailure = true,
+        cancelled = cancelled,
+    )
+
+    /**
+     * Exhaustive mode for per-domain planning. Every candidate is measured for
+     * every problematic target so the planner has a complete comparison matrix.
+     */
+    fun searchPerDomainWithBaseline(
+        targets: List<DpiProbeTarget>,
+        candidates: List<DpiStrategyCandidate> = DpiStrategyCatalog.default,
+        attemptsPerTarget: Int = 2,
+        cancelled: () -> Boolean = { false },
+    ): DpiAutoSearchReport = searchWithBaselineMode(
+        targets = targets,
+        candidates = candidates,
+        attemptsPerTarget = attemptsPerTarget,
+        stopCandidateOnFailure = false,
+        cancelled = cancelled,
+    )
+
+    private fun searchWithBaselineMode(
+        targets: List<DpiProbeTarget>,
+        candidates: List<DpiStrategyCandidate>,
+        attemptsPerTarget: Int,
+        stopCandidateOnFailure: Boolean,
+        cancelled: () -> Boolean,
     ): DpiAutoSearchReport = DpiAutoSearchCoordinator(
         directProbe = DirectHttpsDpiProbe(timeoutMs = timeoutMs, cancelled = cancelled),
         strategySearcher = DpiStrategySearcher { problematicTargets, searchCancelled ->
@@ -83,6 +115,7 @@ class DpiAutoSelector(
                 candidates = candidates,
                 attemptsPerTarget = attemptsPerTarget,
                 cancelled = searchCancelled,
+                stopCandidateOnFailure = stopCandidateOnFailure,
             )
         },
     ).run(
@@ -96,6 +129,7 @@ class DpiAutoSelector(
         candidates: List<DpiStrategyCandidate> = DpiStrategyCatalog.default,
         attemptsPerTarget: Int = 2,
         cancelled: () -> Boolean = { false },
+        stopCandidateOnFailure: Boolean = true,
     ): List<DpiStrategyResult> {
         val runner = DpiStrategySearchRunner(
             backend = object : DpiStrategyBackend {
@@ -120,7 +154,7 @@ class DpiAutoSelector(
             candidates = candidates,
             targets = targets,
             attemptsPerTarget = attemptsPerTarget,
-            stopCandidateOnFailure = true,
+            stopCandidateOnFailure = stopCandidateOnFailure,
             cancelled = cancelled,
         )
     }
