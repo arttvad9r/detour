@@ -14,6 +14,12 @@
     <string name="subscription_catalog_error">Could not load VLESS servers from this subscription. Check the link and try refreshing.</string>
     <string name="subscription_selected_server">Selected server</string>
     <string name="subscription_select_server">Select a server</string>
+    <string name="subscription_selection_mode">Server selection</string>
+    <string name="subscription_selection_auto">Automatic</string>
+    <string name="subscription_selection_manual">Manual</string>
+    <string name="subscription_selection_auto_hint">Detour selects a healthy low-latency server and avoids switching for small latency changes.</string>
+    <string name="subscription_selection_auto_current">Automatic · currently %1$s</string>
+    <string name="subscription_selection_manual_hint">Tap a server below to keep using it until you change the selection.</string>
     <string name="subscription_search_label">Search</string>
     <string name="subscription_search_hint">Search servers…</string>
     <string name="subscription_filter_all">All</string>
