@@ -73,7 +73,14 @@ class TriVpnService : VpnService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (classifyVpnServiceCommand(intent?.action)) {
+        val startedByApp = intent?.getBooleanExtra(DETOUR_VPN_EXTRA_STARTED_BY_APP, false) == true
+        when (
+            classifyVpnServiceCommand(
+                action = intent?.action,
+                startedByApp = startedByApp,
+                alwaysOn = isAlwaysOn,
+            )
+        ) {
             VpnServiceCommand.START_USER -> executor.execute { startSequence() }
             VpnServiceCommand.START_SYSTEM -> {
                 ServiceLog.i("always-on: Android requested VPN start")
@@ -144,7 +151,7 @@ class TriVpnService : VpnService() {
         val current = VpnController.state.value
         if (current == VpnState.Active || current == VpnState.Starting) return
         VpnController.setState(VpnState.Starting)
-        foreground.show(getString(R.string.notif_starting))
+        foreground.show(getString(R.string.notif_starting), allowStop = !isAlwaysOn)
 
         val settings = runBlocking { store.snapshot() }
         val probeCredentials = ProbeAuth.current()
@@ -292,7 +299,7 @@ class TriVpnService : VpnService() {
         Engine.resetTrafficStats()
         VpnController.setState(VpnState.Active)
         runBlocking { store.setSessionStartedAt(System.currentTimeMillis()) }
-        foreground.show(getString(R.string.notif_active))
+        foreground.show(getString(R.string.notif_active), allowStop = !isAlwaysOn)
         ServiceLog.i("active; validating routes")
         validateRoutesAsync(effVpn, effDpi, settings.activeVpn, probeCredentials)
     }
