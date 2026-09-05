@@ -149,11 +149,19 @@ object SettingsBackup {
         require(DnsOptions.isSelectionValid(b.dnsId, b.dnsCustom))
         if (b.presetId == DpiPreset.CUSTOM.id) require(DpiArgs.isValid(b.dpiCustomArgs))
         if (b.presetId == DpiPreset.AUTO.id) {
-            val globalValid = DpiStrategyCatalog.byId(b.dpiAutoCandidateId) != null
-            val domainValid = b.dpiAutoDomainPlan != null &&
-                b.dpiAutoCandidateId.isBlank() &&
-                runCatching { b.dpiAutoDomainPlan.compileArgs() }.isSuccess
-            require(globalValid != domainValid) { "invalid automatic DPI selection" }
+            val hasGlobal = b.dpiAutoCandidateId.isNotBlank()
+            val hasDomain = b.dpiAutoDomainPlan != null
+            require(hasGlobal != hasDomain) { "automatic DPI selection must have exactly one representation" }
+
+            if (hasGlobal) {
+                require(DpiStrategyCatalog.byId(b.dpiAutoCandidateId) != null) {
+                    "unknown automatic DPI strategy"
+                }
+            } else {
+                require(runCatching { requireNotNull(b.dpiAutoDomainPlan).compileArgs() }.isSuccess) {
+                    "invalid automatic DPI domain plan"
+                }
+            }
         }
     }
 
