@@ -29,7 +29,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
 
-internal enum class SettingsSection { ROUTES, PROFILES, DPI, DNS, BACKUP, APPEARANCE }
+internal enum class SettingsSection { ROUTES, PROFILES, DPI, DNS, DIAGNOSTICS, BACKUP, APPEARANCE }
 
 private data class MenuItem(
     val titleRes: Int,
@@ -47,6 +47,7 @@ internal fun SettingsMenuScreen(
     onOpenDpi: () -> Unit,
     onOpenTheme: () -> Unit,
     onOpenDns: () -> Unit,
+    onOpenDiagnostics: () -> Unit,
     onOpenBackup: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -98,6 +99,12 @@ internal fun SettingsMenuScreen(
         R.drawable.ic_globe,
         SettingsSection.DNS,
     ) to onOpenDns
+    val diagnostics = MenuItem(
+        R.string.nav_diagnostics,
+        { stringResource(R.string.nav_diagnostics_sub) },
+        R.drawable.ic_check,
+        SettingsSection.DIAGNOSTICS,
+    ) to onOpenDiagnostics
     val backup = MenuItem(
         R.string.nav_backup,
         { stringResource(R.string.nav_backup_sub) },
@@ -157,7 +164,7 @@ internal fun SettingsMenuScreen(
 
                 SettingsSectionDivider()
                 SettingsSectionLabel(R.string.settings_section_app)
-                SettingsRows(listOf(backup, appearance), selectedSection)
+                SettingsRows(listOf(diagnostics, backup, appearance), selectedSection)
             }
 
             Text(
