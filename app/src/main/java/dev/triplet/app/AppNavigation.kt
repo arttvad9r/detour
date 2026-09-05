@@ -67,7 +67,6 @@ import dev.triplet.app.ui.VlessKeyScreen
 import dev.triplet.app.ui.detourColors
 import dev.triplet.app.ui.detourHighRefresh
 import dev.triplet.app.ui.parseHomeTrafficStats
-import dev.triplet.app.vpn.AutoConnectCoordinator
 import dev.triplet.app.vpn.HealthCheck
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
@@ -159,7 +158,6 @@ internal fun DetourNavigation(
     appContext: Context,
     modifier: Modifier = Modifier,
 ) {
-    val autoConnectLaunchViewModel = viewModel<AutoConnectLaunchViewModel>()
     val backStack = rememberNavBackStack(AppDestination.Home)
     val listDetailStrategy = rememberListDetailSceneStrategy<NavKey>()
     val currentDestination = backStack.lastOrNull()
@@ -173,22 +171,6 @@ internal fun DetourNavigation(
             navMotionActive = true
             delay(Motion.NAV_REFRESH_BOOST_MS)
             navMotionActive = false
-        }
-    }
-
-    LaunchedEffect(autoConnectLaunchViewModel) {
-        autoConnectLaunchViewModel.launchOnce {
-            AutoConnectCoordinator(
-                loadSettings = store::snapshot,
-                resolveRoutes = { routes ->
-                    withContext(Dispatchers.IO) {
-                        resolveEffectiveRoutes(appContext.packageManager, routes)
-                    }
-                },
-                vpnPermissionGranted = { VpnService.prepare(appContext) == null },
-                currentVpnState = { VpnController.state.value },
-                startVpn = { VpnController.startNow(appContext) },
-            ).runOnce()
         }
     }
 
