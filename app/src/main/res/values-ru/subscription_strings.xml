@@ -38,4 +38,10 @@
     <string name="subscription_metadata_remaining">Осталось %1$s</string>
     <string name="subscription_metadata_expires">Действует до %1$s</string>
     <string name="subscription_metadata_update_interval">Интервал обновления провайдера: %1$d ч</string>
+    <string name="subscription_auto_update">Автоматическое обновление</string>
+    <string name="subscription_update_interval">Интервал обновления</string>
+    <string name="subscription_interval_hours">%1$d ч</string>
+    <string name="subscription_provider_recommends_interval">Провайдер рекомендует каждые %1$d ч</string>
+    <string name="subscription_last_updated">Последнее обновление: %1$s</string>
+    <string name="subscription_not_updated_yet">Ещё не обновлялась</string>
 </resources>
