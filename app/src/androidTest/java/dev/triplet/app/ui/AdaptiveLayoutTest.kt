@@ -19,9 +19,9 @@ class AdaptiveLayoutTest {
     val rule = createComposeRule()
 
     @Test
-    fun contentUsesFullWidthOnCompactWindow() {
+    fun contentUsesFullWidthWhenParentIsBelowMaxWidth() {
         rule.setContent {
-            Box(Modifier.width(360.dp).testTag("root")) {
+            Box(Modifier.width(200.dp).testTag("root")) {
                 DetourContentColumn {
                     Box(
                         Modifier
@@ -33,16 +33,16 @@ class AdaptiveLayoutTest {
             }
         }
 
-        rule.onNodeWithTag("root").assertWidthIsEqualTo(360.dp)
-        rule.onNodeWithTag("content").assertWidthIsEqualTo(360.dp)
+        rule.onNodeWithTag("root").assertWidthIsEqualTo(200.dp)
+        rule.onNodeWithTag("content").assertWidthIsEqualTo(200.dp)
         rule.onNodeWithTag("content").assertLeftPositionInRootIsEqualTo(0.dp)
     }
 
     @Test
-    fun contentIsCappedAndCenteredOnExpandedWindow() {
+    fun contentIsCappedAndCenteredWhenMaxWidthIsBelowParentWidth() {
         rule.setContent {
-            Box(Modifier.width(1000.dp).testTag("root")) {
-                DetourContentColumn {
+            Box(Modifier.width(200.dp).testTag("root")) {
+                DetourContentColumn(maxWidth = 120.dp) {
                     Box(
                         Modifier
                             .fillMaxWidth()
@@ -53,7 +53,8 @@ class AdaptiveLayoutTest {
             }
         }
 
-        rule.onNodeWithTag("content").assertWidthIsEqualTo(640.dp)
-        rule.onNodeWithTag("content").assertLeftPositionInRootIsEqualTo(180.dp)
+        rule.onNodeWithTag("root").assertWidthIsEqualTo(200.dp)
+        rule.onNodeWithTag("content").assertWidthIsEqualTo(120.dp)
+        rule.onNodeWithTag("content").assertLeftPositionInRootIsEqualTo(40.dp)
     }
 }
