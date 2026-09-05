@@ -236,7 +236,12 @@ private fun DestinationRuleRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = Spacing.space16, end = Spacing.space8, top = Spacing.space10, bottom = Spacing.space10),
+            .padding(
+                start = Spacing.space16,
+                end = Spacing.space8,
+                top = Spacing.space12,
+                bottom = Spacing.space12,
+            ),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.space12),
     ) {
