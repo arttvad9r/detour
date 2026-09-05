@@ -40,6 +40,7 @@ class VlessKeysTest {
                     subscriptionUri,
                     selectedNode = "Node B",
                     favoriteNodes = setOf("Node A", "Node B"),
+                    subscriptionSelectionMode = SubscriptionSelectionMode.AUTO,
                     subscriptionUpdateIntervalHours = 12,
                     subscriptionUpdatedAt = 1_780_000_000_000L,
                 ),
@@ -51,13 +52,21 @@ class VlessKeysTest {
     }
 
     @Test
-    fun `old json defaults scheduled subscription refresh to disabled`() {
+    fun `old json defaults new subscription behavior to manual and scheduled refresh disabled`() {
         val keys = VlessKeys.fromJson(
             """{"activeId":"b","items":[{"id":"b","name":"Subscription","uri":"$subscriptionUri"}]}""",
         )
 
+        assertEquals(SubscriptionSelectionMode.MANUAL, keys.active?.subscriptionSelectionMode)
         assertEquals(null, keys.active?.subscriptionUpdateIntervalHours)
         assertEquals(null, keys.active?.subscriptionUpdatedAt)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `json rejects invalid subscription selection mode`() {
+        VlessKeys.fromJson(
+            """{"activeId":"b","items":[{"id":"b","name":"Subscription","uri":"$subscriptionUri","subscriptionSelectionMode":"FASTESTISH"}]}""",
+        )
     }
 
     @Test(expected = IllegalArgumentException::class)
