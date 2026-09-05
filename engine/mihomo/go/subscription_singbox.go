@@ -182,8 +182,32 @@ func convertSingBoxOutbound(raw json.RawMessage) (map[string]any, bool) {
 				return nil, false
 			}
 		}
+		ensureSingBoxTransportTLSName(proxy, mihomoType)
 	}
 	return proxy, true
+}
+
+func ensureSingBoxTransportTLSName(proxy map[string]any, mihomoType string) {
+	key := "servername"
+	if mihomoType == "trojan" {
+		key = "sni"
+	} else if tls, _ := proxy["tls"].(bool); !tls {
+		return
+	}
+	if value, _ := proxy[key].(string); strings.TrimSpace(value) != "" {
+		return
+	}
+	if network, _ := proxy["network"].(string); network != "ws" {
+		return
+	}
+	wsOpts, _ := proxy["ws-opts"].(map[string]any)
+	headers, _ := wsOpts["headers"].(map[string]string)
+	for header, value := range headers {
+		if strings.EqualFold(header, "Host") && strings.TrimSpace(value) != "" {
+			proxy[key] = strings.TrimSpace(value)
+			return
+		}
+	}
 }
 
 func singBoxAllowedOutboundFields(mihomoType string) map[string]struct{} {
@@ -257,7 +281,9 @@ func applySingBoxTLS(proxy map[string]any, mihomoType string, raw json.RawMessag
 	if disabledSNI, ok := optionalJSONBool(fields["disable_sni"]); ok && disabledSNI {
 		return false
 	}
-	proxy["tls"] = true
+	if mihomoType != "trojan" {
+		proxy["tls"] = true
+	}
 
 	if serverName, ok := optionalJSONText(fields["server_name"]); ok && serverName != "" {
 		if mihomoType == "trojan" {
