@@ -68,7 +68,7 @@ object ConfigGenerator {
                 LAN_PREFIXES.forEach { add("- IP-CIDR,$it,REJECT,no-resolve") }
             }
             orderedDestinationRules.forEach { rule ->
-                addAll(renderDestinationRule(rule, requireNotNull(vpnTag.takeIf { rule.route == AppRoute.VPN } ?: vpnTag)))
+                addAll(renderDestinationRule(rule, vpnTag))
             }
             vpnTag?.let { tag -> input.vpnApps.forEach { pkg -> add("- ${attr(pkg)},$tag") } }
             input.dpiApps.forEach { pkg ->
