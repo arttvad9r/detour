@@ -374,7 +374,7 @@ class ProfilesViewModel(
                             ) {
                                 settings.first { current ->
                                     current?.vlessKeys?.items?.none { it.id == request.keyId } != false &&
-                                        (!deletingEntry || current.multiHopEntry == null)
+                                        (!deletingEntry || current?.multiHopEntry == null)
                                 }
                             }
                             applyTunnelAction(tunnelAction)
@@ -391,7 +391,7 @@ class ProfilesViewModel(
                             deleteWarpProfile()
                             if (settings.value?.warpProfile != null || (deletingEntry && settings.value?.multiHopEntry != null)) {
                                 settings.first {
-                                    it?.warpProfile == null && (!deletingEntry || it.multiHopEntry == null)
+                                    it?.warpProfile == null && (!deletingEntry || it?.multiHopEntry == null)
                                 }
                             }
                             applyTunnelAction(tunnelAction)
