@@ -27,8 +27,8 @@ object DpiDomainInput {
 
         val tokens = raw
             .split(Regex("[\\s,;]+"))
-            .map(String::trim)
-            .filter(String::isNotEmpty)
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
         if (tokens.size > MAX_DOMAINS) {
             return DpiDomainInputResult(emptyList(), tokens.drop(MAX_DOMAINS))
         }
