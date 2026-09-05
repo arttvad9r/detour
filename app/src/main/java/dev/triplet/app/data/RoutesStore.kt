@@ -310,9 +310,10 @@ class RoutesStore(context: Context) {
         if (b.warpProfile == null) prefs.remove(warpKey)
         else prefs[warpKey] = cipher.encrypt(warpKey.name, b.warpProfile.toJson())
         prefs[RoutesMapping.vpnKindKey()] = b.activeVpn.name
-        // Backup v4 has no multi-hop field. Never carry a stale entry hop into
-        // restored profile state; a future backup version may restore it explicitly.
-        prefs.remove(RoutesMapping.multiHopEntryKey())
+        val multiHopKey = RoutesMapping.multiHopEntryKey()
+        val multiHopStored = MultiHopEntryRef.toStored(b.multiHopEntry)
+        if (multiHopStored.isBlank()) prefs.remove(multiHopKey)
+        else prefs[multiHopKey] = multiHopStored
         prefs[RoutesMapping.presetKey()] = b.presetId
         prefs[RoutesMapping.customArgsKey()] = b.dpiCustomArgs
         // Imported settings never start a VPN implicitly; the user must opt in
