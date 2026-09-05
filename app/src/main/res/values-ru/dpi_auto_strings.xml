@@ -6,6 +6,14 @@
     <string name="dpi_auto_googlevideo">GoogleVideo</string>
     <string name="dpi_auto_discord">Discord</string>
     <string name="dpi_auto_telegram">Telegram</string>
+    <plurals name="dpi_auto_target_count">
+        <item quantity="one">%1$d тестовый домен</item>
+        <item quantity="few">%1$d тестовых домена</item>
+        <item quantity="many">%1$d тестовых доменов</item>
+        <item quantity="other">%1$d тестового домена</item>
+    </plurals>
+    <string name="dpi_auto_attempts">Попыток на домен</string>
+    <string name="dpi_auto_attempts_hint">Повторять каждую проверку %1$d–%2$d раз. Больше попыток повышает надёжность результата, но удлиняет тест.</string>
     <string name="dpi_auto_custom_domains">Свои домены</string>
     <string name="dpi_auto_custom_domains_placeholder">example.com\nsub.example.com</string>
     <string name="dpi_auto_custom_domains_hint">Необязательно. Укажите только доменные имена через пробел или с новой строки.</string>
