@@ -274,7 +274,14 @@ class DpiViewModel(
     fun setProxyConcurrency(value: Int) {
         if (_proxyTestState.value.running) return
         _proxyTestState.update {
-            it.copy(concurrency = value.coerceIn(DpiProxyTestConfig.CONCURRENCY_RANGE))
+            it.copy(
+                concurrency = value.coerceIn(DpiProxyTestConfig.CONCURRENCY_RANGE),
+                completed = false,
+                cancelled = false,
+                results = emptyList(),
+                progress = null,
+                error = null,
+            )
         }
     }
 
