@@ -210,6 +210,8 @@ fun interface DpiTargetProbe {
 /**
  * Synchronous search primitive. Callers own the worker thread/coroutine.
  * The backend is always stopped between candidates, including failures.
+ * When [stopScopeOnFailure] is enabled, a failed target prunes only later
+ * targets with the same [DpiProbeTarget.scopeHost]; other scopes still run.
  */
 class DpiStrategySearchRunner(
     private val backend: DpiStrategyBackend,
@@ -220,6 +222,7 @@ class DpiStrategySearchRunner(
         targets: List<DpiProbeTarget>,
         attemptsPerTarget: Int = 2,
         stopCandidateOnFailure: Boolean = false,
+        stopScopeOnFailure: Boolean = !stopCandidateOnFailure,
         cancelled: () -> Boolean = { false },
     ): List<DpiStrategyResult> {
         require(candidates.isNotEmpty()) { "candidate list is empty" }
@@ -245,9 +248,14 @@ class DpiStrategySearchRunner(
                 }
 
                 val targetResults = mutableListOf<DpiTargetResult>()
+                val failedScopes = mutableSetOf<String>()
                 var candidateFailed = false
                 for (target in targets) {
                     if (cancelled() || candidateFailed) break
+                    if (stopScopeOnFailure && target.scopeHost in failedScopes) {
+                        targetResults += DpiTargetResult(target, attempts = 0, successes = 0)
+                        continue
+                    }
 
                     var attempts = 0
                     var successes = 0
@@ -266,12 +274,16 @@ class DpiStrategySearchRunner(
                         }
                     }
 
-                    targetResults += DpiTargetResult(
+                    val targetResult = DpiTargetResult(
                         target = target,
                         attempts = attempts,
                         successes = successes,
                         successfulLatenciesMs = latencies,
                     )
+                    targetResults += targetResult
+                    if (stopScopeOnFailure && !targetResult.fullyWorking) {
+                        failedScopes += target.scopeHost
+                    }
                 }
 
                 // Keep result shape stable if cancellation or a global-winner
