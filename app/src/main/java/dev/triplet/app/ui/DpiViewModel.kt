@@ -103,24 +103,13 @@ class DpiViewModel(
     private val restartTunnel: () -> Unit,
     private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
-    private val restoredCustomDraft: String? = savedStateHandle[KEY_CUSTOM_DRAFT]
-    private val restoredEditingOverride: Boolean? = savedStateHandle[KEY_EDITING_CUSTOM]
-    private val restoredProxyTestOpen: Boolean = savedStateHandle[KEY_PROXY_TEST_OPEN] ?: false
-    private val customDraft = savedStateHandle.getStateFlow(KEY_CUSTOM_DRAFT, restoredCustomDraft)
-    private val editingOverride = savedStateHandle.getStateFlow(KEY_EDITING_CUSTOM, restoredEditingOverride)
+    private val customDraft = savedStateHandle.getStateFlow<String?>(KEY_CUSTOM_DRAFT, null)
+    private val editingOverride = savedStateHandle.getStateFlow<Boolean?>(KEY_EDITING_CUSTOM, null)
     private val presetOverride = MutableStateFlow<DpiPreset?>(null)
     private val saveState = MutableStateFlow(DpiSaveState.IDLE)
     private val writeMutex = Mutex()
     private val _customSaved = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val customSaved: SharedFlow<Unit> = _customSaved
-
-    private val _proxyTestState = MutableStateFlow(DpiProxyTestUiState())
-    val proxyTestState: StateFlow<DpiProxyTestUiState> = _proxyTestState
-    val proxyTestOpen: StateFlow<Boolean> =
-        savedStateHandle.getStateFlow(KEY_PROXY_TEST_OPEN, restoredProxyTestOpen)
-    private var proxyTestJob: Job? = null
-    private val proxyGeneration = AtomicInteger(0)
-    private val proxyStopGeneration = AtomicInteger(-1)
 
     val uiState: StateFlow<DpiUiState> = combine(
         settings,
@@ -139,12 +128,16 @@ class DpiViewModel(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = dpiUiState(
-            settings.value,
-            restoredCustomDraft,
-            restoredEditingOverride,
-        ),
+        initialValue = dpiUiState(settings.value, customDraft.value, editingOverride.value),
     )
+
+    private val _proxyTestState = MutableStateFlow(DpiProxyTestUiState())
+    val proxyTestState: StateFlow<DpiProxyTestUiState> = _proxyTestState
+    private val _proxyTestOpen = MutableStateFlow(false)
+    val proxyTestOpen: StateFlow<Boolean> = _proxyTestOpen
+    private var proxyTestJob: Job? = null
+    private val proxyGeneration = AtomicInteger(0)
+    private val proxyStopGeneration = AtomicInteger(-1)
 
     fun editCustom() {
         savedStateHandle[KEY_EDITING_CUSTOM] = true
@@ -236,12 +229,12 @@ class DpiViewModel(
     }
 
     fun openProxyTest() {
-        savedStateHandle[KEY_PROXY_TEST_OPEN] = true
+        _proxyTestOpen.value = true
     }
 
     fun closeProxyTest() {
         stopProxyTest()
-        savedStateHandle[KEY_PROXY_TEST_OPEN] = false
+        _proxyTestOpen.value = false
     }
 
     fun toggleProxyDomain(id: String) {
@@ -447,7 +440,6 @@ class DpiViewModel(
     companion object {
         private const val KEY_CUSTOM_DRAFT = "dpi_custom_draft"
         private const val KEY_EDITING_CUSTOM = "dpi_editing_custom"
-        private const val KEY_PROXY_TEST_OPEN = "dpi_proxy_test_open"
 
         fun factory(
             store: RoutesStore,
