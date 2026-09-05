@@ -12,6 +12,8 @@ import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.core.WarpProfile
 import dev.triplet.app.core.WarpProxy
 import dev.triplet.app.data.TriSettings
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -128,6 +130,29 @@ class AutoConnectTest {
                 enabled = isAutoConnectEnabled(networkSettings, AutoConnectTrigger.CELLULAR),
             ),
         )
+    }
+
+    @Test fun `coordinator honors trigger-specific setting`() = runBlocking {
+        val networkSettings = settings(AppRoute.DPI).copy(
+            autoConnect = false,
+            autoConnectWifi = true,
+            autoConnectCellular = false,
+        )
+        var starts = 0
+
+        suspend fun run(trigger: AutoConnectTrigger): Boolean = AutoConnectCoordinator(
+            loadSettings = { networkSettings },
+            resolveRoutes = { EffectiveRoutes(emptySet(), setOf("app")) },
+            vpnPermissionGranted = { true },
+            currentVpnState = { VpnState.Idle },
+            startVpn = { starts += 1 },
+            trigger = trigger,
+        ).runOnce()
+
+        assertFalse(run(AutoConnectTrigger.APP_LAUNCH))
+        assertTrue(run(AutoConnectTrigger.WIFI))
+        assertFalse(run(AutoConnectTrigger.CELLULAR))
+        assertEquals(1, starts)
     }
 
     @Test fun `auto-connect preflight validates multi-hop with service resolver semantics`() {
