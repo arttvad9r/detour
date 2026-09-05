@@ -23,9 +23,10 @@ if [[ -z "$EXPECTED_ABI" || "$EXPECTED_ABI" == */* ]]; then
   exit 1
 fi
 
-# Android App Bundles use the JAR signing format. A strict verification catches
-# unsigned or malformed signed entries before the artifact is uploaded anywhere.
-jarsigner -verify -strict "$AAB"
+# Android signing certificates are normally self-signed. jarsigner -strict
+# treats that expected property as a trust-chain error, so use normal signature
+# verification here and enforce signer identity separately by exact SHA-256.
+jarsigner -verify "$AAB"
 
 CERT_OUTPUT="$(keytool -printcert -jarfile "$AAB")"
 printf '%s\n' "$CERT_OUTPUT"
