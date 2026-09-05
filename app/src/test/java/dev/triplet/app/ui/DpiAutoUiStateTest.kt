@@ -22,10 +22,25 @@ class DpiAutoUiStateTest {
         strategies = listOf(winner),
     )
 
-    @Test fun `automatic test requires idle vpn selected targets and released test proxy`() {
+    @Test fun `automatic test requires idle vpn valid targets and released test proxy`() {
         assertTrue(DpiUiState(vpnIdle = true, selectedAutoGroups = setOf("youtube")).canRunAuto)
+        assertTrue(
+            DpiUiState(
+                vpnIdle = true,
+                selectedAutoGroups = emptySet(),
+                customAutoDomains = "example.com",
+            ).canRunAuto,
+        )
         assertFalse(DpiUiState(vpnIdle = false, selectedAutoGroups = setOf("youtube")).canRunAuto)
         assertFalse(DpiUiState(vpnIdle = true, selectedAutoGroups = emptySet()).canRunAuto)
+        assertFalse(
+            DpiUiState(
+                vpnIdle = true,
+                selectedAutoGroups = emptySet(),
+                customAutoDomains = "https://example.com",
+                customAutoDomainsInvalid = true,
+            ).canRunAuto,
+        )
         assertFalse(
             DpiUiState(
                 vpnIdle = true,
