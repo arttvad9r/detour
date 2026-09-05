@@ -1,5 +1,15 @@
 package dev.triplet.app.core
 
+import java.io.IOException
+import java.net.ServerSocket
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.concurrent.thread
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -78,5 +88,80 @@ class DpiProxyTestTest {
         assertTrue(DpiProxyHttpPolicy.isReachable(404))
         assertFalse(DpiProxyHttpPolicy.isReachable(451))
         assertFalse(DpiProxyHttpPolicy.isReachable(500))
+    }
+
+    @Test fun `probe deadline closes a blocked proxy socket`() = runBlocking {
+        HangingSocksServer().use { server ->
+            val observation = AuthenticatedSocksHttpsProbe(
+                proxyPort = server.port,
+                timeoutMs = 200,
+                credentials = ProbeCredentials("probe-user", "probe-password"),
+                cancelled = { false },
+            ).probe("example.com")
+
+            assertTrue(server.requestReceived.await(1, TimeUnit.SECONDS))
+            assertFalse(observation.success)
+            assertTrue(server.clientDisconnected.await(1, TimeUnit.SECONDS))
+        }
+    }
+
+    @Test fun `probe cancellation closes a blocked proxy socket`() = runBlocking {
+        val cancelled = AtomicBoolean(false)
+        HangingSocksServer().use { server ->
+            val probe = AuthenticatedSocksHttpsProbe(
+                proxyPort = server.port,
+                timeoutMs = 5_000,
+                credentials = ProbeCredentials("probe-user", "probe-password"),
+                cancelled = cancelled::get,
+            )
+            val result = async(Dispatchers.IO) { probe.probe("example.com") }
+            assertTrue(server.requestReceived.await(2, TimeUnit.SECONDS))
+
+            cancelled.set(true)
+            var cancellationObserved = false
+            try {
+                result.await()
+            } catch (_: CancellationException) {
+                cancellationObserved = true
+            }
+
+            assertTrue(cancellationObserved)
+            assertTrue(server.clientDisconnected.await(1, TimeUnit.SECONDS))
+        }
+    }
+
+    private class HangingSocksServer : AutoCloseable {
+        private val server = ServerSocket(0)
+        val requestReceived = CountDownLatch(1)
+        val clientDisconnected = CountDownLatch(1)
+        val port: Int get() = server.localPort
+
+        private val worker = thread(start = true, isDaemon = true, name = "dpi-proxy-test-server") {
+            try {
+                server.accept().use { socket ->
+                    val input = socket.getInputStream()
+                    val greeting = ByteArray(3)
+                    var offset = 0
+                    while (offset < greeting.size) {
+                        val count = input.read(greeting, offset, greeting.size - offset)
+                        if (count < 0) return@use
+                        offset += count
+                    }
+                    requestReceived.countDown()
+                    while (input.read() >= 0) {
+                        // Intentionally do not send a SOCKS method response.
+                    }
+                }
+            } catch (_: IOException) {
+                // Expected when the test closes either side of the socket.
+            } finally {
+                clientDisconnected.countDown()
+            }
+        }
+
+        override fun close() {
+            runCatching { server.close() }
+            worker.join(1_000)
+        }
     }
 }
