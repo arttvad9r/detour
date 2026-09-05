@@ -264,6 +264,19 @@ class TriVpnService : VpnService() {
         val effDpi = dpiApps intersect vpnUids.keys
         val usesVpn = effVpn.isNotEmpty() || destinationUsesVpn
         val usesDpi = effDpi.isNotEmpty() || destinationUsesDpi
+        val chainEntry = if (usesVpn) {
+            try {
+                resolveMultiHopEntry(settings)
+            } catch (e: IllegalArgumentException) {
+                ServiceLog.e("multi-hop: ${e.message}")
+                VpnController.setState(VpnState.Failed(getString(R.string.err_multi_hop_invalid)))
+                dpi.stop()
+                stopSequence(stopSelf = true)
+                return
+            }
+        } else {
+            null
+        }
 
         var fd: Int? = null
         var engineAdopted = false
@@ -279,6 +292,7 @@ class TriVpnService : VpnService() {
                     destinationRules = settings.destinationRules,
                     nameserver = DnsOptions.resolve(settings.dnsId, settings.dnsCustom),
                     probeCredentials = probeCredentials,
+                    chainEntry = chainEntry,
                 ),
             )
             ServiceLog.i("engine: config built bytes=${yaml.length}")
