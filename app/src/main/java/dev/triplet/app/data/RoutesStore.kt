@@ -314,11 +314,22 @@ class RoutesStore(context: Context) {
         prefs[RoutesMapping.vpnKindKey()] = b.activeVpn.name
         prefs[RoutesMapping.presetKey()] = b.presetId
         prefs[RoutesMapping.customArgsKey()] = b.dpiCustomArgs
-        if (b.dpiAutoCandidateId.isBlank()) prefs.remove(RoutesMapping.autoCandidateKey())
-        else prefs[RoutesMapping.autoCandidateKey()] = b.dpiAutoCandidateId
-        // v4 backups do not contain structured per-domain plans. Never leave a
-        // stale local plan behind when replacing settings from a backup.
-        prefs.remove(RoutesMapping.autoDomainPlanKey())
+        when {
+            b.dpiAutoDomainPlan != null -> {
+                b.dpiAutoDomainPlan.compileArgs()
+                prefs[RoutesMapping.autoDomainPlanKey()] = b.dpiAutoDomainPlan.toStored()
+                prefs.remove(RoutesMapping.autoCandidateKey())
+            }
+            b.dpiAutoCandidateId.isNotBlank() -> {
+                require(DpiStrategyCatalog.byId(b.dpiAutoCandidateId) != null)
+                prefs[RoutesMapping.autoCandidateKey()] = b.dpiAutoCandidateId
+                prefs.remove(RoutesMapping.autoDomainPlanKey())
+            }
+            else -> {
+                prefs.remove(RoutesMapping.autoCandidateKey())
+                prefs.remove(RoutesMapping.autoDomainPlanKey())
+            }
+        }
         // Imported settings never start a VPN implicitly; the user must opt in
         // again after reviewing the imported routes and endpoint.
         prefs[RoutesMapping.autoConnectKey()] = false
