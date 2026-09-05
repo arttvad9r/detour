@@ -65,6 +65,7 @@ class DpiAutoDomainPlan private constructor(
         fun fromPlan(plan: DpiPerDomainPlan): DpiAutoDomainPlan {
             require(plan.complete) { "cannot persist unresolved per-domain scopes" }
             return of(plan.assignments.associate { it.scopeHost to it.candidate.id })
+                .also { it.compileArgs() }
         }
 
         fun of(scopeCandidates: Map<String, String>): DpiAutoDomainPlan {
