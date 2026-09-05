@@ -25,8 +25,6 @@ data class RoutingInput(
     val apiLevel: Int,
     /** Exit hop selected by the user. */
     val vpn: VpnOutbound?,
-    /** Optional first hop. When present, [vpn] is reached through this outbound. */
-    val chainEntry: VpnOutbound? = null,
     val vpnApps: Set<String>,
     val vpnUids: Map<String, Int>,
     val dpiApps: Set<String>,
@@ -34,4 +32,6 @@ data class RoutingInput(
     val nameserver: String = "8.8.8.8",
     val dpiPort: Int = 10808,
     val probeCredentials: ProbeCredentials = ProbeAuth.current(),
+    /** Optional first hop. When present, [vpn] is reached through this outbound. */
+    val chainEntry: VpnOutbound? = null,
 )
