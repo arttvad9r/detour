@@ -164,6 +164,7 @@ fun DpiScreen(viewModel: DpiViewModel, onBack: () -> Unit, modifier: Modifier = 
 private fun AutoStrategyPanel(state: DpiUiState, viewModel: DpiViewModel) {
     val c = detourColors
     val controlsEnabled = state.autoRunState != DpiAutoRunState.RUNNING &&
+        state.autoRunState != DpiAutoRunState.CANCELLING &&
         state.autoRunState != DpiAutoRunState.APPLYING
 
     Column {
@@ -211,6 +212,20 @@ private fun AutoStrategyPanel(state: DpiUiState, viewModel: DpiViewModel) {
                 Spacer(Modifier.height(Spacing.space8))
                 Text(
                     text = stringResource(R.string.dpi_auto_testing),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = c.textSecondary,
+                    modifier = Modifier.padding(horizontal = Spacing.space16),
+                )
+            }
+            DpiAutoRunState.CANCELLING -> {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.space16),
+                )
+                Spacer(Modifier.height(Spacing.space8))
+                Text(
+                    text = stringResource(R.string.dpi_auto_stopping),
                     style = MaterialTheme.typography.bodySmall,
                     color = c.textSecondary,
                     modifier = Modifier.padding(horizontal = Spacing.space16),
