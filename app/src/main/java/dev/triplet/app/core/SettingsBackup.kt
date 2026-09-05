@@ -105,10 +105,12 @@ object SettingsBackup {
         val rules = o.optJSONArray("destinationRules")?.let {
             DestinationRules.fromJsonStrict(it.toString())
         } ?: emptyList()
-        val entry = when (val raw = o.opt("multiHopEntry")) {
-            null, JSONObject.NULL -> null
-            is String -> MultiHopEntryRef.fromStored(raw)
-            else -> throw IllegalArgumentException("invalid multi-hop entry")
+        val rawEntry = o.opt("multiHopEntry")
+        val entry = if (rawEntry == null || rawEntry == JSONObject.NULL) {
+            null
+        } else {
+            require(rawEntry is String) { "invalid multi-hop entry" }
+            MultiHopEntryRef.fromStored(rawEntry)
         }
         require(entry !is MultiHopEntryRef.Invalid) { "invalid multi-hop entry" }
         return parseModern(o, rules, entry)
