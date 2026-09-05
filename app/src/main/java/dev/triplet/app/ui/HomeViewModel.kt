@@ -226,7 +226,6 @@ class HomeViewModel(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val trafficStats = vpnState
-        .distinctUntilChanged()
         .flatMapLatest { state ->
             if (state != VpnState.Active) {
                 flowOf(HomeTrafficStats())
