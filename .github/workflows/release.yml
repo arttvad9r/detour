@@ -229,34 +229,7 @@ jobs:
             exit 1
           fi
 
-          jarsigner -verify -strict "$AAB"
-          CERT_OUTPUT="$(keytool -printcert -jarfile "$AAB")"
-          printf '%s\n' "$CERT_OUTPUT"
-          ACTUAL_CERT_SHA256="$(
-            printf '%s\n' "$CERT_OUTPUT" |
-              sed -n 's/^[[:space:]]*SHA256:[[:space:]]*//p' |
-              head -n 1 |
-              tr -d ':' |
-              tr '[:lower:]' '[:upper:]'
-          )"
-          EXPECTED_CERT_SHA256="$(printf '%s' "$EXPECTED_CERT_SHA256" | tr -d ':' | tr '[:lower:]' '[:upper:]')"
-          if [[ "$ACTUAL_CERT_SHA256" != "$EXPECTED_CERT_SHA256" ]]; then
-            echo "Release AAB signing certificate mismatch" >&2
-            echo "Expected: $EXPECTED_CERT_SHA256" >&2
-            echo "Actual:   $ACTUAL_CERT_SHA256" >&2
-            exit 1
-          fi
-
-          ABI_SET="$(
-            unzip -Z1 "$AAB" |
-              sed -n 's#^base/lib/\([^/]*\)/.*#\1#p' |
-              sort -u
-          )"
-          if [[ "$ABI_SET" != "arm64-v8a" ]]; then
-            echo "Release AAB must contain only arm64-v8a native libraries" >&2
-            printf 'Found ABI set:\n%s\n' "$ABI_SET" >&2
-            exit 1
-          fi
+          bash tools/verify_release_aab.sh "$AAB" "$EXPECTED_CERT_SHA256" arm64-v8a
 
           ARTIFACT_DIR="app/build/release-artifacts"
           mkdir -p "$ARTIFACT_DIR"
