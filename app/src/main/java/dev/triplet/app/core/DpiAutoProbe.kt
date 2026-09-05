@@ -120,6 +120,7 @@ class DpiAutoSelector(
             candidates = candidates,
             targets = targets,
             attemptsPerTarget = attemptsPerTarget,
+            stopCandidateOnFailure = true,
             cancelled = cancelled,
         )
     }
@@ -151,7 +152,7 @@ internal class DirectHttpsDpiProbe(
             connection.setRequestProperty("Connection", "close")
             val status = connection.responseCode
             val latencyMs = (System.nanoTime() - startedNs) / 1_000_000L
-            DpiProbeAttempt(success = status in 200..499, latencyMs = latencyMs)
+            DpiProbeAttempt(success = DpiHttpPolicy.isReachable(status), latencyMs = latencyMs)
         } catch (_: Exception) {
             DpiProbeAttempt(success = false)
         } finally {
@@ -177,9 +178,7 @@ internal class Socks5HttpsDpiProbe(
         return try {
             val status = request(target.host)
             val latencyMs = (System.nanoTime() - startedNs) / 1_000_000L
-            // 2xx-4xx proves that the origin completed TLS and HTTP. A later
-            // policy layer can add endpoint-specific content/redirect checks.
-            DpiProbeAttempt(success = status in 200..499, latencyMs = latencyMs)
+            DpiProbeAttempt(success = DpiHttpPolicy.isReachable(status), latencyMs = latencyMs)
         } catch (_: Exception) {
             DpiProbeAttempt(success = false)
         }
@@ -284,6 +283,11 @@ internal class Socks5HttpsDpiProbe(
     companion object {
         private const val MAX_HTTP_LINE_BYTES = 8 * 1024
     }
+}
+
+/** Reachability policy shared by direct and proxied HTTPS probes. */
+internal object DpiHttpPolicy {
+    fun isReachable(status: Int): Boolean = status in 200..499 && status != 451
 }
 
 /** Pure SOCKS/HTTP wire helpers kept visible to unit tests. */
