@@ -163,6 +163,7 @@ class DpiStrategySearchRunner(
         candidates: List<DpiStrategyCandidate>,
         targets: List<DpiProbeTarget>,
         attemptsPerTarget: Int = 2,
+        stopCandidateOnFailure: Boolean = false,
         cancelled: () -> Boolean = { false },
     ): List<DpiStrategyResult> {
         require(candidates.isNotEmpty()) { "candidate list is empty" }
@@ -188,20 +189,24 @@ class DpiStrategySearchRunner(
                 }
 
                 val targetResults = mutableListOf<DpiTargetResult>()
+                var candidateFailed = false
                 for (target in targets) {
-                    if (cancelled()) break
+                    if (cancelled() || candidateFailed) break
 
                     var attempts = 0
                     var successes = 0
                     val latencies = mutableListOf<Long>()
 
-                    repeat(attemptsPerTarget) {
-                        if (cancelled()) return@repeat
+                    for (attemptIndex in 0 until attemptsPerTarget) {
+                        if (cancelled()) break
                         attempts++
                         val observation = probe.probe(target)
                         if (observation.success) {
                             successes++
                             observation.latencyMs?.let(latencies::add)
+                        } else if (stopCandidateOnFailure) {
+                            candidateFailed = true
+                            break
                         }
                     }
 
@@ -213,7 +218,8 @@ class DpiStrategySearchRunner(
                     )
                 }
 
-                // Keep result shape stable if cancellation happens between targets.
+                // Keep result shape stable if cancellation or a global-winner
+                // short-circuit stops the candidate before all targets are visited.
                 val completedIds = targetResults.asSequence().map { it.target.id }.toSet()
                 targetResults += targets
                     .filterNot { it.id in completedIds }
