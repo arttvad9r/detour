@@ -14,7 +14,9 @@ fun canAutoConnect(
 ): Boolean {
     if (!settings.autoConnect || !vpnPermissionGranted) return false
     if (effective.isEmpty) return false
-    return effective.vpnPackages.isEmpty() || activeVpnValid
+    val usesVpn = effective.vpnPackages.isNotEmpty() ||
+        settings.destinationRules.any { it.route == AppRoute.VPN }
+    return !usesVpn || activeVpnValid
 }
 
 internal fun autoConnectProfileValid(settings: TriSettings): Boolean = when (settings.activeVpn) {
@@ -44,7 +46,9 @@ class AutoConnectCoordinator(
 
         val effective = resolveRoutes(settings.routes)
         if (effective.isEmpty) return false
-        val activeVpnValid = effective.vpnPackages.isEmpty() || autoConnectProfileValid(settings)
+        val usesVpn = effective.vpnPackages.isNotEmpty() ||
+            settings.destinationRules.any { it.route == AppRoute.VPN }
+        val activeVpnValid = !usesVpn || autoConnectProfileValid(settings)
         val shouldStart = canAutoConnect(
             settings = settings,
             vpnPermissionGranted = true,
