@@ -14,6 +14,8 @@ import dev.triplet.app.core.ConfigGenerator
 import dev.triplet.app.core.DnsOptions
 import dev.triplet.app.core.DpiArgs
 import dev.triplet.app.core.DpiBackend
+import dev.triplet.app.core.DpiPreset
+import dev.triplet.app.core.DpiStrategyCatalog
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.ProbeAuth
 import dev.triplet.app.core.ProbeCredentials
@@ -201,15 +203,24 @@ class TriVpnService : VpnService() {
         val dpiApps = effective.dpiPackages
         if (dpiApps.isNotEmpty()) {
             ServiceLog.i("dpi: starting (${settings.preset.id})")
-            if (settings.preset == dev.triplet.app.core.DpiPreset.CUSTOM &&
-                !DpiArgs.isValid(settings.dpiCustomArgs)
+            if (settings.preset == DpiPreset.CUSTOM && !DpiArgs.isValid(settings.dpiCustomArgs)) {
+                VpnController.setState(VpnState.Failed(getString(R.string.err_dpi_failed)))
+                stopSequence(stopSelf = true)
+                return
+            }
+            if (settings.preset == DpiPreset.AUTO &&
+                DpiStrategyCatalog.byId(settings.dpiAutoCandidateId) == null
             ) {
                 VpnController.setState(VpnState.Failed(getString(R.string.err_dpi_failed)))
                 stopSequence(stopSelf = true)
                 return
             }
             if (!dpi.start(
-                    DpiArgs.resolve(settings.preset, settings.dpiCustomArgs), 10808,
+                    DpiArgs.resolve(
+                        settings.preset,
+                        settings.dpiCustomArgs,
+                        settings.dpiAutoCandidateId,
+                    ), 10808,
                     credentials = probeCredentials,
                     cancelled = { stopQueued.get() || destroyed.get() },
                 )) {
