@@ -20,10 +20,14 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Selectable set of real HTTPS hostnames used by the proxy test. */
 data class DpiProxyTestDomainList(
@@ -312,11 +316,18 @@ internal class AuthenticatedSocksHttpsProbe(
     private val credentials: ProbeCredentials,
     private val cancelled: () -> Boolean,
 ) {
-    fun probe(host: String): DpiProxyObservation {
-        if (cancelled() || Thread.currentThread().isInterrupted) throw CancellationException("proxy test cancelled")
+    init {
+        require(proxyPort in 1..65535)
+        require(timeoutMs > 0)
+    }
+
+    suspend fun probe(host: String): DpiProxyObservation {
+        currentCoroutineContext().ensureActive()
+        if (isCancelled()) throw CancellationException("proxy test cancelled")
         val startedNs = System.nanoTime()
         return try {
-            val status = request(host)
+            val status = withTimeoutOrNull(timeoutMs.toLong()) { request(host) }
+                ?: return DpiProxyObservation(success = false, latencyMs = null)
             DpiProxyObservation(
                 success = DpiProxyHttpPolicy.isReachable(status),
                 latencyMs = (System.nanoTime() - startedNs) / 1_000_000L,
@@ -328,49 +339,86 @@ internal class AuthenticatedSocksHttpsProbe(
         }
     }
 
-    private fun request(host: String): Int {
+    private suspend fun request(host: String): Int = coroutineScope {
         require(isSafeProbeHost(host))
-        require(timeoutMs > 0)
-        Socket().use { raw ->
-            raw.connect(InetSocketAddress("127.0.0.1", proxyPort), timeoutMs)
-            raw.soTimeout = timeoutMs
-            val input = raw.getInputStream()
-            val output = raw.getOutputStream()
-
-            output.write(byteArrayOf(0x05, 0x01, 0x02))
-            output.flush()
-            val method = readExact(input, 2)
-            if (method[0] != 0x05.toByte() || method[1] != 0x02.toByte()) {
-                throw IOException("SOCKS auth method rejected")
-            }
-
-            output.write(DpiProxySocksWire.authRequest(credentials))
-            output.flush()
-            val auth = readExact(input, 2)
-            if (auth[0] != 0x01.toByte() || auth[1] != 0x00.toByte()) {
-                throw IOException("SOCKS authentication failed")
-            }
-
-            output.write(DpiProxySocksWire.connectRequest(host, 443))
-            output.flush()
-            readConnectReply(input)
-            if (cancelled() || Thread.currentThread().isInterrupted) throw CancellationException("proxy test cancelled")
-
-            val tls = (SSLSocketFactory.getDefault() as SSLSocketFactory)
-                .createSocket(raw, host, 443, true) as SSLSocket
-            tls.soTimeout = timeoutMs
-            tls.sslParameters = tls.sslParameters.apply { endpointIdentificationAlgorithm = "HTTPS" }
-            tls.use {
-                it.startHandshake()
-                val request = "GET / HTTP/1.1\r\nHost: $host\r\nUser-Agent: Detour-DPI-Probe\r\n" +
-                    "Accept: */*\r\nConnection: close\r\n\r\n"
-                it.outputStream.write(request.toByteArray(StandardCharsets.ISO_8859_1))
-                it.outputStream.flush()
-                return DpiProxySocksWire.httpStatusCode(readAsciiLine(it.inputStream))
-                    ?: throw IOException("invalid HTTP status")
+        val raw = Socket()
+        val cancellationWatcher = launch(Dispatchers.Default) {
+            while (isActive) {
+                if (cancelled()) {
+                    runCatching { raw.close() }
+                    return@launch
+                }
+                delay(CANCELLATION_POLL_MS)
             }
         }
+        try {
+            suspendCancellableCoroutine<Int> { continuation ->
+                continuation.invokeOnCancellation { runCatching { raw.close() } }
+                try {
+                    val status = requestBlocking(host, raw)
+                    if (isCancelled()) {
+                        continuation.cancel(CancellationException("proxy test cancelled"))
+                    } else if (continuation.isActive) {
+                        continuation.resumeWith(Result.success(status))
+                    }
+                } catch (error: Exception) {
+                    if (isCancelled()) {
+                        continuation.cancel(CancellationException("proxy test cancelled"))
+                    } else if (continuation.isActive) {
+                        continuation.resumeWith(Result.failure(error))
+                    }
+                }
+            }
+        } finally {
+            cancellationWatcher.cancel()
+            runCatching { raw.close() }
+        }
     }
+
+    private fun requestBlocking(host: String, raw: Socket): Int {
+        raw.connect(InetSocketAddress("127.0.0.1", proxyPort), timeoutMs)
+        raw.soTimeout = timeoutMs
+        val input = raw.getInputStream()
+        val output = raw.getOutputStream()
+
+        output.write(byteArrayOf(0x05, 0x01, 0x02))
+        output.flush()
+        val method = readExact(input, 2)
+        if (method[0] != 0x05.toByte() || method[1] != 0x02.toByte()) {
+            throw IOException("SOCKS auth method rejected")
+        }
+        if (isCancelled()) throw CancellationException("proxy test cancelled")
+
+        output.write(DpiProxySocksWire.authRequest(credentials))
+        output.flush()
+        val auth = readExact(input, 2)
+        if (auth[0] != 0x01.toByte() || auth[1] != 0x00.toByte()) {
+            throw IOException("SOCKS authentication failed")
+        }
+        if (isCancelled()) throw CancellationException("proxy test cancelled")
+
+        output.write(DpiProxySocksWire.connectRequest(host, 443))
+        output.flush()
+        readConnectReply(input)
+        if (isCancelled()) throw CancellationException("proxy test cancelled")
+
+        val tls = (SSLSocketFactory.getDefault() as SSLSocketFactory)
+            .createSocket(raw, host, 443, true) as SSLSocket
+        tls.soTimeout = timeoutMs
+        tls.sslParameters = tls.sslParameters.apply { endpointIdentificationAlgorithm = "HTTPS" }
+        tls.use {
+            it.startHandshake()
+            if (isCancelled()) throw CancellationException("proxy test cancelled")
+            val request = "GET / HTTP/1.1\r\nHost: $host\r\nUser-Agent: Detour-DPI-Probe\r\n" +
+                "Accept: */*\r\nConnection: close\r\n\r\n"
+            it.outputStream.write(request.toByteArray(StandardCharsets.ISO_8859_1))
+            it.outputStream.flush()
+            return DpiProxySocksWire.httpStatusCode(readAsciiLine(it.inputStream))
+                ?: throw IOException("invalid HTTP status")
+        }
+    }
+
+    private fun isCancelled(): Boolean = cancelled() || Thread.currentThread().isInterrupted
 
     private fun readConnectReply(input: InputStream) {
         val head = readExact(input, 4)
@@ -407,6 +455,10 @@ internal class AuthenticatedSocksHttpsProbe(
             offset += count
         }
         return out
+    }
+
+    companion object {
+        private const val CANCELLATION_POLL_MS = 50L
     }
 }
 
