@@ -42,7 +42,7 @@ class SavedStateViewModelTest {
         assertTrue(viewModel.uiState.value.editingCustom)
     }
 
-    @Test fun dpiCustomDraftAndEditModeRestoreFromSavedState() {
+    @Test fun dpiCustomDraftEditModeAndAutoAttemptsRestoreFromSavedState() {
         val draft = "-d 1 -s 2"
         val viewModel = DpiViewModel(
             settings = MutableStateFlow<TriSettings?>(null),
@@ -56,11 +56,13 @@ class SavedStateViewModelTest {
                 mapOf(
                     "dpi_custom_draft" to draft,
                     "dpi_editing_custom" to true,
+                    "dpi_auto_attempts" to 7,
                 ),
             ),
         )
 
         assertEquals(draft, viewModel.uiState.value.customField)
         assertTrue(viewModel.uiState.value.editingCustom)
+        assertEquals(7, viewModel.uiState.value.autoAttempts)
     }
 }
