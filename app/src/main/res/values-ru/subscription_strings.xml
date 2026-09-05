@@ -14,6 +14,12 @@
     <string name="subscription_catalog_error">Не удалось получить VLESS-серверы из подписки. Проверьте ссылку и попробуйте обновить.</string>
     <string name="subscription_selected_server">Выбранный сервер</string>
     <string name="subscription_select_server">Выберите сервер</string>
+    <string name="subscription_selection_mode">Выбор сервера</string>
+    <string name="subscription_selection_auto">Автоматически</string>
+    <string name="subscription_selection_manual">Вручную</string>
+    <string name="subscription_selection_auto_hint">Detour выбирает доступный сервер с низкой задержкой и не переключается из-за небольших колебаний пинга.</string>
+    <string name="subscription_selection_auto_current">Автоматически · сейчас %1$s</string>
+    <string name="subscription_selection_manual_hint">Выберите сервер ниже — он останется выбранным, пока вы не смените его вручную.</string>
     <string name="subscription_search_label">Поиск</string>
     <string name="subscription_search_hint">Поиск серверов…</string>
     <string name="subscription_filter_all">Все</string>
