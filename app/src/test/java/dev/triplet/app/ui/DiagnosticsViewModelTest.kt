@@ -22,7 +22,7 @@ class DiagnosticsViewModelTest {
     }
 
     @Test
-    fun `support report contains operational state but not free text secrets`() {
+    fun `support report contains operational state and multi-hop without free text secrets`() {
         val report = buildDiagnosticsReport(
             DiagnosticsUiState(
                 loading = false,
@@ -34,6 +34,9 @@ class DiagnosticsViewModelTest {
                 profileKind = VpnProfileKind.SUBSCRIPTION,
                 profileName = "Primary",
                 serverLabel = "node-1",
+                multiHopEnabled = true,
+                multiHopEntryLabel = "Entry",
+                multiHopValid = true,
                 dnsId = "cloudflare",
                 dnsValid = true,
                 vpnRouteCount = 3,
@@ -46,6 +49,9 @@ class DiagnosticsViewModelTest {
         assertTrue(report.contains("vpn_state=ACTIVE"))
         assertTrue(report.contains("vpn_probe=PASS"))
         assertTrue(report.contains("vpn_routes=3"))
+        assertTrue(report.contains("multi_hop_enabled=true"))
+        assertTrue(report.contains("multi_hop_valid=true"))
+        assertTrue(report.contains("multi_hop_entry=Entry"))
         assertFalse(report.contains("abcdefghijklmnopqrstuvwxyzABCDEFGH"))
     }
 }
