@@ -297,22 +297,32 @@ replace_once(
 {
     if (val->flag == FLAG_S5_AUTH) {
         if (auth_socks5_userpass(val->fd, buff->data, n)) {
-            return -1;
+            return 1;
         }
         val->flag = FLAG_S5;
         return 0;
     }
     if (socks5_auth_enabled && (n < 1 || (uint8_t)buff->data[0] != S_VER5)) {
-        return -1;
+        return 1;
     }
     if (val->flag != FLAG_S5) {
         int auth = auth_socks5(val->fd, buff->data, n);
         if (auth < 0) {
-            return -1;
+            return 1;
         }
         val->flag = auth == S_AUTH_USERPASS ? FLAG_S5_AUTH : FLAG_S5;
         return 0;
     }
+""",
+)
+
+replace_once(
+    "proxy.c",
+    """    if ((params.mode & MODE_SOCKS5) && *buff->data == S_VER5) {
+""",
+    """    if ((params.mode & MODE_SOCKS5) &&
+            (val->flag == FLAG_S5_AUTH ||
+                (uint8_t)buff->data[0] == S_VER5)) {
 """,
 )
 
