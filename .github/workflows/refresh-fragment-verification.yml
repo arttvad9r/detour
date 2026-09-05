@@ -1,0 +1,46 @@
+name: Refresh Fragment verification
+
+on:
+  push:
+    branches:
+      - feature/vpn-roadmap
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-fragment-verification-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: feature/vpn-roadmap
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@40fd30fb8d7440372e1316f5d1809ec01dcd3699 # v4.0.1
+        with:
+          packages: 'platform-tools platforms;android-37.0 build-tools;36.0.0'
+      - name: Generate SHA-256 verification metadata
+        run: ./gradlew --write-verification-metadata sha256 :app:dependencies
+      - name: Commit verification metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- gradle/verification-metadata.xml; then
+            echo 'Verification metadata already complete'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add gradle/verification-metadata.xml
+          git commit -m 'Trust AndroidX Fragment dependencies'
+          git push origin HEAD:feature/vpn-roadmap
