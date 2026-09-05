@@ -20,8 +20,11 @@ internal class VpnForegroundNotifier(private val service: VpnService) {
         private const val NOTIFICATION_ID = 1
     }
 
+    private val notificationManager: NotificationManager
+        get() = service.getSystemService(NotificationManager::class.java)
+
     fun createChannel() {
-        service.getSystemService(NotificationManager::class.java).createNotificationChannel(
+        notificationManager.createNotificationChannel(
             NotificationChannel(
                 CHANNEL_ID,
                 service.getString(R.string.notif_channel),
@@ -31,6 +34,23 @@ internal class VpnForegroundNotifier(private val service: VpnService) {
     }
 
     fun show(text: String, allowStop: Boolean = true) {
+        val notification = buildNotification(text, allowStop)
+        if (Build.VERSION.SDK_INT >= 34) {
+            service.startForeground(
+                NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+            )
+        } else {
+            service.startForeground(NOTIFICATION_ID, notification)
+        }
+    }
+
+    fun update(text: String, allowStop: Boolean = true) {
+        notificationManager.notify(NOTIFICATION_ID, buildNotification(text, allowStop))
+    }
+
+    private fun buildNotification(text: String, allowStop: Boolean): Notification {
         val content = PendingIntent.getActivity(
             service,
             0,
@@ -43,6 +63,7 @@ internal class VpnForegroundNotifier(private val service: VpnService) {
             .setContentText(text)
             .setContentIntent(content)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
 
         if (allowStop) {
             val stop = PendingIntent.getService(
@@ -55,16 +76,6 @@ internal class VpnForegroundNotifier(private val service: VpnService) {
             )
             builder.addAction(0, service.getString(R.string.notif_stop), stop)
         }
-
-        val notification: Notification = builder.build()
-        if (Build.VERSION.SDK_INT >= 34) {
-            service.startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
-            )
-        } else {
-            service.startForeground(NOTIFICATION_ID, notification)
-        }
+        return builder.build()
     }
 }
