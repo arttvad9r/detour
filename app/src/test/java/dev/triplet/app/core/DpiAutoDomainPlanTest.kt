@@ -56,6 +56,29 @@ class DpiAutoDomainPlanTest {
         assertEquals(1, args.windowed(2).count { it == listOf("--timeout", "3") })
     }
 
+    @Test fun `persisted plan accepts sixty four scopes when they compile to one group`() {
+        val scopes = (1..DpiDomainInput.MAX_DOMAINS).associate { index ->
+            "d$index.example.com" to "split-sni"
+        }
+        val plan = DpiAutoDomainPlan.of(scopes)
+
+        val args = plan.compileArgs()
+        val restored = DpiAutoDomainPlan.fromStored(plan.toStored())
+
+        assertEquals(1, args.count { it == "-H" })
+        assertEquals(plan, restored)
+    }
+
+    @Test fun `persisted plan rejects more scopes than domain input supports`() {
+        val scopes = (1..DpiDomainInput.MAX_DOMAINS + 1).associate { index ->
+            "d$index.example.com" to "split-sni"
+        }
+
+        assertThrows(IllegalArgumentException::class.java) {
+            DpiAutoDomainPlan.of(scopes)
+        }
+    }
+
     @Test fun `plan from search result stores scope rather than concrete probe endpoint`() {
         val redirector = DpiProbeTarget(
             "redirector",

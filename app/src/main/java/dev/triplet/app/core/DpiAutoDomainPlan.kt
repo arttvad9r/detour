@@ -12,7 +12,7 @@ class DpiAutoDomainPlan private constructor(
 ) {
     init {
         require(scopeCandidates.isNotEmpty()) { "domain AUTO plan is empty" }
-        require(scopeCandidates.size <= DpiPerDomainCommandCompiler.MAX_EXPLICIT_GROUPS) {
+        require(scopeCandidates.size <= DpiDomainInput.MAX_DOMAINS) {
             "too many domain AUTO scopes"
         }
         scopeCandidates.forEach { (scope, candidateId) ->
@@ -91,7 +91,7 @@ class DpiAutoDomainPlan private constructor(
                 if (candidateId.isBlank()) return null
                 parsed[scope] = candidateId
             }
-            of(parsed)
+            of(parsed).also { it.compileArgs() }
         } catch (_: Exception) {
             null
         }

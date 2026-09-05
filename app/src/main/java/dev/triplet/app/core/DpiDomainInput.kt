@@ -17,7 +17,7 @@ data class DpiDomainInputResult(
  */
 object DpiDomainInput {
     private const val MAX_INPUT_CHARS = 4096
-    private const val MAX_DOMAINS = 64
+    const val MAX_DOMAINS = 64
     private val label = Regex("[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?")
 
     fun parse(raw: String): DpiDomainInputResult {
