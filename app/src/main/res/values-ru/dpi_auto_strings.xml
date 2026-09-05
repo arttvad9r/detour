@@ -1,6 +1,6 @@
 <resources>
     <string name="preset_auto">Автоматически</string>
-    <string name="dpi_auto_subtitle">Проверить выбранные сервисы и подобрать рабочую стратегию</string>
+    <string name="dpi_auto_subtitle">Проверить выбранные сервисы и подобрать стратегию для каждой группы доменов</string>
     <string name="dpi_auto_targets">Что проверить</string>
     <string name="dpi_auto_youtube">YouTube</string>
     <string name="dpi_auto_googlevideo">GoogleVideo</string>
@@ -12,14 +12,16 @@
     <string name="dpi_auto_custom_domains_invalid">Укажите домены без схемы, порта, пути и wildcard. Не более 64 доменов.</string>
     <string name="dpi_auto_start">Начать проверку</string>
     <string name="dpi_auto_cancel">Остановить проверку</string>
-    <string name="dpi_auto_apply">Применить стратегию</string>
+    <string name="dpi_auto_apply">Применить автоматический план</string>
     <string name="dpi_auto_applying">Применение…</string>
     <string name="dpi_auto_stop_vpn">Перед проверкой отключите VPN. Базовый тест должен идти по обычному сетевому маршруту.</string>
-    <string name="dpi_auto_testing">Сначала проверяем прямой доступ, затем перебираем DPI-стратегии только для недоступных целей…</string>
+    <string name="dpi_auto_testing">Сначала проверяем прямой доступ, затем перебираем DPI-стратегии для каждой затронутой группы доменов…</string>
     <string name="dpi_auto_stopping">Останавливаем тестовый прокси…</string>
     <string name="dpi_auto_direct_ok">Все выбранные цели работают напрямую. Для этого набора DPI-стратегия не требуется.</string>
     <string name="dpi_auto_found">Стратегия прошла все %1$d целей, не работавших напрямую: %2$s</string>
     <string name="dpi_auto_not_found">Ни одна встроенная стратегия не прошла все %1$d целей, не работавших напрямую.</string>
-    <string name="dpi_auto_applied">Эта автоматическая стратегия уже активна.</string>
+    <string name="dpi_auto_plan_found">Подобраны рабочие стратегии для %1$d затронутых групп доменов.</string>
+    <string name="dpi_auto_plan_incomplete">Для этих доменов не удалось подобрать встроенную стратегию: %1$s</string>
+    <string name="dpi_auto_applied">Этот автоматический план уже активен.</string>
     <string name="dpi_auto_error">Автоматическая проверка завершилась ошибкой. Проверьте соединение и повторите попытку.</string>
 </resources>
