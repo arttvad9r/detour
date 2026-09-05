@@ -67,6 +67,8 @@ data class TriSettings(
     val showSystemApps: Boolean,
     val sessionStartedAt: Long?,
     val multiHopEntry: MultiHopEntryRef? = null,
+    val autoConnectWifi: Boolean = false,
+    val autoConnectCellular: Boolean = false,
 ) {
     val vlessUri: String get() = vlessKeys.active?.uri ?: ""
     val activeVpnConfigured: Boolean get() = when (activeVpn) {
@@ -84,6 +86,8 @@ object RoutesMapping {
     private const val KEY_PRESET = "dpi_preset"
     private const val KEY_CUSTOM_ARGS = "dpi_custom_args"
     private const val KEY_AUTO_CONNECT = "auto_connect"
+    private const val KEY_AUTO_CONNECT_WIFI = "auto_connect_wifi"
+    private const val KEY_AUTO_CONNECT_CELLULAR = "auto_connect_cellular"
     private const val KEY_THEME = "theme_id"
     private const val KEY_DNS = "dns_id"
     private const val KEY_DNS_CUSTOM = "dns_custom"
@@ -105,13 +109,14 @@ object RoutesMapping {
         // Falling back to another configured profile could silently change the
         // endpoint used by auto-connect; an unconfigured selection instead fails closed.
         val activeVpn = VpnProfileKind.fromStored(entries[KEY_VPN_KIND] as? String)
+        val autoConnect = entries[KEY_AUTO_CONNECT] as? Boolean ?: false
         return TriSettings(
             vlessKeys = vlessKeys,
             warpProfile = warpProfile,
             activeVpn = activeVpn,
             preset = DpiPreset.byId(entries[KEY_PRESET] as? String ?: ""),
             dpiCustomArgs = entries[KEY_CUSTOM_ARGS] as? String ?: "",
-            autoConnect = entries[KEY_AUTO_CONNECT] as? Boolean ?: false,
+            autoConnect = autoConnect,
             themeId = entries[KEY_THEME] as? String ?: "",
             dnsId = entries[KEY_DNS] as? String ?: "",
             dnsCustom = entries[KEY_DNS_CUSTOM] as? String ?: "",
@@ -126,6 +131,11 @@ object RoutesMapping {
             showSystemApps = entries[KEY_SHOW_SYSTEM] as? Boolean ?: false,
             sessionStartedAt = entries[KEY_SESSION_STARTED] as? Long,
             multiHopEntry = MultiHopEntryRef.fromStored(entries[KEY_MULTI_HOP_ENTRY] as? String),
+            // Before these independent switches existed, autoConnect applied to
+            // every validated foreground network. Falling back to the legacy flag
+            // preserves that behavior until the user chooses explicit network rules.
+            autoConnectWifi = entries[KEY_AUTO_CONNECT_WIFI] as? Boolean ?: autoConnect,
+            autoConnectCellular = entries[KEY_AUTO_CONNECT_CELLULAR] as? Boolean ?: autoConnect,
         )
     }
 
@@ -137,6 +147,8 @@ object RoutesMapping {
     fun multiHopEntryKey() = stringPreferencesKey(KEY_MULTI_HOP_ENTRY)
     fun presetKey() = stringPreferencesKey(KEY_PRESET)
     fun autoConnectKey() = booleanPreferencesKey(KEY_AUTO_CONNECT)
+    fun autoConnectWifiKey() = booleanPreferencesKey(KEY_AUTO_CONNECT_WIFI)
+    fun autoConnectCellularKey() = booleanPreferencesKey(KEY_AUTO_CONNECT_CELLULAR)
     fun themeKey() = stringPreferencesKey(KEY_THEME)
     fun dnsKey() = stringPreferencesKey(KEY_DNS)
     fun dnsCustomKey() = stringPreferencesKey(KEY_DNS_CUSTOM)
@@ -288,6 +300,8 @@ class RoutesStore(context: Context) {
     suspend fun setPreset(preset: DpiPreset) = store.edit { it[RoutesMapping.presetKey()] = preset.id }
     suspend fun setCustomArgs(raw: String) = store.edit { it[RoutesMapping.customArgsKey()] = raw }
     suspend fun setAutoConnect(v: Boolean) = store.edit { it[RoutesMapping.autoConnectKey()] = v }
+    suspend fun setAutoConnectWifi(v: Boolean) = store.edit { it[RoutesMapping.autoConnectWifiKey()] = v }
+    suspend fun setAutoConnectCellular(v: Boolean) = store.edit { it[RoutesMapping.autoConnectCellularKey()] = v }
     suspend fun setTheme(id: String) = store.edit { it[RoutesMapping.themeKey()] = id }
     suspend fun setDns(id: String, custom: String) = store.edit {
         it[RoutesMapping.dnsKey()] = id
@@ -319,6 +333,8 @@ class RoutesStore(context: Context) {
         // Imported settings never start a VPN implicitly; the user must opt in
         // again after reviewing the imported routes and endpoint.
         prefs[RoutesMapping.autoConnectKey()] = false
+        prefs[RoutesMapping.autoConnectWifiKey()] = false
+        prefs[RoutesMapping.autoConnectCellularKey()] = false
         prefs[RoutesMapping.themeKey()] = b.themeId
         prefs[RoutesMapping.dnsKey()] = b.dnsId
         prefs[RoutesMapping.dnsCustomKey()] = b.dnsCustom
