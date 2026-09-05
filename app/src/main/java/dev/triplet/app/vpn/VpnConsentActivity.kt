@@ -8,6 +8,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts.RequestPermission
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 
 /** ActivityResult owner for VPN consent and notification permission; TileService cannot receive either result. */
@@ -36,10 +37,17 @@ class VpnConsentActivity : ComponentActivity() {
                 this,
                 Manifest.permission.POST_NOTIFICATIONS,
             ) != PackageManager.PERMISSION_GRANTED
+        val userAlreadyDenied = needsNotificationPermission && Build.VERSION.SDK_INT >= 33 &&
+            ActivityCompat.shouldShowRequestPermissionRationale(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS,
+            )
 
-        if (needsNotificationPermission) {
+        if (needsNotificationPermission && !userAlreadyDenied) {
             notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         } else {
+            // Do not nag from Quick Settings after a denial. Home owns the
+            // explanatory rationale flow if the user wants to enable notifications later.
             startVpnAndFinish()
         }
     }
