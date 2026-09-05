@@ -101,9 +101,10 @@ func Start(configYAML string, logPath string) (err error) {
 	defer func() {
 		if err != nil {
 			err = redactError(err)
-			unsubscribeLogs()
 		}
 	}()
+	previousHomeDir := C.Path.HomeDir()
+	homeDirChanged := false
 	if logPath != "" {
 		// Embedded mihomo has no CLI -d flag. Use the app-private log directory as
 		// HomeDir so HTTP proxy-providers can persist their cache inside Android's
@@ -113,14 +114,23 @@ func Start(configYAML string, logPath string) (err error) {
 			return mkdirErr
 		}
 		C.SetHomeDir(homeDir)
-		log.SetLevel(log.DEBUG)
-		subscribeLogs(logPath)
+		homeDirChanged = true
 	}
 	cfg, err := config.Parse([]byte(configYAML))
 	if err != nil {
+		if homeDirChanged {
+			C.SetHomeDir(previousHomeDir)
+		}
 		return err
 	}
+	// The prior runtime can still have background goroutines reading mihomo's
+	// global logging state. Tear it down before mutating log level/subscriptions
+	// so restart cannot race those readers under the Go race detector.
 	stopRuntimeLocked()
+	if logPath != "" {
+		log.SetLevel(log.DEBUG)
+		subscribeLogs(logPath)
+	}
 	if applyErr := executor.ApplyConfig(cfg, true); applyErr != nil {
 		stopRuntimeLocked()
 		return applyErr
@@ -327,9 +337,10 @@ func resolveSubscriptionSelection(live string, emptyFallback string, cached stri
 	return cached
 }
 
-// SubscriptionSelectedNode returns the selected provider node. The live
-// selector wins after the provider is ready; while it only exposes its internal
-// empty fallback, the persisted desired selection remains the source of truth.
+// SubscriptionSelectedNode returns the live selector value while the engine is
+// active. The Mihomo cache is consulted only while disconnected for legacy
+// compatibility; an active Detour session must never let stale native cache
+// overwrite the encrypted per-profile selection owned by Android DataStore.
 func SubscriptionSelectedNode(homeDir string) string {
 	runtimeMu.Lock()
 	defer runtimeMu.Unlock()
@@ -339,9 +350,9 @@ func SubscriptionSelectedNode(homeDir string) string {
 		}
 	}
 
-	live := ""
-	emptyFallback := ""
 	if Ready() {
+		live := ""
+		emptyFallback := ""
 		if proxy, ok := tunnel.Proxies()[subscriptionGroupName]; ok {
 			if selector, ok := proxy.Adapter().(*outboundgroup.Selector); ok {
 				live = selector.Now()
@@ -350,13 +361,13 @@ func SubscriptionSelectedNode(homeDir string) string {
 				}
 			}
 		}
+		return resolveSubscriptionSelection(live, emptyFallback, "")
 	}
 
-	cached := ""
 	if selected := cachefile.Cache().SelectedMap(); selected != nil {
-		cached = resolveSubscriptionCache(selected, homeDir)
+		return resolveSubscriptionCache(selected, homeDir)
 	}
-	return resolveSubscriptionSelection(live, emptyFallback, cached)
+	return ""
 }
 
 func parseSubscriptionURL(value string) (*url.URL, error) {

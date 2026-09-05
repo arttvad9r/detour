@@ -4,10 +4,22 @@ This document defines the current verification contract. Historical screenshots,
 
 ## CI gate
 
-Every push and pull request runs:
+Every push and pull request runs the strict Android build/test gate, verifies that dependency-trust metadata was not rewritten, runs the embedded Go package under the race detector against the exact prepared Mihomo source tree, checks Go module integrity, scans source/binaries for known Go vulnerabilities, and verifies APK size/alignment/signing paths.
 
 ```bash
-./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest :app:assembleRelease
+./gradlew --dependency-verification strict \
+  :app:testDebugUnitTest \
+  :app:lintDebug \
+  :app:lintRelease \
+  :app:assembleDebug \
+  :app:assembleDebugAndroidTest \
+  :app:assembleRelease \
+  :baselineprofile:assemble
+
+git diff --exit-code -- gradle/verification-metadata.xml
+# In the temporary engine module that points at .cache/mihomo-src:
+go mod verify
+go test -race -tags with_gvisor ./...
 python3 tools/apk_size_report.py app/build/outputs/apk/release
 bash engine/vulnscan.sh
 ```
@@ -21,28 +33,23 @@ The first release assembly is the universal compatibility baseline. CI then gene
   -PdetourVersionCode=1001
 ```
 
-CI verifies that signed APK with Android `apksigner`. The arm64 distribution check requires the APK to contain exactly `arm64-v8a` native libraries and enforces a 30 MiB maximum APK size. The universal and arm64 JSON size reports are retained as the `apk-size-reports` workflow artifact for comparison and regression diagnosis.
+CI verifies that signed APK with Android `apksigner`. The arm64 distribution check requires the APK to contain exactly `arm64-v8a` native libraries and enforces a 30 MiB maximum APK size. The universal and arm64 JSON size reports are retained as the `apk-size-reports` workflow artifact for comparison and regression diagnosis when they are available; a prior build failure is not obscured by a secondary missing-report failure.
 
-Pull requests and pushes to `master` additionally install the hosted Android 16 emulator image and run:
-
-```bash
-./gradlew :app:connectedDebugAndroidTest
-```
-
-Ordinary branch pushes still compile the instrumentation APK but skip the emulator download and runtime test. The pull-request gate therefore validates the exact review revision on a device before merge, and the `master` push validates the integrated revision after merge.
+Pull requests and pushes to `main` additionally install hosted Android 16 and Android 17 emulator images and run the instrumentation suite. Ordinary branch pushes still compile the instrumentation APK but skip emulator download and runtime tests. The pull-request gate therefore validates the exact review revision on a device before merge, and the `main` push validates the integrated revision after merge.
 
 The Android workflow pins:
 
 - JDK 17;
 - compile SDK 37 and target SDK 36;
 - Android platform package `platforms;android-37.0`;
-- Android 16 / API 36 `google_apis` x86_64 system image for hosted instrumentation tests;
+- Android 16 / API 36 `google_apis` x86_64 system image;
+- Android 17 / API 37 16 KB `google_apis_ps16k` x86_64 system image;
 - build-tools 36.0.0;
 - NDK 28.0.13004108;
 - Go 1.26.7;
 - pinned `gomobile` and `govulncheck` versions.
 
-Dependency verification runs in strict mode against the committed `gradle/verification-metadata.xml` file.
+Dependency verification runs in strict mode against the committed `gradle/verification-metadata.xml` file, and CI fails if the build changes that file. The Go race/module gate copies the checked-in bridge package into a temporary module, redirects its Mihomo replacement to the exact `.cache/mihomo-src` tree prepared by the Android build, then runs `go mod verify` and `go test -race` with the production `with_gvisor` feature set.
 
 After release assembly, `tools/apk_size_report.py` records the total APK size, packaged native ABI set, component totals, native library sizes per ABI, and the largest ZIP entries in the GitHub Actions job summary. It also writes machine-readable JSON reports. The arm64 distribution report is a hard gate: exceeding 30 MiB or packaging any ABI other than `arm64-v8a` fails CI.
 
@@ -50,13 +57,16 @@ After release assembly, `tools/apk_size_report.py` records the total APK size, p
 
 ## Instrumented tests
 
-For pull requests and `master` pushes, hosted CI creates a headless hardware-accelerated Android 16 / API 36 emulator after the normal build gate and executes `:app:connectedDebugAndroidTest`. Keeping the runtime test in the same job reuses the already-built Mihomo/ByeDPI artifacts instead of rebuilding the native engine in a second job.
+For pull requests and `main` pushes, hosted CI creates headless Android 16 / API 36 and Android 17 / API 37 emulators after the normal build gate and executes `:app:connectedDebugAndroidTest`. Keeping runtime tests in the same job reuses the already-built Mihomo/ByeDPI artifacts instead of rebuilding the native engine in a second job.
 
 The hosted runtime suite intentionally stays below the VPN data plane. It currently covers:
 
 - real `MainActivity` launch and primary Home controls;
 - on-device Preferences DataStore profile mutations and duplicate-id rejection;
-- backup restore policy, including forced-off auto-connect.
+- backup restore policy, including forced-off auto-connect;
+- backup JSON → parser → DataStore round-trip for multiple subscriptions with independent selected nodes;
+- Android-Keystore-backed credential encryption checks;
+- Compose accessibility/layout regression coverage including large-font behavior.
 
 VPN consent, live TUN establishment, per-app routing, network changes, DNS behavior and DPI/VPN traffic validation still require the device smoke checklist below.
 
@@ -71,6 +81,7 @@ ANDROID_SERIAL=<serial> ./gradlew :app:connectedDebugAndroidTest
 The JVM suite covers the behavior that must remain deterministic without a device, including:
 
 - VLESS parsing, fingerprints and profile storage/migration;
+- subscription profile persistence, selected-node serialization and generated selector configuration;
 - WARP/AmneziaWG profile parsing/storage and fail-closed selection behavior;
 - generated Mihomo configuration and rule ordering;
 - DNS validation/bootstrap generation;
@@ -80,6 +91,8 @@ The JVM suite covers the behavior that must remain deterministic without a devic
 - auto-connect eligibility;
 - active/inactive profile mutation policy;
 - theme-transition and VPN-status visual policy.
+
+The Go suite additionally covers engine Start/Stop serialization, failed replacement semantics, provider cleanup, subscription selection/cache boundaries, sensitive-URL redaction, detached latency helpers and preservation of the active runtime/logging/HomeDir when a replacement config fails before teardown.
 
 Do not maintain manual test-count totals in this file; the test runner is the source of truth.
 
@@ -97,7 +110,11 @@ Run this after changes to VPN lifecycle, engine/config generation, routing, pack
 
 ### Profiles and persistence
 
-- Switch VLESS ↔ WARP/AmneziaWG and reconnect successfully.
+- Switch VLESS ↔ subscription ↔ WARP/AmneziaWG and reconnect successfully.
+- Select a non-first subscription server, disconnect/reconnect and verify the same server remains selected and carries traffic.
+- Change the underlying network while a subscription is active and verify the selected server survives the automatic tunnel rebuild.
+- Verify multiple subscriptions retain independent selected servers.
+- Export VLESS + multiple subscriptions + WARP, import into a clean settings state, and verify every profile plus each selected subscription server is restored.
 - Editing/replacing the active profile restarts the active tunnel.
 - Editing an inactive profile does not interrupt the tunnel.
 - Deleting the active profile stops the session instead of selecting another endpoint silently.

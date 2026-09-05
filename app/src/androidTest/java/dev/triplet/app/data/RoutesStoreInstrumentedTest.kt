@@ -11,6 +11,7 @@ import dev.triplet.app.core.DpiPreset
 import dev.triplet.app.core.SettingsBackup
 import dev.triplet.app.core.VlessKey
 import dev.triplet.app.core.VlessKeys
+import dev.triplet.app.core.VpnProfileKind
 import dev.triplet.app.core.WarpProfile
 import dev.triplet.app.core.WarpProxy
 import kotlinx.coroutines.runBlocking
@@ -72,6 +73,64 @@ class RoutesStoreInstrumentedTest {
         val s = store.snapshot()
         assertFalse("import must not enable auto-connect", s.autoConnect)
         assertEquals(AppRoute.VPN, s.routes["com.example.imported"])
+    }
+
+    @Test fun subscriptionSelectionsSurviveBackupParserAndDataStoreRestore() = runBlocking {
+        val before = store.snapshot()
+        val original = SettingsBackup.Backup(
+            vlessKeys = before.vlessKeys,
+            warpProfile = before.warpProfile,
+            activeVpn = before.activeVpn,
+            presetId = before.preset.id,
+            dpiCustomArgs = before.dpiCustomArgs,
+            autoConnect = before.autoConnect,
+            themeId = before.themeId,
+            dnsId = before.dnsId,
+            dnsCustom = before.dnsCustom,
+            routes = before.routes.mapValues { it.value.name },
+            showSystemApps = before.showSystemApps,
+        )
+        val expectedKeys = VlessKeys(
+            items = listOf(
+                VlessKey("direct", "Direct VLESS", validUri),
+                VlessKey(
+                    id = "sub-a",
+                    name = "Subscription A",
+                    uri = "https://a.subscription.example/opaque-a",
+                    selectedNode = "DE Frankfurt",
+                ),
+                VlessKey(
+                    id = "sub-b",
+                    name = "Subscription B",
+                    uri = "https://b.subscription.example/opaque-b",
+                    selectedNode = "NL Amsterdam",
+                ),
+            ),
+            activeId = "sub-a",
+        )
+        val exported = SettingsBackup.toJson(
+            SettingsBackup.Backup(
+                vlessKeys = expectedKeys,
+                activeVpn = VpnProfileKind.SUBSCRIPTION,
+                presetId = DpiPreset.RECOMMENDED.id,
+                themeId = "catppuccin_latte",
+                dnsId = "google",
+            ),
+        )
+        val parsed = requireNotNull(SettingsBackup.fromJson(exported))
+
+        try {
+            store.restoreBackup(parsed)
+            val restored = store.snapshot()
+            assertEquals(expectedKeys, restored.vlessKeys)
+            assertEquals(VpnProfileKind.SUBSCRIPTION, restored.activeVpn)
+            assertEquals("DE Frankfurt", restored.vlessKeys.items.single { it.id == "sub-a" }.selectedNode)
+            assertEquals("NL Amsterdam", restored.vlessKeys.items.single { it.id == "sub-b" }.selectedNode)
+        } finally {
+            store.restoreBackup(original)
+            store.setAutoConnect(before.autoConnect)
+            store.setSessionStartedAt(before.sessionStartedAt)
+        }
     }
 
     @Test fun vpnCredentialsAreEncryptedAtRest() = runBlocking {

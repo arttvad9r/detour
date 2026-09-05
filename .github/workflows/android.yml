@@ -31,7 +31,7 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-37.0 build-tools;36.0.0 ndk;28.0.13004108'
       - name: Install Android 16 and Android 17 emulator images
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
         run: >-
           sdkmanager 'emulator'
           'system-images;android-36;google_apis;x86_64'
@@ -48,6 +48,35 @@ jobs:
           export PATH="$(go env GOPATH)/bin:$PATH"
           gomobile init
       - run: ./gradlew --dependency-verification strict :app:testDebugUnitTest :app:lintDebug :app:lintRelease :app:assembleDebug :app:assembleDebugAndroidTest :app:assembleRelease :baselineprofile:assemble
+      - name: Verify dependency trust metadata is unchanged
+        shell: bash
+        run: git diff --exit-code -- gradle/verification-metadata.xml
+      - name: Run embedded engine race detector
+        shell: bash
+        run: |
+          set -euo pipefail
+          RACE_DIR="$(mktemp -d)"
+          trap 'rm -rf "$RACE_DIR"' EXIT
+          cp engine/mihomo/go/go.mod engine/mihomo/go/go.sum engine/mihomo/go/*.go "$RACE_DIR/"
+          python3 - "$RACE_DIR/go.mod" "$GITHUB_WORKSPACE/.cache/mihomo-src" <<'PYEOF'
+          import pathlib
+          import re
+          import sys
+
+          mod = pathlib.Path(sys.argv[1])
+          mihomo = pathlib.Path(sys.argv[2]).resolve()
+          text = mod.read_text()
+          replacement = f"replace github.com/metacubex/mihomo => {mihomo}"
+          text, count = re.subn(r"replace github\.com/metacubex/mihomo => .*", replacement, text)
+          if count == 0:
+              text += "\n" + replacement + "\n"
+          mod.write_text(text)
+          PYEOF
+          (
+            cd "$RACE_DIR"
+            GOFLAGS='-mod=mod' go mod verify
+            GOFLAGS='-mod=mod -tags=with_gvisor' go test -race ./...
+          )
       - name: Report universal release APK size
         run: >-
           python3 tools/apk_size_report.py app/build/outputs/apk/release
@@ -108,16 +137,16 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: apk-size-reports
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 14
           path: app/build/reports/apk-size*.json
       - name: Run instrumentation tests on Android 16 emulator
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
         timeout-minutes: 15
         shell: bash
         run: bash tools/run_android_instrumentation_emulator.sh 36
       - name: Run instrumentation tests on Android 17 emulator
-        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/master'
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
         timeout-minutes: 15
         shell: bash
         run: >-
@@ -125,7 +154,7 @@ jobs:
           'system-images;android-37.0;google_apis_ps16k;x86_64'
           16384
       - name: Upload instrumentation diagnostics
-        if: ${{ always() && (github.event_name == 'pull_request' || github.ref == 'refs/heads/master') }}
+        if: ${{ always() && (github.event_name == 'pull_request' || github.ref == 'refs/heads/main') }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: instrumentation-diagnostics

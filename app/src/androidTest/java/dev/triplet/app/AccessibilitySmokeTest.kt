@@ -14,6 +14,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -48,7 +49,7 @@ class AccessibilitySmokeTest {
             .assertHeightIsAtLeast(48.dp)
     }
 
-    @Test fun dnsCustomInputExposesAccessibleLabelAndValidationError() {
+    @Test fun dnsCustomInputExposesAccessibleLabelAndValidationError() = withRestoredDnsState {
         rule.onNodeWithContentDescription(rule.activity.getString(R.string.cd_settings))
             .performClick()
         rule.onNodeWithText(rule.activity.getString(R.string.nav_dns))
@@ -66,13 +67,16 @@ class AccessibilitySmokeTest {
             .assert(SemanticsMatcher.expectValue(SemanticsProperties.Error, validationError))
     }
 
-    @Test fun dnsChoicesPreserveSingleSelectionSemantics() {
+    @Test fun dnsChoicesPreserveSingleSelectionSemantics() = withRestoredDnsState {
         rule.onNodeWithContentDescription(rule.activity.getString(R.string.cd_settings))
             .performClick()
         rule.onNodeWithText(rule.activity.getString(R.string.nav_dns))
             .performClick()
 
+        // Establish the first selection explicitly instead of depending on whatever
+        // DNS value a previous instrumentation test persisted in DataStore.
         rule.onNodeWithText(rule.activity.getString(R.string.dns_google))
+            .performClick()
             .assertIsSelected()
 
         rule.onNodeWithText(rule.activity.getString(R.string.dns_custom))
@@ -98,5 +102,15 @@ class AccessibilitySmokeTest {
 
         rule.onNodeWithText("›", useUnmergedTree = true)
             .assertDoesNotExist()
+    }
+
+    private fun withRestoredDnsState(block: () -> Unit) {
+        val store = (rule.activity.applicationContext as TripletApp).routesStore
+        val before = runBlocking { store.snapshot() }
+        try {
+            block()
+        } finally {
+            runBlocking { store.setDns(before.dnsId, before.dnsCustom) }
+        }
     }
 }

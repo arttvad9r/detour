@@ -50,15 +50,51 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val store = remember(context) { (context.applicationContext as TripletApp).routesStore }
     val settings by store.settings.collectAsStateWithLifecycle()
-    val activeUri = settings?.vlessKeys?.active?.uri.orEmpty()
+    val activeKey = settings?.vlessKeys?.active
+    val activeUri = activeKey?.uri.orEmpty()
+    val persistedSelectedNode = activeKey?.selectedNode
     val subscriptionUrl = remember(activeUri) {
         (VlessKeyParser.parse(activeUri) as? ParseResult.Ok)?.profile?.subscriptionUrl
     }
     val cacheDir = remember(context) { context.cacheDir.absolutePath }
     val c = detourColors
 
-    LaunchedEffect(subscriptionUrl, connected, cacheDir) {
-        subscriptionUrl?.let { runtimeViewModel.bind(it, connected, cacheDir) }
+    val persistSelectedNode: suspend (String) -> Unit = { selected ->
+        val key = activeKey
+        if (key != null) {
+            val latest = store.snapshot().vlessKeys.items.firstOrNull {
+                it.id == key.id && it.uri == key.uri
+            }
+            if (latest != null && latest.selectedNode != selected) {
+                store.updateVlessKey(latest.copy(selectedNode = selected))
+            }
+        }
+    }
+
+    LaunchedEffect(subscriptionUrl, connected, cacheDir, persistedSelectedNode) {
+        subscriptionUrl?.let {
+            runtimeViewModel.bind(
+                subscriptionUrl = it,
+                connected = connected,
+                cacheDir = cacheDir,
+                persistedSelectedNode = persistedSelectedNode,
+            )
+        }
+    }
+
+    // Reconcile a live selector value that was chosen by the engine itself, for
+    // example after a provider refresh removed the previously selected node.
+    LaunchedEffect(activeKey, state.catalog, state.selectedNode, state.selectionStatus) {
+        val key = activeKey ?: return@LaunchedEffect
+        val selected = state.selectedNode?.trim()?.takeIf { it.isNotBlank() }
+            ?: return@LaunchedEffect
+        if (
+            state.selectionStatus == SubscriptionSelectionStatus.IDLE &&
+            state.catalog.any { it.name == selected } &&
+            key.selectedNode != selected
+        ) {
+            store.updateVlessKey(key.copy(selectedNode = selected))
+        }
     }
 
     LaunchedEffect(state.catalog, state.selectedNode, state.selectionStatus) {
@@ -67,7 +103,7 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
             shouldAutoSelectSubscriptionNode(state.selectionStatus) &&
             state.selectedNode.isNullOrBlank()
         ) {
-            runtimeViewModel.selectNode(state.catalog.first().name)
+            runtimeViewModel.selectNode(state.catalog.first().name, persistSelectedNode)
         }
     }
 
@@ -150,7 +186,7 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
                     latencyByName = latencyByName,
                     latencyTestedNames = latencyTestedNames,
                     latencyErrorByName = state.latencyErrorByName,
-                    onSelect = runtimeViewModel::selectNode,
+                    onSelect = { name -> runtimeViewModel.selectNode(name, persistSelectedNode) },
                 )
                 val hiddenCount = (state.catalog.size - MAX_SUBSCRIPTION_NODE_ROWS).coerceAtLeast(0)
                 if (hiddenCount > 0) {
@@ -182,9 +218,6 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
                 text = stringResource(R.string.subscription_selection_error),
                 error = true,
             )
-            LaunchedEffect(state.selectionStatus) {
-                runtimeViewModel.clearSelectionError()
-            }
         }
     }
 }

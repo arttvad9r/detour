@@ -8,6 +8,7 @@ import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import dev.triplet.app.R
+import dev.triplet.app.TripletApp
 import dev.triplet.app.core.AppRoute
 import dev.triplet.app.core.ConfigGenerator
 import dev.triplet.app.core.DnsOptions
@@ -53,9 +54,7 @@ class TriVpnService : VpnService() {
     override fun onCreate() {
         super.onCreate()
         destroyed.set(false)
-        // Один DataStore на файл: используем синглет из Application, иначе
-        // второй экземпляр RoutesStore падает с IllegalStateException при старте VPN.
-        store = (applicationContext as dev.triplet.app.TripletApp).routesStore
+        store = (applicationContext as TripletApp).routesStore
         dpi = DpiBackend(this) {
             runCatching {
                 executor.execute {
@@ -70,7 +69,6 @@ class TriVpnService : VpnService() {
         foreground = VpnForegroundNotifier(this)
         foreground.createChannel()
         registerNetworkMonitor()
-        // Мост атрибуции обязан быть зарегистрирован до Engine.start (pins.md round 2).
         Engine.setProcessResolver(TripUidResolver(applicationContext))
     }
 
@@ -87,7 +85,6 @@ class TriVpnService : VpnService() {
                     if (!stopQueued.get()) { stopSequence(stopSelf = false); startSequence() }
                 }
             }
-            // Sticky-restart приходит с null intent: сервис не нужен без явного старта UI.
             null -> stopSelf()
         }
         return START_NOT_STICKY
@@ -107,11 +104,12 @@ class TriVpnService : VpnService() {
         stopQueued.set(true)
         healthExecutor.shutdownNow()
         executor.shutdownNow()
-        stopSequence(stopSelf = false)
+        // Native shutdown remains synchronous so the TUN and child resources are
+        // definitely closed before service destruction. Persistence is delegated
+        // to the Application IO scope to avoid DataStore runBlocking on main.
+        stopSequence(stopSelf = false, persistSessionSynchronously = false)
         super.onDestroy()
     }
-
-    // ---- sequence -------------------------------------------------------
 
     private fun startSequence() {
         synchronized(lifecycleLock) {
@@ -133,14 +131,9 @@ class TriVpnService : VpnService() {
         VpnController.setState(VpnState.Starting)
         foreground.show(getString(R.string.notif_starting))
 
-        // Executor-поток, блокировка допустима.
         val settings = runBlocking { store.snapshot() }
-        // Capture loopback auth once so ByeDPI, mihomo and validation probes
-        // cannot diverge even if credential generation changes in the future.
         val probeCredentials = ProbeAuth.current()
 
-        // 1. Разрешаем только выбранный VPN-профиль. URI парсится заново перед
-        // запуском, WARP уже был строго проверен при импорте/чтении из DataStore.
         val vpn = when (settings.activeVpn) {
             VpnProfileKind.VLESS -> {
                 if (settings.vlessUri.isBlank()) null
@@ -170,7 +163,10 @@ class TriVpnService : VpnService() {
                             stopSequence(stopSelf = true)
                             return
                         }
-                        VpnOutbound.Subscription(url)
+                        VpnOutbound.Subscription(
+                            url = url,
+                            selectedNode = settings.vlessKeys.active?.selectedNode,
+                        )
                     }
                     is ParseResult.Err -> {
                         VpnController.setState(VpnState.Failed(getString(R.string.err_invalid_key)))
@@ -202,7 +198,6 @@ class TriVpnService : VpnService() {
             return
         }
 
-        // 2. ByeDPI нужен, если есть DPI-приложения.
         val dpiApps = effective.dpiPackages
         if (dpiApps.isNotEmpty()) {
             ServiceLog.i("dpi: starting (${settings.preset.id})")
@@ -224,8 +219,6 @@ class TriVpnService : VpnService() {
             }
         }
 
-        // 3. UID-резолв выбранного; несуществующие пакеты выкидываем,
-        //    иначе ConfigGenerator.require()/allow-list уронят конфиг.
         val selected = effective.packages
         val vpnUids = selected.associateWith { installed[it]!! }
         (settings.routes.keys - selected).forEach {
@@ -234,8 +227,6 @@ class TriVpnService : VpnService() {
         val effVpn = vpnApps intersect vpnUids.keys
         val effDpi = dpiApps intersect vpnUids.keys
 
-        // 4. TUN + движок. Keep the detached descriptor explicitly owned until
-        // Engine.start returns; config/build failures must not leak it.
         var fd: Int? = null
         var engineAdopted = false
         try {
@@ -257,6 +248,19 @@ class TriVpnService : VpnService() {
             ServiceLog.i("engine: start returned")
             engineAdopted = true
             check(Engine.ready()) { "engine TUN is not ready" }
+
+            if (settings.activeVpn == VpnProfileKind.SUBSCRIPTION) {
+                val activeKey = settings.vlessKeys.active
+                val actualNode = runCatching {
+                    Engine.subscriptionSelectedNode(cacheDir.absolutePath)
+                }.getOrNull()?.trim()?.takeIf { it.isNotBlank() }
+                if (activeKey != null && actualNode != null && activeKey.selectedNode != actualNode) {
+                    runBlocking {
+                        store.updateVlessKey(activeKey.copy(selectedNode = actualNode))
+                    }
+                    ServiceLog.i("subscription: persisted active node after engine start")
+                }
+            }
         } catch (e: Exception) {
             ServiceLog.e("engine: ${e.message}")
             VpnController.setState(VpnState.Failed(getString(R.string.err_engine)))
@@ -267,9 +271,6 @@ class TriVpnService : VpnService() {
             return
         }
 
-        // Android TUN and the engine are established now. This is the state the
-        // user and the OS perceive as connected; route probes validate it after
-        // activation and must not keep the UI or lifecycle executor in Starting.
         VpnController.setState(VpnState.Active)
         runBlocking { store.setSessionStartedAt(System.currentTimeMillis()) }
         foreground.show(getString(R.string.notif_active))
@@ -291,8 +292,6 @@ class TriVpnService : VpnService() {
                         validationGeneration.get() != generation ||
                         VpnController.state.value != VpnState.Active
                 }
-                // Provider-backed profiles may need longer on first connection
-                // while an endpoint is downloaded/checked/selected.
                 val vpnTimeout = when (vpnKind) {
                     VpnProfileKind.VLESS -> 2500
                     VpnProfileKind.SUBSCRIPTION, VpnProfileKind.WARP -> 5000
@@ -315,26 +314,25 @@ class TriVpnService : VpnService() {
                 if (vpnHealthy && dpiHealthy) {
                     ServiceLog.i("probe results: vpn=true dpi=true")
                 } else {
-                    // Engine.start already established the Android TUN and Mihomo runtime.
-                    // A connectivity URL is only a diagnostic signal: captive portals,
-                    // endpoint filtering or transient DNS/TLS failures must not tear down
-                    // an otherwise usable VPN a moment after it becomes Active.
                     ServiceLog.w("route probe failed (non-fatal): vpn=$vpnHealthy dpi=$dpiHealthy")
                 }
             }
         }
     }
 
-    private fun stopSequence(stopSelf: Boolean) {
+    private fun stopSequence(
+        stopSelf: Boolean,
+        persistSessionSynchronously: Boolean = true,
+    ) {
         synchronized(lifecycleLock) {
             validationGeneration.incrementAndGet()
-            runCatching { runBlocking { store.setSessionStartedAt(null) } }
+            if (persistSessionSynchronously) {
+                runCatching { runBlocking { store.setSessionStartedAt(null) } }
+            } else {
+                (applicationContext as TripletApp).clearVpnSessionTimestampAsync()
+            }
             runCatching { Engine.stop() }
             dpi.stop()
-        // Владение TUN-fd полностью у движка: detachFd выполнен в openTun
-        // ДО передачи (иначе между Engine.stop() -> close(fd) и нашим
-        // detachFd() освободившийся номер мог занять RenderThread под fence
-        // — fdsan абортнул весь процесс, см. креш 22:05 на OnePlus).
             if (VpnController.state.value !is VpnState.Failed) VpnController.setState(VpnState.Idle)
             stopForeground(STOP_FOREGROUND_REMOVE)
             if (stopSelf) stopSelf()
@@ -342,9 +340,6 @@ class TriVpnService : VpnService() {
         }
     }
 
-    // ---- tun -------------------------------------------------------------
-
-    /** Only the non-empty effective allow-list is ever passed here. */
     private fun openTun(allowed: Set<String>): Int {
         val builder = Builder()
             .setSession(getString(R.string.app_name))
@@ -352,13 +347,11 @@ class TriVpnService : VpnService() {
         builder.addAddress(ConfigGenerator.INET4.substringBefore('/'),
             ConfigGenerator.INET4.substringAfter('/').toInt())
 
-        // Device spike requires mihomo's fake-IP gateway on the host-created TUN.
-        // Keep the validated /30; external-FD mode does not configure the interface.
         builder.addAddress("198.18.0.1", 30)
 
         builder.addRoute("0.0.0.0", 0)
-        // Capture IPv6 too; mihomo explicitly rejects it before the fallback rule.
-        // Keep this TUN IPv4-only; the engine rejects IPv6 in ConfigGenerator.
+        // Keep this TUN IPv4-only. Android blocks the unconfigured IPv6 family
+        // for allowed VPN apps; ConfigGenerator also rejects IPv6 defensively.
 
         if (Build.VERSION.SDK_INT >= 33) {
             ConfigGenerator.ANDROID_EXCLUDED_PREFIXES.forEach { prefix ->
@@ -378,8 +371,6 @@ class TriVpnService : VpnService() {
         check(added > 0) { "empty effective VPN allow-list" }
         val pfd = builder.establish()
             ?: throw IllegalStateException(getString(R.string.err_vpn_permission))
-        // detach СРАЗУ: убирает java-владение из fdsan до передачи в движок.
-        // Движок закроет fd сам при остановке; двойного close нет.
         val fd = pfd.detachFd()
         runCatching { pfd.close() }
         return fd
@@ -396,25 +387,17 @@ class TriVpnService : VpnService() {
         return android.net.IpPrefix(addr, cidr.substring(slash + 1).toInt())
     }
 
-    // ---- network monitor --------------------------------------------------
-
     private var lastNetwork: Network? = null
 
     private fun registerNetworkMonitor() {
         val cm = getSystemService(ConnectivityManager::class.java)
 
-        // Seed the currently active underlying network before registering the
-        // callback. The first capabilities callback is an initial snapshot, not a
-        // network change, and must never restart a tunnel that just became Active.
         lastNetwork = cm.activeNetwork?.takeIf { network ->
             cm.getNetworkCapabilities(network)?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) != true
         }
 
         val cb = object : ConnectivityManager.NetworkCallback() {
             override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
-                // Android guarantees these capabilities are ordered with the
-                // preceding onAvailable callback. Synchronous capability queries
-                // from inside onAvailable are explicitly documented as racy.
                 if (caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) return
 
                 val previous = lastNetwork
@@ -436,8 +419,6 @@ class TriVpnService : VpnService() {
                         }
                     }
                 }.onFailure {
-                    // onDestroy() can shut the executor down while an already
-                    // delivered network callback is still finishing.
                     restartQueued.set(false)
                 }
             }

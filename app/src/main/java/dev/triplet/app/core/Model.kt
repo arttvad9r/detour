@@ -4,8 +4,17 @@ enum class AppRoute { DIRECT, VPN, DPI }
 
 sealed interface VpnOutbound {
     data class Vless(val profile: VlessProfile) : VpnOutbound
-    data class Subscription(val url: String) : VpnOutbound {
-        init { require(url.isNotBlank()) }
+    data class Subscription(
+        val url: String,
+        val selectedNode: String? = null,
+    ) : VpnOutbound {
+        init {
+            require(url.isNotBlank())
+            selectedNode?.let { node ->
+                require(node.isNotBlank() && node == node.trim() && node.length <= 256)
+                require(node.none { it.code < 0x20 || it.code == 0x7f })
+            }
+        }
     }
     data class Warp(val profile: WarpProfile) : VpnOutbound
 }

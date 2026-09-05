@@ -1,5 +1,9 @@
 package dev.triplet.app.ui
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -31,6 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -45,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -76,6 +82,12 @@ private fun profileTabFor(kind: VpnProfileKind): Int = when (kind) {
     VpnProfileKind.VLESS -> 0
     VpnProfileKind.SUBSCRIPTION -> 1
     VpnProfileKind.WARP -> 2
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -112,7 +124,9 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
     var editingId by rememberSaveable { mutableStateOf<String?>(null) }
     var editorTab by rememberSaveable { mutableIntStateOf(0) }
     var showEditor by rememberSaveable { mutableStateOf(false) }
-    var field by rememberSaveable { mutableStateOf("") }
+    // Credential drafts deliberately stay process-memory-only. Recreating the
+    // Activity must not serialize a VLESS/subscription URI into saved instance state.
+    var field by remember { mutableStateOf("") }
     val parse = remember(field) {
         field.trim().takeIf { it.isNotBlank() }?.let(VlessKeyParser::parse)
     }
@@ -128,6 +142,18 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
         confirmValueChange = confirmSheetValueChange,
     )
 
+    val activity = LocalContext.current.findActivity()
+    DisposableEffect(showEditor, activity) {
+        if (showEditor) {
+            activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        }
+        onDispose {
+            if (showEditor) {
+                activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            }
+        }
+    }
+
     val warpLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { viewModel.importWarpDocument(it.toString()) }
     }
@@ -137,6 +163,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
             haptics.performHapticFeedback(HapticFeedbackType.Confirm)
             runCatching { sheetState.hide() }
             showEditor = false
+            field = ""
             viewModel.acknowledgeVlessSave()
         }
     }
@@ -160,6 +187,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
         scope.launch {
             runCatching { sheetState.hide() }
             showEditor = false
+            field = ""
         }
     }
 
@@ -278,7 +306,12 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
 
     if (showEditor) {
         ModalBottomSheet(
-            onDismissRequest = { if (!vlessSaving) showEditor = false },
+            onDismissRequest = {
+                if (!vlessSaving) {
+                    showEditor = false
+                    field = ""
+                }
+            },
             sheetState = sheetState,
             containerColor = c.background,
             contentColor = c.textPrimary,
@@ -399,10 +432,15 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                             } else {
                                 vlessFallbackTitle
                             }
+                            val existing = editingId?.let { id -> vlessItems.firstOrNull { it.id == id } }
+                            val preservedNode = existing?.selectedNode?.takeIf {
+                                parsedProfile.isSubscription && existing.uri == value
+                            }
                             val key = VlessKey(
-                                editingId ?: UUID.randomUUID().toString(),
-                                parsedProfile.name.ifBlank { parsedProfile.server.ifBlank { fallback } },
-                                value,
+                                id = editingId ?: UUID.randomUUID().toString(),
+                                name = parsedProfile.name.ifBlank { parsedProfile.server.ifBlank { fallback } },
+                                uri = value,
+                                selectedNode = preservedNode,
                             )
                             viewModel.saveVless(key, isNew = editingId == null)
                         },

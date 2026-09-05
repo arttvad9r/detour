@@ -6,13 +6,13 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import androidx.core.content.ContextCompat
+import dev.triplet.app.core.SubscriptionProviderMaterializer
 import dev.triplet.app.data.AppInventory
 import dev.triplet.app.data.RoutesStore
-import dev.triplet.app.core.SubscriptionProviderMaterializer
-import dev.triplet.engine.engine.Engine
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
 import dev.triplet.app.vpn.resolveRouteSnapshot
+import dev.triplet.engine.engine.Engine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -93,9 +93,12 @@ class TripletApp : Application() {
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
 
-        // Warm route metadata and tiny row icons off the main thread while the
-        // user is still on Home. The first Routes transition can then draw its
-        // real contents immediately instead of swapping placeholders mid-slide.
         appScope.launch { AppInventory.warm(this@TripletApp) }
+    }
+
+    fun clearVpnSessionTimestampAsync() {
+        appScope.launch {
+            runCatching { routesStore.setSessionStartedAt(null) }
+        }
     }
 }

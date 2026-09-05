@@ -59,6 +59,9 @@ private fun safeLatencyDiagnostic(value: String, maxChars: Int): String? {
     return trimmed
 }
 
+internal fun retainedSubscriptionSelection(selectedNode: String?, availableNames: Set<String>): String? =
+    selectedNode?.takeIf { it in availableNames }
+
 internal fun parseSubscriptionLatencyResult(raw: String): SubscriptionLatencyResult {
     if (raw.isBlank() || raw.length > 512 * 1024) return SubscriptionLatencyResult()
     return runCatching {
@@ -104,29 +107,31 @@ class SubscriptionRuntimeViewModel : ViewModel() {
     private var catalogJob: Job? = null
     private var runtimeJob: Job? = null
 
-    fun bind(subscriptionUrl: String, connected: Boolean, cacheDir: String) {
+    fun bind(
+        subscriptionUrl: String,
+        connected: Boolean,
+        cacheDir: String,
+        persistedSelectedNode: String? = null,
+    ) {
         val previousUrl = boundUrl
         val previousSelected = _uiState.value.selectedNode
         val changed = boundUrl != subscriptionUrl || boundCacheDir != cacheDir
         boundUrl = subscriptionUrl
         boundCacheDir = cacheDir
+        val durableSelected = persistedSelectedNode
+            ?.trim()
+            ?.takeIf { it.isNotBlank() && it.length <= 256 }
 
         if (changed) {
             runtimeJob?.cancel()
-            val cachedSelected = runCatching { Engine.subscriptionSelectedNode(cacheDir) }
-                .getOrNull()
-                ?.takeIf { it.isNotBlank() }
             _uiState.value = SubscriptionRuntimeUiState(
-                selectedNode = cachedSelected ?: previousSelected.takeIf { previousUrl == subscriptionUrl },
+                selectedNode = durableSelected ?: previousSelected.takeIf { previousUrl == subscriptionUrl },
             )
             loadCatalog(subscriptionUrl)
-            cachedSelected?.let { selected ->
-                viewModelScope.launch {
-                    logSelectedNodeDiagnostics(cacheDir, selected)
-                }
-            }
         } else if (_uiState.value.catalogStatus == SubscriptionCatalogStatus.IDLE) {
             loadCatalog(subscriptionUrl)
+        } else if (durableSelected != null && _uiState.value.selectedNode.isNullOrBlank()) {
+            _uiState.value = _uiState.value.copy(selectedNode = durableSelected)
         }
 
         if (connected) {
@@ -194,7 +199,7 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                         latencyErrorByName = emptyMap(),
                     )
                     val result = withContext(Dispatchers.IO) {
-                        parseSubscriptionLatencyResult(Engine.testSubscriptionCatalogLatencyDetailed(url))
+                        parseSubscriptionLatencyResult(Engine.testSubscriptionCatalogLatencyDetached(url))
                     }
                     _uiState.value = _uiState.value.copy(
                         latencyTesting = false,
@@ -212,7 +217,10 @@ class SubscriptionRuntimeViewModel : ViewModel() {
         }
     }
 
-    fun selectNode(name: String) {
+    fun selectNode(
+        name: String,
+        onSelected: suspend (String) -> Unit = {},
+    ) {
         if (name.isBlank() || _uiState.value.selectionStatus == SubscriptionSelectionStatus.SAVING) return
         val previous = _uiState.value.selectedNode
         _uiState.value = _uiState.value.copy(
@@ -227,6 +235,7 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                 val selected = withContext(Dispatchers.IO) {
                     Engine.subscriptionSelectedNode(boundCacheDir)
                 }.takeIf { it.isNotBlank() } ?: name
+                onSelected(selected)
                 _uiState.value = _uiState.value.copy(
                     selectedNode = selected,
                     selectionStatus = SubscriptionSelectionStatus.IDLE,
@@ -247,12 +256,6 @@ class SubscriptionRuntimeViewModel : ViewModel() {
         }
     }
 
-    fun clearSelectionError() {
-        if (_uiState.value.selectionStatus == SubscriptionSelectionStatus.ERROR) {
-            _uiState.value = _uiState.value.copy(selectionStatus = SubscriptionSelectionStatus.IDLE)
-        }
-    }
-
     private fun loadCatalog(url: String, force: Boolean = false) {
         if (!force && boundUrl == url && _uiState.value.catalogStatus == SubscriptionCatalogStatus.LOADING) return
         catalogJob?.cancel()
@@ -270,6 +273,7 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                     } else {
                         SubscriptionCatalogStatus.READY
                     },
+                    selectedNode = retainedSubscriptionSelection(_uiState.value.selectedNode, names),
                     latencyTestedNames = _uiState.value.latencyTestedNames intersect names,
                     latencyByName = _uiState.value.latencyByName.filterKeys { it in names },
                     latencyErrorByName = _uiState.value.latencyErrorByName.filterKeys { it in names },
