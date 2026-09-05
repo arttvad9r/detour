@@ -86,7 +86,7 @@ func parseSubscriptionMetadataHeaders(headers http.Header) SubscriptionMetadata 
 	if value, err := strconv.Atoi(strings.TrimSpace(headers.Get("profile-update-interval"))); err == nil {
 		// Provider values are in hours. Clamp absurd values instead of letting a
 		// malformed header turn into an unusable scheduler duration later.
-		if value inRange(1, 24*365) {
+		if inRange(value, 1, 24*365) {
 			metadata.UpdateIntervalHours = value
 		}
 	}
