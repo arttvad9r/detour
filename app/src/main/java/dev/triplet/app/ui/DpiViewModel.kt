@@ -8,9 +8,12 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.triplet.app.core.DpiArgs
+import dev.triplet.app.core.DpiAutoDomainPlan
 import dev.triplet.app.core.DpiAutoSearchReport
 import dev.triplet.app.core.DpiDomainCatalog
 import dev.triplet.app.core.DpiDomainInput
+import dev.triplet.app.core.DpiPerDomainPlan
+import dev.triplet.app.core.DpiPerDomainPlanner
 import dev.triplet.app.core.DpiPreset
 import dev.triplet.app.core.DpiProbeTarget
 import dev.triplet.app.data.RoutesStore
@@ -47,8 +50,10 @@ data class DpiUiState(
     val customAutoDomainsInvalid: Boolean = false,
     val autoRunState: DpiAutoRunState = DpiAutoRunState.IDLE,
     val autoReport: DpiAutoSearchReport? = null,
+    val autoDomainPlan: DpiPerDomainPlan? = null,
     val vpnIdle: Boolean = true,
     val appliedAutoCandidateId: String = "",
+    val appliedAutoDomainPlan: DpiAutoDomainPlan? = null,
 ) {
     val canSaveCustom: Boolean
         get() = saveState != DpiSaveState.SAVING &&
@@ -62,12 +67,22 @@ data class DpiUiState(
             autoRunState != DpiAutoRunState.CANCELLING &&
             autoRunState != DpiAutoRunState.APPLYING
 
-    val canApplyAuto: Boolean
+    private val generatedAutoDomainPlan: DpiAutoDomainPlan?
         get() {
-            val winnerId = autoReport?.winner?.candidate?.id ?: return false
-            return autoRunState == DpiAutoRunState.COMPLETE &&
-                !(preset == DpiPreset.AUTO && appliedAutoCandidateId == winnerId)
+            val plan = autoDomainPlan ?: return null
+            if (!plan.complete || plan.assignments.isEmpty()) return null
+            return runCatching { DpiAutoDomainPlan.fromPlan(plan) }.getOrNull()
         }
+
+    val autoPlanApplied: Boolean
+        get() {
+            val generated = generatedAutoDomainPlan ?: return false
+            return preset == DpiPreset.AUTO && appliedAutoDomainPlan == generated
+        }
+
+    val canApplyAuto: Boolean
+        get() = autoRunState == DpiAutoRunState.COMPLETE &&
+            generatedAutoDomainPlan != null && !autoPlanApplied
 }
 
 internal fun dpiUiState(
@@ -88,6 +103,7 @@ internal fun dpiUiState(
         customChanged = preset != DpiPreset.CUSTOM || customField.trim() != persistedCustom.trim(),
         saveState = saveState,
         appliedAutoCandidateId = settings?.dpiAutoCandidateId.orEmpty(),
+        appliedAutoDomainPlan = settings?.dpiAutoDomainPlan,
     )
 }
 
@@ -97,11 +113,16 @@ private data class DpiAutoTargetsDraft(
     val customDomainsInvalid: Boolean,
 )
 
+private data class DpiAutoResult(
+    val report: DpiAutoSearchReport?,
+    val plan: DpiPerDomainPlan?,
+)
+
 private data class DpiAutoPresentation(
     val editingOverride: Boolean?,
     val targetsDraft: DpiAutoTargetsDraft,
     val runState: DpiAutoRunState,
-    val report: DpiAutoSearchReport?,
+    val result: DpiAutoResult,
     val vpnState: VpnState,
 )
 
@@ -109,7 +130,7 @@ class DpiViewModel(
     private val settings: StateFlow<TriSettings?>,
     private val setPreset: suspend (DpiPreset) -> Unit,
     private val setCustomArgs: suspend (String) -> Unit,
-    private val setAutoCandidateId: suspend (String) -> Unit,
+    private val setAutoDomainPlan: suspend (DpiAutoDomainPlan) -> Unit,
     private val vpnState: StateFlow<VpnState>,
     private val runAutoSearch: suspend (List<DpiProbeTarget>, () -> Boolean) -> DpiAutoSearchReport,
     private val restartTunnel: () -> Unit,
@@ -127,6 +148,7 @@ class DpiViewModel(
     private val saveState = MutableStateFlow(DpiSaveState.IDLE)
     private val autoRunState = MutableStateFlow(DpiAutoRunState.IDLE)
     private val autoReport = MutableStateFlow<DpiAutoSearchReport?>(null)
+    private val autoDomainPlan = MutableStateFlow<DpiPerDomainPlan?>(null)
     private val autoGeneration = AtomicInteger(0)
     private val writeMutex = Mutex()
     private val _customSaved = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -159,18 +181,22 @@ class DpiViewModel(
         )
     }
 
+    private val autoResult = combine(autoReport, autoDomainPlan) { report, plan ->
+        DpiAutoResult(report = report, plan = plan)
+    }
+
     private val autoPresentation = combine(
         editingAutoOverride,
         autoTargetsDraft,
         autoRunState,
-        autoReport,
+        autoResult,
         vpnState,
-    ) { editingAuto, targetsDraft, runState, report, currentVpnState ->
+    ) { editingAuto, targetsDraft, runState, result, currentVpnState ->
         DpiAutoPresentation(
             editingOverride = editingAuto,
             targetsDraft = targetsDraft,
             runState = runState,
-            report = report,
+            result = result,
             vpnState = currentVpnState,
         )
     }
@@ -184,7 +210,8 @@ class DpiViewModel(
             customAutoDomains = auto.targetsDraft.customDomains,
             customAutoDomainsInvalid = auto.targetsDraft.customDomainsInvalid,
             autoRunState = auto.runState,
-            autoReport = auto.report,
+            autoReport = auto.result.report,
+            autoDomainPlan = auto.result.plan,
             vpnIdle = auto.vpnState == VpnState.Idle,
         )
     }.stateIn(
@@ -227,6 +254,7 @@ class DpiViewModel(
             .replace('\r', '\n')
             .take(MAX_CUSTOM_DOMAIN_DRAFT_CHARS)
         autoReport.value = null
+        autoDomainPlan.value = null
         if (autoRunState.value != DpiAutoRunState.IDLE) autoRunState.value = DpiAutoRunState.IDLE
     }
 
@@ -244,6 +272,7 @@ class DpiViewModel(
             .filter { it in next }
             .joinToString(",")
         autoReport.value = null
+        autoDomainPlan.value = null
         if (autoRunState.value != DpiAutoRunState.IDLE) autoRunState.value = DpiAutoRunState.IDLE
     }
 
@@ -267,6 +296,7 @@ class DpiViewModel(
         val generation = autoGeneration.incrementAndGet()
         val invalidated = AtomicBoolean(false)
         autoReport.value = null
+        autoDomainPlan.value = null
         autoRunState.value = DpiAutoRunState.RUNNING
         viewModelScope.launch {
             try {
@@ -288,7 +318,14 @@ class DpiViewModel(
                     autoRunState.value = DpiAutoRunState.IDLE
                     return@launch
                 }
+
+                val plan = DpiPerDomainPlanner.fromReport(report)
+                // Validate the persisted representation and compiler before exposing Apply.
+                if (plan.complete && plan.assignments.isNotEmpty()) {
+                    DpiAutoDomainPlan.fromPlan(plan).compileArgs()
+                }
                 autoReport.value = report
+                autoDomainPlan.value = plan
                 autoRunState.value = DpiAutoRunState.COMPLETE
             } catch (cancelled: CancellationException) {
                 if (
@@ -310,10 +347,14 @@ class DpiViewModel(
     fun cancelAutoTest() = cancelAutoTest(resetReport = false)
 
     fun applyAuto() {
-        val winner = autoReport.value?.winner ?: return
-        if (autoRunState.value != DpiAutoRunState.COMPLETE) return
-        if (settings.value?.preset == DpiPreset.AUTO &&
-            settings.value?.dpiAutoCandidateId == winner.candidate.id
+        val plan = autoDomainPlan.value ?: return
+        if (autoRunState.value != DpiAutoRunState.COMPLETE || !plan.complete || plan.assignments.isEmpty()) return
+        val storedPlan = runCatching {
+            DpiAutoDomainPlan.fromPlan(plan).also { it.compileArgs() }
+        }.getOrNull() ?: return
+        if (
+            settings.value?.preset == DpiPreset.AUTO &&
+            settings.value?.dpiAutoDomainPlan == storedPlan
         ) return
 
         autoRunState.value = DpiAutoRunState.APPLYING
@@ -321,17 +362,19 @@ class DpiViewModel(
         viewModelScope.launch {
             writeMutex.withLock {
                 try {
-                    // Candidate ID is validated by RoutesStore before AUTO is activated.
-                    // Write in this order so process death cannot expose an unbound AUTO preset.
-                    setAutoCandidateId(winner.candidate.id)
+                    // The plan contains only trusted candidate IDs and is compiler-validated.
+                    // Persist it before AUTO so process death cannot expose an unbound preset.
+                    setAutoDomainPlan(storedPlan)
                     setPreset(DpiPreset.AUTO)
                     if (
                         settings.value?.preset != DpiPreset.AUTO ||
-                        settings.value?.dpiAutoCandidateId != winner.candidate.id
+                        settings.value?.dpiAutoDomainPlan != storedPlan ||
+                        settings.value?.dpiAutoCandidateId?.isNotBlank() == true
                     ) {
                         settings.first {
                             it?.preset == DpiPreset.AUTO &&
-                                it.dpiAutoCandidateId == winner.candidate.id
+                                it.dpiAutoDomainPlan == storedPlan &&
+                                it.dpiAutoCandidateId.isBlank()
                         }
                     }
                     restartTunnel()
@@ -440,7 +483,10 @@ class DpiViewModel(
             autoGeneration.incrementAndGet()
             autoRunState.value = DpiAutoRunState.CANCELLING
         }
-        if (resetReport) autoReport.value = null
+        if (resetReport) {
+            autoReport.value = null
+            autoDomainPlan.value = null
+        }
     }
 
     override fun onCleared() {
@@ -472,7 +518,7 @@ class DpiViewModel(
                     settings = store.settings,
                     setPreset = store::setPreset,
                     setCustomArgs = store::setCustomArgs,
-                    setAutoCandidateId = store::setAutoCandidateId,
+                    setAutoDomainPlan = store::setAutoDomainPlan,
                     vpnState = vpnState,
                     runAutoSearch = runAutoSearch,
                     restartTunnel = restartTunnel,
