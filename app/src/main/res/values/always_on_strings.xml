@@ -1,0 +1,7 @@
+<resources>
+    <string name="always_on_vpn">Always-on VPN</string>
+    <string name="always_on_vpn_sub">Configure in Android VPN settings</string>
+    <string name="always_on_vpn_message">Android can start Detour automatically after reboot or if the VPN service stops.</string>
+    <string name="always_on_vpn_lockdown_warning">If any apps use DIRECT routes, leave “Block connections without VPN” off. Android lockdown can block apps outside Detour’s VPN allow-list.</string>
+    <string name="always_on_vpn_open_settings">Open VPN settings</string>
+</resources>
