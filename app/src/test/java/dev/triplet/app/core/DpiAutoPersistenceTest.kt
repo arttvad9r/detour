@@ -15,6 +15,17 @@ class DpiAutoPersistenceTest {
         )
     }
 
+    @Test fun `legacy strategy id remains resolvable after leaving search catalog`() {
+        val legacy = requireNotNull(DpiStrategyCatalog.byId("oob-sni"))
+        val plan = DpiAutoDomainPlan.of(mapOf("example.com" to legacy.id))
+
+        assertEquals(listOf("-o", "1+s", "--timeout", "3"), legacy.args)
+        assertEquals(
+            listOf("--timeout", "3", "-H", ":example.com", "-o", "1+s"),
+            plan.compileArgs(),
+        )
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun `unknown auto strategy fails closed`() {
         DpiArgs.resolve(DpiPreset.AUTO, customRaw = "", autoCandidateId = "not-in-catalog")
