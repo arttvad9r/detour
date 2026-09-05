@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DpiPresetsTest {
-    @Test fun `presets listen-ready args are not included here`() {
+    @Test fun `both presets listen-ready args are not included here`() {
         // ip/port/-U добавляет DpiBackend, пресеты содержат только стратегию
         DpiPreset.entries.forEach { preset ->
             assertTrue(preset.args.none { it == "-i" || it == "-p" || it == "-U" })
@@ -29,7 +29,6 @@ class DpiPresetsTest {
     }
     @Test fun `stable ids for persistence`() {
         assertEquals("recommended", DpiPreset.RECOMMENDED.id)
-        assertEquals("auto", DpiPreset.AUTO.id)
         assertEquals("custom", DpiPreset.CUSTOM.id)
         // легаси-id «compatible» мигрирует на RECOMMENDED
         assertEquals(DpiPreset.RECOMMENDED, DpiPreset.byId("compatible"))

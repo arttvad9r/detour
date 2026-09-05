@@ -37,7 +37,6 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
-import dev.triplet.app.core.DpiAutoSelector
 import dev.triplet.app.data.AppInventory
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.ui.AppsScreen
@@ -210,13 +209,19 @@ internal fun DetourNavigation(
         },
         popTransitionSpec = {
             EnterTransition.None togetherWith slideOutHorizontally(
-                animationSpec = tween(Motion.NAV_EXIT_MS, easing = Motion.STANDARD_EASING),
+                animationSpec = tween(
+                    Motion.NAV_EXIT_MS,
+                    easing = Motion.STANDARD_EASING,
+                ),
                 targetOffsetX = { it },
             )
         },
         predictivePopTransitionSpec = { _ ->
             EnterTransition.None togetherWith slideOutHorizontally(
-                animationSpec = tween(Motion.NAV_EXIT_MS, easing = Motion.STANDARD_EASING),
+                animationSpec = tween(
+                    Motion.NAV_EXIT_MS,
+                    easing = Motion.STANDARD_EASING,
+                ),
                 targetOffsetX = { it },
             )
         },
@@ -327,16 +332,6 @@ internal fun DetourNavigation(
                 val dpiViewModel = viewModel<DpiViewModel>(
                     factory = DpiViewModel.factory(
                         store = store,
-                        vpnState = VpnController.state,
-                        runAutoSearch = { targets, cancelled, onProgress ->
-                            withContext(Dispatchers.IO) {
-                                DpiAutoSelector(appContext).searchPerDomainWithBaseline(
-                                    targets = targets,
-                                    cancelled = cancelled,
-                                    onProgress = onProgress,
-                                )
-                            }
-                        },
                         restartTunnel = { VpnController.restartIfActive(appContext) },
                     ),
                 )

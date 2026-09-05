@@ -116,7 +116,7 @@ class SettingsBackupTest {
             ), "b",
         )
         val restored = SettingsBackup.fromJson(SettingsBackup.toJson(backup.copy(vlessKeys = keys)))!!
-        assertEquals(5, SettingsBackup.VERSION)
+        assertEquals(3, SettingsBackup.VERSION)
         assertEquals(listOf("a", "b", "c"), restored.vlessKeys.items.map { it.id })
         assertEquals("b", restored.vlessKeys.activeId)
     }

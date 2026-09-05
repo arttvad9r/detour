@@ -4,7 +4,7 @@ import org.json.JSONObject
 
 /** Versioned, validated user-settings export. Runtime session state is excluded. */
 object SettingsBackup {
-    const val VERSION = 5
+    const val VERSION = 3
     const val MAX_BYTES = 1024 * 1024
     private const val APP = "detour"
     private val themes = setOf(
@@ -26,12 +26,9 @@ object SettingsBackup {
         val warpProfile: WarpProfile? = null,
         val activeVpn: VpnProfileKind = VpnProfileKind.VLESS,
         val showSystemApps: Boolean = false,
-        val dpiAutoCandidateId: String = "",
-        val dpiAutoDomainPlan: DpiAutoDomainPlan? = null,
     )
 
     fun toJson(b: Backup): String {
-        validateBase(b)
         val keys = if (b.vlessKeys.items.isNotEmpty()) b.vlessKeys
         else legacyKeys(b.vlessUri)
         return JSONObject().apply {
@@ -42,11 +39,6 @@ object SettingsBackup {
             put("activeVpn", b.activeVpn.name)
             put("preset", b.presetId)
             put("customArgs", b.dpiCustomArgs)
-            put("autoCandidate", b.dpiAutoCandidateId)
-            put(
-                "autoDomainPlan",
-                b.dpiAutoDomainPlan?.let { JSONObject(it.toStored()) } ?: JSONObject.NULL,
-            )
             put("autoConnect", b.autoConnect)
             put("theme", b.themeId)
             put("dns", b.dnsId)
@@ -63,15 +55,13 @@ object SettingsBackup {
         when (o.optInt("v", 1)) {
             1 -> parseV1(o)
             2 -> parseV2(o)
-            3 -> parseV3(o)
-            4 -> parseV4(o)
-            VERSION -> parseV5(o)
+            VERSION -> parseV3(o)
             else -> null
         }
     } catch (_: Exception) { null }
 
     private fun parseV1(o: JSONObject): Backup {
-        val b = base(o, allowDomainPlan = false)
+        val b = base(o)
         validateBase(b)
         val keys = legacyKeys(b.vlessUri)
         validateKeys(keys)
@@ -80,7 +70,7 @@ object SettingsBackup {
     }
 
     private fun parseV2(o: JSONObject): Backup {
-        val b = base(o, allowDomainPlan = false)
+        val b = base(o)
         val keysObject = o.optJSONObject("vlessKeys") ?: throw IllegalArgumentException("missing keys")
         val keys = VlessKeys.fromJson(keysObject.toString())
         validateBase(b)
@@ -93,32 +83,8 @@ object SettingsBackup {
         )
     }
 
-    private fun parseV3(o: JSONObject): Backup = parseModern(
-        o = o,
-        allowAuto = false,
-        allowDomainPlan = false,
-    )
-
-    /** v4 introduced trusted global AUTO candidate ids. */
-    private fun parseV4(o: JSONObject): Backup = parseModern(
-        o = o,
-        allowAuto = true,
-        allowDomainPlan = false,
-    )
-
-    /** v5 additionally persists structured per-domain AUTO plans. */
-    private fun parseV5(o: JSONObject): Backup = parseModern(
-        o = o,
-        allowAuto = true,
-        allowDomainPlan = true,
-    )
-
-    private fun parseModern(
-        o: JSONObject,
-        allowAuto: Boolean,
-        allowDomainPlan: Boolean,
-    ): Backup {
-        val b = base(o, allowDomainPlan)
+    private fun parseV3(o: JSONObject): Backup {
+        val b = base(o)
         val keysObject = o.optJSONObject("vlessKeys") ?: throw IllegalArgumentException("missing keys")
         val keys = VlessKeys.fromJson(keysObject.toString())
         val warp = o.optJSONObject("warpProfile")?.let { WarpProfile.fromJson(it.toString()) }
@@ -126,7 +92,6 @@ object SettingsBackup {
             ?: VpnProfileKind.VLESS.name
         val activeVpn = VpnProfileKind.entries.firstOrNull { it.name == activeVpnName }
             ?: throw IllegalArgumentException("unknown VPN profile kind")
-        if (!allowAuto) require(b.presetId != DpiPreset.AUTO.id)
         validateBase(b)
         validateKeys(keys)
         validateRoutes(b.routes)
@@ -148,21 +113,6 @@ object SettingsBackup {
         require(b.themeId in themes)
         require(DnsOptions.isSelectionValid(b.dnsId, b.dnsCustom))
         if (b.presetId == DpiPreset.CUSTOM.id) require(DpiArgs.isValid(b.dpiCustomArgs))
-        if (b.presetId == DpiPreset.AUTO.id) {
-            val hasGlobal = b.dpiAutoCandidateId.isNotBlank()
-            val hasDomain = b.dpiAutoDomainPlan != null
-            require(hasGlobal != hasDomain) { "automatic DPI selection must have exactly one representation" }
-
-            if (hasGlobal) {
-                require(DpiStrategyCatalog.byId(b.dpiAutoCandidateId) != null) {
-                    "unknown automatic DPI strategy"
-                }
-            } else {
-                require(runCatching { requireNotNull(b.dpiAutoDomainPlan).compileArgs() }.isSuccess) {
-                    "invalid automatic DPI domain plan"
-                }
-            }
-        }
     }
 
     private fun validateKeys(keys: VlessKeys) {
@@ -182,18 +132,10 @@ object SettingsBackup {
         }
     }
 
-    private fun base(o: JSONObject, allowDomainPlan: Boolean): Backup {
+    private fun base(o: JSONObject): Backup {
         val routes = o.optJSONObject("routes")?.let { ro ->
             buildMap { ro.keys().forEach { put(it, ro.getString(it)) } }
         } ?: emptyMap()
-        val domainPlan = if (allowDomainPlan) {
-            o.optJSONObject("autoDomainPlan")?.let { stored ->
-                DpiAutoDomainPlan.fromStored(stored.toString())
-                    ?: throw IllegalArgumentException("invalid automatic domain plan")
-            }
-        } else {
-            null
-        }
         return Backup(
             vlessUri = o.optString("vless"),
             presetId = o.optString("preset", "recommended"),
@@ -204,8 +146,6 @@ object SettingsBackup {
             dnsCustom = o.optString("dnsCustom"),
             routes = routes,
             showSystemApps = o.optBoolean("showSystemApps", false),
-            dpiAutoCandidateId = o.optString("autoCandidate"),
-            dpiAutoDomainPlan = domainPlan,
         )
     }
 
