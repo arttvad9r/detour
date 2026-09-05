@@ -6,12 +6,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.assertLeftPositionInRootIsEqualTo
 import androidx.compose.ui.test.assertWidthIsEqualTo
-import androidx.compose.ui.test.fetchSemanticsNode
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.dp
-import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
@@ -36,6 +35,7 @@ class AdaptiveLayoutTest {
 
         rule.onNodeWithTag("root").assertWidthIsEqualTo(360.dp)
         rule.onNodeWithTag("content").assertWidthIsEqualTo(360.dp)
+        rule.onNodeWithTag("content").assertLeftPositionInRootIsEqualTo(0.dp)
     }
 
     @Test
@@ -54,8 +54,6 @@ class AdaptiveLayoutTest {
         }
 
         rule.onNodeWithTag("content").assertWidthIsEqualTo(640.dp)
-        val rootBounds = rule.onNodeWithTag("root").fetchSemanticsNode().boundsInRoot
-        val contentBounds = rule.onNodeWithTag("content").fetchSemanticsNode().boundsInRoot
-        assertEquals(rootBounds.center.x, contentBounds.center.x, 0.5f)
+        rule.onNodeWithTag("content").assertLeftPositionInRootIsEqualTo(180.dp)
     }
 }
