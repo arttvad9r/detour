@@ -98,4 +98,4 @@ export DETOUR_RELEASE_KEY_PASSWORD='...'
   -PdetourVersionCode=1000
 ```
 
-Run `bash engine/vulnscan.sh` with the pinned `govulncheck` tool available. Verify the APK with `apksigner verify --verbose --print-certs` and the AAB with `jarsigner -verify -strict` plus `keytool -printcert -jarfile`, then compare both SHA-256 certificate fingerprints with the expected release/upload identity before distributing locally produced artifacts.
+Run `bash engine/vulnscan.sh` with the pinned `govulncheck` tool available. Verify the APK with `apksigner verify --verbose --print-certs` and the AAB with `jarsigner -verify` plus `keytool -printcert -jarfile`, then compare both SHA-256 certificate fingerprints with the expected release/upload identity before distributing locally produced artifacts. Android signing certificates are normally self-signed, so `jarsigner -strict` is intentionally not used as a trust-chain policy; signer identity is enforced by the exact SHA-256 certificate fingerprint instead.
