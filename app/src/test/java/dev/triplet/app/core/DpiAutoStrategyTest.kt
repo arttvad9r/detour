@@ -154,6 +154,7 @@ class DpiAutoStrategyTest {
             targets = listOf(root, peer, other),
             attemptsPerTarget = 2,
             stopCandidateOnFailure = false,
+            stopScopeOnFailure = true,
         ).single()
         val byId = result.targets.associateBy { it.target.id }
 
@@ -164,7 +165,7 @@ class DpiAutoStrategyTest {
         assertTrue(byId.getValue(other.id).fullyWorking)
     }
 
-    @Test fun `scope pruning can be disabled for exhaustive diagnostics`() {
+    @Test fun `generic exhaustive search does not prune scopes by default`() {
         val root = DpiProbeTarget("root", "example.com", "example.com")
         val peer = DpiProbeTarget("peer", "www.example.com", "example.com")
         var calls = 0
@@ -182,7 +183,6 @@ class DpiAutoStrategyTest {
             targets = listOf(root, peer),
             attemptsPerTarget = 2,
             stopCandidateOnFailure = false,
-            stopScopeOnFailure = false,
         ).single()
 
         assertEquals(4, calls)
