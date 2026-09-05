@@ -6,6 +6,10 @@
     <string name="dpi_auto_googlevideo">GoogleVideo</string>
     <string name="dpi_auto_discord">Discord</string>
     <string name="dpi_auto_telegram">Telegram</string>
+    <string name="dpi_auto_custom_domains">Custom domains</string>
+    <string name="dpi_auto_custom_domains_placeholder">example.com\nsub.example.com</string>
+    <string name="dpi_auto_custom_domains_hint">Optional. Enter domain names only, separated by spaces or new lines.</string>
+    <string name="dpi_auto_custom_domains_invalid">Use domain names only, without scheme, port, path or wildcard. Up to 64 domains.</string>
     <string name="dpi_auto_start">Start test</string>
     <string name="dpi_auto_cancel">Cancel test</string>
     <string name="dpi_auto_apply">Apply strategy</string>
