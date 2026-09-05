@@ -60,6 +60,7 @@ import dev.triplet.app.ui.ThemeViewModel
 import dev.triplet.app.ui.VlessKeyScreen
 import dev.triplet.app.ui.detourColors
 import dev.triplet.app.ui.detourHighRefresh
+import dev.triplet.app.ui.parseHomeTrafficStats
 import dev.triplet.app.vpn.AutoConnectCoordinator
 import dev.triplet.app.vpn.VpnController
 import dev.triplet.app.vpn.VpnState
@@ -240,6 +241,11 @@ internal fun DetourNavigation(
                                 Engine.subscriptionSelectedNode(appContext.cacheDir.absolutePath)
                                     .trim()
                                     .takeIf { it.isNotBlank() }
+                            }
+                        },
+                        readTrafficStats = {
+                            withContext(Dispatchers.IO) {
+                                parseHomeTrafficStats(Engine.trafficStats())
                             }
                         },
                     ),
