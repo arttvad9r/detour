@@ -135,7 +135,11 @@ class DpiViewModel(
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = dpiUiState(settings.value, customDraft.value, editingOverride.value),
+        initialValue = dpiUiState(
+            settings.value,
+            savedStateHandle[KEY_CUSTOM_DRAFT],
+            savedStateHandle[KEY_EDITING_CUSTOM],
+        ),
     )
 
     fun editCustom() {
