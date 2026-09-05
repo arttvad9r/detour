@@ -3,8 +3,8 @@ package dev.triplet.app.core
 /**
  * ByeDPI strategy presets.
  * RECOMMENDED — лестница, подобранная и проверенная на сети провайдера
- * владельца (МТС Вологда, приёмка 2026-08-24); CUSTOM — свободное поле
- * аргументов из настроек.
+ * владельца (МТС Вологда, приёмка 2026-08-24); AUTO — стратегия из
+ * встроенного доверенного каталога; CUSTOM — свободное поле аргументов.
  */
 enum class DpiPreset(val id: String, val args: List<String>) {
     RECOMMENDED(
@@ -14,6 +14,7 @@ enum class DpiPreset(val id: String, val args: List<String>) {
                "-d", "25+s", "-s", "30+s", "-d", "35+s", "-a", "1",
                "--timeout", "3"),
     ),
+    AUTO("auto", emptyList()),
     CUSTOM("custom", emptyList());
 
     companion object {
@@ -30,8 +31,25 @@ object DpiArgs {
         """[+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:[eE][+-]?\d+)?""",
     )
 
-    fun resolve(preset: DpiPreset, customRaw: String): List<String> =
-        if (preset == DpiPreset.CUSTOM) tokenize(customRaw) else preset.args
+    fun resolve(
+        preset: DpiPreset,
+        customRaw: String,
+        autoCandidateId: String = "",
+        autoDomainPlan: DpiAutoDomainPlan? = null,
+    ): List<String> = when (preset) {
+        DpiPreset.RECOMMENDED -> preset.args
+        DpiPreset.CUSTOM -> tokenize(customRaw)
+        DpiPreset.AUTO -> {
+            if (autoDomainPlan != null) {
+                require(autoCandidateId.isBlank()) { "conflicting automatic DPI strategies" }
+                autoDomainPlan.compileArgs()
+            } else {
+                requireNotNull(DpiStrategyCatalog.byId(autoCandidateId)) {
+                    "unknown automatic DPI strategy"
+                }.args
+            }
+        }
+    }
 
     fun isValid(raw: String): Boolean {
         val tokens = tokenize(raw)

@@ -33,6 +33,8 @@ internal fun backupFromSettings(settings: TriSettings): SettingsBackup.Backup = 
     warpProfile = settings.warpProfile,
     activeVpn = settings.activeVpn,
     showSystemApps = settings.showSystemApps,
+    dpiAutoCandidateId = settings.dpiAutoCandidateId,
+    dpiAutoDomainPlan = settings.dpiAutoDomainPlan,
 )
 
 class BackupViewModel(

@@ -3,6 +3,7 @@ package dev.triplet.app.ui
 import androidx.lifecycle.SavedStateHandle
 import dev.triplet.app.data.AppInfo
 import dev.triplet.app.data.TriSettings
+import dev.triplet.app.vpn.VpnState
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -47,6 +48,9 @@ class SavedStateViewModelTest {
             settings = MutableStateFlow<TriSettings?>(null),
             setPreset = { _ -> },
             setCustomArgs = { _ -> },
+            setAutoDomainPlan = { _ -> },
+            vpnState = MutableStateFlow(VpnState.Idle),
+            runAutoSearch = { _, _ -> error("not used by saved-state test") },
             restartTunnel = {},
             savedStateHandle = SavedStateHandle(
                 mapOf(
