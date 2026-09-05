@@ -34,9 +34,9 @@ import java.util.concurrent.atomic.AtomicInteger
 class TriVpnService : VpnService() {
 
     companion object {
-        const val ACTION_START = "dev.triplet.app.action.START"
-        const val ACTION_STOP = "dev.triplet.app.action.STOP"
-        const val ACTION_RESTART = "dev.triplet.app.action.RESTART"
+        const val ACTION_START = DETOUR_VPN_ACTION_START
+        const val ACTION_STOP = DETOUR_VPN_ACTION_STOP
+        const val ACTION_RESTART = DETOUR_VPN_ACTION_RESTART
     }
 
     private val executor = Executors.newSingleThreadExecutor()
@@ -73,20 +73,35 @@ class TriVpnService : VpnService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            ACTION_START -> executor.execute { startSequence() }
-            ACTION_STOP -> {
+        when (classifyVpnServiceCommand(intent?.action)) {
+            VpnServiceCommand.START_USER -> executor.execute { startSequence() }
+            VpnServiceCommand.START_SYSTEM -> {
+                ServiceLog.i("always-on: Android requested VPN start")
+                executor.execute { startSequence() }
+            }
+            VpnServiceCommand.STOP -> {
                 stopQueued.set(true)
                 executor.execute { restartQueued.set(false); stopSequence(stopSelf = true); stopQueued.set(false) }
             }
-            ACTION_RESTART -> if (!stopQueued.get() && restartQueued.compareAndSet(false, true)) {
+            VpnServiceCommand.RESTART -> if (!stopQueued.get() && restartQueued.compareAndSet(false, true)) {
                 executor.execute {
                     restartQueued.set(false)
                     if (!stopQueued.get()) { stopSequence(stopSelf = false); startSequence() }
                 }
             }
-            null -> stopSelf()
+            VpnServiceCommand.IGNORE -> {
+                // Do not let an unknown or null start accidentally bring up a
+                // tunnel. If there is no live session, release this start id.
+                if (
+                    VpnController.state.value != VpnState.Active &&
+                    VpnController.state.value != VpnState.Starting
+                ) {
+                    stopSelf(startId)
+                }
+            }
         }
+        // Android Always-on owns restart policy; a normal Detour start should
+        // likewise not create sticky null-intent restarts with ambiguous policy.
         return START_NOT_STICKY
     }
 
