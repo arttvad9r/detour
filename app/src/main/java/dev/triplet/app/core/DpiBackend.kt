@@ -4,6 +4,7 @@ import android.content.Context
 import java.io.File
 import java.net.InetSocketAddress
 import java.net.Socket
+import java.util.concurrent.CancellationException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -55,9 +56,14 @@ class DpiBackend(context: Context, private val onUnexpectedExit: () -> Unit = {}
                 // A cancelled/timed-out startup can leave a perfectly healthy child
                 // running before its listener becomes observable. Failed start is a
                 // strict lifecycle boundary: never return with a retained process.
+                val startCancelled = cancelled() || Thread.currentThread().isInterrupted
                 stop()
+                if (startCancelled) throw CancellationException("DPI backend start cancelled")
             }
             started
+        } catch (cancelledError: CancellationException) {
+            stop()
+            throw cancelledError
         } catch (e: Exception) {
             stop()
             false
