@@ -6,16 +6,15 @@ object SubscriptionRefreshPolicy {
     const val DEFAULT_INTERVAL_HOURS = 24
     const val MIN_PERIODIC_INTERVAL_HOURS = 1
 
-    fun effectiveIntervalHours(
-        configuredHours: Int?,
-        providerRecommendedHours: Int?,
-    ): Int? {
-        if (configuredHours == null) return null
-        val requested = providerRecommendedHours
+    /** Suggested value when enabling refresh; provider metadata wins only at that explicit user action. */
+    fun suggestedIntervalHours(providerRecommendedHours: Int?): Int =
+        providerRecommendedHours
             ?.takeIf { it in VlessKeys.MIN_UPDATE_INTERVAL_HOURS..VlessKeys.MAX_UPDATE_INTERVAL_HOURS }
-            ?: configuredHours
-        return requested.coerceIn(MIN_PERIODIC_INTERVAL_HOURS, VlessKeys.MAX_UPDATE_INTERVAL_HOURS)
-    }
+            ?: DEFAULT_INTERVAL_HOURS
+
+    /** Null means disabled. Stored values are the user's actual chosen interval. */
+    fun effectiveIntervalHours(configuredHours: Int?): Int? =
+        configuredHours?.coerceIn(MIN_PERIODIC_INTERVAL_HOURS, VlessKeys.MAX_UPDATE_INTERVAL_HOURS)
 
     fun isDue(
         lastUpdatedAt: Long?,
