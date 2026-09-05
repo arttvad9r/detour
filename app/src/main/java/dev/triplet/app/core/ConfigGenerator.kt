@@ -25,6 +25,8 @@ object ConfigGenerator {
 
     private val ROUTE_ADDRESS = listOf("0.0.0.0/1", "128.0.0.0/1", "::/0")
     private const val WARP_GROUP = "WARP"
+    private const val ENTRY_VLESS = "ENTRY_VLESS"
+    private const val ENTRY_WARP_GROUP = "ENTRY_WARP"
     private const val SUBSCRIPTION_GROUP = "SUBSCRIPTION"
     private const val SUBSCRIPTION_PROVIDER = "DETOUR_SUBSCRIPTION"
     private const val SUBSCRIPTION_USER_AGENT = "mihomo/1.19.30"
@@ -40,6 +42,14 @@ object ConfigGenerator {
             "missing uid resolution for routed packages"
         }
         DestinationRules.validate(input.destinationRules)
+        require(input.chainEntry == null || input.vpn != null) { "multi-hop requires an exit VPN" }
+        require(input.chainEntry !is VpnOutbound.Subscription) {
+            "subscription cannot be used as a multi-hop entry"
+        }
+        require(!(input.chainEntry is VpnOutbound.Warp && input.vpn is VpnOutbound.Warp)) {
+            "WARP cannot be both multi-hop entry and exit"
+        }
+
         val subscription = input.vpn as? VpnOutbound.Subscription
         val subscriptionUrl = subscription?.url
         val subscriptionProviderPath = subscriptionUrl?.let(SubscriptionProviderMaterializer::localPath)
@@ -49,15 +59,19 @@ object ConfigGenerator {
             is VpnOutbound.Warp -> WARP_GROUP
             null -> null
         }
+        val entryTag = when (input.chainEntry) {
+            is VpnOutbound.Vless -> ENTRY_VLESS
+            is VpnOutbound.Warp -> ENTRY_WARP_GROUP
+            is VpnOutbound.Subscription -> error("subscription cannot be used as a multi-hop entry")
+            null -> null
+        }
         val orderedDestinationRules = DestinationRules.orderedForCompilation(input.destinationRules)
         val usesVpn = input.vpnApps.isNotEmpty() || orderedDestinationRules.any { it.route == AppRoute.VPN }
         val usesDpi = input.dpiApps.isNotEmpty() || orderedDestinationRules.any { it.route == AppRoute.DPI }
         if (usesVpn) requireNotNull(vpnTag) { "destination rule requires VPN profile" }
 
-        val warpProxies = (input.vpn as? VpnOutbound.Warp)?.profile?.proxies?.let { all ->
-            val recommended = all.filter { it.name.contains("⭐") }
-            recommended.ifEmpty { all }.take(MAX_WARP_PROXIES)
-        }.orEmpty()
+        val warpProxies = (input.vpn as? VpnOutbound.Warp)?.profile?.let(::selectedWarpProxies).orEmpty()
+        val entryWarpProxies = (input.chainEntry as? VpnOutbound.Warp)?.profile?.let(::selectedWarpProxies).orEmpty()
         val loopbackUser = yamlScalar(input.probeCredentials.username)
         val loopbackPassword = yamlScalar(input.probeCredentials.password)
 
@@ -89,11 +103,19 @@ object ConfigGenerator {
         // mihomo требует единый список proxies; subscription provider подключается
         // отдельно через proxy-providers и не создаёт фиктивный VLESS outbound.
         val proxies = buildList {
+            when (val entry = input.chainEntry) {
+                is VpnOutbound.Vless -> add(renderVless(entry.profile, name = ENTRY_VLESS))
+                is VpnOutbound.Warp -> entryWarpProxies.forEachIndexed { index, proxy ->
+                    add(renderWarp(proxy, index, namePrefix = ENTRY_WARP_GROUP))
+                }
+                is VpnOutbound.Subscription -> error("subscription cannot be used as a multi-hop entry")
+                null -> Unit
+            }
             when (val vpn = input.vpn) {
-                is VpnOutbound.Vless -> add(renderVless(vpn.profile))
+                is VpnOutbound.Vless -> add(renderVless(vpn.profile, dialerProxy = entryTag))
                 is VpnOutbound.Subscription -> Unit
                 is VpnOutbound.Warp -> warpProxies.forEachIndexed { index, proxy ->
-                    add(renderWarp(proxy, index))
+                    add(renderWarp(proxy, index, dialerProxy = entryTag))
                 }
                 null -> Unit
             }
@@ -111,13 +133,19 @@ object ConfigGenerator {
         }.joinToString("\n")
 
         val proxyProviders = subscriptionUrl?.let { url ->
-            "\nproxy-providers:\n" + renderSubscriptionProvider(url, subscriptionProviderPath)
+            "\nproxy-providers:\n" + renderSubscriptionProvider(url, subscriptionProviderPath, entryTag)
         }.orEmpty()
-        val proxyGroups = when (val vpn = input.vpn) {
-            is VpnOutbound.Warp -> "\nproxy-groups:\n" + renderWarpGroup(warpProxies.size)
-            is VpnOutbound.Subscription -> "\nproxy-groups:\n" + renderSubscriptionGroup(vpn)
-            else -> ""
+        val groups = buildList {
+            if (input.chainEntry is VpnOutbound.Warp) {
+                add(renderWarpGroup(entryWarpProxies.size, ENTRY_WARP_GROUP, ENTRY_WARP_GROUP))
+            }
+            when (val vpn = input.vpn) {
+                is VpnOutbound.Warp -> add(renderWarpGroup(warpProxies.size))
+                is VpnOutbound.Subscription -> add(renderSubscriptionGroup(vpn))
+                else -> Unit
+            }
         }
+        val proxyGroups = if (groups.isEmpty()) "" else "\nproxy-groups:\n" + groups.joinToString("\n")
 
         val probes = buildList {
             if (usesVpn) {
@@ -194,6 +222,11 @@ rules:
 $rules""".trim()
     }
 
+    private fun selectedWarpProxies(profile: WarpProfile): List<WarpProxy> {
+        val recommended = profile.proxies.filter { it.name.contains("⭐") }
+        return recommended.ifEmpty { profile.proxies }.take(MAX_WARP_PROXIES)
+    }
+
     private fun renderDestinationRule(rule: DestinationRule, vpnTag: String?): List<String> {
         val matcher = when (rule.type) {
             DestinationRuleType.DOMAIN -> "DOMAIN,${rule.value}"
@@ -218,27 +251,37 @@ $rules""".trim()
         }
     }
 
-    private fun renderVless(p: VlessProfile): String {
+    private fun renderVless(
+        p: VlessProfile,
+        name: String = "VLESS",
+        dialerProxy: String? = null,
+    ): String {
         require(!p.isSubscription) { "subscription cannot be rendered as a VLESS proxy" }
-        return """
-        - name: VLESS
-          type: vless
-          server: ${yamlScalar(p.server)}
-          port: ${p.port}
-          uuid: ${yamlScalar(p.uuid)}
-          network: tcp
-          udp: true
-          tls: true
-          flow: ${yamlScalar(p.flow)}
-          client-fingerprint: ${yamlScalar(p.fingerprint)}
-          servername: ${yamlScalar(p.sni)}
-          reality-opts:
-            public-key: ${yamlScalar(p.publicKey)}
-            short-id: ${yamlScalar(p.shortId)}
-        """.trimIndent()
+        val fields = mutableListOf(
+            "- name: ${yamlScalar(name)}",
+            "  type: vless",
+            "  server: ${yamlScalar(p.server)}",
+            "  port: ${p.port}",
+            "  uuid: ${yamlScalar(p.uuid)}",
+            "  network: tcp",
+            "  udp: true",
+            "  tls: true",
+            "  flow: ${yamlScalar(p.flow)}",
+            "  client-fingerprint: ${yamlScalar(p.fingerprint)}",
+            "  servername: ${yamlScalar(p.sni)}",
+            "  reality-opts:",
+            "    public-key: ${yamlScalar(p.publicKey)}",
+            "    short-id: ${yamlScalar(p.shortId)}",
+        )
+        dialerProxy?.let { fields += "  dialer-proxy: ${yamlScalar(it)}" }
+        return fields.joinToString("\n")
     }
 
-    private fun renderSubscriptionProvider(url: String, localPath: String?): String = buildString {
+    private fun renderSubscriptionProvider(
+        url: String,
+        localPath: String?,
+        dialerProxy: String? = null,
+    ): String = buildString {
         val parsed = VlessKeyParser.parse(url) as? ParseResult.Ok
         require(parsed?.profile?.isSubscription == true) { "invalid subscription URL" }
         append("  $SUBSCRIPTION_PROVIDER:\n")
@@ -261,6 +304,10 @@ $rules""".trim()
             append("    header:\n")
             append("      User-Agent:\n")
             append("        - $SUBSCRIPTION_USER_AGENT")
+        }
+        dialerProxy?.let {
+            append("\n    override:\n")
+            append("      dialer-proxy: ${yamlScalar(it)}")
         }
     }
 
@@ -292,9 +339,14 @@ $rules""".trim()
         append("    - $SUBSCRIPTION_PROVIDER")
     }
 
-    private fun renderWarp(p: WarpProxy, index: Int): String {
+    private fun renderWarp(
+        p: WarpProxy,
+        index: Int,
+        namePrefix: String = WARP_GROUP,
+        dialerProxy: String? = null,
+    ): String {
         val fields = mutableListOf(
-            "- name: WARP_$index",
+            "- name: ${namePrefix}_$index",
             "  type: wireguard",
             "  server: ${yamlScalar(p.server)}",
             "  port: ${p.port}",
@@ -311,6 +363,7 @@ $rules""".trim()
         // DNS is a Detour setting. Imported WARP profile DNS must not silently
         // override the resolver selected in Settings -> DNS.
         fields += "  remote-dns-resolve: false"
+        dialerProxy?.let { fields += "  dialer-proxy: ${yamlScalar(it)}" }
         fields += "  amnezia-wg-option:"
         val a = p.amnezia
         fun int(name: String, value: Int?) { if (value != null) fields += "    $name: $value" }
@@ -332,9 +385,13 @@ $rules""".trim()
         return fields.joinToString("\n")
     }
 
-    private fun renderWarpGroup(count: Int): String = buildString {
+    private fun renderWarpGroup(
+        count: Int,
+        groupName: String = WARP_GROUP,
+        proxyPrefix: String = WARP_GROUP,
+    ): String = buildString {
         require(count > 0)
-        append("- name: $WARP_GROUP\n")
+        append("- name: $groupName\n")
         // Do not continuously chase the lowest latency: changing the WireGuard
         // endpoint under long-lived UDP/QUIC sessions can stall video streams.
         // Fallback keeps the current node until it becomes unavailable.
@@ -346,7 +403,7 @@ $rules""".trim()
         append("  max-failed-times: 2\n")
         append("  expected-status: 204\n")
         append("  proxies:\n")
-        repeat(count) { append("    - WARP_$it\n") }
+        repeat(count) { append("    - ${proxyPrefix}_$it\n") }
     }.trimEnd()
 
     // Элементы последовательности под ключом с отступом 2: элементы на 4 пробела.
