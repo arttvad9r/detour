@@ -30,6 +30,48 @@ class DpiAutoSearchTest {
         assertEquals("winner", report.winner?.candidate?.id)
     }
 
+    @Test fun `per-domain search retests direct peer inside affected broad scope`() {
+        val root = DpiProbeTarget("root", "example.com", "example.com")
+        val web = DpiProbeTarget("web", "www.example.com", "example.com")
+        val unrelated = DpiProbeTarget("other", "other.example", "other.example")
+        val searched = mutableListOf<List<DpiProbeTarget>>()
+        val coordinator = DpiPerDomainSearchCoordinator(
+            directProbe = DpiTargetProbe { target ->
+                DpiProbeAttempt(success = target != root, latencyMs = 10)
+            },
+            strategySearcher = DpiStrategySearcher { targets, _ ->
+                searched += targets
+                listOf(successfulStrategy(targets))
+            },
+        )
+
+        val report = coordinator.run(listOf(root, web, unrelated), attemptsPerTarget = 2)
+
+        assertEquals(listOf(root, web), searched.single())
+        assertEquals(listOf(root), report.problematicTargets)
+        assertEquals(2, report.strategies.single().targets.size)
+    }
+
+    @Test fun `per-domain search skips unaffected scopes`() {
+        val affected = DpiProbeTarget("affected", "a.example", "example")
+        val peer = DpiProbeTarget("peer", "b.example", "example")
+        val unrelated = DpiProbeTarget("unrelated", "unrelated.test", "unrelated.test")
+        val searched = mutableListOf<List<DpiProbeTarget>>()
+        val coordinator = DpiPerDomainSearchCoordinator(
+            directProbe = DpiTargetProbe { target ->
+                DpiProbeAttempt(success = target != affected, latencyMs = 10)
+            },
+            strategySearcher = DpiStrategySearcher { targets, _ ->
+                searched += targets
+                emptyList()
+            },
+        )
+
+        coordinator.run(listOf(affected, peer, unrelated), attemptsPerTarget = 1)
+
+        assertEquals(listOf(affected, peer), searched.single())
+    }
+
     @Test fun `all direct targets skip strategy search`() {
         var searches = 0
         val coordinator = DpiAutoSearchCoordinator(
