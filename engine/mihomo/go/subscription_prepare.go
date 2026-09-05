@@ -504,11 +504,18 @@ func parsePreparedSubscriptionProxies(body []byte) ([]map[string]any, error) {
 	schema := &preparedProxySchema{}
 	yamlErr := mihomoYaml.Unmarshal(body, schema)
 	if yamlErr != nil || len(schema.Proxies) == 0 {
-		proxies, convertErr := convert.ConvertsV2Ray(normalizeVlessSubscriptionBody(body))
-		if convertErr != nil || len(proxies) == 0 {
-			return nil, errors.New("unsupported subscription format")
+		if proxies, recognized := parseSingBoxSubscription(body); recognized {
+			if len(proxies) == 0 {
+				return nil, errors.New("subscription has no supported sing-box outbounds")
+			}
+			schema.Proxies = proxies
+		} else {
+			proxies, convertErr := convert.ConvertsV2Ray(normalizeVlessSubscriptionBody(body))
+			if convertErr != nil || len(proxies) == 0 {
+				return nil, errors.New("unsupported subscription format")
+			}
+			schema.Proxies = proxies
 		}
-		schema.Proxies = proxies
 	}
 
 	prepared := make([]map[string]any, 0, min(len(schema.Proxies), maxSubscriptionNodes))
