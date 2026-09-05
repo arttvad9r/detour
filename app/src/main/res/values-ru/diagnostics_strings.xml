@@ -11,6 +11,9 @@
     <string name="diagnostics_dpi_route">Интернет через DPI</string>
     <string name="diagnostics_profile">Профиль</string>
     <string name="diagnostics_server">Сервер</string>
+    <string name="diagnostics_multi_hop">Multi-hop</string>
+    <string name="diagnostics_disabled">Выключен</string>
+    <string name="diagnostics_unavailable">Недоступен</string>
     <string name="diagnostics_dns">DNS</string>
     <string name="diagnostics_routes">Маршруты приложений</string>
     <string name="diagnostics_last_error">Последняя ошибка</string>
