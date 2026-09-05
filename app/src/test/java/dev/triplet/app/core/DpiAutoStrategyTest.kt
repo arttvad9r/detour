@@ -135,6 +135,60 @@ class DpiAutoStrategyTest {
         assertEquals(listOf(10L, 30L), result.targets.single().successfulLatenciesMs)
     }
 
+    @Test fun `per-domain runner prunes failed scope but still tests another scope`() {
+        val root = DpiProbeTarget("root", "example.com", "example.com")
+        val peer = DpiProbeTarget("peer", "www.example.com", "example.com")
+        val other = DpiProbeTarget("other", "other.test", "other.test")
+        val probed = mutableListOf<String>()
+        val backend = object : DpiStrategyBackend {
+            override fun start(candidate: DpiStrategyCandidate) = true
+            override fun stop() = Unit
+        }
+        val probe = DpiTargetProbe { target ->
+            probed += target.id
+            DpiProbeAttempt(success = target != root, latencyMs = 10)
+        }
+
+        val result = DpiStrategySearchRunner(backend, probe).run(
+            candidates = listOf(DpiStrategyCandidate("candidate", listOf("-d", "1"))),
+            targets = listOf(root, peer, other),
+            attemptsPerTarget = 2,
+            stopCandidateOnFailure = false,
+        ).single()
+        val byId = result.targets.associateBy { it.target.id }
+
+        assertEquals(listOf("root", "root", "other", "other"), probed)
+        assertEquals(2, byId.getValue(root.id).attempts)
+        assertEquals(0, byId.getValue(peer.id).attempts)
+        assertEquals(2, byId.getValue(other.id).attempts)
+        assertTrue(byId.getValue(other.id).fullyWorking)
+    }
+
+    @Test fun `scope pruning can be disabled for exhaustive diagnostics`() {
+        val root = DpiProbeTarget("root", "example.com", "example.com")
+        val peer = DpiProbeTarget("peer", "www.example.com", "example.com")
+        var calls = 0
+        val backend = object : DpiStrategyBackend {
+            override fun start(candidate: DpiStrategyCandidate) = true
+            override fun stop() = Unit
+        }
+        val probe = DpiTargetProbe { target ->
+            calls++
+            DpiProbeAttempt(success = target != root, latencyMs = 10)
+        }
+
+        val result = DpiStrategySearchRunner(backend, probe).run(
+            candidates = listOf(DpiStrategyCandidate("candidate", listOf("-d", "1"))),
+            targets = listOf(root, peer),
+            attemptsPerTarget = 2,
+            stopCandidateOnFailure = false,
+            stopScopeOnFailure = false,
+        ).single()
+
+        assertEquals(4, calls)
+        assertEquals(2, result.targets.single { it.target == peer }.attempts)
+    }
+
     @Test fun `global auto search short circuits a candidate after first failed attempt`() {
         val backend = object : DpiStrategyBackend {
             override fun start(candidate: DpiStrategyCandidate) = true
