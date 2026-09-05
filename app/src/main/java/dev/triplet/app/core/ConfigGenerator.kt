@@ -35,6 +35,7 @@ object ConfigGenerator {
         require(input.vpnUids.keys.containsAll(input.vpnApps + input.dpiApps)) {
             "missing uid resolution for routed packages"
         }
+        DestinationRules.validate(input.destinationRules)
         val subscription = input.vpn as? VpnOutbound.Subscription
         val subscriptionUrl = subscription?.url
         val subscriptionProviderPath = subscriptionUrl?.let(SubscriptionProviderMaterializer::localPath)
@@ -44,6 +45,11 @@ object ConfigGenerator {
             is VpnOutbound.Warp -> WARP_GROUP
             null -> null
         }
+        val orderedDestinationRules = DestinationRules.orderedForCompilation(input.destinationRules)
+        val usesVpn = input.vpnApps.isNotEmpty() || orderedDestinationRules.any { it.route == AppRoute.VPN }
+        val usesDpi = input.dpiApps.isNotEmpty() || orderedDestinationRules.any { it.route == AppRoute.DPI }
+        if (usesVpn) requireNotNull(vpnTag) { "destination rule requires VPN profile" }
+
         val warpProxies = (input.vpn as? VpnOutbound.Warp)?.profile?.proxies?.let { all ->
             val recommended = all.filter { it.name.contains("⭐") }
             recommended.ifEmpty { all }.take(MAX_WARP_PROXIES)
@@ -56,10 +62,13 @@ object ConfigGenerator {
         val rules = buildList {
             add("- IP-CIDR6,::/0,REJECT,no-resolve")
             // Before API 33 VpnService has no excludeRoute(). LAN destinations
-            // therefore enter the TUN and must be rejected before per-UID routes;
-            // otherwise the UID rule wins first and proxies local traffic.
+            // therefore enter the TUN and must be rejected before user overrides;
+            // otherwise a broad DIRECT/VPN rule could proxy or bypass local traffic.
             if (input.apiLevel < 33) {
                 LAN_PREFIXES.forEach { add("- IP-CIDR,$it,REJECT,no-resolve") }
+            }
+            orderedDestinationRules.forEach { rule ->
+                addAll(renderDestinationRule(rule, requireNotNull(vpnTag.takeIf { rule.route == AppRoute.VPN } ?: vpnTag)))
             }
             vpnTag?.let { tag -> input.vpnApps.forEach { pkg -> add("- ${attr(pkg)},$tag") } }
             input.dpiApps.forEach { pkg ->
@@ -104,7 +113,7 @@ object ConfigGenerator {
         }
 
         val probes = buildList {
-            if (input.vpnApps.isNotEmpty()) {
+            if (usesVpn) {
                 val name = when (input.vpn) {
                     is VpnOutbound.Subscription -> "PROBE_SUBSCRIPTION"
                     is VpnOutbound.Vless -> "PROBE_VLESS"
@@ -122,7 +131,7 @@ object ConfigGenerator {
       password: $loopbackPassword""")
                 }
             }
-            if (input.dpiApps.isNotEmpty()) {
+            if (usesDpi) {
                 add("""- name: PROBE_DPI
   type: mixed
   listen: 127.0.0.1
@@ -175,6 +184,27 @@ listeners:
 $probes
 rules:
 $rules""".trim()
+    }
+
+    private fun renderDestinationRule(rule: DestinationRule, vpnTag: String?): List<String> {
+        val matcher = when (rule.type) {
+            DestinationRuleType.DOMAIN -> "DOMAIN,${rule.value}"
+            DestinationRuleType.DOMAIN_SUFFIX -> "DOMAIN-SUFFIX,${rule.value}"
+            DestinationRuleType.IP_CIDR -> "IP-CIDR,${rule.value}"
+        }
+        val target = when (rule.route) {
+            AppRoute.DIRECT -> "DIRECT"
+            AppRoute.VPN -> requireNotNull(vpnTag) { "destination rule requires VPN profile" }
+            AppRoute.DPI -> "DPI"
+        }
+        return if (rule.route == AppRoute.DPI) {
+            listOf(
+                "- AND,(($matcher),(NETWORK,UDP),(DST-PORT,443)),REJECT",
+                "- $matcher,$target",
+            )
+        } else {
+            listOf("- $matcher,$target")
+        }
     }
 
     private fun renderVless(p: VlessProfile): String {
