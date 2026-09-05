@@ -195,7 +195,10 @@ class SubscriptionRuntimeViewModel : ViewModel() {
         }
     }
 
-    fun refresh(connected: Boolean) {
+    fun refresh(
+        connected: Boolean,
+        onRefreshed: suspend (Long) -> Unit = {},
+    ) {
         val url = boundUrl ?: return
         _uiState.value = _uiState.value.copy(
             latencyTesting = false,
@@ -205,17 +208,19 @@ class SubscriptionRuntimeViewModel : ViewModel() {
         )
         loadCatalog(url, force = true)
         loadMetadata(url, force = true)
-        if (connected) {
-            runtimeJob?.cancel()
-            runtimeJob = viewModelScope.launch {
-                operationMutex.withLock {
-                    try {
-                        _uiState.value = _uiState.value.copy(status = SubscriptionRuntimeStatus.REFRESHING)
-                        withContext(Dispatchers.IO) {
-                            val path = Engine.prepareSubscriptionProvider(url, boundCacheDir)
-                            check(path.isNotBlank()) { "subscription could not be prepared" }
-                            Engine.refreshSubscriptionProvider()
-                        }
+        runtimeJob?.cancel()
+        runtimeJob = viewModelScope.launch {
+            operationMutex.withLock {
+                try {
+                    _uiState.value = _uiState.value.copy(status = SubscriptionRuntimeStatus.REFRESHING)
+                    withContext(Dispatchers.IO) {
+                        val path = Engine.prepareSubscriptionProvider(url, boundCacheDir)
+                        check(path.isNotBlank()) { "subscription could not be prepared" }
+                        if (connected) Engine.refreshSubscriptionProvider()
+                    }
+                    val refreshedAt = System.currentTimeMillis()
+                    onRefreshed(refreshedAt)
+                    if (connected) {
                         val provider = pollProvider()
                         val selected = withContext(Dispatchers.IO) {
                             Engine.subscriptionSelectedNode(boundCacheDir)
@@ -226,12 +231,14 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                             status = SubscriptionRuntimeStatus.IDLE,
                         )
                         selected?.let { logSelectedNodeDiagnostics(boundCacheDir, it) }
-                    } catch (cancelled: CancellationException) {
+                    } else {
                         _uiState.value = _uiState.value.copy(status = SubscriptionRuntimeStatus.IDLE)
-                        throw cancelled
-                    } catch (_: Exception) {
-                        _uiState.value = _uiState.value.copy(status = SubscriptionRuntimeStatus.ERROR)
                     }
+                } catch (cancelled: CancellationException) {
+                    _uiState.value = _uiState.value.copy(status = SubscriptionRuntimeStatus.IDLE)
+                    throw cancelled
+                } catch (_: Exception) {
+                    _uiState.value = _uiState.value.copy(status = SubscriptionRuntimeStatus.ERROR)
                 }
             }
         }
