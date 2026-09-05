@@ -210,8 +210,9 @@ fun interface DpiTargetProbe {
 /**
  * Synchronous search primitive. Callers own the worker thread/coroutine.
  * The backend is always stopped between candidates, including failures.
- * When [stopScopeOnFailure] is enabled, a failed target prunes only later
- * targets with the same [DpiProbeTarget.scopeHost]; other scopes still run.
+ * When [stopScopeOnFailure] is enabled, the first failed observation ends the
+ * current target and prunes only later targets with the same
+ * [DpiProbeTarget.scopeHost]; other scopes still run.
  */
 class DpiStrategySearchRunner(
     private val backend: DpiStrategyBackend,
@@ -268,9 +269,9 @@ class DpiStrategySearchRunner(
                         if (observation.success) {
                             successes++
                             observation.latencyMs?.let(latencies::add)
-                        } else if (stopCandidateOnFailure) {
-                            candidateFailed = true
-                            break
+                        } else {
+                            if (stopCandidateOnFailure) candidateFailed = true
+                            if (stopCandidateOnFailure || stopScopeOnFailure) break
                         }
                     }
 
