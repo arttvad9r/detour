@@ -419,14 +419,19 @@ class TriVpnService : VpnService() {
         val builder = Builder()
             .setSession(getString(R.string.app_name))
             .setMtu(ConfigGenerator.MTU)
-        builder.addAddress(ConfigGenerator.INET4.substringBefore('/'),
-            ConfigGenerator.INET4.substringAfter('/').toInt())
+        builder.addAddress(
+            ConfigGenerator.INET4.substringBefore('/'),
+            ConfigGenerator.INET4.substringAfter('/').toInt(),
+        )
+        builder.addAddress(
+            ConfigGenerator.INET6.substringBefore('/'),
+            ConfigGenerator.INET6.substringAfter('/').toInt(),
+        )
 
         builder.addAddress("198.18.0.1", 30)
 
         builder.addRoute("0.0.0.0", 0)
-        // Keep this TUN IPv4-only. Android blocks the unconfigured IPv6 family
-        // for allowed VPN apps; ConfigGenerator also rejects IPv6 defensively.
+        builder.addRoute("::", 0)
 
         if (Build.VERSION.SDK_INT >= 33) {
             ConfigGenerator.ANDROID_EXCLUDED_PREFIXES.forEach { prefix ->
