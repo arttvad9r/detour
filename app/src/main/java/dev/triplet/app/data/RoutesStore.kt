@@ -12,6 +12,8 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import dev.triplet.app.core.AppRoute
+import dev.triplet.app.core.DestinationRule
+import dev.triplet.app.core.DestinationRules
 import dev.triplet.app.core.DpiPreset
 import dev.triplet.app.core.ParseResult
 import dev.triplet.app.core.SettingsBackup
@@ -60,6 +62,7 @@ data class TriSettings(
     val dnsId: String,
     val dnsCustom: String,
     val routes: Map<String, AppRoute>,
+    val destinationRules: List<DestinationRule>,
     val showSystemApps: Boolean,
     val sessionStartedAt: Long?,
 ) {
@@ -81,6 +84,7 @@ object RoutesMapping {
     private const val KEY_THEME = "theme_id"
     private const val KEY_DNS = "dns_id"
     private const val KEY_DNS_CUSTOM = "dns_custom"
+    private const val KEY_DESTINATION_RULES = "destination_rules"
     private const val KEY_SESSION_STARTED = "session_started_at"
     private const val KEY_SHOW_SYSTEM = "show_system_apps"
     private const val KEY_VLESS_MIGRATED = "vless_legacy_migrated"
@@ -113,6 +117,9 @@ object RoutesMapping {
                     AppRoute.entries.firstOrNull { it.name == v }?.let { k.removePrefix(PREFIX_ROUTE) to it }
                 } else null
             }.toMap(),
+            destinationRules = DestinationRules.fromStored(
+                entries[KEY_DESTINATION_RULES] as? String ?: "",
+            ),
             showSystemApps = entries[KEY_SHOW_SYSTEM] as? Boolean ?: false,
             sessionStartedAt = entries[KEY_SESSION_STARTED] as? Long,
         )
@@ -128,6 +135,7 @@ object RoutesMapping {
     fun themeKey() = stringPreferencesKey(KEY_THEME)
     fun dnsKey() = stringPreferencesKey(KEY_DNS)
     fun dnsCustomKey() = stringPreferencesKey(KEY_DNS_CUSTOM)
+    fun destinationRulesKey() = stringPreferencesKey(KEY_DESTINATION_RULES)
     fun customArgsKey() = stringPreferencesKey(KEY_CUSTOM_ARGS)
     fun sessionStartedAtKey() = longPreferencesKey(KEY_SESSION_STARTED)
     fun showSystemKey() = booleanPreferencesKey(KEY_SHOW_SYSTEM)
@@ -278,6 +286,11 @@ class RoutesStore(context: Context) {
         val key = RoutesMapping.routeKey(pkg)
         if (route == AppRoute.DIRECT) it.remove(key) else it[key] = route.name
     }
+    suspend fun setDestinationRules(rules: List<DestinationRule>) = store.edit { prefs ->
+        DestinationRules.validate(rules)
+        val key = RoutesMapping.destinationRulesKey()
+        if (rules.isEmpty()) prefs.remove(key) else prefs[key] = DestinationRules.toJson(rules)
+    }
 
     /** Validated backup is committed in one transaction and replaces old routes. */
     suspend fun restoreBackup(b: SettingsBackup.Backup) = store.edit { prefs ->
@@ -294,6 +307,10 @@ class RoutesStore(context: Context) {
         prefs[RoutesMapping.themeKey()] = b.themeId
         prefs[RoutesMapping.dnsKey()] = b.dnsId
         prefs[RoutesMapping.dnsCustomKey()] = b.dnsCustom
+        val destinationRulesKey = RoutesMapping.destinationRulesKey()
+        DestinationRules.validate(b.destinationRules)
+        if (b.destinationRules.isEmpty()) prefs.remove(destinationRulesKey)
+        else prefs[destinationRulesKey] = DestinationRules.toJson(b.destinationRules)
         prefs[RoutesMapping.showSystemKey()] = b.showSystemApps
         prefs.asMap().keys.filter { it.name.startsWith("route:") }.forEach { prefs.remove(stringPreferencesKey(it.name)) }
         b.routes.forEach { (pkg, route) ->
