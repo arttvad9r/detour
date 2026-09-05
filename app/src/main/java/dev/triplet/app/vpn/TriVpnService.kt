@@ -271,6 +271,7 @@ class TriVpnService : VpnService() {
             return
         }
 
+        Engine.resetTrafficStats()
         VpnController.setState(VpnState.Active)
         runBlocking { store.setSessionStartedAt(System.currentTimeMillis()) }
         foreground.show(getString(R.string.notif_active))
