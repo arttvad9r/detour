@@ -3,6 +3,7 @@ package dev.triplet.app.core
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.IDN
+import java.net.InetAddress
 
 const val MAX_DESTINATION_RULES = 128
 private const val MAX_DESTINATION_RULES_JSON_CHARS = 64 * 1024
@@ -24,7 +25,7 @@ object DestinationRules {
         val value = when (type) {
             DestinationRuleType.DOMAIN -> normalizeDomain(rawValue, suffix = false)
             DestinationRuleType.DOMAIN_SUFFIX -> normalizeDomain(rawValue, suffix = true)
-            DestinationRuleType.IP_CIDR -> normalizeIpv4Cidr(rawValue)
+            DestinationRuleType.IP_CIDR -> normalizeIpCidr(rawValue)
         } ?: return null
         return DestinationRule(type, value, route)
     }
@@ -81,7 +82,7 @@ object DestinationRules {
 
     /**
      * Specific matches compile first so behavior does not depend on edit history:
-     * exact domains, then longest domain suffixes, then narrowest IPv4 CIDRs.
+     * exact domains, then longest domain suffixes, then narrowest IP CIDRs.
      */
     fun orderedForCompilation(rules: List<DestinationRule>): List<DestinationRule> {
         validate(rules)
@@ -102,7 +103,7 @@ object DestinationRules {
         DestinationRuleType.DOMAIN,
         DestinationRuleType.DOMAIN_SUFFIX,
         -> rule.value.length
-        DestinationRuleType.IP_CIDR -> rule.value.substringAfter('/').toInt()
+        DestinationRuleType.IP_CIDR -> rule.value.substringAfterLast('/').toInt()
     }
 
     private fun normalizeDomain(raw: String, suffix: Boolean): String? {
@@ -121,11 +122,22 @@ object DestinationRules {
         }.getOrNull()
     }
 
-    private fun normalizeIpv4Cidr(raw: String): String? {
-        val parts = raw.trim().split('/')
-        if (parts.size != 2) return null
-        val prefix = parts[1].toIntOrNull()?.takeIf { it in 0..32 } ?: return null
-        val octets = parts[0].split('.')
+    private fun normalizeIpCidr(raw: String): String? {
+        val value = raw.trim()
+        val slash = value.indexOf('/')
+        if (slash <= 0 || slash != value.lastIndexOf('/') || slash == value.lastIndex) return null
+        val address = value.substring(0, slash)
+        val prefix = value.substring(slash + 1)
+        return if (address.contains(':')) {
+            normalizeIpv6Cidr(address, prefix)
+        } else {
+            normalizeIpv4Cidr(address, prefix)
+        }
+    }
+
+    private fun normalizeIpv4Cidr(addressRaw: String, prefixRaw: String): String? {
+        val prefix = prefixRaw.toIntOrNull()?.takeIf { it in 0..32 } ?: return null
+        val octets = addressRaw.split('.')
         if (octets.size != 4) return null
         val values = octets.map { part ->
             if (part.isEmpty() || (part.length > 1 && part.startsWith('0'))) return null
@@ -142,5 +154,65 @@ object DestinationRules {
             network and 0xff,
         ).joinToString(".")
         return "$normalized/$prefix"
+    }
+
+    private fun normalizeIpv6Cidr(addressRaw: String, prefixRaw: String): String? {
+        if ('%' in addressRaw || addressRaw.any { it.isWhitespace() }) return null
+        val prefix = prefixRaw.toIntOrNull()?.takeIf { it in 0..128 } ?: return null
+        val parsed = runCatching { InetAddress.getByName(addressRaw) }.getOrNull() ?: return null
+        val bytes = parsed.address
+        if (bytes.size != 16) return null
+
+        val network = bytes.copyOf()
+        var remaining = prefix
+        for (index in network.indices) {
+            when {
+                remaining >= 8 -> remaining -= 8
+                remaining <= 0 -> network[index] = 0
+                else -> {
+                    val mask = (0xff shl (8 - remaining)) and 0xff
+                    network[index] = (network[index].toInt() and mask).toByte()
+                    remaining = 0
+                }
+            }
+        }
+        return "${formatIpv6(network)}/$prefix"
+    }
+
+    private fun formatIpv6(bytes: ByteArray): String {
+        val groups = IntArray(8) { index ->
+            (bytes[index * 2].toInt() and 0xff shl 8) or
+                (bytes[index * 2 + 1].toInt() and 0xff)
+        }
+        var bestStart = -1
+        var bestLength = 0
+        var index = 0
+        while (index < groups.size) {
+            if (groups[index] != 0) {
+                index++
+                continue
+            }
+            val start = index
+            while (index < groups.size && groups[index] == 0) index++
+            val length = index - start
+            if (length >= 2 && length > bestLength) {
+                bestStart = start
+                bestLength = length
+            }
+        }
+
+        val out = StringBuilder()
+        index = 0
+        while (index < groups.size) {
+            if (index == bestStart) {
+                out.append("::")
+                index += bestLength
+                continue
+            }
+            if (out.isNotEmpty() && out.last() != ':') out.append(':')
+            out.append(groups[index].toString(16))
+            index++
+        }
+        return out.toString()
     }
 }
