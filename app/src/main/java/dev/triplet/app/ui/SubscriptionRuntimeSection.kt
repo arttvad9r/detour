@@ -67,6 +67,8 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
     val activeUri = activeKey?.uri.orEmpty()
     val persistedSelectedNode = activeKey?.selectedNode
     val favoriteNodes = activeKey?.favoriteNodes.orEmpty()
+    val subscriptionUpdateIntervalHours = activeKey?.subscriptionUpdateIntervalHours
+    val subscriptionUpdatedAt = activeKey?.subscriptionUpdatedAt
     val subscriptionUrl = remember(activeUri) {
         (VlessKeyParser.parse(activeUri) as? ParseResult.Ok)?.profile?.subscriptionUrl
     }
@@ -87,6 +89,33 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
             }
             if (latest != null && latest.selectedNode != selected) {
                 store.updateVlessKey(latest.copy(selectedNode = selected))
+            }
+        }
+    }
+
+    val persistRefreshedAt: suspend (Long) -> Unit = { refreshedAt ->
+        val key = activeKey
+        if (key != null) {
+            val latest = store.snapshot().vlessKeys.items.firstOrNull {
+                it.id == key.id && it.uri == key.uri
+            }
+            if (latest != null && latest.subscriptionUpdatedAt != refreshedAt) {
+                store.updateVlessKey(latest.copy(subscriptionUpdatedAt = refreshedAt))
+            }
+        }
+    }
+
+    val setUpdateInterval: (Int?) -> Unit = { intervalHours ->
+        val keyId = activeKey?.id
+        if (keyId != null) {
+            scope.launch {
+                val latest = store.snapshot().vlessKeys.items.firstOrNull { it.id == keyId }
+                    ?: return@launch
+                if (latest.subscriptionUpdateIntervalHours != intervalHours) {
+                    store.updateVlessKey(
+                        latest.copy(subscriptionUpdateIntervalHours = intervalHours),
+                    )
+                }
             }
         }
     }
@@ -212,7 +241,7 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
                 )
             }
             TextButton(
-                onClick = { runtimeViewModel.refresh(connected) },
+                onClick = { runtimeViewModel.refresh(connected, persistRefreshedAt) },
                 enabled = subscriptionUrl != null &&
                     state.catalogStatus != SubscriptionCatalogStatus.LOADING &&
                     state.status != SubscriptionRuntimeStatus.REFRESHING &&
@@ -238,6 +267,14 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
             SubscriptionMetadataCard(metadata)
             Spacer(Modifier.height(Spacing.space12))
         }
+
+        SubscriptionAutoUpdateCard(
+            intervalHours = subscriptionUpdateIntervalHours,
+            providerRecommendedHours = state.metadata?.updateIntervalHours,
+            updatedAt = subscriptionUpdatedAt,
+            onIntervalChange = setUpdateInterval,
+        )
+        Spacer(Modifier.height(Spacing.space12))
 
         if (state.catalog.isNotEmpty()) {
             SubscriptionCatalogControls(
