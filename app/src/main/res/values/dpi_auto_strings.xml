@@ -23,5 +23,5 @@
     <string name="dpi_auto_plan_found">Found working strategies for %1$d affected domain groups.</string>
     <string name="dpi_auto_plan_incomplete">No built-in strategy worked for: %1$s</string>
     <string name="dpi_auto_applied">This automatic domain plan is active.</string>
-    <string name="dpi_auto_error">The automatic strategy test failed. Check the connection and try again.</string>
+    <string name="dpi_auto_error">The automatic strategy test failed. Check the connection and make sure no other VPN is routing Detour, then try again.</string>
 </resources>
