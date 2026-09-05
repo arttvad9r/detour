@@ -32,7 +32,16 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
 
-internal enum class SettingsSection { ROUTES, PROFILES, DPI, DNS, DIAGNOSTICS, BACKUP, APPEARANCE }
+internal enum class SettingsSection {
+    ROUTES,
+    DESTINATION_RULES,
+    PROFILES,
+    DPI,
+    DNS,
+    DIAGNOSTICS,
+    BACKUP,
+    APPEARANCE,
+}
 
 private data class MenuItem(
     val titleRes: Int,
@@ -46,6 +55,7 @@ internal fun SettingsMenuScreen(
     viewModel: SettingsMenuViewModel,
     selectedSection: SettingsSection?,
     onOpenRoutes: () -> Unit,
+    onOpenDestinationRules: () -> Unit,
     onOpenVless: () -> Unit,
     onOpenDpi: () -> Unit,
     onOpenTheme: () -> Unit,
@@ -73,6 +83,12 @@ internal fun SettingsMenuScreen(
         R.drawable.ic_routes,
         SettingsSection.ROUTES,
     ) to onOpenRoutes
+    val destinationRules = MenuItem(
+        R.string.nav_destination_rules,
+        { stringResource(R.string.nav_destination_rules_sub) },
+        R.drawable.ic_globe,
+        SettingsSection.DESTINATION_RULES,
+    ) to onOpenDestinationRules
     val profiles = MenuItem(
         R.string.nav_key,
         {
@@ -137,7 +153,7 @@ internal fun SettingsMenuScreen(
             Spacer(Modifier.height(Spacing.space4))
             DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
                 SettingsSectionLabel(R.string.settings_section_routing)
-                SettingsRows(listOf(routes, profiles), selectedSection)
+                SettingsRows(listOf(routes, destinationRules, profiles), selectedSection)
 
                 SettingsSectionDivider()
                 SettingsSectionLabel(R.string.settings_section_connection)
