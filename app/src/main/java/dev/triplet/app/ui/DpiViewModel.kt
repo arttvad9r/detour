@@ -27,10 +27,11 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 enum class DpiSaveState { IDLE, SAVING, ERROR }
-enum class DpiAutoRunState { IDLE, RUNNING, COMPLETE, APPLYING, ERROR }
+enum class DpiAutoRunState { IDLE, RUNNING, CANCELLING, COMPLETE, APPLYING, ERROR }
 
 data class DpiUiState(
     val preset: DpiPreset = DpiPreset.RECOMMENDED,
@@ -53,6 +54,7 @@ data class DpiUiState(
     val canRunAuto: Boolean
         get() = vpnIdle && selectedAutoGroups.isNotEmpty() &&
             autoRunState != DpiAutoRunState.RUNNING &&
+            autoRunState != DpiAutoRunState.CANCELLING &&
             autoRunState != DpiAutoRunState.APPLYING
 
     val canApplyAuto: Boolean
@@ -190,7 +192,11 @@ class DpiViewModel(
     }
 
     fun toggleAutoGroup(id: String) {
-        if (autoRunState.value == DpiAutoRunState.RUNNING || autoRunState.value == DpiAutoRunState.APPLYING) return
+        if (
+            autoRunState.value == DpiAutoRunState.RUNNING ||
+            autoRunState.value == DpiAutoRunState.CANCELLING ||
+            autoRunState.value == DpiAutoRunState.APPLYING
+        ) return
         if (DpiDomainCatalog.default.none { it.id == id }) return
         val next = decodeGroupIds(selectedAutoGroups.value).toMutableSet()
         if (!next.add(id)) next.remove(id)
@@ -203,7 +209,12 @@ class DpiViewModel(
     }
 
     fun startAutoTest() {
-        if (vpnState.value != VpnState.Idle || autoRunState.value == DpiAutoRunState.RUNNING) return
+        if (
+            vpnState.value != VpnState.Idle ||
+            autoRunState.value == DpiAutoRunState.RUNNING ||
+            autoRunState.value == DpiAutoRunState.CANCELLING ||
+            autoRunState.value == DpiAutoRunState.APPLYING
+        ) return
         val selected = decodeGroupIds(selectedAutoGroups.value)
         if (selected.isEmpty()) return
         val targets = DpiDomainCatalog.default
@@ -213,14 +224,25 @@ class DpiViewModel(
         if (targets.isEmpty()) return
 
         val generation = autoGeneration.incrementAndGet()
+        val invalidated = AtomicBoolean(false)
         autoReport.value = null
         autoRunState.value = DpiAutoRunState.RUNNING
         viewModelScope.launch {
             try {
                 val report = runAutoSearch(targets) {
-                    autoGeneration.get() != generation || vpnState.value != VpnState.Idle
+                    val shouldCancel = autoGeneration.get() != generation || vpnState.value != VpnState.Idle
+                    if (shouldCancel) invalidated.set(true)
+                    shouldCancel
                 }
-                if (autoGeneration.get() != generation) return@launch
+                if (invalidated.get() || autoGeneration.get() != generation) {
+                    if (
+                        autoRunState.value == DpiAutoRunState.RUNNING ||
+                        autoRunState.value == DpiAutoRunState.CANCELLING
+                    ) {
+                        autoRunState.value = DpiAutoRunState.IDLE
+                    }
+                    return@launch
+                }
                 if (vpnState.value != VpnState.Idle) {
                     autoRunState.value = DpiAutoRunState.IDLE
                     return@launch
@@ -228,10 +250,18 @@ class DpiViewModel(
                 autoReport.value = report
                 autoRunState.value = DpiAutoRunState.COMPLETE
             } catch (cancelled: CancellationException) {
-                if (autoGeneration.get() == generation) autoRunState.value = DpiAutoRunState.IDLE
+                if (
+                    autoRunState.value == DpiAutoRunState.RUNNING ||
+                    autoRunState.value == DpiAutoRunState.CANCELLING
+                ) {
+                    autoRunState.value = DpiAutoRunState.IDLE
+                }
                 throw cancelled
             } catch (_: Exception) {
                 if (autoGeneration.get() == generation) autoRunState.value = DpiAutoRunState.ERROR
+                else if (autoRunState.value == DpiAutoRunState.CANCELLING) {
+                    autoRunState.value = DpiAutoRunState.IDLE
+                }
             }
         }
     }
@@ -365,8 +395,10 @@ class DpiViewModel(
     }
 
     private fun cancelAutoTest(resetReport: Boolean) {
-        autoGeneration.incrementAndGet()
-        if (autoRunState.value == DpiAutoRunState.RUNNING) autoRunState.value = DpiAutoRunState.IDLE
+        if (autoRunState.value == DpiAutoRunState.RUNNING) {
+            autoGeneration.incrementAndGet()
+            autoRunState.value = DpiAutoRunState.CANCELLING
+        }
         if (resetReport) autoReport.value = null
     }
 
