@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dpi_proxy_test_open">Proxy Test</string>
+    <string name="dpi_proxy_test_title">Proxy Test</string>
+    <string name="dpi_proxy_test_summary_title">Test ByeDPI strategies on this network</string>
+    <string name="dpi_proxy_test_summary">Checks the pinned 60-strategy reference corpus through a separate local proxy. Nothing is applied automatically.</string>
+    <string name="dpi_proxy_test_domains_title">Domain lists</string>
+    <string name="dpi_proxy_test_domain_count">%1$d domains</string>
+    <string name="dpi_proxy_test_selected_hosts">Selected hosts: %1$d</string>
+    <string name="dpi_proxy_test_parameters_title">Test parameters</string>
+    <string name="dpi_proxy_test_attempts">Requests per host</string>
+    <string name="dpi_proxy_test_concurrency">Parallel hosts</string>
+    <string name="dpi_proxy_test_timeout">Timeout</string>
+    <string name="dpi_proxy_test_seconds_short"> s</string>
+    <string name="dpi_proxy_test_start">Start test</string>
+    <string name="dpi_proxy_test_stop">Stop test</string>
+    <string name="dpi_proxy_test_starting">Starting strategy test…</string>
+    <string name="dpi_proxy_test_progress">Strategy %1$d/%2$d · hosts %3$d/%4$d</string>
+    <string name="dpi_proxy_test_cancelled">Test stopped. No strategy was applied.</string>
+    <string name="dpi_proxy_test_error_vpn">Turn off the system VPN before testing. Results from a session in which a VPN appeared are rejected.</string>
+    <string name="dpi_proxy_test_error_generic">Proxy Test failed. Check the network and try again.</string>
+    <string name="dpi_proxy_test_results_title">Results</string>
+    <string name="dpi_proxy_test_no_results">No completed strategy results.</string>
+    <string name="dpi_proxy_test_strategy_number">Strategy #%1$d</string>
+    <string name="dpi_proxy_test_full_coverage">Full coverage</string>
+    <string name="dpi_proxy_test_partial">Partial</string>
+    <string name="dpi_proxy_test_backend_failed">Start failed</string>
+    <string name="dpi_proxy_test_result_summary">%1$d/%2$d hosts · %3$d/%4$d requests</string>
+    <string name="dpi_proxy_test_median">Median: %1$d ms</string>
+    <string name="dpi_proxy_test_apply">Apply</string>
+    <string name="dpi_proxy_test_applying">Applying…</string>
+    <string name="dpi_proxy_test_applied">Applied</string>
+    <string name="dpi_proxy_test_apply_error">Could not save this strategy.</string>
+</resources>

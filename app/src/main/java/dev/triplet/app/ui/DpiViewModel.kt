@@ -1,5 +1,6 @@
 package dev.triplet.app.ui
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -9,9 +10,20 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import dev.triplet.app.core.DpiArgs
 import dev.triplet.app.core.DpiPreset
+import dev.triplet.app.core.DpiProxyTestCatalog
+import dev.triplet.app.core.DpiProxyTestConfig
+import dev.triplet.app.core.DpiProxyTestProgress
+import dev.triplet.app.core.DpiProxyTestRanker
+import dev.triplet.app.core.DpiProxyTestStrategyResult
+import dev.triplet.app.core.DpiProxyTester
 import dev.triplet.app.data.RoutesStore
 import dev.triplet.app.data.TriSettings
+import dev.triplet.app.vpn.VpnController
+import dev.triplet.app.vpn.VpnState
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -20,6 +32,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -37,6 +50,30 @@ data class DpiUiState(
     val canSaveCustom: Boolean
         get() = saveState != DpiSaveState.SAVING &&
             customField.isNotBlank() && !customInvalid && customChanged
+}
+
+enum class DpiProxyTestError { VPN_ACTIVE, FAILED }
+
+data class DpiProxyTestUiState(
+    val selectedDomainIds: Set<String> = DpiProxyTestCatalog.defaultSelectedIds,
+    val attemptsPerHost: Int = DpiProxyTestConfig.DEFAULT_ATTEMPTS,
+    val concurrency: Int = DpiProxyTestConfig.DEFAULT_CONCURRENCY,
+    val timeoutSeconds: Int = DpiProxyTestConfig.DEFAULT_TIMEOUT_SECONDS,
+    val running: Boolean = false,
+    val completed: Boolean = false,
+    val cancelled: Boolean = false,
+    val progress: DpiProxyTestProgress? = null,
+    val results: List<DpiProxyTestStrategyResult> = emptyList(),
+    val error: DpiProxyTestError? = null,
+    val applyingStrategyId: String? = null,
+    val appliedStrategyId: String? = null,
+    val applyErrorStrategyId: String? = null,
+) {
+    val selectedHostCount: Int
+        get() = DpiProxyTestCatalog.selectedHosts(selectedDomainIds).size
+
+    val canStart: Boolean
+        get() = !running && applyingStrategyId == null && selectedHostCount > 0
 }
 
 internal fun dpiUiState(
@@ -73,6 +110,13 @@ class DpiViewModel(
     private val writeMutex = Mutex()
     private val _customSaved = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     val customSaved: SharedFlow<Unit> = _customSaved
+
+    private val _proxyTestState = MutableStateFlow(DpiProxyTestUiState())
+    val proxyTestState: StateFlow<DpiProxyTestUiState> = _proxyTestState
+    val proxyTestOpen: StateFlow<Boolean> = savedStateHandle.getStateFlow(KEY_PROXY_TEST_OPEN, false)
+    private var proxyTestJob: Job? = null
+    private val proxyGeneration = AtomicInteger(0)
+    private val proxyStopGeneration = AtomicInteger(-1)
 
     val uiState: StateFlow<DpiUiState> = combine(
         settings,
@@ -183,9 +227,219 @@ class DpiViewModel(
         }
     }
 
+    fun openProxyTest() {
+        savedStateHandle[KEY_PROXY_TEST_OPEN] = true
+    }
+
+    fun closeProxyTest() {
+        stopProxyTest()
+        savedStateHandle[KEY_PROXY_TEST_OPEN] = false
+    }
+
+    fun toggleProxyDomain(id: String) {
+        val available = DpiProxyTestCatalog.domainLists.any { it.id == id }
+        if (!available || _proxyTestState.value.running) return
+        _proxyTestState.update { state ->
+            val next = state.selectedDomainIds.toMutableSet().apply {
+                if (!add(id)) remove(id)
+            }.toSet()
+            state.copy(
+                selectedDomainIds = next,
+                completed = false,
+                cancelled = false,
+                results = emptyList(),
+                progress = null,
+                error = null,
+                appliedStrategyId = null,
+                applyErrorStrategyId = null,
+            )
+        }
+    }
+
+    fun setProxyAttempts(value: Int) {
+        if (_proxyTestState.value.running) return
+        _proxyTestState.update {
+            it.copy(
+                attemptsPerHost = value.coerceIn(DpiProxyTestConfig.ATTEMPTS_RANGE),
+                completed = false,
+                cancelled = false,
+                results = emptyList(),
+                progress = null,
+                error = null,
+            )
+        }
+    }
+
+    fun setProxyConcurrency(value: Int) {
+        if (_proxyTestState.value.running) return
+        _proxyTestState.update {
+            it.copy(concurrency = value.coerceIn(DpiProxyTestConfig.CONCURRENCY_RANGE))
+        }
+    }
+
+    fun setProxyTimeoutSeconds(value: Int) {
+        if (_proxyTestState.value.running) return
+        _proxyTestState.update {
+            it.copy(
+                timeoutSeconds = value.coerceIn(DpiProxyTestConfig.TIMEOUT_RANGE),
+                completed = false,
+                cancelled = false,
+                results = emptyList(),
+                progress = null,
+                error = null,
+            )
+        }
+    }
+
+    fun startProxyTest(context: Context) {
+        val snapshot = _proxyTestState.value
+        if (!snapshot.canStart || proxyTestJob?.isActive == true) return
+        if (VpnController.state.value == VpnState.Active || VpnController.state.value == VpnState.Starting) {
+            _proxyTestState.update { it.copy(error = DpiProxyTestError.VPN_ACTIVE) }
+            return
+        }
+
+        val generation = proxyGeneration.incrementAndGet()
+        proxyStopGeneration.set(-1)
+        val selectedIds = snapshot.selectedDomainIds
+        val config = DpiProxyTestConfig(
+            attemptsPerHost = snapshot.attemptsPerHost,
+            concurrency = snapshot.concurrency,
+            timeoutSeconds = snapshot.timeoutSeconds,
+        )
+        val appContext = context.applicationContext
+        _proxyTestState.update {
+            it.copy(
+                running = true,
+                completed = false,
+                cancelled = false,
+                progress = null,
+                results = emptyList(),
+                error = null,
+                applyingStrategyId = null,
+                appliedStrategyId = null,
+                applyErrorStrategyId = null,
+            )
+        }
+
+        proxyTestJob = viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val results = DpiProxyTester(appContext).run(
+                    selectedIds = selectedIds,
+                    config = config,
+                    onProgress = { progress ->
+                        if (proxyGeneration.get() == generation) {
+                            _proxyTestState.update { it.copy(progress = progress) }
+                        }
+                    },
+                )
+                if (proxyGeneration.get() != generation) return@launch
+                _proxyTestState.update {
+                    it.copy(
+                        running = false,
+                        completed = true,
+                        cancelled = false,
+                        results = DpiProxyTestRanker.rank(results),
+                        error = null,
+                    )
+                }
+            } catch (cancelled: CancellationException) {
+                if (proxyGeneration.get() != generation) return@launch
+                val userStopped = proxyStopGeneration.get() == generation
+                _proxyTestState.update {
+                    it.copy(
+                        running = false,
+                        completed = false,
+                        cancelled = userStopped,
+                        error = if (userStopped) null else DpiProxyTestError.VPN_ACTIVE,
+                    )
+                }
+                if (!userStopped) return@launch
+            } catch (error: Exception) {
+                if (proxyGeneration.get() != generation) return@launch
+                val vpnContaminated = error.message?.contains("system VPN active", ignoreCase = true) == true
+                _proxyTestState.update {
+                    it.copy(
+                        running = false,
+                        completed = false,
+                        cancelled = false,
+                        error = if (vpnContaminated) DpiProxyTestError.VPN_ACTIVE else DpiProxyTestError.FAILED,
+                    )
+                }
+            }
+        }
+    }
+
+    fun stopProxyTest() {
+        val job = proxyTestJob ?: return
+        if (!job.isActive) return
+        proxyStopGeneration.set(proxyGeneration.get())
+        job.cancel(CancellationException("proxy test stopped by user"))
+    }
+
+    fun applyProxyStrategy(strategyId: String) {
+        val state = _proxyTestState.value
+        if (state.running || state.applyingStrategyId != null) return
+        val result = state.results.firstOrNull { it.strategy.id == strategyId } ?: return
+        if (!result.backendStarted || !result.completed) return
+        val strategy = DpiProxyTestCatalog.strategies.firstOrNull { it.id == strategyId } ?: return
+        if (!DpiProxyTestCatalog.isTrustedCommand(strategy.command) || !DpiArgs.isValid(strategy.command)) return
+
+        _proxyTestState.update {
+            it.copy(
+                applyingStrategyId = strategyId,
+                applyErrorStrategyId = null,
+            )
+        }
+        presetOverride.value = DpiPreset.CUSTOM
+
+        viewModelScope.launch {
+            writeMutex.withLock {
+                try {
+                    setCustomArgs(strategy.command)
+                    setPreset(DpiPreset.CUSTOM)
+                    if (
+                        settings.value?.preset != DpiPreset.CUSTOM ||
+                        settings.value?.dpiCustomArgs?.trim() != strategy.command.trim()
+                    ) {
+                        settings.first {
+                            it?.preset == DpiPreset.CUSTOM &&
+                                it.dpiCustomArgs.trim() == strategy.command.trim()
+                        }
+                    }
+                    restartTunnel()
+                    savedStateHandle[KEY_CUSTOM_DRAFT] = null
+                    savedStateHandle[KEY_EDITING_CUSTOM] = null
+                    if (presetOverride.value == DpiPreset.CUSTOM) presetOverride.value = null
+                    _proxyTestState.update {
+                        it.copy(
+                            applyingStrategyId = null,
+                            appliedStrategyId = strategyId,
+                            applyErrorStrategyId = null,
+                        )
+                    }
+                    _customSaved.emit(Unit)
+                } catch (cancelled: CancellationException) {
+                    if (presetOverride.value == DpiPreset.CUSTOM) presetOverride.value = null
+                    _proxyTestState.update { it.copy(applyingStrategyId = null) }
+                    throw cancelled
+                } catch (_: Exception) {
+                    if (presetOverride.value == DpiPreset.CUSTOM) presetOverride.value = null
+                    _proxyTestState.update {
+                        it.copy(
+                            applyingStrategyId = null,
+                            applyErrorStrategyId = strategyId,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     companion object {
         private const val KEY_CUSTOM_DRAFT = "dpi_custom_draft"
         private const val KEY_EDITING_CUSTOM = "dpi_editing_custom"
+        private const val KEY_PROXY_TEST_OPEN = "dpi_proxy_test_open"
 
         fun factory(
             store: RoutesStore,

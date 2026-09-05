@@ -30,10 +30,17 @@ object DpiArgs {
         """[+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:[eE][+-]?\d+)?""",
     )
 
-    fun resolve(preset: DpiPreset, customRaw: String): List<String> =
-        if (preset == DpiPreset.CUSTOM) tokenize(customRaw) else preset.args
+    fun resolve(preset: DpiPreset, customRaw: String): List<String> {
+        if (preset != DpiPreset.CUSTOM) return preset.args
+        return trustedReferenceStrategy(customRaw)?.args ?: tokenize(customRaw)
+    }
 
     fun isValid(raw: String): Boolean {
+        // Proxy Test may apply one exact command from the pinned ByeByeDPI
+        // corpus. This does not widen the free-form CUSTOM grammar: a modified
+        // reference command immediately falls back to the restricted parser.
+        if (trustedReferenceStrategy(raw) != null) return true
+
         val tokens = tokenize(raw)
         if (raw.trim().split(Regex("\\s+")).count { it.isNotBlank() } > MAX_TOKENS) return false
         if (tokens.isEmpty() || tokens.any { it.any { c -> c.code < 0x20 || c.code == 0x7f } }) return false
@@ -53,11 +60,20 @@ object DpiArgs {
         return option == null
     }
 
+    private fun trustedReferenceStrategy(raw: String): DpiProxyTestStrategy? {
+        val normalized = DpiProxyTestCatalog.normalizeCommand(raw)
+        if (normalized.isEmpty()) return null
+        return DpiProxyTestCatalog.strategies.firstOrNull {
+            DpiProxyTestCatalog.normalizeCommand(it.command) == normalized
+        }
+    }
+
     private fun isValueValid(option: String, value: String): Boolean = when (option) {
         "-a" -> parseCInteger(value)?.let { it in 0..Int.MAX_VALUE.toLong() } == true
         "--timeout" -> {
-            // Pinned ByeDPI v0.17.3 parses Linux timeout with strtof(), converts
-            // seconds to integer milliseconds, then compares that integer to UINT_MAX.
+            // Pinned ByeDPI source reports CLI version 17.3 and parses Linux
+            // timeout with strtof(), converts seconds to integer milliseconds,
+            // then compares that integer to UINT_MAX.
             if (!decimalSeconds.matches(value)) false
             else value.toFloatOrNull()?.let { seconds ->
                 val millis = seconds * 1000f

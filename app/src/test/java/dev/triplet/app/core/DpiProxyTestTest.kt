@@ -21,6 +21,13 @@ class DpiProxyTestTest {
         assertFalse(DpiProxyTestCatalog.isTrustedCommand(first.command + " -p 9999"))
     }
 
+    @Test fun `exact reference command is valid custom but edited reference is rejected`() {
+        val strategy = DpiProxyTestCatalog.strategies.first()
+        assertTrue(DpiArgs.isValid(strategy.command))
+        assertEquals(strategy.args, DpiArgs.resolve(DpiPreset.CUSTOM, strategy.command))
+        assertFalse(DpiArgs.isValid(strategy.command + " -p 9999"))
+    }
+
     @Test fun `host is fully working only after every configured attempt`() {
         val partial = DpiProxyTestHostResult(
             host = "youtube.com",
