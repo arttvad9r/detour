@@ -192,6 +192,40 @@ private fun AutoStrategyPanel(state: DpiUiState, viewModel: DpiViewModel) {
         }
 
         Spacer(Modifier.height(Spacing.space12))
+        if (controlsEnabled) {
+            DetourInputField(
+                value = state.customAutoDomains,
+                onValueChange = viewModel::setAutoCustomDomains,
+                label = stringResource(R.string.dpi_auto_custom_domains),
+                placeholder = stringResource(R.string.dpi_auto_custom_domains_placeholder),
+                helper = stringResource(R.string.dpi_auto_custom_domains_hint),
+                error = if (state.customAutoDomainsInvalid) {
+                    stringResource(R.string.dpi_auto_custom_domains_invalid)
+                } else {
+                    null
+                },
+                singleLine = false,
+                minHeight = 56.dp,
+                maxHeight = 120.dp,
+                maxLines = 4,
+                modifier = Modifier.padding(horizontal = Spacing.space16),
+            )
+        } else if (state.customAutoDomains.isNotBlank()) {
+            Text(
+                text = stringResource(R.string.dpi_auto_custom_domains),
+                style = MaterialTheme.typography.labelMedium,
+                color = c.textSecondary,
+                modifier = Modifier.padding(horizontal = Spacing.space16),
+            )
+            Text(
+                text = state.customAutoDomains,
+                style = MaterialTheme.typography.bodySmall,
+                color = c.textPrimary,
+                modifier = Modifier.padding(horizontal = Spacing.space16, vertical = Spacing.space4),
+            )
+        }
+
+        Spacer(Modifier.height(Spacing.space12))
         if (!state.vpnIdle) {
             Text(
                 text = stringResource(R.string.dpi_auto_stop_vpn),
