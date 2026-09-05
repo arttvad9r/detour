@@ -1,7 +1,9 @@
 package dev.triplet.app
 
 import android.content.Context
+import android.content.Intent
 import android.net.VpnService
+import android.provider.Settings
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.slideInHorizontally
@@ -129,6 +131,18 @@ private fun AppDestination.isSettingsDetail(): Boolean = when (this) {
     AppDestination.Home,
     AppDestination.Settings,
     -> false
+}
+
+private fun openAndroidVpnSettings(context: Context) {
+    val flags = Intent.FLAG_ACTIVITY_NEW_TASK
+    val opened = runCatching {
+        context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS).addFlags(flags))
+    }.isSuccess
+    if (!opened) {
+        runCatching {
+            context.startActivity(Intent(Settings.ACTION_SETTINGS).addFlags(flags))
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
@@ -292,6 +306,7 @@ internal fun DetourNavigation(
                     onOpenDns = { openSettingsDetail(AppDestination.Dns) },
                     onOpenDiagnostics = { openSettingsDetail(AppDestination.Diagnostics) },
                     onOpenBackup = { openSettingsDetail(AppDestination.Backup) },
+                    onOpenAlwaysOnVpnSettings = { openAndroidVpnSettings(appContext) },
                     onBack = popBack,
                 )
             }
