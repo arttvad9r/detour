@@ -33,6 +33,8 @@ data class SettingsMenuUiState(
     val hasSubscription: Boolean = false,
     val hasWarp: Boolean = false,
     val autoConnect: Boolean = false,
+    val autoConnectWifi: Boolean = false,
+    val autoConnectCellular: Boolean = false,
     val vpnState: VpnState = VpnState.Idle,
     val sessionStartedAt: Long? = null,
     val protocol: HomeProtocol = HomeProtocol.NONE,
@@ -55,6 +57,8 @@ internal fun settingsMenuUiState(
         hasSubscription = subscriptionIds.isNotEmpty(),
         hasWarp = settings?.warpProfile != null,
         autoConnect = autoConnectOverride ?: (settings?.autoConnect == true),
+        autoConnectWifi = settings?.autoConnectWifi == true,
+        autoConnectCellular = settings?.autoConnectCellular == true,
         sessionStartedAt = settings?.sessionStartedAt,
         activeVpn = settings?.activeVpn ?: VpnProfileKind.VLESS,
     )
@@ -65,6 +69,8 @@ class SettingsMenuViewModel(
     private val vpnState: StateFlow<VpnState>,
     private val resolveRoutes: suspend (Map<String, AppRoute>) -> EffectiveRoutes,
     private val persistAutoConnect: suspend (Boolean) -> Unit,
+    private val persistAutoConnectWifi: suspend (Boolean) -> Unit,
+    private val persistAutoConnectCellular: suspend (Boolean) -> Unit,
 ) : ViewModel() {
     private val routeRefresh = MutableStateFlow(0L)
     private val autoConnectOverride = MutableStateFlow<Boolean?>(null)
@@ -141,6 +147,16 @@ class SettingsMenuViewModel(
         }
     }
 
+    fun setAutoConnectWifi(enabled: Boolean) {
+        if (settings.value?.autoConnectWifi == enabled) return
+        viewModelScope.launch { runCatching { persistAutoConnectWifi(enabled) } }
+    }
+
+    fun setAutoConnectCellular(enabled: Boolean) {
+        if (settings.value?.autoConnectCellular == enabled) return
+        viewModelScope.launch { runCatching { persistAutoConnectCellular(enabled) } }
+    }
+
     companion object {
         fun factory(
             store: RoutesStore,
@@ -154,6 +170,8 @@ class SettingsMenuViewModel(
                     vpnState = VpnController.state,
                     resolveRoutes = resolveRoutes,
                     persistAutoConnect = store::setAutoConnect,
+                    persistAutoConnectWifi = store::setAutoConnectWifi,
+                    persistAutoConnectCellular = store::setAutoConnectCellular,
                 ) as T
             }
         }
