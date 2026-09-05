@@ -67,7 +67,7 @@ class DpiAutoPersistenceTest {
         assertEquals("", settings.dpiAutoCandidateId)
     }
 
-    @Test fun `backup v4 round trips trusted auto strategy`() {
+    @Test fun `backup v5 round trips trusted global auto strategy`() {
         val original = SettingsBackup.Backup(
             presetId = DpiPreset.AUTO.id,
             dpiCustomArgs = "-d 7",
@@ -80,6 +80,43 @@ class DpiAutoPersistenceTest {
         assertEquals(DpiPreset.AUTO.id, restored.presetId)
         assertEquals("-d 7", restored.dpiCustomArgs)
         assertEquals("split-disorder-sni", restored.dpiAutoCandidateId)
+        assertNull(restored.dpiAutoDomainPlan)
+    }
+
+    @Test fun `backup v5 round trips structured domain auto plan`() {
+        val plan = DpiAutoDomainPlan.of(
+            mapOf(
+                "youtube.com" to "split-sni",
+                "discord.com" to "disorder-1",
+            ),
+        )
+        val original = SettingsBackup.Backup(
+            presetId = DpiPreset.AUTO.id,
+            dpiCustomArgs = "-d 7",
+            dpiAutoDomainPlan = plan,
+        )
+
+        val restored = SettingsBackup.fromJson(SettingsBackup.toJson(original))
+
+        requireNotNull(restored)
+        assertEquals(DpiPreset.AUTO.id, restored.presetId)
+        assertEquals("", restored.dpiAutoCandidateId)
+        assertEquals(plan, restored.dpiAutoDomainPlan)
+    }
+
+    @Test fun `legacy v4 global auto remains importable`() {
+        val raw = JSONObject(SettingsBackup.toJson(SettingsBackup.Backup())).apply {
+            put("v", 4)
+            put("preset", DpiPreset.AUTO.id)
+            put("autoCandidate", "split-sni")
+            remove("autoDomainPlan")
+        }.toString()
+
+        val restored = SettingsBackup.fromJson(raw)
+
+        requireNotNull(restored)
+        assertEquals("split-sni", restored.dpiAutoCandidateId)
+        assertNull(restored.dpiAutoDomainPlan)
     }
 
     @Test fun `backup rejects unknown automatic strategy`() {
@@ -91,11 +128,25 @@ class DpiAutoPersistenceTest {
         assertNull(SettingsBackup.fromJson(raw))
     }
 
+    @Test fun `backup rejects conflicting global and domain auto`() {
+        val raw = JSONObject(SettingsBackup.toJson(SettingsBackup.Backup())).apply {
+            put("preset", DpiPreset.AUTO.id)
+            put("autoCandidate", "split-sni")
+            put(
+                "autoDomainPlan",
+                JSONObject(DpiAutoDomainPlan.of(mapOf("youtube.com" to "split-sni")).toStored()),
+            )
+        }.toString()
+
+        assertNull(SettingsBackup.fromJson(raw))
+    }
+
     @Test fun `legacy v3 cannot activate auto without auto strategy schema`() {
         val raw = JSONObject(SettingsBackup.toJson(SettingsBackup.Backup())).apply {
             put("v", 3)
             put("preset", "auto")
             remove("autoCandidate")
+            remove("autoDomainPlan")
         }.toString()
 
         assertNull(SettingsBackup.fromJson(raw))
