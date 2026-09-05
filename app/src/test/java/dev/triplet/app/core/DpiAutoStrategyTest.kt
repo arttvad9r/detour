@@ -19,12 +19,25 @@ class DpiAutoStrategyTest {
             "-i", "--ip", "-p", "--port", "-D", "--daemon", "-w", "--pidfile",
             "-E", "--transparent", "-U", "--no-udp", "-J",
         )
-        assertTrue(DpiStrategyCatalog.default.none { candidate -> candidate.args.any { it in forbidden } })
+        assertTrue(DpiStrategyCatalog.all.none { candidate -> candidate.args.any { it in forbidden } })
         assertTrue(DpiStrategyCatalog.default.any { "-r" in it.args })
         assertTrue(DpiStrategyCatalog.default.any { "-o" in it.args })
         assertTrue(DpiStrategyCatalog.default.any { "-q" in it.args })
         // AUTO is an app-owned catalog; user CUSTOM deliberately remains narrower.
         assertFalse(DpiArgs.isValid("-r 1+s --timeout 3"))
+    }
+
+    @Test fun `search catalog can replace a strategy without breaking persisted ids`() {
+        val legacy = requireNotNull(DpiStrategyCatalog.byId("oob-sni"))
+        val current = requireNotNull(DpiStrategyCatalog.byId("oob-sni-3"))
+
+        assertEquals(listOf("-o", "1+s", "--timeout", "3"), legacy.args)
+        assertEquals(listOf("-o", "3+s", "--timeout", "3"), current.args)
+        assertFalse(DpiStrategyCatalog.searchDefault.any { it.id == legacy.id })
+        assertTrue(DpiStrategyCatalog.searchDefault.any { it.id == current.id })
+        assertTrue(DpiStrategyCatalog.searchDefault.all { candidate ->
+            DpiStrategyCatalog.byId(candidate.id) == candidate
+        })
     }
 
     @Test fun `ranker prefers complete domain coverage over lower latency`() {
