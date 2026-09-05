@@ -5,12 +5,15 @@ import org.json.JSONObject
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 
+enum class SubscriptionSelectionMode { MANUAL, AUTO }
+
 data class VlessKey(
     val id: String,
     val name: String,
     val uri: String,
     val selectedNode: String? = null,
     val favoriteNodes: Set<String> = emptySet(),
+    val subscriptionSelectionMode: SubscriptionSelectionMode = SubscriptionSelectionMode.MANUAL,
     /** Null disables scheduled refresh; a positive value is the requested interval in hours. */
     val subscriptionUpdateIntervalHours: Int? = null,
     /** Epoch millis of the last successfully prepared subscription cache. */
@@ -42,6 +45,7 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
                     put("favoriteNodes", JSONArray().apply {
                         key.favoriteNodes.sorted().forEach { nodeName -> put(nodeName) }
                     })
+                    put("subscriptionSelectionMode", key.subscriptionSelectionMode.name)
                     put("subscriptionUpdateIntervalHours", key.subscriptionUpdateIntervalHours ?: JSONObject.NULL)
                     put("subscriptionUpdatedAt", key.subscriptionUpdatedAt ?: JSONObject.NULL)
                 })
@@ -89,6 +93,13 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
                             }
                         }
                     }
+                    val selectionMode = if (!obj.has("subscriptionSelectionMode")) {
+                        SubscriptionSelectionMode.MANUAL
+                    } else {
+                        val value = obj.getString("subscriptionSelectionMode")
+                        SubscriptionSelectionMode.entries.firstOrNull { it.name == value }
+                            ?: throw IllegalArgumentException("invalid subscription selection mode")
+                    }
                     val subscriptionUpdateIntervalHours =
                         if (!obj.has("subscriptionUpdateIntervalHours") || obj.isNull("subscriptionUpdateIntervalHours")) {
                             null
@@ -107,6 +118,7 @@ data class VlessKeys(val items: List<VlessKey>, val activeId: String?) {
                         uri = uri,
                         selectedNode = selectedNode,
                         favoriteNodes = favoriteNodes,
+                        subscriptionSelectionMode = selectionMode,
                         subscriptionUpdateIntervalHours = subscriptionUpdateIntervalHours,
                         subscriptionUpdatedAt = subscriptionUpdatedAt,
                     )
