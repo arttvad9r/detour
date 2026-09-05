@@ -3,11 +3,12 @@ package dev.triplet.app.core
 /**
  * Built-in AUTO probe targets.
  *
- * Host coverage is synchronized with ByeByeDPI's proxy-test site assets at
- * commit 01b080e2fe41898d8371495a9db887da54e28798 (2026-08-31). The hosts are
- * probe evidence, not a direct copy of ByeByeDPI's runtime routing model:
- * Detour maps related hosts to stable ByeDPI rule scopes so ephemeral CDN
- * names (notably googlevideo.com) produce useful future-facing rules.
+ * Host coverage includes ByeByeDPI's proxy-test site assets at commit
+ * 01b080e2fe41898d8371495a9db887da54e28798 (2026-08-31), plus the stable
+ * Detour anchors that were already shipped before this catalog expansion.
+ * The hosts are probe evidence, not a copy of ByeByeDPI's runtime routing
+ * model: Detour maps related hosts to stable ByeDPI rule scopes so ephemeral
+ * CDN names (notably googlevideo.com) produce useful future-facing rules.
  */
 object DpiAutoDomainCatalog {
     const val SOURCE_COMMIT = "01b080e2fe41898d8371495a9db887da54e28798"
@@ -16,6 +17,8 @@ object DpiAutoDomainCatalog {
         group(
             id = "youtube",
             hosts = listOf(
+                // Existing Detour anchor retained in addition to ByeByeDPI's list.
+                "www.youtube.com" to "youtube.com",
                 "youtu.be" to "youtu.be",
                 "youtube.com" to "youtube.com",
                 "i.ytimg.com" to "ytimg.com",
@@ -34,6 +37,8 @@ object DpiAutoDomainCatalog {
         group(
             id = "googlevideo",
             hosts = listOf(
+                // Stable Detour anchor retained in addition to regional CDN probes.
+                "redirector.googlevideo.com",
                 "rr1---sn-4axm-n8vs.googlevideo.com",
                 "rr1---sn-gvnuxaxjvh-o8ge.googlevideo.com",
                 "rr1---sn-ug5onuxaxjvh-p3ul.googlevideo.com",
@@ -61,6 +66,8 @@ object DpiAutoDomainCatalog {
                 "dis.gd" to "dis.gd",
                 "discord.co" to "discord.co",
                 "discord.gg" to "discord.gg",
+                // Existing Detour anchor retained under the discord.gg scope.
+                "gateway.discord.gg" to "discord.gg",
                 "discord.app" to "discord.app",
                 "discord.com" to "discord.com",
                 "discord.dev" to "discord.dev",
