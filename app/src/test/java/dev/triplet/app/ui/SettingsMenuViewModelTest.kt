@@ -53,6 +53,21 @@ class SettingsMenuViewModelTest {
         assertFalse(state.autoConnect)
     }
 
+    @Test fun `pending network intents override lagging persistence`() {
+        val state = settingsMenuUiState(
+            settings = settings(autoConnect = false).copy(
+                autoConnectWifi = false,
+                autoConnectCellular = true,
+            ),
+            routedCount = 0,
+            autoConnectWifiOverride = true,
+            autoConnectCellularOverride = false,
+        )
+
+        assertTrue(state.autoConnectWifi)
+        assertFalse(state.autoConnectCellular)
+    }
+
     @Test fun `missing settings render safe defaults`() {
         assertEquals(SettingsMenuUiState(), settingsMenuUiState(null, routedCount = 0))
     }
