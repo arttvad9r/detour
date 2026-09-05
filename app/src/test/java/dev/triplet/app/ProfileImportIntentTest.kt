@@ -1,11 +1,12 @@
 package dev.triplet.app
 
 import android.content.Intent
-import android.net.Uri
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 class ProfileImportIntentTest {
     private val vless =
@@ -16,7 +17,10 @@ class ProfileImportIntentTest {
 
     @Test fun `vless action view opens profile import`() {
         val request = profileImportRequest(
-            Intent(Intent.ACTION_VIEW, Uri.parse(vless)),
+            action = Intent.ACTION_VIEW,
+            mimeType = null,
+            data = vless,
+            sharedText = null,
         )
         assertEquals(vless, request?.value)
         assertEquals(false, request?.subscription)
@@ -24,34 +28,54 @@ class ProfileImportIntentTest {
 
     @Test fun `detour import wrapper accepts subscription`() {
         val subscription = "https://subscription.example/token"
-        val uri = Uri.Builder()
-            .scheme("detour")
-            .authority("import")
-            .appendQueryParameter("url", subscription)
-            .build()
-        val request = profileImportRequest(Intent(Intent.ACTION_VIEW, uri))
+        val encoded = URLEncoder.encode(subscription, StandardCharsets.UTF_8.name())
+        val request = profileImportRequest(
+            action = Intent.ACTION_VIEW,
+            mimeType = null,
+            data = "detour://import?url=$encoded",
+            sharedText = null,
+        )
 
         assertEquals(subscription, request?.value)
         assertTrue(request?.subscription == true)
     }
 
     @Test fun `plain text share accepts valid profile only`() {
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(Intent.EXTRA_TEXT, vless)
-        }
-        assertEquals(vless, profileImportRequest(intent)?.value)
-
-        intent.putExtra(Intent.EXTRA_TEXT, "look at this $vless")
-        assertNull(profileImportRequest(intent))
+        assertEquals(
+            vless,
+            profileImportRequest(
+                action = Intent.ACTION_SEND,
+                mimeType = "text/plain",
+                data = null,
+                sharedText = vless,
+            )?.value,
+        )
+        assertNull(
+            profileImportRequest(
+                action = Intent.ACTION_SEND,
+                mimeType = "text/plain",
+                data = null,
+                sharedText = "look at this $vless",
+            ),
+        )
     }
 
     @Test fun `non text shares and unrelated links are ignored`() {
-        val binaryShare = Intent(Intent.ACTION_SEND).apply {
-            type = "application/octet-stream"
-            putExtra(Intent.EXTRA_TEXT, vless)
-        }
-        assertNull(profileImportRequest(binaryShare))
-        assertNull(profileImportRequest(Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com"))))
+        assertNull(
+            profileImportRequest(
+                action = Intent.ACTION_SEND,
+                mimeType = "application/octet-stream",
+                data = null,
+                sharedText = vless,
+            ),
+        )
+        assertNull(
+            profileImportRequest(
+                action = Intent.ACTION_VIEW,
+                mimeType = null,
+                data = "https://example.com",
+                sharedText = null,
+            ),
+        )
     }
 }
