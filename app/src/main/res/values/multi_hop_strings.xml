@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="multi_hop_title">Multi-hop</string>
+    <string name="multi_hop_off">Off</string>
+    <string name="multi_hop_summary_off">Connect directly to the selected VPN profile.</string>
+    <string name="multi_hop_summary_on">Route the VPN connection through %1$s first.</string>
+    <string name="multi_hop_entry_title">Entry hop</string>
+    <string name="multi_hop_vless_label">VLESS · %1$s</string>
+    <string name="multi_hop_warp_label">WARP</string>
+    <string name="multi_hop_unavailable">Selected entry hop is unavailable.</string>
+    <string name="err_multi_hop_invalid">Multi-hop entry is unavailable or conflicts with the exit profile.</string>
+</resources>
