@@ -173,6 +173,7 @@ class DpiAutoSelector(
                     attemptsPerTarget = attemptsPerTarget,
                     cancelled = searchCancelled,
                     stopCandidateOnFailure = true,
+                    stopScopeOnFailure = false,
                     onProgress = onProgress,
                 )
             },
@@ -185,9 +186,8 @@ class DpiAutoSelector(
     }
 
     /**
-     * Exhaustive mode for per-domain planning. If one endpoint in a rule scope
-     * fails direct baseline, every selected endpoint affected by that same
-     * scope is tested under every candidate.
+     * Per-domain planning mode. Failed direct endpoints are tested first and a
+     * candidate stops probing later peers only inside a scope it already failed.
      */
     fun searchPerDomainWithBaseline(
         targets: List<DpiProbeTarget>,
@@ -205,6 +205,7 @@ class DpiAutoSelector(
                     attemptsPerTarget = attemptsPerTarget,
                     cancelled = searchCancelled,
                     stopCandidateOnFailure = false,
+                    stopScopeOnFailure = true,
                     onProgress = onProgress,
                 )
             },
@@ -222,6 +223,7 @@ class DpiAutoSelector(
         attemptsPerTarget: Int = 2,
         cancelled: () -> Boolean = { false },
         stopCandidateOnFailure: Boolean = true,
+        stopScopeOnFailure: Boolean = false,
         onProgress: (DpiAutoProgress) -> Unit = {},
     ): List<DpiStrategyResult> = withCleanNetwork(cancelled) { guardedCancelled ->
         searchCandidatesWithProgress(
@@ -230,6 +232,7 @@ class DpiAutoSelector(
             attemptsPerTarget = attemptsPerTarget,
             cancelled = guardedCancelled,
             stopCandidateOnFailure = stopCandidateOnFailure,
+            stopScopeOnFailure = stopScopeOnFailure,
             onProgress = onProgress,
         )
     }
@@ -240,6 +243,7 @@ class DpiAutoSelector(
         attemptsPerTarget: Int,
         cancelled: () -> Boolean,
         stopCandidateOnFailure: Boolean,
+        stopScopeOnFailure: Boolean,
         onProgress: (DpiAutoProgress) -> Unit,
     ): List<DpiStrategyResult> {
         require(candidates.isNotEmpty()) { "candidate list is empty" }
@@ -260,6 +264,7 @@ class DpiAutoSelector(
                 attemptsPerTarget = attemptsPerTarget,
                 cancelled = cancelled,
                 stopCandidateOnFailure = stopCandidateOnFailure,
+                stopScopeOnFailure = stopScopeOnFailure,
             )
             if (!cancelled()) {
                 onProgress(
@@ -281,6 +286,7 @@ class DpiAutoSelector(
         attemptsPerTarget: Int,
         cancelled: () -> Boolean,
         stopCandidateOnFailure: Boolean,
+        stopScopeOnFailure: Boolean,
     ): List<DpiStrategyResult> {
         val runner = DpiStrategySearchRunner(
             backend = object : DpiStrategyBackend {
@@ -306,6 +312,7 @@ class DpiAutoSelector(
             targets = targets,
             attemptsPerTarget = attemptsPerTarget,
             stopCandidateOnFailure = stopCandidateOnFailure,
+            stopScopeOnFailure = stopScopeOnFailure,
             cancelled = cancelled,
         )
     }

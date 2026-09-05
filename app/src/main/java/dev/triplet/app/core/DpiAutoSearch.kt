@@ -78,9 +78,9 @@ class DpiAutoSearchCoordinator(
 
 /**
  * Per-domain coordinator. If any concrete endpoint in a rule scope fails the
- * direct baseline, every selected endpoint in that same scope is retested under
- * every candidate. This prevents a broad host rule from fixing one endpoint
- * while silently breaking another endpoint that was working directly.
+ * direct baseline, every selected endpoint in that same scope remains eligible
+ * for retesting under every candidate. Baseline failures are ordered first so
+ * ineffective candidates can reject a scope before probing direct-working peers.
  */
 class DpiPerDomainSearchCoordinator(
     private val directProbe: DpiTargetProbe,
@@ -101,7 +101,10 @@ class DpiPerDomainSearchCoordinator(
             .toSet()
         if (affectedScopes.isEmpty()) return DpiAutoSearchReport(baseline, emptyList())
 
-        val strategyTargets = targets.filter { it.scopeHost in affectedScopes }
+        val baselineById = baseline.associateBy { it.target.id }
+        val strategyTargets = targets
+            .filter { it.scopeHost in affectedScopes }
+            .sortedBy { baselineById.getValue(it.id).fullyWorking }
         return DpiAutoSearchReport(
             baseline = baseline,
             strategies = strategySearcher.search(strategyTargets, cancelled),
