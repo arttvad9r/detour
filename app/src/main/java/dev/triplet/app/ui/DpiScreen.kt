@@ -26,6 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -35,14 +36,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.triplet.app.R
+import dev.triplet.app.core.DpiAutoDomainCatalog
 import dev.triplet.app.core.DpiAutoProgress
 import dev.triplet.app.core.DpiAutoProgressPhase
-import dev.triplet.app.core.DpiDomainCatalog
+import dev.triplet.app.core.DpiAutoTestOptions
 import dev.triplet.app.core.DpiPreset
 
 @Composable
@@ -179,19 +182,30 @@ private fun AutoStrategyPanel(state: DpiUiState, viewModel: DpiViewModel) {
         )
         Spacer(Modifier.height(Spacing.space8))
         DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-            DpiDomainCatalog.default.forEachIndexed { index, group ->
+            DpiAutoDomainCatalog.default.forEachIndexed { index, group ->
                 AutoDomainRow(
                     title = domainGroupTitle(group.id),
-                    subtitle = group.targets.joinToString(" · ") { it.host },
+                    subtitle = pluralStringResource(
+                        R.plurals.dpi_auto_target_count,
+                        group.targets.size,
+                        group.targets.size,
+                    ),
                     selected = group.id in state.selectedAutoGroups,
                     enabled = controlsEnabled,
                     onToggle = { viewModel.toggleAutoGroup(group.id) },
                 )
-                if (index != DpiDomainCatalog.default.lastIndex) {
+                if (index != DpiAutoDomainCatalog.default.lastIndex) {
                     GroupDivider(startInset = ChoiceRowDividerInset)
                 }
             }
         }
+
+        Spacer(Modifier.height(Spacing.space12))
+        AutoAttemptsControl(
+            attempts = state.autoAttempts,
+            enabled = controlsEnabled,
+            onChange = viewModel::setAutoAttempts,
+        )
 
         Spacer(Modifier.height(Spacing.space12))
         if (controlsEnabled) {
@@ -301,6 +315,60 @@ private fun AutoStrategyPanel(state: DpiUiState, viewModel: DpiViewModel) {
                 enabled = state.canApplyAuto,
                 modifier = Modifier.padding(horizontal = Spacing.space16),
             )
+        }
+    }
+}
+
+@Composable
+private fun AutoAttemptsControl(
+    attempts: Int,
+    enabled: Boolean,
+    onChange: (Int) -> Unit,
+) {
+    val c = detourColors
+    DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 64.dp)
+                .padding(start = Spacing.space16, end = Spacing.space8),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f).padding(vertical = Spacing.space8)) {
+                Text(
+                    text = stringResource(R.string.dpi_auto_attempts),
+                    style = MaterialTheme.typography.titleSmall,
+                    color = c.textPrimary,
+                )
+                Text(
+                    text = stringResource(
+                        R.string.dpi_auto_attempts_hint,
+                        DpiAutoTestOptions.MIN_ATTEMPTS,
+                        DpiAutoTestOptions.MAX_ATTEMPTS,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = c.textSecondary,
+                    modifier = Modifier.padding(top = Spacing.space2),
+                )
+            }
+            TextButton(
+                onClick = { onChange(attempts - 1) },
+                enabled = enabled && attempts > DpiAutoTestOptions.MIN_ATTEMPTS,
+            ) {
+                Text("−")
+            }
+            Text(
+                text = attempts.toString(),
+                style = MaterialTheme.typography.titleMedium,
+                color = c.textPrimary,
+                modifier = Modifier.padding(horizontal = Spacing.space4),
+            )
+            TextButton(
+                onClick = { onChange(attempts + 1) },
+                enabled = enabled && attempts < DpiAutoTestOptions.MAX_ATTEMPTS,
+            ) {
+                Text("+")
+            }
         }
     }
 }
