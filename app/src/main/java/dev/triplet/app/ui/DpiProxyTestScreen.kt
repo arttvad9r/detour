@@ -99,7 +99,7 @@ internal fun DpiProxyTestScreen(
                         Text(
                             text = stringResource(
                                 R.string.dpi_proxy_test_selected_strategies,
-                                state.selectedReferenceStrategyIds.size,
+                                state.selectedStrategyCount,
                             ),
                             style = MaterialTheme.typography.bodySmall,
                             color = c.textMuted,
@@ -174,7 +174,7 @@ internal fun DpiProxyTestScreen(
                     enabled = !state.running,
                     onToggle = { viewModel.toggleProxyStrategy(strategy.id) },
                 )
-                Spacer(Modifier.height(Spacing.space6))
+                Spacer(Modifier.height(Spacing.space8))
             }
         }
 
@@ -205,6 +205,7 @@ internal fun DpiProxyTestScreen(
                         minHeight = 56.dp,
                         maxHeight = 120.dp,
                         maxLines = 4,
+                        monospace = true,
                         modifier = Modifier.padding(horizontal = Spacing.space16),
                     )
                     Text(
@@ -513,7 +514,7 @@ private fun ProxyHistoryRunCard(
 ) {
     val c = detourColors
     val timestamp = rememberRunTimestamp(run.createdAtEpochMs)
-    val hosts = DpiProxyTestCatalog.selectedHosts(run.selectedDomainIds).size
+    val hosts = run.results.firstOrNull()?.hostCount ?: 0
     DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
         val interaction = if (enabled) {
             Modifier.detourClickable(
@@ -551,10 +552,8 @@ private fun ProxyHistoryRunCard(
 }
 
 @Composable
-private fun rememberRunTimestamp(epochMs: Long): String {
-    return rememberSaveable(epochMs) {
-        DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(epochMs))
-    }
+private fun rememberRunTimestamp(epochMs: Long): String = rememberSaveable(epochMs) {
+    DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(epochMs))
 }
 
 @Composable
