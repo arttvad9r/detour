@@ -220,7 +220,7 @@ internal fun DetourNavigation(
             EnterTransition.None togetherWith slideOutHorizontally(
                 animationSpec = tween(
                     Motion.NAV_EXIT_MS,
-                    easing = Motion.STANDARD_EASING,
+                    easing = Motion.EXIT_EASING,
                 ),
                 targetOffsetX = { it },
             )
@@ -332,6 +332,7 @@ internal fun DetourNavigation(
                 val dpiViewModel = viewModel<DpiViewModel>(
                     factory = DpiViewModel.factory(
                         store = store,
+                        appContext = appContext,
                         restartTunnel = { VpnController.restartIfActive(appContext) },
                     ),
                 )
