@@ -42,7 +42,9 @@
     <string name="dpi_proxy_test_history_title">Test history</string>
     <string name="dpi_proxy_test_history_empty">No saved runs yet.</string>
     <string name="dpi_proxy_test_history_summary">%1$d strategies · %2$d hosts · %3$d request(s) per host</string>
-    <string name="dpi_proxy_test_results_title">Results</string>
+    <string name="dpi_proxy_test_results_title">Best result</string>
+    <string name="dpi_proxy_test_all_results">All results</string>
+    <string name="dpi_proxy_test_all_results_summary">%1$d ranked strategies</string>
     <string name="dpi_proxy_test_no_results">No completed strategy results.</string>
     <string name="dpi_proxy_test_strategy_number">Strategy #%1$d</string>
     <string name="dpi_proxy_test_full_coverage">Full coverage</string>
