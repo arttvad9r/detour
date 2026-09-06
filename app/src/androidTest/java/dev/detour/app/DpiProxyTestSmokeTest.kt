@@ -24,7 +24,7 @@ class DpiProxyTestSmokeTest {
     @get:Rule
     val rule = createAndroidComposeRule<MainActivity>()
 
-    @Test fun proxyTestScreenExposesStrategiesAndCustomWorkspaceBeforeRun() {
+    @Test fun proxyTestScreenKeepsSetupCompactAndStrategiesReachableBeforeRun() {
         rule.onNodeWithContentDescription(rule.activity.getString(R.string.cd_settings))
             .performClick()
         rule.onNodeWithText(rule.activity.getString(R.string.nav_dpi))
@@ -35,11 +35,17 @@ class DpiProxyTestSmokeTest {
 
         rule.onNodeWithText(rule.activity.getString(R.string.dpi_proxy_test_title))
             .assertIsDisplayed()
-        rule.onNodeWithText(
-            rule.activity.getString(R.string.dpi_proxy_test_strategy_number, 1),
-        ).assertIsDisplayed()
+        rule.onNodeWithText(rule.activity.getString(R.string.dpi_proxy_test_setup_title))
+            .assertIsDisplayed()
+        rule.onNodeWithText(rule.activity.getString(R.string.dpi_proxy_test_domains_title))
+            .assertIsDisplayed()
+        rule.onNodeWithText(rule.activity.getString(R.string.dpi_proxy_test_parameters_title))
+            .assertIsDisplayed()
+        rule.onNodeWithText(rule.activity.getString(R.string.dpi_proxy_test_start))
+            .assertIsDisplayed()
 
-        rule.onNodeWithText(rule.activity.getString(R.string.dpi_proxy_test_hide_strategies))
+        rule.onNodeWithText(rule.activity.getString(R.string.dpi_proxy_test_strategies_title))
+            .assertIsDisplayed()
             .performClick()
 
         val scroll = rule.onNode(hasScrollAction())
@@ -47,18 +53,9 @@ class DpiProxyTestSmokeTest {
         scroll.performScrollToNode(hasText(customTitle))
         rule.onNodeWithText(customTitle).assertIsDisplayed()
 
-        scroll.performScrollToNode(hasText("YouTube"))
-        rule.onNodeWithText("YouTube").assertIsDisplayed()
-        scroll.performScrollToNode(hasText("GoogleVideo"))
-        rule.onNodeWithText("GoogleVideo").assertIsDisplayed()
-
-        val startLabel = rule.activity.getString(R.string.dpi_proxy_test_start)
-        scroll.performScrollToNode(hasText(startLabel))
-        rule.onNodeWithText(startLabel).assertIsDisplayed()
-
-        val historyTitle = rule.activity.getString(R.string.dpi_proxy_test_history_title)
-        scroll.performScrollToNode(hasText(historyTitle))
-        rule.onNodeWithText(historyTitle).assertIsDisplayed()
+        val strategyOne = rule.activity.getString(R.string.dpi_proxy_test_strategy_number, 1)
+        scroll.performScrollToNode(hasText(strategyOne))
+        rule.onNodeWithText(strategyOne).assertIsDisplayed()
     }
 
     @Test fun cancelledBackendStartDoesNotLeaveProcessRunning() {
