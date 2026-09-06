@@ -40,11 +40,11 @@
 ### Task 2: Subscription Materialization and Retry Behavior
 
 **Files:**
-- Modify: `app/src/main/java/dev/triplet/app/core/SubscriptionProviderMaterializer.kt`
-- Modify: `app/src/main/java/dev/triplet/app/core/ConfigGenerator.kt`
-- Modify: `app/src/main/java/dev/triplet/app/TripletApp.kt`
-- Modify: `app/src/main/java/dev/triplet/app/ui/SubscriptionRuntimeSection.kt`
-- Modify: `app/src/main/java/dev/triplet/app/ui/SubscriptionRuntimeViewModel.kt`
+- Modify: `app/src/main/java/dev/detour/app/core/SubscriptionProviderMaterializer.kt`
+- Modify: `app/src/main/java/dev/detour/app/core/ConfigGenerator.kt`
+- Modify: `app/src/main/java/dev/detour/app/DetourApp.kt`
+- Modify: `app/src/main/java/dev/detour/app/ui/SubscriptionRuntimeSection.kt`
+- Modify: `app/src/main/java/dev/detour/app/ui/SubscriptionRuntimeViewModel.kt`
 - Test: existing core and runtime tests under `app/src/test` and `app/src/androidTest`
 
 **Interfaces:**
@@ -60,9 +60,9 @@
 
 **Files:**
 - Modify: `engine/mihomo/go/subscription_prepare.go`
-- Modify: `app/src/main/java/dev/triplet/app/core/WarpProfile.kt`
-- Modify: `app/src/main/java/dev/triplet/app/core/WarpConfigImporter.kt`
-- Modify: `app/src/main/java/dev/triplet/app/BackupDocumentIo.kt`
+- Modify: `app/src/main/java/dev/detour/app/core/WarpProfile.kt`
+- Modify: `app/src/main/java/dev/detour/app/core/WarpConfigImporter.kt`
+- Modify: `app/src/main/java/dev/detour/app/BackupDocumentIo.kt`
 - Test: Go subscription tests and Android backup/WARP tests
 
 - [ ] **Step 1: Add redirect-origin and malformed-WARP regression tests.**
@@ -86,12 +86,12 @@
 ### Task 5: Compose Accessibility and Adaptive Layout
 
 **Files:**
-- Modify: `app/src/main/java/dev/triplet/app/ui/HomeScreen.kt`
-- Modify: `app/src/main/java/dev/triplet/app/ui/VlessKeyScreen.kt`
-- Modify: `app/src/main/java/dev/triplet/app/ui/NavigationRow.kt`
-- Modify: `app/src/main/java/dev/triplet/app/ui/AppsScreen.kt`
-- Modify: `app/src/main/java/dev/triplet/app/ui/Theme.kt`
-- Test: `app/src/androidTest/java/dev/triplet/app/ui/FontScaleLayoutTest.kt` and accessibility smoke tests
+- Modify: `app/src/main/java/dev/detour/app/ui/HomeScreen.kt`
+- Modify: `app/src/main/java/dev/detour/app/ui/VlessKeyScreen.kt`
+- Modify: `app/src/main/java/dev/detour/app/ui/NavigationRow.kt`
+- Modify: `app/src/main/java/dev/detour/app/ui/AppsScreen.kt`
+- Modify: `app/src/main/java/dev/detour/app/ui/Theme.kt`
+- Test: `app/src/androidTest/java/dev/detour/app/ui/FontScaleLayoutTest.kt` and accessibility smoke tests
 
 - [ ] **Step 1: Add tests for compact-height scrolling, 200% text visibility, descriptive profile action labels, and selected-state contrast.**
 - [ ] **Step 2: Run focused instrumentation tests and confirm missing behavior.**

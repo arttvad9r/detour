@@ -16,7 +16,7 @@
     </queries>
 
     <application
-        android:name=".TripletApp"
+        android:name=".DetourApp"
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
@@ -24,7 +24,7 @@
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Triplet">
+        android:theme="@style/Theme.Detour">
 
         <activity
             android:name=".MainActivity"
@@ -39,7 +39,7 @@
             android:name=".vpn.VpnConsentActivity"
             android:excludeFromRecents="true"
             android:exported="false"
-            android:theme="@style/Theme.Triplet" />
+            android:theme="@style/Theme.Detour" />
 
         <service
             android:name=".tile.DetourTile"
