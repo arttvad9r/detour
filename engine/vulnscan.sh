@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Engine verification over the real dependency set (pinned mihomo + Triplet patches).
+# Engine verification over the real dependency set (pinned mihomo + Detour patches).
 # Run after :buildMihomoAar so .cache/mihomo-src and engine.aar match the build.
 set -euo pipefail
 

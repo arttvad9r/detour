@@ -38,11 +38,11 @@ require(releaseSigningValueCount == 0 || releaseSigningValueCount == 4) {
 }
 
 android {
-    namespace = "dev.triplet.app"
+    namespace = "dev.detour.app"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "dev.triplet.app"
+        applicationId = "dev.detour.app"
         minSdk = 29
         targetSdk = 36
         versionCode = versionCodeOverride ?: 1

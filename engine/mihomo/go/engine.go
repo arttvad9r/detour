@@ -68,7 +68,7 @@ func SetProcessResolver(r ProcessResolver) {
 }
 
 func init() {
-	process.TripletHostFinder = func(network string, srcIP netip.Addr, srcPort int, dstIP netip.Addr, dstPort int) (uint32, string, bool) {
+	process.DetourHostFinder = func(network string, srcIP netip.Addr, srcPort int, dstIP netip.Addr, dstPort int) (uint32, string, bool) {
 		resolverMu.RLock()
 		resolver := hostResolver
 		resolverMu.RUnlock()
