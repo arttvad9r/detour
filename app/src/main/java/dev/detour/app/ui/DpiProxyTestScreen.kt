@@ -53,6 +53,7 @@ private enum class ProxyTestPage {
     DOMAINS,
     PARAMETERS,
     HISTORY,
+    RESULTS,
 }
 
 @Composable
@@ -75,6 +76,7 @@ internal fun DpiProxyTestScreen(
             onOpenDomains = { pageName = ProxyTestPage.DOMAINS.name },
             onOpenParameters = { pageName = ProxyTestPage.PARAMETERS.name },
             onOpenHistory = { pageName = ProxyTestPage.HISTORY.name },
+            onOpenResults = { pageName = ProxyTestPage.RESULTS.name },
             modifier = modifier,
         )
 
@@ -101,6 +103,12 @@ internal fun DpiProxyTestScreen(
             onBack = backToMain,
             modifier = modifier,
         )
+
+        ProxyTestPage.RESULTS -> ProxyTestResultsScreen(
+            viewModel = viewModel,
+            onBack = backToMain,
+            modifier = modifier,
+        )
     }
 }
 
@@ -112,6 +120,7 @@ private fun ProxyTestMainScreen(
     onOpenDomains: () -> Unit,
     onOpenParameters: () -> Unit,
     onOpenHistory: () -> Unit,
+    onOpenResults: () -> Unit,
     modifier: Modifier,
 ) {
     val state by viewModel.proxyTestState.collectAsStateWithLifecycle()
@@ -294,21 +303,32 @@ private fun ProxyTestMainScreen(
                     )
                 }
             } else {
-                items(
-                    items = state.results,
-                    key = { "result-${state.selectedRunId}-${it.strategy.id}" },
-                ) { result ->
+                item {
+                    val best = state.results.first()
                     ProxyResultCard(
-                        result = result,
-                        applying = state.applyingStrategyId == result.strategy.id,
-                        applied = state.appliedStrategyId == result.strategy.id,
-                        applyError = state.applyErrorStrategyId == result.strategy.id,
-                        onApply = { viewModel.applyProxyStrategy(result.strategy.id) },
+                        result = best,
+                        applying = state.applyingStrategyId == best.strategy.id,
+                        applied = state.appliedStrategyId == best.strategy.id,
+                        applyError = state.applyErrorStrategyId == best.strategy.id,
+                        onApply = { viewModel.applyProxyStrategy(best.strategy.id) },
                     )
-                    Spacer(Modifier.height(Spacing.space12))
+                    if (state.results.size > 1) {
+                        Spacer(Modifier.height(Spacing.space12))
+                        DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
+                            DetourNavigationRow(
+                                title = stringResource(R.string.dpi_proxy_test_all_results),
+                                subtitle = stringResource(
+                                    R.string.dpi_proxy_test_all_results_summary,
+                                    state.results.size,
+                                ),
+                                iconRes = R.drawable.ic_check,
+                                onClick = if (state.applyingStrategyId == null) onOpenResults else null,
+                            )
+                        }
+                    }
                 }
             }
-        } else if (state.historyLoaded) {
+        } else if (state.historyLoaded && state.history.isEmpty()) {
             item {
                 Text(
                     text = stringResource(R.string.dpi_proxy_test_history_empty),
@@ -641,6 +661,58 @@ private fun ProxyTestHistoryScreen(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProxyTestResultsScreen(
+    viewModel: DpiViewModel,
+    onBack: () -> Unit,
+    modifier: Modifier,
+) {
+    val state by viewModel.proxyTestState.collectAsStateWithLifecycle()
+    val c = detourColors
+    val listState = rememberLazyListState()
+
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .background(c.background)
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .detourHighRefresh(listState.isScrollInProgress),
+        state = listState,
+        contentPadding = PaddingValues(bottom = Spacing.space24),
+    ) {
+        item {
+            DetourBrandedHeader(stringResource(R.string.dpi_proxy_test_all_results), onBack)
+            Spacer(Modifier.height(Spacing.space12))
+        }
+
+        if (state.results.isEmpty()) {
+            item {
+                Text(
+                    text = stringResource(R.string.dpi_proxy_test_no_results),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = c.textMuted,
+                    modifier = Modifier.padding(horizontal = Spacing.space20),
+                )
+            }
+        } else {
+            items(
+                items = state.results,
+                key = { "all-result-${state.selectedRunId}-${it.strategy.id}" },
+            ) { result ->
+                ProxyResultCard(
+                    result = result,
+                    applying = state.applyingStrategyId == result.strategy.id,
+                    applied = state.appliedStrategyId == result.strategy.id,
+                    applyError = state.applyErrorStrategyId == result.strategy.id,
+                    onApply = { viewModel.applyProxyStrategy(result.strategy.id) },
+                )
+                Spacer(Modifier.height(Spacing.space12))
             }
         }
     }
