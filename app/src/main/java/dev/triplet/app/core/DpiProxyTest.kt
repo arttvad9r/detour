@@ -201,14 +201,19 @@ class DpiProxyTester(
     suspend fun run(
         selectedIds: Set<String>,
         config: DpiProxyTestConfig,
+        strategies: List<DpiProxyTestStrategy> = DpiProxyTestCatalog.strategies,
         onProgress: (DpiProxyTestProgress) -> Unit = {},
     ): List<DpiProxyTestStrategyResult> {
         val hosts = DpiProxyTestCatalog.selectedHosts(selectedIds)
         require(hosts.isNotEmpty()) { "no proxy-test domains selected" }
+        require(strategies.isNotEmpty()) { "no proxy-test strategies selected" }
+        require(strategies.map { it.id }.distinct().size == strategies.size) {
+            "duplicate proxy-test strategy ids"
+        }
 
         return DpiProxyTestNetworkSession(appContext).use { session ->
             val results = mutableListOf<DpiProxyTestStrategyResult>()
-            for ((strategyOffset, strategy) in DpiProxyTestCatalog.strategies.withIndex()) {
+            for ((strategyOffset, strategy) in strategies.withIndex()) {
                 currentCoroutineContext().ensureActive()
                 session.requireClean()
                 val coroutineContext = currentCoroutineContext()
@@ -245,7 +250,7 @@ class DpiProxyTester(
                             onProgress(
                                 DpiProxyTestProgress(
                                     strategyIndex = strategyOffset + 1,
-                                    strategyTotal = DpiProxyTestCatalog.strategies.size,
+                                    strategyTotal = strategies.size,
                                     hostsCompleted = completed,
                                     hostsTotal = hosts.size,
                                 ),
@@ -463,7 +468,7 @@ internal class AuthenticatedSocksHttpsProbe(
 }
 
 internal object DpiProxyHttpPolicy {
-    fun isReachable(status: Int): Boolean = status in 200..499 && status != 451
+    fun isReachable(status: Int): Boolean = status in 200..499 && status != 444 && status != 451
 }
 
 internal object DpiProxySocksWire {
