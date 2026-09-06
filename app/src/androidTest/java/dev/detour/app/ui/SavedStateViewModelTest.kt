@@ -1,7 +1,9 @@
 package dev.detour.app.ui
 
 import androidx.lifecycle.SavedStateHandle
+import androidx.test.core.app.ApplicationProvider
 import dev.detour.app.data.AppInfo
+import dev.detour.app.data.DpiProxyTestHistoryStore
 import dev.detour.app.data.TriSettings
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
@@ -54,6 +56,7 @@ class SavedStateViewModelTest {
                     "dpi_editing_custom" to true,
                 ),
             ),
+            proxyHistoryStore = DpiProxyTestHistoryStore(ApplicationProvider.getApplicationContext()),
         )
 
         assertEquals(draft, viewModel.uiState.value.customField)
