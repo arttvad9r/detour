@@ -4,6 +4,7 @@
     <string name="dpi_proxy_test_title">Proxy Test</string>
     <string name="dpi_proxy_test_summary_title">Find, compare, and reuse ByeDPI strategies</string>
     <string name="dpi_proxy_test_summary">Inspect the reference strategies before testing, add your own command, keep previous runs, compare their results, and apply a working strategy manually.</string>
+    <string name="dpi_proxy_test_setup_title">Test setup</string>
     <string name="dpi_proxy_test_strategies_title">Strategies</string>
     <string name="dpi_proxy_test_reference_strategies">Reference strategies</string>
     <string name="dpi_proxy_test_selected_strategies">Selected: %1$d</string>
@@ -20,10 +21,15 @@
     <string name="dpi_proxy_test_domains_title">Domain lists</string>
     <string name="dpi_proxy_test_domain_count">%1$d domains</string>
     <string name="dpi_proxy_test_selected_hosts">Selected hosts: %1$d</string>
+    <string name="dpi_proxy_test_domains_summary">%1$d lists · %2$d hosts</string>
     <string name="dpi_proxy_test_parameters_title">Test parameters</string>
+    <string name="dpi_proxy_test_parameters_summary">%1$d req/host · %2$d parallel · %3$d s</string>
     <string name="dpi_proxy_test_attempts">Requests per host</string>
+    <string name="dpi_proxy_test_attempts_hint">More requests improve confidence but make the test longer.</string>
     <string name="dpi_proxy_test_concurrency">Parallel hosts</string>
+    <string name="dpi_proxy_test_concurrency_hint">More parallel hosts speed up the test but increase network and device load.</string>
     <string name="dpi_proxy_test_timeout">Timeout</string>
+    <string name="dpi_proxy_test_timeout_hint">A longer timeout tolerates slower connections but makes failed attempts take longer.</string>
     <string name="dpi_proxy_test_seconds_short"> s</string>
     <string name="dpi_proxy_test_start">Start test</string>
     <string name="dpi_proxy_test_stop">Stop test</string>
