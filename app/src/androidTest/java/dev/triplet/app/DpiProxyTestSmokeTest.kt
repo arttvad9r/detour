@@ -24,7 +24,7 @@ class DpiProxyTestSmokeTest {
     @get:Rule
     val rule = createAndroidComposeRule<MainActivity>()
 
-    @Test fun proxyTestScreenIsReachableWithReferenceDefaults() {
+    @Test fun proxyTestScreenExposesStrategiesAndCustomWorkspaceBeforeRun() {
         rule.onNodeWithContentDescription(rule.activity.getString(R.string.cd_settings))
             .performClick()
         rule.onNodeWithText(rule.activity.getString(R.string.nav_dpi))
@@ -35,12 +35,27 @@ class DpiProxyTestSmokeTest {
 
         rule.onNodeWithText(rule.activity.getString(R.string.dpi_proxy_test_title))
             .assertIsDisplayed()
+        rule.onNodeWithText(
+            rule.activity.getString(R.string.dpi_proxy_test_strategy_number, 1),
+        ).assertIsDisplayed()
+
+        rule.onNodeWithText(rule.activity.getString(R.string.dpi_proxy_test_hide_strategies))
+            .performClick()
+
+        val customTitle = rule.activity.getString(R.string.dpi_proxy_test_custom_title)
+        rule.onNode(hasScrollAction()).performScrollToNode(hasText(customTitle))
+        rule.onNodeWithText(customTitle).assertIsDisplayed()
+
         rule.onNodeWithText("YouTube").assertIsDisplayed()
         rule.onNodeWithText("GoogleVideo").assertIsDisplayed()
 
         val startLabel = rule.activity.getString(R.string.dpi_proxy_test_start)
         rule.onNode(hasScrollAction()).performScrollToNode(hasText(startLabel))
         rule.onNodeWithText(startLabel).assertIsDisplayed()
+
+        val historyTitle = rule.activity.getString(R.string.dpi_proxy_test_history_title)
+        rule.onNode(hasScrollAction()).performScrollToNode(hasText(historyTitle))
+        rule.onNodeWithText(historyTitle).assertIsDisplayed()
     }
 
     @Test fun cancelledBackendStartDoesNotLeaveProcessRunning() {
