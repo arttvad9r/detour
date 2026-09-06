@@ -4,6 +4,7 @@
     <string name="dpi_proxy_test_title">Тест стратегий</string>
     <string name="dpi_proxy_test_summary_title">Поиск, сравнение и повторное использование стратегий ByeDPI</string>
     <string name="dpi_proxy_test_summary">Просматривайте reference-стратегии до запуска, добавляйте свою команду, сохраняйте прошлые прогоны, сравнивайте результаты и вручную применяйте рабочую стратегию.</string>
+    <string name="dpi_proxy_test_setup_title">Настройка теста</string>
     <string name="dpi_proxy_test_strategies_title">Стратегии</string>
     <string name="dpi_proxy_test_reference_strategies">Reference-стратегии</string>
     <string name="dpi_proxy_test_selected_strategies">Выбрано: %1$d</string>
@@ -20,10 +21,15 @@
     <string name="dpi_proxy_test_domains_title">Списки доменов</string>
     <string name="dpi_proxy_test_domain_count">Доменов: %1$d</string>
     <string name="dpi_proxy_test_selected_hosts">Выбрано хостов: %1$d</string>
+    <string name="dpi_proxy_test_domains_summary">Списков: %1$d · хостов: %2$d</string>
     <string name="dpi_proxy_test_parameters_title">Параметры теста</string>
+    <string name="dpi_proxy_test_parameters_summary">%1$d запр./хост · %2$d паралл. · %3$d с</string>
     <string name="dpi_proxy_test_attempts">Запросов на хост</string>
+    <string name="dpi_proxy_test_attempts_hint">Больше запросов повышает надёжность результата, но увеличивает время теста.</string>
     <string name="dpi_proxy_test_concurrency">Параллельных хостов</string>
+    <string name="dpi_proxy_test_concurrency_hint">Большее значение ускоряет тест, но повышает нагрузку на сеть и устройство.</string>
     <string name="dpi_proxy_test_timeout">Таймаут</string>
+    <string name="dpi_proxy_test_timeout_hint">Больший таймаут лучше переносит медленную сеть, но дольше ждёт неудачные попытки.</string>
     <string name="dpi_proxy_test_seconds_short"> с</string>
     <string name="dpi_proxy_test_start">Запустить тест</string>
     <string name="dpi_proxy_test_stop">Остановить тест</string>
