@@ -29,9 +29,21 @@ class DpiProxyTestTest {
         assertTrue(DpiProxyTestCatalog.isTrustedCommand(first.command))
         assertTrue(DpiProxyTestCatalog.isTrustedCommand("  ${first.command.replace(" ", "   ")}  "))
         assertFalse(DpiProxyTestCatalog.isTrustedCommand(first.command + " -p 9999"))
+        assertTrue(DpiProxyTestCatalog.strategies.all { DpiArgs.isValid(it.command) })
     }
 
-    @Test fun `exact reference command is valid custom but edited reference is rejected`() {
+    @Test fun `safe custom grammar accepts real desync options and blocks process controls`() {
+        assertTrue(DpiArgs.isValid("-n google.com -Qr -f-1 -r1+s -At,r,s -a1"))
+        assertTrue(DpiArgs.isValid("--fake -1 --ttl 8 --split 1+s --disorder 3+s -a1"))
+        assertFalse(DpiArgs.isValid("-p1080 -d1"))
+        assertFalse(DpiArgs.isValid("--port=1080 -d1"))
+        assertFalse(DpiArgs.isValid("-i 0.0.0.0 -d1"))
+        assertFalse(DpiArgs.isValid("--connect-to 1.1.1.1:443 -d1"))
+        assertFalse(DpiArgs.isValid("--fake-data /sdcard/payload.bin -d1"))
+        assertFalse(DpiArgs.isValid("--unknown value"))
+    }
+
+    @Test fun `exact reference command is valid custom but edited reference process control is rejected`() {
         val strategy = DpiProxyTestCatalog.strategies.first()
         assertTrue(DpiArgs.isValid(strategy.command))
         assertEquals(strategy.args, DpiArgs.resolve(DpiPreset.CUSTOM, strategy.command))
@@ -40,7 +52,7 @@ class DpiProxyTestTest {
 
     @Test fun `custom strategy can be appended to selected references`() {
         val reference = DpiProxyTestCatalog.strategies.first()
-        val customRaw = "-d1 -s1+s -r1+s -a1"
+        val customRaw = "-n google.com -Qr -f-1 -r1+s -a1"
         val custom = DpiProxyTestStrategySelection.custom(customRaw)
         assertTrue(custom != null)
         assertEquals(DpiProxyTestStrategySelection.CUSTOM_STRATEGY_ID, custom?.id)
