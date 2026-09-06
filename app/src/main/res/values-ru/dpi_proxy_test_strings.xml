@@ -42,7 +42,9 @@
     <string name="dpi_proxy_test_history_title">История тестов</string>
     <string name="dpi_proxy_test_history_empty">Сохранённых прогонов пока нет.</string>
     <string name="dpi_proxy_test_history_summary">Стратегий: %1$d · хостов: %2$d · запросов на хост: %3$d</string>
-    <string name="dpi_proxy_test_results_title">Результаты</string>
+    <string name="dpi_proxy_test_results_title">Лучший результат</string>
+    <string name="dpi_proxy_test_all_results">Все результаты</string>
+    <string name="dpi_proxy_test_all_results_summary">Стратегий в рейтинге: %1$d</string>
     <string name="dpi_proxy_test_no_results">Нет завершённых результатов стратегий.</string>
     <string name="dpi_proxy_test_strategy_number">Стратегия №%1$d</string>
     <string name="dpi_proxy_test_full_coverage">Полное покрытие</string>
