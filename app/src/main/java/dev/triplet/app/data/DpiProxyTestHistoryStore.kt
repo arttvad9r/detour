@@ -64,7 +64,7 @@ internal object DpiProxyTestHistoryCodec {
 
     fun encode(runs: List<DpiProxyTestRun>): String = JSONObject()
         .put("version", VERSION)
-        .put("runs", JSONArray().apply { runs.forEach { put(encodeRun(it)) } })
+        .put("runs", JSONArray().apply { runs.forEach { run -> put(encodeRun(run)) } })
         .toString()
 
     fun decode(raw: String): List<DpiProxyTestRun> {
@@ -82,7 +82,10 @@ internal object DpiProxyTestHistoryCodec {
     private fun encodeRun(run: DpiProxyTestRun): JSONObject = JSONObject()
         .put("id", run.id)
         .put("createdAtEpochMs", run.createdAtEpochMs)
-        .put("selectedDomainIds", JSONArray().apply { run.selectedDomainIds.forEach(::put) })
+        .put(
+            "selectedDomainIds",
+            JSONArray().apply { run.selectedDomainIds.forEach { id -> put(id) } },
+        )
         .put(
             "config",
             JSONObject()
@@ -90,7 +93,7 @@ internal object DpiProxyTestHistoryCodec {
                 .put("concurrency", run.config.concurrency)
                 .put("timeoutSeconds", run.config.timeoutSeconds),
         )
-        .put("results", JSONArray().apply { run.results.forEach { put(encodeResult(it)) } })
+        .put("results", JSONArray().apply { run.results.forEach { result -> put(encodeResult(result)) } })
 
     private fun decodeRun(json: JSONObject): DpiProxyTestRun {
         val configJson = json.getJSONObject("config")
@@ -138,7 +141,7 @@ internal object DpiProxyTestHistoryCodec {
         .put("id", strategy.id)
         .put("referenceIndex", strategy.referenceIndex)
         .put("command", strategy.command)
-        .put("args", JSONArray().apply { strategy.args.forEach(::put) })
+        .put("args", JSONArray().apply { strategy.args.forEach { arg -> put(arg) } })
 
     private fun decodeStrategy(json: JSONObject): DpiProxyTestStrategy {
         val argsJson = json.getJSONArray("args")
