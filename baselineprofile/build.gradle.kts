@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "dev.triplet.app.baselineprofile"
+    namespace = "dev.detour.app.baselineprofile"
     compileSdk = 37
 
     defaultConfig {
