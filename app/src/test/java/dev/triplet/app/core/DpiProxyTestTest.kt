@@ -38,6 +38,25 @@ class DpiProxyTestTest {
         assertFalse(DpiArgs.isValid(strategy.command + " -p 9999"))
     }
 
+    @Test fun `custom strategy can be appended to selected references`() {
+        val reference = DpiProxyTestCatalog.strategies.first()
+        val customRaw = "-d1 -s1+s -r1+s -a1"
+        val custom = DpiProxyTestStrategySelection.custom(customRaw)
+        assertTrue(custom != null)
+        assertEquals(DpiProxyTestStrategySelection.CUSTOM_STRATEGY_ID, custom?.id)
+        assertEquals(customRaw, custom?.command)
+
+        val selected = DpiProxyTestStrategySelection.build(setOf(reference.id), customRaw)
+        assertEquals(2, selected.size)
+        assertEquals(reference, selected[0])
+        assertEquals(DpiProxyTestStrategySelection.CUSTOM_STRATEGY_ID, selected[1].id)
+    }
+
+    @Test fun `invalid custom strategy is not admitted`() {
+        assertEquals(null, DpiProxyTestStrategySelection.custom("-p 9999"))
+        assertTrue(DpiProxyTestStrategySelection.build(emptySet(), "-p 9999").isEmpty())
+    }
+
     @Test fun `host is fully working only after every configured attempt`() {
         val partial = DpiProxyTestHostResult(
             host = "youtube.com",
@@ -75,6 +94,21 @@ class DpiProxyTestTest {
         assertEquals(strategyA, DpiProxyTestRanker.rank(listOf(partialFast, full)).first().strategy)
     }
 
+    @Test fun `result summary retains reusable strategy and aggregate result`() {
+        val strategy = DpiProxyTestCatalog.strategies.first()
+        val result = DpiProxyTestStrategyResult(
+            strategy = strategy,
+            backendStarted = true,
+            completed = true,
+            hosts = listOf(DpiProxyTestHostResult("youtube.com", 1, 1, 1, listOf(12))),
+        ).toSummary()
+
+        assertEquals(strategy, result.strategy)
+        assertEquals(1, result.hostCount)
+        assertEquals(1, result.fullyWorkingHosts)
+        assertTrue(result.fullCoverage)
+    }
+
     @Test fun `reference configuration ranges match proxy test`() {
         DpiProxyTestConfig(1, 1, 1)
         DpiProxyTestConfig(20, 50, 15)
@@ -83,9 +117,10 @@ class DpiProxyTestTest {
         assertEquals(5, DpiProxyTestConfig().timeoutSeconds)
     }
 
-    @Test fun `http policy rejects legal block and server errors`() {
+    @Test fun `http policy rejects legal block nginx drop and server errors`() {
         assertTrue(DpiProxyHttpPolicy.isReachable(200))
         assertTrue(DpiProxyHttpPolicy.isReachable(404))
+        assertFalse(DpiProxyHttpPolicy.isReachable(444))
         assertFalse(DpiProxyHttpPolicy.isReachable(451))
         assertFalse(DpiProxyHttpPolicy.isReachable(500))
     }
