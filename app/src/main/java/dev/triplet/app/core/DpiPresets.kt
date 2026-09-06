@@ -23,9 +23,13 @@ enum class DpiPreset(val id: String, val args: List<String>) {
 
 /** Разбор пользовательской строки аргументов ciadpi и выбор источника стратегии. */
 object DpiArgs {
-    private const val MAX_TOKENS = 128
+    private const val MAX_TOKENS = 64
     private const val MAX_RAW_LENGTH = 8 * 1024
     private const val MAX_TOKEN_LENGTH = 1024
+    private const val UINT_MAX = 0xffff_ffffL
+    private val decimalSeconds = Regex(
+        """[+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))(?:[eE][+-]?\d+)?""",
+    )
 
     /*
      * Keep CUSTOM useful for real ByeDPI strategies while preserving Detour's
@@ -72,7 +76,7 @@ object DpiArgs {
                         in longFlags -> if (attached != null) return false
                         in longWithValue -> {
                             val value = attached ?: allTokens.getOrNull(++index) ?: return false
-                            if (!isSafeValue(value)) return false
+                            if (!isValueValid(name, value)) return false
                         }
                         else -> return false
                     }
@@ -84,7 +88,7 @@ object DpiArgs {
                         in shortFlags -> if (attached != null) return false
                         in shortWithValue -> {
                             val value = attached ?: allTokens.getOrNull(++index) ?: return false
-                            if (!isSafeValue(value)) return false
+                            if (!isValueValid(option.toString(), value)) return false
                         }
                         else -> return false
                     }
@@ -96,9 +100,48 @@ object DpiArgs {
         return true
     }
 
+    private fun isValueValid(option: String, value: String): Boolean {
+        if (!isSafeValue(value)) return false
+        return when (option) {
+            "a", "udp-fake" -> parseCInteger(value)?.let { it in 0..Int.MAX_VALUE.toLong() } == true
+            "T", "timeout" -> {
+                if (!decimalSeconds.matches(value)) false
+                else value.toFloatOrNull()?.let { seconds ->
+                    val millis = seconds * 1000f
+                    seconds.isFinite() && millis.isFinite() && millis.toLong() in 1..UINT_MAX
+                } == true
+            }
+            else -> true
+        }
+    }
+
     private fun isSafeValue(value: String): Boolean = value.isNotEmpty() &&
         value.length <= MAX_TOKEN_LENGTH &&
         value.none { it.code < 0x20 || it.code == 0x7f }
+
+    /** Match strtol(..., base=0) for the narrow integer option we validate numerically. */
+    private fun parseCInteger(value: String): Long? {
+        if (value.isEmpty()) return null
+        var body = value
+        var negative = false
+        when (body.first()) {
+            '+' -> body = body.drop(1)
+            '-' -> {
+                negative = true
+                body = body.drop(1)
+            }
+        }
+        if (body.isEmpty()) return null
+
+        val (digits, radix) = when {
+            body.startsWith("0x", ignoreCase = true) -> body.drop(2) to 16
+            body.length > 1 && body.startsWith('0') -> body.drop(1) to 8
+            else -> body to 10
+        }
+        if (digits.isEmpty()) return if (body == "0") 0L else null
+        val parsed = digits.toLongOrNull(radix) ?: return null
+        return if (negative) -parsed else parsed
+    }
 
     /** Пробелы/переводы строк -> argv; пустые токены отбрасываются, длина ограничена. */
     fun tokenize(raw: String): List<String> =
