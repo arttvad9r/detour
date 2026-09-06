@@ -42,19 +42,22 @@ class DpiProxyTestSmokeTest {
         rule.onNodeWithText(rule.activity.getString(R.string.dpi_proxy_test_hide_strategies))
             .performClick()
 
+        val scroll = rule.onNode(hasScrollAction())
         val customTitle = rule.activity.getString(R.string.dpi_proxy_test_custom_title)
-        rule.onNode(hasScrollAction()).performScrollToNode(hasText(customTitle))
+        scroll.performScrollToNode(hasText(customTitle))
         rule.onNodeWithText(customTitle).assertIsDisplayed()
 
+        scroll.performScrollToNode(hasText("YouTube"))
         rule.onNodeWithText("YouTube").assertIsDisplayed()
+        scroll.performScrollToNode(hasText("GoogleVideo"))
         rule.onNodeWithText("GoogleVideo").assertIsDisplayed()
 
         val startLabel = rule.activity.getString(R.string.dpi_proxy_test_start)
-        rule.onNode(hasScrollAction()).performScrollToNode(hasText(startLabel))
+        scroll.performScrollToNode(hasText(startLabel))
         rule.onNodeWithText(startLabel).assertIsDisplayed()
 
         val historyTitle = rule.activity.getString(R.string.dpi_proxy_test_history_title)
-        rule.onNode(hasScrollAction()).performScrollToNode(hasText(historyTitle))
+        scroll.performScrollToNode(hasText(historyTitle))
         rule.onNodeWithText(historyTitle).assertIsDisplayed()
     }
 
