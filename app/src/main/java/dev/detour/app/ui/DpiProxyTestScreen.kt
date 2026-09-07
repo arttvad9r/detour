@@ -3,10 +3,12 @@ package dev.detour.app.ui
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -14,10 +16,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -28,6 +30,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -52,6 +55,7 @@ private val ProxySectionGap = Spacing.space12
 private val ProxyRowHorizontalPadding = Spacing.space12
 private val ProxyRowVerticalPadding = Spacing.space8
 private const val ProxyPlainDividerInset = 12
+private const val ProxyResultDividerInset = 54
 
 private enum class ProxyTestPage {
     MAIN,
@@ -246,28 +250,57 @@ private fun ProxyTestMainScreen(
                     val completed = (progress.strategyIndex - 1) * progress.hostsTotal + progress.hostsCompleted
                     val total = progress.strategyTotal * progress.hostsTotal
                     completed.toFloat() / total.toFloat()
-                }
+                }.coerceIn(0f, 1f)
                 Column(Modifier.padding(horizontal = Spacing.space16)) {
-                    LinearProgressIndicator(
-                        progress = { fraction.coerceIn(0f, 1f) },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    Spacer(Modifier.height(Spacing.space4))
-                    Text(
-                        text = if (progress == null) {
-                            stringResource(R.string.dpi_proxy_test_starting)
-                        } else {
-                            stringResource(
-                                R.string.dpi_proxy_test_progress,
-                                progress.strategyIndex,
-                                progress.strategyTotal,
-                                progress.hostsCompleted,
-                                progress.hostsTotal,
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(4.dp)
+                            .clip(PillShape)
+                            .background(c.surfaceSoft),
+                    ) {
+                        if (fraction > 0f) {
+                            Box(
+                                Modifier
+                                    .fillMaxHeight()
+                                    .fillMaxWidth(fraction)
+                                    .background(c.accent, PillShape),
                             )
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = c.textMuted,
-                    )
+                        }
+                    }
+                    Spacer(Modifier.height(Spacing.space4))
+                    if (progress == null) {
+                        Text(
+                            text = stringResource(R.string.dpi_proxy_test_starting),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = c.textMuted,
+                        )
+                    } else {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = stringResource(
+                                    R.string.dpi_proxy_test_progress_strategy,
+                                    progress.strategyIndex,
+                                    progress.strategyTotal,
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = c.textMuted,
+                            )
+                            Text(
+                                text = stringResource(
+                                    R.string.dpi_proxy_test_progress_hosts,
+                                    progress.hostsCompleted,
+                                    progress.hostsTotal,
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = c.textMuted,
+                            )
+                        }
+                    }
                 }
                 Spacer(Modifier.height(ProxySectionGap))
             }
@@ -308,7 +341,15 @@ private fun ProxyTestMainScreen(
         if (state.history.isNotEmpty() || state.completed) {
             item {
                 val selectedRun = state.selectedRun ?: state.history.firstOrNull()
-                SectionLabel(stringResource(R.string.dpi_proxy_test_results_title))
+                SectionLabel(
+                    stringResource(
+                        if (state.running) {
+                            R.string.dpi_proxy_test_previous_run_title
+                        } else {
+                            R.string.dpi_proxy_test_results_title
+                        },
+                    ),
+                )
                 DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
                     var hasPreviousRow = false
 
@@ -339,6 +380,7 @@ private fun ProxyTestMainScreen(
                             val best = state.results.first()
                             ProxyResultNavigationRow(
                                 result = best,
+                                rank = 1,
                                 best = true,
                                 onClick = { onOpenResultDetail(best.strategy.id) },
                             )
@@ -735,11 +777,12 @@ private fun ProxyTestResultsScreen(
                     state.results.forEachIndexed { index, result ->
                         ProxyResultNavigationRow(
                             result = result,
+                            rank = index + 1,
                             best = index == 0,
                             onClick = { onOpenDetail(result.strategy.id) },
                         )
                         if (index != state.results.lastIndex) {
-                            GroupDivider(startInset = NavigationRowDividerInset)
+                            GroupDivider(startInset = ProxyResultDividerInset)
                         }
                     }
                 }
@@ -788,18 +831,30 @@ private fun ProxyTestResultDetailScreen(
             }
         } else {
             item {
-                SectionLabel(stringResource(R.string.dpi_proxy_test_result_details))
                 DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
                     Column(Modifier.padding(Spacing.space12)) {
-                        Text(
-                            text = resultStatus(result),
-                            style = MaterialTheme.typography.titleSmall,
-                            color = when {
-                                !result.backendStarted -> c.error
-                                result.fullCoverage -> c.activeStrong
-                                else -> c.textSecondary
-                            },
-                        )
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = resultStatus(result),
+                                style = MaterialTheme.typography.titleSmall,
+                                color = when {
+                                    !result.backendStarted -> c.error
+                                    result.fullCoverage -> c.activeStrong
+                                    else -> c.textSecondary
+                                },
+                            )
+                            result.medianLatencyMs?.let { latency ->
+                                Text(
+                                    text = stringResource(R.string.dpi_proxy_test_latency_short, latency),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = c.textMuted,
+                                )
+                            }
+                        }
                         Text(
                             text = stringResource(
                                 R.string.dpi_proxy_test_result_summary,
@@ -808,32 +863,25 @@ private fun ProxyTestResultDetailScreen(
                                 result.totalSuccesses,
                                 result.totalAttempts,
                             ),
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodySmall,
                             color = c.textSecondary,
                             modifier = Modifier.padding(top = Spacing.space4),
                         )
-                        result.medianLatencyMs?.let { latency ->
-                            Text(
-                                text = stringResource(R.string.dpi_proxy_test_median, latency),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = c.textMuted,
-                                modifier = Modifier.padding(top = Spacing.space2),
-                            )
-                        }
                     }
-                }
-                Spacer(Modifier.height(ProxySectionGap))
-            }
-
-            item {
-                SectionLabel(stringResource(R.string.dpi_proxy_test_command_title))
-                DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-                    Text(
-                        text = result.strategy.command,
-                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                        color = c.textSecondary,
-                        modifier = Modifier.padding(Spacing.space12),
-                    )
+                    GroupDivider(startInset = ProxyPlainDividerInset)
+                    Column(Modifier.padding(Spacing.space12)) {
+                        Text(
+                            text = stringResource(R.string.dpi_proxy_test_command_title),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = c.textMuted,
+                        )
+                        Text(
+                            text = result.strategy.command,
+                            style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                            color = c.textSecondary,
+                            modifier = Modifier.padding(top = Spacing.space4),
+                        )
+                    }
                 }
                 Spacer(Modifier.height(ProxySectionGap))
             }
@@ -995,16 +1043,63 @@ private fun ProxyHistoryRunRow(
 @Composable
 private fun ProxyResultNavigationRow(
     result: DpiProxyTestResultSummary,
+    rank: Int,
     best: Boolean,
     onClick: () -> Unit,
 ) {
-    DetourNavigationRow(
-        title = strategyTitle(result.strategy),
-        subtitle = compactResultSummary(result, best),
-        iconRes = R.drawable.ic_dpi,
-        onClick = onClick,
-        selectedBackground = best,
-    )
+    val c = detourColors
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .detourClickable(
+                onClick = onClick,
+                idleColor = if (best) c.accentSoft else Color.Transparent,
+                pressedColor = c.surfaceSelected,
+                pressScale = Motion.PRESS_ROW,
+            )
+            .padding(horizontal = ProxyRowHorizontalPadding, vertical = ProxyRowVerticalPadding),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(30.dp)
+                .background(
+                    if (best) c.accent else c.surfaceSoft,
+                    AppShapes.extraSmall,
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = rank.toString(),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = if (best) c.onAccent else c.textSecondary,
+            )
+        }
+        Column(
+            Modifier
+                .padding(start = Spacing.space12)
+                .weight(1f),
+        ) {
+            Text(
+                text = strategyTitle(result.strategy),
+                style = MaterialTheme.typography.titleSmall,
+                color = c.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = compactResultSummary(result, best),
+                style = MaterialTheme.typography.bodySmall,
+                color = c.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = Spacing.space2),
+            )
+        }
+        Chevron()
+    }
 }
 
 @Composable
@@ -1050,7 +1145,6 @@ private fun runHistorySummary(run: DpiProxyTestRun): String {
         R.string.dpi_proxy_test_history_summary,
         run.results.size,
         hosts,
-        run.config.attemptsPerHost,
     )
 }
 
