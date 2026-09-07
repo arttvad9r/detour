@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="dpi_proxy_test_open">Proxy Test</string>
+    <string name="dpi_proxy_test_open_subtitle">Find and verify a working ByeDPI strategy</string>
     <string name="dpi_proxy_test_title">Proxy Test</string>
     <string name="dpi_proxy_test_summary_title">Find, compare, and reuse ByeDPI strategies</string>
     <string name="dpi_proxy_test_summary">Inspect the reference strategies before testing, add your own command, keep previous runs, compare their results, and apply a working strategy manually.</string>
@@ -12,10 +13,12 @@
     <string name="dpi_proxy_test_hide_strategies">Hide strategy list</string>
     <string name="dpi_proxy_test_select_all">Select all</string>
     <string name="dpi_proxy_test_clear_selection">Clear selection</string>
+    <string name="dpi_proxy_test_select_all_short">All</string>
+    <string name="dpi_proxy_test_clear_selection_short">Clear</string>
     <string name="dpi_proxy_test_custom_title">Your strategy</string>
     <string name="dpi_proxy_test_custom_label">ByeDPI command</string>
     <string name="dpi_proxy_test_custom_placeholder">Example: -d1 -s1+s -r1+s -a1</string>
-    <string name="dpi_proxy_test_custom_hint">A valid custom command is appended to the selected reference strategies and saved with the run results.</string>
+    <string name="dpi_proxy_test_custom_hint">A valid custom command is added to the selected reference strategies and saved with the run.</string>
     <string name="dpi_proxy_test_custom_invalid">This command is not valid or uses options Detour does not allow in a test.</string>
     <string name="dpi_proxy_test_custom_strategy">Custom strategy</string>
     <string name="dpi_proxy_test_domains_title">Domain lists</string>
@@ -42,15 +45,21 @@
     <string name="dpi_proxy_test_history_title">Test history</string>
     <string name="dpi_proxy_test_history_empty">No saved runs yet.</string>
     <string name="dpi_proxy_test_history_summary">%1$d strategies · %2$d hosts · %3$d request(s) per host</string>
-    <string name="dpi_proxy_test_results_title">Best result</string>
+    <string name="dpi_proxy_test_results_title">Results</string>
     <string name="dpi_proxy_test_all_results">All results</string>
     <string name="dpi_proxy_test_all_results_summary">%1$d ranked strategies</string>
+    <string name="dpi_proxy_test_result_details">Result</string>
+    <string name="dpi_proxy_test_command_title">ByeDPI command</string>
     <string name="dpi_proxy_test_no_results">No completed strategy results.</string>
     <string name="dpi_proxy_test_strategy_number">Strategy #%1$d</string>
     <string name="dpi_proxy_test_full_coverage">Full coverage</string>
     <string name="dpi_proxy_test_partial">Partial</string>
     <string name="dpi_proxy_test_backend_failed">Start failed</string>
     <string name="dpi_proxy_test_result_summary">%1$d/%2$d hosts · %3$d/%4$d requests</string>
+    <string name="dpi_proxy_test_compact_result_summary">%1$s · %2$d/%3$d hosts · %4$s</string>
+    <string name="dpi_proxy_test_best_result_summary">Best · %1$s · %2$d/%3$d hosts · %4$s</string>
+    <string name="dpi_proxy_test_latency_short">%1$d ms</string>
+    <string name="dpi_proxy_test_latency_unknown">—</string>
     <string name="dpi_proxy_test_median">Median: %1$d ms</string>
     <string name="dpi_proxy_test_apply">Apply</string>
     <string name="dpi_proxy_test_applying">Applying…</string>
