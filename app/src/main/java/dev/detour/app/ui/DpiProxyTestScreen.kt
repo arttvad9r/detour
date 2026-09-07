@@ -10,12 +10,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -47,6 +47,12 @@ import java.text.DateFormat
 import java.util.Date
 import kotlin.math.roundToInt
 
+private val ProxyHeaderGap = Spacing.space8
+private val ProxySectionGap = Spacing.space12
+private val ProxyRowHorizontalPadding = Spacing.space12
+private val ProxyRowVerticalPadding = Spacing.space8
+private const val ProxyPlainDividerInset = 12
+
 private enum class ProxyTestPage {
     MAIN,
     STRATEGIES,
@@ -54,6 +60,7 @@ private enum class ProxyTestPage {
     PARAMETERS,
     HISTORY,
     RESULTS,
+    RESULT_DETAIL,
 }
 
 @Composable
@@ -63,10 +70,20 @@ internal fun DpiProxyTestScreen(
     modifier: Modifier = Modifier,
 ) {
     var pageName by rememberSaveable { mutableStateOf(ProxyTestPage.MAIN.name) }
+    var selectedResultId by rememberSaveable { mutableStateOf<String?>(null) }
+    var detailReturnPageName by rememberSaveable { mutableStateOf(ProxyTestPage.MAIN.name) }
     val page = runCatching { ProxyTestPage.valueOf(pageName) }.getOrDefault(ProxyTestPage.MAIN)
     val backToMain = { pageName = ProxyTestPage.MAIN.name }
+    val backFromDetail = {
+        pageName = runCatching {
+            ProxyTestPage.valueOf(detailReturnPageName)
+        }.getOrDefault(ProxyTestPage.MAIN).name
+    }
+    val navigateBack = {
+        if (page == ProxyTestPage.RESULT_DETAIL) backFromDetail() else backToMain()
+    }
 
-    BackHandler(enabled = page != ProxyTestPage.MAIN, onBack = backToMain)
+    BackHandler(enabled = page != ProxyTestPage.MAIN, onBack = navigateBack)
 
     when (page) {
         ProxyTestPage.MAIN -> ProxyTestMainScreen(
@@ -77,6 +94,11 @@ internal fun DpiProxyTestScreen(
             onOpenParameters = { pageName = ProxyTestPage.PARAMETERS.name },
             onOpenHistory = { pageName = ProxyTestPage.HISTORY.name },
             onOpenResults = { pageName = ProxyTestPage.RESULTS.name },
+            onOpenResultDetail = { resultId ->
+                selectedResultId = resultId
+                detailReturnPageName = ProxyTestPage.MAIN.name
+                pageName = ProxyTestPage.RESULT_DETAIL.name
+            },
             modifier = modifier,
         )
 
@@ -107,6 +129,18 @@ internal fun DpiProxyTestScreen(
         ProxyTestPage.RESULTS -> ProxyTestResultsScreen(
             viewModel = viewModel,
             onBack = backToMain,
+            onOpenDetail = { resultId ->
+                selectedResultId = resultId
+                detailReturnPageName = ProxyTestPage.RESULTS.name
+                pageName = ProxyTestPage.RESULT_DETAIL.name
+            },
+            modifier = modifier,
+        )
+
+        ProxyTestPage.RESULT_DETAIL -> ProxyTestResultDetailScreen(
+            viewModel = viewModel,
+            resultId = selectedResultId,
+            onBack = backFromDetail,
             modifier = modifier,
         )
     }
@@ -121,6 +155,7 @@ private fun ProxyTestMainScreen(
     onOpenParameters: () -> Unit,
     onOpenHistory: () -> Unit,
     onOpenResults: () -> Unit,
+    onOpenResultDetail: (String) -> Unit,
     modifier: Modifier,
 ) {
     val state by viewModel.proxyTestState.collectAsStateWithLifecycle()
@@ -141,7 +176,7 @@ private fun ProxyTestMainScreen(
     ) {
         item {
             DetourBrandedHeader(stringResource(R.string.dpi_proxy_test_title), onBack)
-            Spacer(Modifier.height(Spacing.space12))
+            Spacer(Modifier.height(ProxyHeaderGap))
         }
 
         item {
@@ -180,7 +215,7 @@ private fun ProxyTestMainScreen(
                     onClick = if (state.running) null else onOpenParameters,
                 )
             }
-            Spacer(Modifier.height(Spacing.space16))
+            Spacer(Modifier.height(ProxySectionGap))
         }
 
         item {
@@ -196,9 +231,10 @@ private fun ProxyTestMainScreen(
                 },
                 enabled = state.running || state.canStart,
                 style = if (state.running) ButtonStyle.SECONDARY else ButtonStyle.PRIMARY,
+                height = 48,
                 modifier = Modifier.padding(horizontal = Spacing.space16),
             )
-            Spacer(Modifier.height(Spacing.space16))
+            Spacer(Modifier.height(ProxySectionGap))
         }
 
         if (state.running || state.progress != null) {
@@ -216,7 +252,7 @@ private fun ProxyTestMainScreen(
                         progress = { fraction.coerceIn(0f, 1f) },
                         modifier = Modifier.fillMaxWidth(),
                     )
-                    Spacer(Modifier.height(Spacing.space8))
+                    Spacer(Modifier.height(Spacing.space4))
                     Text(
                         text = if (progress == null) {
                             stringResource(R.string.dpi_proxy_test_starting)
@@ -233,7 +269,7 @@ private fun ProxyTestMainScreen(
                         color = c.textMuted,
                     )
                 }
-                Spacer(Modifier.height(Spacing.space16))
+                Spacer(Modifier.height(ProxySectionGap))
             }
         }
 
@@ -248,12 +284,12 @@ private fun ProxyTestMainScreen(
                                 DpiProxyTestError.HISTORY_SAVE -> R.string.dpi_proxy_test_error_history_save
                             },
                         ),
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = c.error,
-                        modifier = Modifier.padding(Spacing.space16),
+                        modifier = Modifier.padding(Spacing.space12),
                     )
                 }
-                Spacer(Modifier.height(Spacing.space16))
+                Spacer(Modifier.height(ProxySectionGap))
             }
         }
 
@@ -261,81 +297,67 @@ private fun ProxyTestMainScreen(
             item {
                 Text(
                     text = stringResource(R.string.dpi_proxy_test_cancelled),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = c.textSecondary,
                     modifier = Modifier.padding(horizontal = Spacing.space16),
                 )
-                Spacer(Modifier.height(Spacing.space16))
+                Spacer(Modifier.height(ProxySectionGap))
             }
         }
 
-        if (state.history.isNotEmpty()) {
+        if (state.history.isNotEmpty() || state.completed) {
             item {
-                val selectedRun = state.selectedRun ?: state.history.first()
-                SectionLabel(stringResource(R.string.dpi_proxy_test_history_title))
-                DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-                    DetourNavigationRow(
-                        title = rememberRunTimestamp(selectedRun.createdAtEpochMs),
-                        subtitle = runHistorySummary(selectedRun),
-                        iconRes = R.drawable.ic_check,
-                        onClick = if (state.running || state.applyingStrategyId != null) {
-                            null
-                        } else {
-                            onOpenHistory
-                        },
-                    )
-                }
-                Spacer(Modifier.height(Spacing.space20))
-            }
-        }
-
-        if (state.completed) {
-            item {
+                val selectedRun = state.selectedRun ?: state.history.firstOrNull()
                 SectionLabel(stringResource(R.string.dpi_proxy_test_results_title))
-            }
-            if (state.results.isEmpty()) {
-                item {
-                    Text(
-                        text = stringResource(R.string.dpi_proxy_test_no_results),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = c.textMuted,
-                        modifier = Modifier.padding(horizontal = Spacing.space16),
-                    )
-                }
-            } else {
-                item {
-                    val best = state.results.first()
-                    ProxyResultCard(
-                        result = best,
-                        applying = state.applyingStrategyId == best.strategy.id,
-                        applied = state.appliedStrategyId == best.strategy.id,
-                        applyError = state.applyErrorStrategyId == best.strategy.id,
-                        onApply = { viewModel.applyProxyStrategy(best.strategy.id) },
-                    )
-                    if (state.results.size > 1) {
-                        Spacer(Modifier.height(Spacing.space12))
-                        DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-                            DetourNavigationRow(
-                                title = stringResource(R.string.dpi_proxy_test_all_results),
-                                subtitle = stringResource(
-                                    R.string.dpi_proxy_test_all_results_summary,
-                                    state.results.size,
-                                ),
-                                iconRes = R.drawable.ic_check,
-                                onClick = if (state.applyingStrategyId == null) onOpenResults else null,
+                DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
+                    var hasPreviousRow = false
+
+                    if (selectedRun != null) {
+                        DetourNavigationRow(
+                            title = rememberRunTimestamp(selectedRun.createdAtEpochMs),
+                            subtitle = runHistorySummary(selectedRun),
+                            iconRes = R.drawable.ic_check,
+                            onClick = if (state.running || state.applyingStrategyId != null) {
+                                null
+                            } else {
+                                onOpenHistory
+                            },
+                        )
+                        hasPreviousRow = true
+                    }
+
+                    if (state.completed) {
+                        if (hasPreviousRow) GroupDivider(startInset = NavigationRowDividerInset)
+                        if (state.results.isEmpty()) {
+                            Text(
+                                text = stringResource(R.string.dpi_proxy_test_no_results),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = c.textMuted,
+                                modifier = Modifier.padding(Spacing.space12),
                             )
+                        } else {
+                            val best = state.results.first()
+                            ProxyResultNavigationRow(
+                                result = best,
+                                best = true,
+                                onClick = { onOpenResultDetail(best.strategy.id) },
+                            )
+                            if (state.results.size > 1) {
+                                GroupDivider(startInset = NavigationRowDividerInset)
+                                DetourNavigationRow(
+                                    title = stringResource(R.string.dpi_proxy_test_all_results),
+                                    subtitle = stringResource(
+                                        R.string.dpi_proxy_test_all_results_summary,
+                                        state.results.size,
+                                    ),
+                                    iconRes = R.drawable.ic_dpi,
+                                    onClick = onOpenResults,
+                                )
+                            }
                         }
                     }
                 }
-            }
-        } else if (state.historyLoaded && state.history.isEmpty()) {
-            item {
-                Text(
-                    text = stringResource(R.string.dpi_proxy_test_history_empty),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = c.textMuted,
-                    modifier = Modifier.padding(horizontal = Spacing.space20),
-                )
+                Spacer(Modifier.height(ProxySectionGap))
             }
         }
     }
@@ -348,13 +370,12 @@ private fun ProxyTestStrategiesScreen(
     modifier: Modifier,
 ) {
     val state by viewModel.proxyTestState.collectAsStateWithLifecycle()
-    val c = detourColors
     val listState = rememberLazyListState()
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(c.background)
+            .background(detourColors.background)
             .statusBarsPadding()
             .navigationBarsPadding()
             .imePadding()
@@ -364,105 +385,94 @@ private fun ProxyTestStrategiesScreen(
     ) {
         item {
             DetourBrandedHeader(stringResource(R.string.dpi_proxy_test_strategies_title), onBack)
-            Spacer(Modifier.height(Spacing.space12))
+            Spacer(Modifier.height(ProxyHeaderGap))
         }
 
         item {
-            DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = stringResource(
-                            R.string.dpi_proxy_test_selected_strategies,
-                            state.selectedStrategyCount,
-                        ),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = c.textSecondary,
-                    )
-                }
-                GroupDivider(startInset = 16)
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = Spacing.space8, vertical = Spacing.space4),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                ) {
-                    StrategySelectionAction(
-                        text = stringResource(R.string.dpi_proxy_test_select_all),
-                        enabled = !state.running,
-                        onClick = viewModel::selectAllProxyStrategies,
-                        modifier = Modifier.weight(1f),
-                    )
-                    StrategySelectionAction(
-                        text = stringResource(R.string.dpi_proxy_test_clear_selection),
-                        enabled = !state.running,
-                        onClick = viewModel::clearProxyStrategies,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-            Spacer(Modifier.height(Spacing.space16))
+            StrategySelectionToolbar(
+                selectedCount = state.selectedStrategyCount,
+                enabled = !state.running,
+                onSelectAll = viewModel::selectAllProxyStrategies,
+                onClear = viewModel::clearProxyStrategies,
+            )
+            Spacer(Modifier.height(ProxySectionGap))
         }
 
         item {
             SectionLabel(stringResource(R.string.dpi_proxy_test_custom_title))
-            DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-                Column(Modifier.padding(vertical = Spacing.space12)) {
-                    DetourInputField(
-                        value = state.customStrategyDraft,
-                        onValueChange = viewModel::setProxyCustomStrategy,
-                        label = stringResource(R.string.dpi_proxy_test_custom_label),
-                        placeholder = stringResource(R.string.dpi_proxy_test_custom_placeholder),
-                        error = if (state.customStrategyInvalid) {
-                            stringResource(R.string.dpi_proxy_test_custom_invalid)
-                        } else {
-                            null
-                        },
-                        enabled = !state.running,
-                        singleLine = false,
-                        minHeight = 56.dp,
-                        maxHeight = 120.dp,
-                        maxLines = 4,
-                        monospace = true,
-                        modifier = Modifier.padding(horizontal = Spacing.space16),
-                    )
-                    Text(
-                        text = stringResource(R.string.dpi_proxy_test_custom_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = c.textMuted,
-                        modifier = Modifier.padding(
-                            start = Spacing.space16,
-                            end = Spacing.space16,
-                            top = Spacing.space8,
-                        ),
-                    )
-                }
-            }
-            Spacer(Modifier.height(Spacing.space20))
+            DetourInputField(
+                value = state.customStrategyDraft,
+                onValueChange = viewModel::setProxyCustomStrategy,
+                label = stringResource(R.string.dpi_proxy_test_custom_label),
+                placeholder = stringResource(R.string.dpi_proxy_test_custom_placeholder),
+                helper = stringResource(R.string.dpi_proxy_test_custom_hint),
+                error = if (state.customStrategyInvalid) {
+                    stringResource(R.string.dpi_proxy_test_custom_invalid)
+                } else {
+                    null
+                },
+                enabled = !state.running,
+                singleLine = false,
+                minHeight = 48.dp,
+                maxHeight = 88.dp,
+                maxLines = 3,
+                monospace = true,
+                modifier = Modifier.padding(horizontal = Spacing.space16),
+            )
+            Spacer(Modifier.height(ProxySectionGap))
         }
 
         item {
             SectionLabel(stringResource(R.string.dpi_proxy_test_reference_strategies))
             DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-                Column {
-                    DpiProxyTestCatalog.strategies.forEachIndexed { index, strategy ->
-                        ProxyStrategyRow(
-                            strategy = strategy,
-                            selected = strategy.id in state.selectedReferenceStrategyIds,
-                            enabled = !state.running,
-                            onToggle = { viewModel.toggleProxyStrategy(strategy.id) },
-                        )
-                        if (index != DpiProxyTestCatalog.strategies.lastIndex) {
-                            GroupDivider(startInset = 16)
-                        }
+                DpiProxyTestCatalog.strategies.forEachIndexed { index, strategy ->
+                    ProxyStrategyRow(
+                        strategy = strategy,
+                        selected = strategy.id in state.selectedReferenceStrategyIds,
+                        enabled = !state.running,
+                        onToggle = { viewModel.toggleProxyStrategy(strategy.id) },
+                    )
+                    if (index != DpiProxyTestCatalog.strategies.lastIndex) {
+                        GroupDivider(startInset = ProxyPlainDividerInset)
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun StrategySelectionToolbar(
+    selectedCount: Int,
+    enabled: Boolean,
+    onSelectAll: () -> Unit,
+    onClear: () -> Unit,
+) {
+    val c = detourColors
+    DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(min = 52.dp)
+                .padding(horizontal = ProxyRowHorizontalPadding, vertical = Spacing.space6Compat()),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.dpi_proxy_test_selected_strategies, selectedCount),
+                style = MaterialTheme.typography.bodySmall,
+                color = c.textSecondary,
+                modifier = Modifier.weight(1f),
+            )
+            StrategySelectionAction(
+                text = stringResource(R.string.dpi_proxy_test_select_all_short),
+                enabled = enabled,
+                onClick = onSelectAll,
+            )
+            StrategySelectionAction(
+                text = stringResource(R.string.dpi_proxy_test_clear_selection_short),
+                enabled = enabled,
+                onClick = onClear,
+            )
         }
     }
 }
@@ -489,62 +499,82 @@ private fun ProxyTestDomainsScreen(
     ) {
         item {
             DetourBrandedHeader(stringResource(R.string.dpi_proxy_test_domains_title), onBack)
-            Spacer(Modifier.height(Spacing.space12))
+            Spacer(Modifier.height(ProxyHeaderGap))
         }
 
         item {
             DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
+                Text(
+                    text = stringResource(R.string.dpi_proxy_test_selected_hosts, state.selectedHostCount),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = c.textSecondary,
+                    modifier = Modifier.padding(
+                        horizontal = ProxyRowHorizontalPadding,
+                        vertical = ProxyRowVerticalPadding,
+                    ),
+                )
+                GroupDivider(startInset = ProxyPlainDividerInset)
                 DpiProxyTestCatalog.domainLists.forEachIndexed { index, list ->
                     val selected = list.id in state.selectedDomainIds
-                    val rowModifier = if (state.running) {
-                        Modifier
-                    } else {
-                        Modifier.detourToggleable(
-                            value = selected,
-                            onValueChange = { viewModel.toggleProxyDomain(list.id) },
-                            pressedColor = c.surfaceSelected,
-                        )
-                    }
-                    Row(
-                        rowModifier
-                            .fillMaxWidth()
-                            .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                text = list.displayName,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = c.textPrimary,
-                            )
-                            Text(
-                                text = stringResource(R.string.dpi_proxy_test_domain_count, list.hosts.size),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = c.textMuted,
-                            )
-                        }
-                        DetourSwitch(
-                            checked = selected,
-                            onCheckedChange = null,
-                            compact = true,
-                        )
-                    }
+                    ProxyDomainRow(
+                        title = list.displayName,
+                        hostCount = list.hosts.size,
+                        selected = selected,
+                        enabled = !state.running,
+                        onToggle = { viewModel.toggleProxyDomain(list.id) },
+                    )
                     if (index != DpiProxyTestCatalog.domainLists.lastIndex) {
-                        GroupDivider(startInset = 16)
+                        GroupDivider(startInset = ProxyPlainDividerInset)
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ProxyDomainRow(
+    title: String,
+    hostCount: Int,
+    selected: Boolean,
+    enabled: Boolean,
+    onToggle: () -> Unit,
+) {
+    val c = detourColors
+    val interaction = if (enabled) {
+        Modifier.detourToggleable(
+            value = selected,
+            onValueChange = { onToggle() },
+            pressedColor = c.surfaceSelected,
+        )
+    } else {
+        Modifier
+    }
+    Row(
+        interaction
+            .fillMaxWidth()
+            .heightIn(min = 52.dp)
+            .padding(horizontal = ProxyRowHorizontalPadding, vertical = Spacing.space6Compat()),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
             Text(
-                text = stringResource(R.string.dpi_proxy_test_selected_hosts, state.selectedHostCount),
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = c.textPrimary,
+            )
+            Text(
+                text = stringResource(R.string.dpi_proxy_test_domain_count, hostCount),
                 style = MaterialTheme.typography.bodySmall,
                 color = c.textMuted,
-                modifier = Modifier.padding(
-                    start = Spacing.space20,
-                    end = Spacing.space20,
-                    top = Spacing.space8,
-                ),
+                modifier = Modifier.padding(top = Spacing.space2),
             )
         }
+        DetourSwitch(
+            checked = selected,
+            onCheckedChange = null,
+            compact = true,
+        )
     }
 }
 
@@ -570,7 +600,7 @@ private fun ProxyTestParametersScreen(
     ) {
         item {
             DetourBrandedHeader(stringResource(R.string.dpi_proxy_test_parameters_title), onBack)
-            Spacer(Modifier.height(Spacing.space12))
+            Spacer(Modifier.height(ProxyHeaderGap))
         }
 
         item {
@@ -583,7 +613,7 @@ private fun ProxyTestParametersScreen(
                     enabled = !state.running,
                     onValueChange = viewModel::setProxyAttempts,
                 )
-                GroupDivider(startInset = 16)
+                GroupDivider(startInset = ProxyPlainDividerInset)
                 ProxySliderRow(
                     title = stringResource(R.string.dpi_proxy_test_concurrency),
                     description = stringResource(R.string.dpi_proxy_test_concurrency_hint),
@@ -592,7 +622,7 @@ private fun ProxyTestParametersScreen(
                     enabled = !state.running,
                     onValueChange = viewModel::setProxyConcurrency,
                 )
-                GroupDivider(startInset = 16)
+                GroupDivider(startInset = ProxyPlainDividerInset)
                 ProxySliderRow(
                     title = stringResource(R.string.dpi_proxy_test_timeout),
                     description = stringResource(R.string.dpi_proxy_test_timeout_hint),
@@ -629,35 +659,33 @@ private fun ProxyTestHistoryScreen(
     ) {
         item {
             DetourBrandedHeader(stringResource(R.string.dpi_proxy_test_history_title), onBack)
-            Spacer(Modifier.height(Spacing.space12))
+            Spacer(Modifier.height(ProxyHeaderGap))
         }
 
         if (state.history.isEmpty()) {
             item {
                 Text(
                     text = stringResource(R.string.dpi_proxy_test_history_empty),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = c.textMuted,
-                    modifier = Modifier.padding(horizontal = Spacing.space20),
+                    modifier = Modifier.padding(horizontal = Spacing.space16),
                 )
             }
         } else {
             item {
                 DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-                    Column {
-                        state.history.forEachIndexed { index, run ->
-                            ProxyHistoryRunRow(
-                                run = run,
-                                selected = state.selectedRunId == run.id,
-                                enabled = !state.running && state.applyingStrategyId == null,
-                                onClick = {
-                                    viewModel.selectProxyRun(run.id)
-                                    onBack()
-                                },
-                            )
-                            if (index != state.history.lastIndex) {
-                                GroupDivider(startInset = 16)
-                            }
+                    state.history.forEachIndexed { index, run ->
+                        ProxyHistoryRunRow(
+                            run = run,
+                            selected = state.selectedRunId == run.id,
+                            enabled = !state.running && state.applyingStrategyId == null,
+                            onClick = {
+                                viewModel.selectProxyRun(run.id)
+                                onBack()
+                            },
+                        )
+                        if (index != state.history.lastIndex) {
+                            GroupDivider(startInset = ChoiceRowDividerInset)
                         }
                     }
                 }
@@ -670,6 +698,7 @@ private fun ProxyTestHistoryScreen(
 private fun ProxyTestResultsScreen(
     viewModel: DpiViewModel,
     onBack: () -> Unit,
+    onOpenDetail: (String) -> Unit,
     modifier: Modifier,
 ) {
     val state by viewModel.proxyTestState.collectAsStateWithLifecycle()
@@ -688,31 +717,155 @@ private fun ProxyTestResultsScreen(
     ) {
         item {
             DetourBrandedHeader(stringResource(R.string.dpi_proxy_test_all_results), onBack)
-            Spacer(Modifier.height(Spacing.space12))
+            Spacer(Modifier.height(ProxyHeaderGap))
         }
 
         if (state.results.isEmpty()) {
             item {
                 Text(
                     text = stringResource(R.string.dpi_proxy_test_no_results),
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = c.textMuted,
-                    modifier = Modifier.padding(horizontal = Spacing.space20),
+                    modifier = Modifier.padding(horizontal = Spacing.space16),
                 )
             }
         } else {
-            items(
-                items = state.results,
-                key = { "all-result-${state.selectedRunId}-${it.strategy.id}" },
-            ) { result ->
-                ProxyResultCard(
-                    result = result,
-                    applying = state.applyingStrategyId == result.strategy.id,
-                    applied = state.appliedStrategyId == result.strategy.id,
-                    applyError = state.applyErrorStrategyId == result.strategy.id,
-                    onApply = { viewModel.applyProxyStrategy(result.strategy.id) },
+            item {
+                DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
+                    state.results.forEachIndexed { index, result ->
+                        ProxyResultNavigationRow(
+                            result = result,
+                            best = index == 0,
+                            onClick = { onOpenDetail(result.strategy.id) },
+                        )
+                        if (index != state.results.lastIndex) {
+                            GroupDivider(startInset = NavigationRowDividerInset)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProxyTestResultDetailScreen(
+    viewModel: DpiViewModel,
+    resultId: String?,
+    onBack: () -> Unit,
+    modifier: Modifier,
+) {
+    val state by viewModel.proxyTestState.collectAsStateWithLifecycle()
+    val result = state.results.firstOrNull { it.strategy.id == resultId }
+    val c = detourColors
+    val listState = rememberLazyListState()
+    val title = result?.let { strategyTitle(it.strategy) }
+        ?: stringResource(R.string.dpi_proxy_test_result_details)
+
+    LazyColumn(
+        modifier = modifier
+            .fillMaxSize()
+            .background(c.background)
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .detourHighRefresh(listState.isScrollInProgress),
+        state = listState,
+        contentPadding = PaddingValues(bottom = Spacing.space24),
+    ) {
+        item {
+            DetourBrandedHeader(title, onBack)
+            Spacer(Modifier.height(ProxyHeaderGap))
+        }
+
+        if (result == null) {
+            item {
+                Text(
+                    text = stringResource(R.string.dpi_proxy_test_no_results),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = c.textMuted,
+                    modifier = Modifier.padding(horizontal = Spacing.space16),
                 )
-                Spacer(Modifier.height(Spacing.space12))
+            }
+        } else {
+            item {
+                SectionLabel(stringResource(R.string.dpi_proxy_test_result_details))
+                DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
+                    Column(Modifier.padding(Spacing.space12)) {
+                        Text(
+                            text = resultStatus(result),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = when {
+                                !result.backendStarted -> c.error
+                                result.fullCoverage -> c.activeStrong
+                                else -> c.textSecondary
+                            },
+                        )
+                        Text(
+                            text = stringResource(
+                                R.string.dpi_proxy_test_result_summary,
+                                result.fullyWorkingHosts,
+                                result.hostCount,
+                                result.totalSuccesses,
+                                result.totalAttempts,
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = c.textSecondary,
+                            modifier = Modifier.padding(top = Spacing.space4),
+                        )
+                        result.medianLatencyMs?.let { latency ->
+                            Text(
+                                text = stringResource(R.string.dpi_proxy_test_median, latency),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = c.textMuted,
+                                modifier = Modifier.padding(top = Spacing.space2),
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(ProxySectionGap))
+            }
+
+            item {
+                SectionLabel(stringResource(R.string.dpi_proxy_test_command_title))
+                DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
+                    Text(
+                        text = result.strategy.command,
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                        color = c.textSecondary,
+                        modifier = Modifier.padding(Spacing.space12),
+                    )
+                }
+                Spacer(Modifier.height(ProxySectionGap))
+            }
+
+            if (result.backendStarted && result.completed) {
+                item {
+                    val applying = state.applyingStrategyId == result.strategy.id
+                    val applied = state.appliedStrategyId == result.strategy.id
+                    DetourButton(
+                        text = when {
+                            applying -> stringResource(R.string.dpi_proxy_test_applying)
+                            applied -> stringResource(R.string.dpi_proxy_test_applied)
+                            else -> stringResource(R.string.dpi_proxy_test_apply)
+                        },
+                        onClick = { viewModel.applyProxyStrategy(result.strategy.id) },
+                        enabled = !applying && !applied,
+                        height = 48,
+                        modifier = Modifier.padding(horizontal = Spacing.space16),
+                    )
+                    if (state.applyErrorStrategyId == result.strategy.id) {
+                        Text(
+                            text = stringResource(R.string.dpi_proxy_test_apply_error),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = c.error,
+                            modifier = Modifier.padding(
+                                start = Spacing.space16,
+                                end = Spacing.space16,
+                                top = Spacing.space8,
+                            ),
+                        )
+                    }
+                }
             }
         }
     }
@@ -728,7 +881,7 @@ private fun StrategySelectionAction(
     val c = detourColors
     Text(
         text = text,
-        style = MaterialTheme.typography.labelLarge,
+        style = MaterialTheme.typography.labelMedium,
         color = if (enabled) c.accent else c.textMuted,
         modifier = modifier
             .let { base ->
@@ -741,7 +894,7 @@ private fun StrategySelectionAction(
                     base
                 }
             }
-            .padding(Spacing.space12),
+            .padding(horizontal = Spacing.space8, vertical = Spacing.space8),
     )
 }
 
@@ -765,14 +918,14 @@ private fun ProxyStrategyRow(
     Row(
         interaction
             .fillMaxWidth()
-            .padding(horizontal = Spacing.space16, vertical = Spacing.space8),
+            .heightIn(min = 52.dp)
+            .padding(horizontal = ProxyRowHorizontalPadding, vertical = Spacing.space6Compat()),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
             Text(
                 text = stringResource(R.string.dpi_proxy_test_strategy_number, strategy.referenceIndex),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleSmall,
                 color = c.textPrimary,
             )
             Text(
@@ -803,32 +956,91 @@ private fun ProxyHistoryRunRow(
     val interaction = if (enabled) {
         Modifier.detourClickable(
             onClick = onClick,
-            idleColor = if (selected) c.surfaceSelected else Color.Transparent,
+            idleColor = if (selected) c.accentSoft else Color.Transparent,
             pressedColor = c.surfaceSelected,
         )
     } else {
-        Modifier.background(if (selected) c.surfaceSelected else Color.Transparent)
+        Modifier.background(if (selected) c.accentSoft else Color.Transparent)
     }
-    Column(
+    Row(
         interaction
             .fillMaxWidth()
-            .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
+            .heightIn(min = 56.dp)
+            .padding(horizontal = ProxyRowHorizontalPadding, vertical = ProxyRowVerticalPadding),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = rememberRunTimestamp(run.createdAtEpochMs),
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-            color = c.textPrimary,
-        )
-        Text(
-            text = runHistorySummary(run),
-            style = MaterialTheme.typography.bodySmall,
-            color = c.textMuted,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = Spacing.space2),
-        )
+        SelectionMark(selected)
+        Column(
+            Modifier
+                .padding(start = Spacing.space12)
+                .weight(1f),
+        ) {
+            Text(
+                text = rememberRunTimestamp(run.createdAtEpochMs),
+                style = MaterialTheme.typography.titleSmall,
+                color = c.textPrimary,
+            )
+            Text(
+                text = runHistorySummary(run),
+                style = MaterialTheme.typography.bodySmall,
+                color = c.textMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(top = Spacing.space2),
+            )
+        }
     }
+}
+
+@Composable
+private fun ProxyResultNavigationRow(
+    result: DpiProxyTestResultSummary,
+    best: Boolean,
+    onClick: () -> Unit,
+) {
+    DetourNavigationRow(
+        title = strategyTitle(result.strategy),
+        subtitle = compactResultSummary(result, best),
+        iconRes = R.drawable.ic_dpi,
+        onClick = onClick,
+        selectedBackground = best,
+    )
+}
+
+@Composable
+private fun strategyTitle(strategy: DpiProxyTestStrategy): String =
+    if (DpiProxyTestStrategySelection.isCustom(strategy)) {
+        stringResource(R.string.dpi_proxy_test_custom_strategy)
+    } else {
+        stringResource(R.string.dpi_proxy_test_strategy_number, strategy.referenceIndex)
+    }
+
+@Composable
+private fun resultStatus(result: DpiProxyTestResultSummary): String = when {
+    !result.backendStarted -> stringResource(R.string.dpi_proxy_test_backend_failed)
+    result.fullCoverage -> stringResource(R.string.dpi_proxy_test_full_coverage)
+    else -> stringResource(R.string.dpi_proxy_test_partial)
+}
+
+@Composable
+private fun compactResultSummary(
+    result: DpiProxyTestResultSummary,
+    best: Boolean,
+): String {
+    val latency = result.medianLatencyMs?.let {
+        stringResource(R.string.dpi_proxy_test_latency_short, it)
+    } ?: stringResource(R.string.dpi_proxy_test_latency_unknown)
+    return stringResource(
+        if (best) {
+            R.string.dpi_proxy_test_best_result_summary
+        } else {
+            R.string.dpi_proxy_test_compact_result_summary
+        },
+        resultStatus(result),
+        result.fullyWorkingHosts,
+        result.hostCount,
+        latency,
+    )
 }
 
 @Composable
@@ -855,8 +1067,8 @@ private fun SectionLabel(text: String) {
         fontWeight = FontWeight.SemiBold,
         color = detourColors.textSecondary,
         modifier = Modifier.padding(
-            start = Spacing.space20,
-            end = Spacing.space20,
+            start = Spacing.space16,
+            end = Spacing.space16,
             bottom = Spacing.space8,
         ),
     )
@@ -876,7 +1088,7 @@ private fun ProxySliderRow(
     Column(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
+            .padding(horizontal = ProxyRowHorizontalPadding, vertical = ProxyRowVerticalPadding),
     ) {
         Row(
             Modifier.fillMaxWidth(),
@@ -885,7 +1097,7 @@ private fun ProxySliderRow(
         ) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.titleSmall,
                 color = c.textPrimary,
             )
             Text(
@@ -898,7 +1110,9 @@ private fun ProxySliderRow(
             text = description,
             style = MaterialTheme.typography.bodySmall,
             color = c.textMuted,
-            modifier = Modifier.padding(top = Spacing.space4),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = Spacing.space2),
         )
         Slider(
             value = value.toFloat(),
@@ -906,99 +1120,11 @@ private fun ProxySliderRow(
             valueRange = range.first.toFloat()..range.last.toFloat(),
             steps = (range.last - range.first - 1).coerceAtLeast(0),
             enabled = enabled,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(40.dp),
         )
     }
 }
 
-@Composable
-private fun ProxyResultCard(
-    result: DpiProxyTestResultSummary,
-    applying: Boolean,
-    applied: Boolean,
-    applyError: Boolean,
-    onApply: () -> Unit,
-) {
-    val c = detourColors
-    val status = when {
-        !result.backendStarted -> stringResource(R.string.dpi_proxy_test_backend_failed)
-        result.fullCoverage -> stringResource(R.string.dpi_proxy_test_full_coverage)
-        else -> stringResource(R.string.dpi_proxy_test_partial)
-    }
-    DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-        Column(Modifier.padding(Spacing.space16)) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = if (DpiProxyTestStrategySelection.isCustom(result.strategy)) {
-                        stringResource(R.string.dpi_proxy_test_custom_strategy)
-                    } else {
-                        stringResource(
-                            R.string.dpi_proxy_test_strategy_number,
-                            result.strategy.referenceIndex,
-                        )
-                    },
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = c.textPrimary,
-                )
-                Text(
-                    text = status,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (result.fullCoverage) c.activeStrong else c.textSecondary,
-                )
-            }
-            Spacer(Modifier.height(Spacing.space8))
-            Text(
-                text = stringResource(
-                    R.string.dpi_proxy_test_result_summary,
-                    result.fullyWorkingHosts,
-                    result.hostCount,
-                    result.totalSuccesses,
-                    result.totalAttempts,
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-                color = c.textSecondary,
-            )
-            result.medianLatencyMs?.let { latency ->
-                Text(
-                    text = stringResource(R.string.dpi_proxy_test_median, latency),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = c.textMuted,
-                )
-            }
-            Spacer(Modifier.height(Spacing.space8))
-            Text(
-                text = result.strategy.command,
-                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                color = c.textMuted,
-                maxLines = 4,
-            )
-            if (result.backendStarted && result.completed) {
-                Spacer(Modifier.height(Spacing.space12))
-                DetourButton(
-                    text = when {
-                        applying -> stringResource(R.string.dpi_proxy_test_applying)
-                        applied -> stringResource(R.string.dpi_proxy_test_applied)
-                        else -> stringResource(R.string.dpi_proxy_test_apply)
-                    },
-                    onClick = onApply,
-                    enabled = !applying && !applied,
-                    style = ButtonStyle.SECONDARY,
-                    height = 44,
-                )
-                if (applyError) {
-                    Text(
-                        text = stringResource(R.string.dpi_proxy_test_apply_error),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = c.error,
-                        modifier = Modifier.padding(top = Spacing.space8),
-                    )
-                }
-            }
-        }
-    }
-}
+private fun Spacing.space6Compat() = 6.dp
