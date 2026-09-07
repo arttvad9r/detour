@@ -454,7 +454,7 @@ private fun StrategySelectionToolbar(
             Modifier
                 .fillMaxWidth()
                 .heightIn(min = 52.dp)
-                .padding(horizontal = ProxyRowHorizontalPadding, vertical = Spacing.space6Compat()),
+                .padding(horizontal = ProxyRowHorizontalPadding, vertical = Spacing.space8),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -554,7 +554,7 @@ private fun ProxyDomainRow(
         interaction
             .fillMaxWidth()
             .heightIn(min = 52.dp)
-            .padding(horizontal = ProxyRowHorizontalPadding, vertical = Spacing.space6Compat()),
+            .padding(horizontal = ProxyRowHorizontalPadding, vertical = Spacing.space8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
@@ -919,7 +919,7 @@ private fun ProxyStrategyRow(
         interaction
             .fillMaxWidth()
             .heightIn(min = 52.dp)
-            .padding(horizontal = ProxyRowHorizontalPadding, vertical = Spacing.space6Compat()),
+            .padding(horizontal = ProxyRowHorizontalPadding, vertical = Spacing.space8),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
@@ -1110,7 +1110,7 @@ private fun ProxySliderRow(
             text = description,
             style = MaterialTheme.typography.bodySmall,
             color = c.textMuted,
-            maxLines = 2,
+            maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = Spacing.space2),
         )
@@ -1118,13 +1118,11 @@ private fun ProxySliderRow(
             value = value.toFloat(),
             onValueChange = { onValueChange(it.roundToInt()) },
             valueRange = range.first.toFloat()..range.last.toFloat(),
-            steps = (range.last - range.first - 1).coerceAtLeast(0),
+            steps = 0,
             enabled = enabled,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(40.dp),
+                .height(36.dp),
         )
     }
 }
-
-private fun Spacing.space6Compat() = 6.dp
