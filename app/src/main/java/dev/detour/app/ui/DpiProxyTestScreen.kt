@@ -886,7 +886,7 @@ private fun ProxyTestResultDetailScreen(
                 Spacer(Modifier.height(ProxySectionGap))
             }
 
-            if (result.backendStarted && result.completed) {
+            if (!state.running && result.backendStarted && result.completed) {
                 item {
                     val applying = state.applyingStrategyId == result.strategy.id
                     val applied = state.appliedStrategyId == result.strategy.id
