@@ -50,6 +50,7 @@ fun DetourInputField(
     helper: String? = null,
     error: String? = null,
     success: String? = null,
+    enabled: Boolean = true,
     singleLine: Boolean = true,
     minHeight: Dp = 56.dp,
     maxHeight: Dp = if (singleLine) 56.dp else 160.dp,
@@ -59,16 +60,19 @@ fun DetourInputField(
     val c = detourColors
     var focused by remember { mutableStateOf(false) }
     val targetBorder = when {
+        !enabled -> c.border.copy(alpha = 0.65f)
         error != null -> c.error
         focused -> c.accent
         else -> c.border
     }
     val targetLabel = when {
+        !enabled -> c.textMuted
         error != null -> c.error
         focused -> c.accent
         else -> c.textSecondary
     }
     val targetContainer = when {
+        !enabled -> c.surfaceSoft
         error != null -> c.errorSoft.copy(alpha = 0.38f)
         focused -> c.accentSoft.copy(alpha = 0.54f)
         else -> c.surface
@@ -77,15 +81,16 @@ fun DetourInputField(
     val labelColor by animateColorAsState(targetLabel, tween(Motion.COLOR_MS), label = "fieldLabel")
     val containerColor by animateColorAsState(targetContainer, tween(Motion.COLOR_MS), label = "fieldContainer")
     val borderWidth by animateDpAsState(
-        targetValue = if (focused || error != null) 1.5.dp else 1.dp,
+        targetValue = if (enabled && (focused || error != null)) 1.5.dp else 1.dp,
         animationSpec = tween(Motion.COLOR_MS),
         label = "fieldBorderWidth",
     )
     val baseTextStyle = MaterialTheme.typography.bodyLarge
+    val textColor = if (enabled) c.textPrimary else c.textMuted
     val textStyle = if (monospace) {
-        baseTextStyle.copy(color = c.textPrimary, fontFamily = FontFamily.Monospace)
+        baseTextStyle.copy(color = textColor, fontFamily = FontFamily.Monospace)
     } else {
-        baseTextStyle.copy(color = c.textPrimary)
+        baseTextStyle.copy(color = textColor)
     }
     val fieldHeightModifier = if (singleLine) {
         Modifier.heightIn(min = minHeight)
@@ -104,6 +109,7 @@ fun DetourInputField(
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
+            enabled = enabled,
             modifier = Modifier
                 .fillMaxWidth()
                 .then(fieldHeightModifier)
@@ -111,7 +117,7 @@ fun DetourInputField(
                     contentDescription = label
                     error?.let { message -> this.error(message) }
                 }
-                .onFocusChanged { focused = it.isFocused }
+                .onFocusChanged { focused = enabled && it.isFocused }
                 .background(containerColor, AppShapes.small)
                 .border(borderWidth, borderColor, AppShapes.small)
                 .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
@@ -161,24 +167,21 @@ fun DetourInputField(
                     fadeOut(tween(Motion.CONTENT_OUT_MS))
             },
             label = "fieldSupporting",
-        ) { shown ->
-            if (shown != null) {
-                Text(
-                    text = shown.text,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = when (shown.tone) {
-                        SupportingTone.ERROR -> c.error
-                        SupportingTone.SUCCESS -> c.activeStrong
-                        SupportingTone.HELPER -> c.textMuted
-                    },
-                    modifier = Modifier.padding(
-                        start = Spacing.space4,
-                        end = Spacing.space4,
-                        top = Spacing.space8,
-                    ),
-                )
-            } else {
+        ) { message ->
+            if (message == null) {
                 Box(Modifier)
+            } else {
+                val color = when (message.tone) {
+                    SupportingTone.ERROR -> c.error
+                    SupportingTone.SUCCESS -> c.activeStrong
+                    SupportingTone.HELPER -> c.textMuted
+                }
+                Text(
+                    text = message.text,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = color,
+                    modifier = Modifier.padding(start = Spacing.space4, top = Spacing.space8),
+                )
             }
         }
     }

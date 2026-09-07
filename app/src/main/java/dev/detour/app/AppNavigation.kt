@@ -332,6 +332,7 @@ internal fun DetourNavigation(
                 val dpiViewModel = viewModel<DpiViewModel>(
                     factory = DpiViewModel.factory(
                         store = store,
+                        appContext = appContext,
                         restartTunnel = { VpnController.restartIfActive(appContext) },
                     ),
                 )
