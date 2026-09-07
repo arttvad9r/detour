@@ -7,7 +7,7 @@
     <string name="dpi_proxy_test_summary">Inspect the reference strategies before testing, add your own command, keep previous runs, compare their results, and apply a working strategy manually.</string>
     <string name="dpi_proxy_test_setup_title">Test setup</string>
     <string name="dpi_proxy_test_strategies_title">Strategies</string>
-    <string name="dpi_proxy_test_reference_strategies">Reference strategies</string>
+    <string name="dpi_proxy_test_reference_strategies">Built-in strategies</string>
     <string name="dpi_proxy_test_selected_strategies">Selected: %1$d</string>
     <string name="dpi_proxy_test_show_strategies">Show all 60</string>
     <string name="dpi_proxy_test_hide_strategies">Hide strategy list</string>
@@ -18,7 +18,7 @@
     <string name="dpi_proxy_test_custom_title">Your strategy</string>
     <string name="dpi_proxy_test_custom_label">ByeDPI command</string>
     <string name="dpi_proxy_test_custom_placeholder">Example: -d1 -s1+s -r1+s -a1</string>
-    <string name="dpi_proxy_test_custom_hint">A valid custom command is added to the selected reference strategies and saved with the run.</string>
+    <string name="dpi_proxy_test_custom_hint">A valid command is added to the selected built-in strategies and saved with the run.</string>
     <string name="dpi_proxy_test_custom_invalid">This command is not valid or uses options Detour does not allow in a test.</string>
     <string name="dpi_proxy_test_custom_strategy">Custom strategy</string>
     <string name="dpi_proxy_test_domains_title">Domain lists</string>
@@ -28,11 +28,11 @@
     <string name="dpi_proxy_test_parameters_title">Test parameters</string>
     <string name="dpi_proxy_test_parameters_summary">%1$d req/host · %2$d parallel · %3$d s</string>
     <string name="dpi_proxy_test_attempts">Requests per host</string>
-    <string name="dpi_proxy_test_attempts_hint">More requests improve confidence but make the test longer.</string>
+    <string name="dpi_proxy_test_attempts_hint">More requests are more reliable, but slower.</string>
     <string name="dpi_proxy_test_concurrency">Parallel hosts</string>
-    <string name="dpi_proxy_test_concurrency_hint">More parallel hosts speed up the test but increase network and device load.</string>
+    <string name="dpi_proxy_test_concurrency_hint">More is faster, but increases load.</string>
     <string name="dpi_proxy_test_timeout">Timeout</string>
-    <string name="dpi_proxy_test_timeout_hint">A longer timeout tolerates slower connections but makes failed attempts take longer.</string>
+    <string name="dpi_proxy_test_timeout_hint">More time tolerates slower connections.</string>
     <string name="dpi_proxy_test_seconds_short"> s</string>
     <string name="dpi_proxy_test_start">Start test</string>
     <string name="dpi_proxy_test_stop">Stop test</string>
@@ -44,7 +44,7 @@
     <string name="dpi_proxy_test_error_history_save">The run finished, but its history could not be saved. The results remain available until this screen is recreated.</string>
     <string name="dpi_proxy_test_history_title">Test history</string>
     <string name="dpi_proxy_test_history_empty">No saved runs yet.</string>
-    <string name="dpi_proxy_test_history_summary">%1$d strategies · %2$d hosts · %3$d request(s) per host</string>
+    <string name="dpi_proxy_test_history_summary">%1$d strategies · %2$d hosts · %3$d req/host</string>
     <string name="dpi_proxy_test_results_title">Results</string>
     <string name="dpi_proxy_test_all_results">All results</string>
     <string name="dpi_proxy_test_all_results_summary">%1$d ranked strategies</string>
