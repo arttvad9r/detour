@@ -31,6 +31,7 @@ object AmneziaVpnImporter {
     private const val MAX_XRAY_CONFIG_CHARS = 512 * 1024
     private const val DEFAULT_XRAY_FLOW = "xtls-rprx-vision"
     private val AWG_CONTAINERS = setOf("amnezia-awg", "amnezia-awg2")
+    private val UNRESOLVED_TEMPLATE = Regex("""\$[A-Z][A-Z0-9_]*""")
 
     fun parse(raw: String): AmneziaVpnImportResult {
         val uri = raw.trim()
@@ -164,8 +165,10 @@ object AmneziaVpnImporter {
         } catch (_: Exception) {
             return AmneziaVpnImportResult.Invalid
         }
-        val nativeConfig = client.optString("config")
+        val nativeTemplate = client.optString("config")
             .takeIf { it.isNotBlank() && it.length <= WarpConfigImporter.MAX_CHARS }
+            ?: return AmneziaVpnImportResult.Invalid
+        val nativeConfig = resolveAwgNativeConfig(root, nativeTemplate)
             ?: return AmneziaVpnImportResult.Invalid
 
         return when (val imported = WarpConfigImporter.parse(nativeConfig)) {
@@ -177,6 +180,20 @@ object AmneziaVpnImporter {
             WarpImportResult.NoCompatibleProxies -> AmneziaVpnImportResult.Unsupported
             WarpImportResult.Invalid -> AmneziaVpnImportResult.Invalid
         }
+    }
+
+    private fun resolveAwgNativeConfig(root: JSONObject, template: String): String? {
+        var resolved = template
+        val replacements = listOf(
+            "\$PRIMARY_DNS" to root.optString("dns1").trim(),
+            "\$SECONDARY_DNS" to root.optString("dns2").trim(),
+        )
+        replacements.forEach { (placeholder, value) ->
+            if (!resolved.contains(placeholder)) return@forEach
+            if (value.isBlank() || value.length > 128 || hasControlCharacters(value)) return null
+            resolved = resolved.replace(placeholder, value)
+        }
+        return resolved.takeUnless(UNRESOLVED_TEMPLATE::containsMatchIn)
     }
 
     private fun safeDescription(root: JSONObject, fallback: String): String =
