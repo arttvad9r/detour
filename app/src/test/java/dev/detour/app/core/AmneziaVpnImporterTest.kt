@@ -40,10 +40,10 @@ class AmneziaVpnImporterTest {
         assertEquals("xtls-rprx-vision", profile.flow)
     }
 
-    @Test fun `rejects Amnezia invite without an XRay container`() {
+    @Test fun `rejects Amnezia invite without a supported container`() {
         val root = JSONObject()
-            .put("containers", JSONArray().put(JSONObject().put("container", "amnezia-awg")))
-            .put("description", "AWG only")
+            .put("containers", JSONArray().put(JSONObject().put("container", "amnezia-openvpn")))
+            .put("description", "OpenVPN only")
 
         assertTrue(VlessKeyParser.parse(encodeInvite(root)) is ParseResult.Err)
         assertTrue(AmneziaVpnImporter.parse(encodeInvite(root)) is AmneziaVpnImportResult.Unsupported)
