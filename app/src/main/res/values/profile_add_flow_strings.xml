@@ -1,0 +1,23 @@
+<resources>
+    <string name="profile_add_action">Add profile</string>
+    <string name="profile_add_amnezia">Paste Amnezia key</string>
+    <string name="profile_add_amnezia_hint">vpn:// · XRay or AmneziaWG</string>
+    <string name="profile_add_vless_hint">vless:// · Reality</string>
+    <string name="profile_add_subscription_hint">HTTPS subscription URL</string>
+    <string name="profile_import_file">Import configuration file</string>
+    <string name="profile_import_file_hint">CONF / YAML · WireGuard or AmneziaWG</string>
+    <string name="profile_section_vless">VLESS</string>
+    <string name="profile_section_subscriptions">Subscriptions</string>
+    <string name="profile_section_wireguard">WireGuard</string>
+    <string name="profile_vless_direct_input_label">VLESS key</string>
+    <string name="profile_vless_direct_input_hint">Paste a VLESS Reality link. Amnezia keys are added from Add profile.</string>
+    <string name="profile_vless_direct_placeholder">vless://…</string>
+    <string name="profile_vless_direct_invalid">Could not parse this VLESS Reality link.</string>
+    <string name="profile_vless_row_subtitle">VLESS · Reality · %1$s:%2$d</string>
+    <string name="profile_subscription_row_subtitle">Subscription · %1$s</string>
+    <string name="profile_amneziawg_31">AmneziaWG 3.1</string>
+    <string name="profile_wireguard_row_subtitle">%1$s · %2$d endpoints</string>
+    <string name="profile_importing">Importing profile…</string>
+    <string name="profile_import_invalid">No compatible VPN profile found.</string>
+    <string name="profile_import_error">Could not import this VPN profile.</string>
+</resources>
