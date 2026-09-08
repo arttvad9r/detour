@@ -175,7 +175,7 @@ class TriVpnService : VpnService() {
                     }
                 }
             }
-            VpnProfileKind.WARP -> settings.warpProfile?.let(VpnOutbound::Warp)
+            VpnProfileKind.WARP -> settings.wireGuardProfiles.active?.let(VpnOutbound::Warp)
         }
 
         val resolvedRoutes = resolveRouteSnapshot(packageManager, settings.routes)

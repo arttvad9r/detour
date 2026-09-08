@@ -20,6 +20,7 @@ import dev.detour.app.core.VlessKeyParser
 import dev.detour.app.core.VlessKeys
 import dev.detour.app.core.VpnProfileKind
 import dev.detour.app.core.WarpProfile
+import dev.detour.app.core.WireGuardProfiles
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -62,11 +63,12 @@ data class TriSettings(
     val routes: Map<String, AppRoute>,
     val showSystemApps: Boolean,
     val sessionStartedAt: Long?,
+    val wireGuardProfiles: WireGuardProfiles = WireGuardProfiles.fromLegacy(warpProfile),
 ) {
     val vlessUri: String get() = vlessKeys.active?.uri ?: ""
     val activeVpnConfigured: Boolean get() = when (activeVpn) {
         VpnProfileKind.VLESS, VpnProfileKind.SUBSCRIPTION -> vlessKeys.activeProfileKind() == activeVpn
-        VpnProfileKind.WARP -> warpProfile?.proxies?.isNotEmpty() == true
+        VpnProfileKind.WARP -> wireGuardProfiles.active?.proxies?.isNotEmpty() == true
     }
 }
 
@@ -93,7 +95,8 @@ object RoutesMapping {
             entries[KEY_KEYS] as? String ?: "",
             entries[KEY_URI] as? String ?: "",
         )
-        val warpProfile = WarpProfile.fromStored(entries[KEY_WARP_PROFILE] as? String ?: "")
+        val wireGuardProfiles = WireGuardProfiles.fromStored(entries[KEY_WARP_PROFILE] as? String ?: "")
+        val warpProfile = wireGuardProfiles.active
         // Preserve the requested kind even when its snapshot is missing/corrupt.
         // Falling back to another configured profile could silently change the
         // endpoint used by auto-connect; an unconfigured selection instead fails closed.
@@ -115,6 +118,7 @@ object RoutesMapping {
             }.toMap(),
             showSystemApps = entries[KEY_SHOW_SYSTEM] as? Boolean ?: false,
             sessionStartedAt = entries[KEY_SESSION_STARTED] as? Long,
+            wireGuardProfiles = wireGuardProfiles,
         )
     }
 
@@ -251,17 +255,39 @@ class RoutesStore(context: Context) {
     suspend fun deleteVlessKey(id: String) {
         editVless { current -> current.delete(id) }
     }
+    suspend fun addWireGuardProfile(profile: WarpProfile) = store.edit { prefs ->
+        val current = readWireGuardProfiles(prefs)
+        require(current.items.none { it.id == profile.id }) { "WireGuard profile already exists" }
+        writeWireGuardProfiles(prefs, WireGuardProfiles(current.items + profile, current.activeId))
+    }
+    suspend fun updateWireGuardProfile(profile: WarpProfile) = store.edit { prefs ->
+        val current = readWireGuardProfiles(prefs)
+        require(current.items.any { it.id == profile.id }) { "WireGuard profile is not configured" }
+        val next = current.copy(items = current.items.map { if (it.id == profile.id) profile else it })
+        writeWireGuardProfiles(prefs, next)
+    }
+    suspend fun deleteWireGuardProfile(id: String) = store.edit { prefs ->
+        val current = readWireGuardProfiles(prefs)
+        writeWireGuardProfiles(prefs, current.delete(id))
+    }
+    suspend fun setActiveWireGuardProfile(id: String) = store.edit { prefs ->
+        val current = readWireGuardProfiles(prefs)
+        require(current.items.any { it.id == id }) { "WireGuard profile is not configured" }
+        writeWireGuardProfiles(prefs, current.copy(activeId = id))
+        prefs[RoutesMapping.vpnKindKey()] = VpnProfileKind.WARP.name
+    }
     suspend fun setWarpProfile(profile: WarpProfile, activate: Boolean = false) = store.edit { prefs ->
-        // WarpProfile validates every outbound in its initializer; storing only a
-        // constructed profile keeps DataStore free of partially-valid configs.
-        // Selection is explicit unless a caller deliberately requests activation.
-        val key = RoutesMapping.warpProfileKey()
-        prefs[key] = cipher.encrypt(key.name, profile.toJson())
+        // Compatibility API: upsert by id instead of erasing unrelated profiles.
+        val current = readWireGuardProfiles(prefs)
+        val exists = current.items.any { it.id == profile.id }
+        val items = if (exists) current.items.map { if (it.id == profile.id) profile else it }
+        else current.items + profile
+        val next = WireGuardProfiles(items, if (activate) profile.id else current.activeId)
+        writeWireGuardProfiles(prefs, next)
         if (activate) prefs[RoutesMapping.vpnKindKey()] = VpnProfileKind.WARP.name
     }
     suspend fun deleteWarpProfile() = store.edit { prefs ->
-        // Keep the selected kind unchanged. If WARP was active it becomes an
-        // explicit unconfigured selection instead of silently switching to VLESS.
+        // Legacy compatibility API removes the collection; new UI deletes by id.
         prefs.remove(RoutesMapping.warpProfileKey())
     }
     suspend fun setActiveVpn(kind: VpnProfileKind) = store.edit { prefs ->
@@ -270,7 +296,7 @@ class RoutesStore(context: Context) {
                 readVlessKeys(prefs).activeProfileKind() == kind,
             ) { "$kind profile is not configured" }
             VpnProfileKind.WARP -> require(
-                readWarpProfile(prefs) != null,
+                readWireGuardProfiles(prefs).active != null,
             ) { "WARP profile is not configured" }
         }
         prefs[RoutesMapping.vpnKindKey()] = kind.name
@@ -291,9 +317,12 @@ class RoutesStore(context: Context) {
     /** Validated backup is committed in one transaction and replaces old routes. */
     suspend fun restoreBackup(b: SettingsBackup.Backup) = store.edit { prefs ->
         writeVlessKeys(prefs, b.vlessKeys)
-        val warpKey = RoutesMapping.warpProfileKey()
-        if (b.warpProfile == null) prefs.remove(warpKey)
-        else prefs[warpKey] = cipher.encrypt(warpKey.name, b.warpProfile.toJson())
+        val wireGuardProfiles = if (b.wireGuardProfiles.items.isNotEmpty() || b.wireGuardProfiles.activeId != null) {
+            b.wireGuardProfiles
+        } else {
+            WireGuardProfiles.fromLegacy(b.warpProfile)
+        }
+        writeWireGuardProfiles(prefs, wireGuardProfiles)
         prefs[RoutesMapping.vpnKindKey()] = b.activeVpn.name
         prefs[RoutesMapping.presetKey()] = b.presetId
         prefs[RoutesMapping.customArgsKey()] = b.dpiCustomArgs
@@ -346,11 +375,17 @@ class RoutesStore(context: Context) {
         return VlessKeys.fromStored(keysJson, legacyUri)
     }
 
-    private fun readWarpProfile(prefs: Preferences): WarpProfile? {
+    private fun readWireGuardProfiles(prefs: Preferences): WireGuardProfiles {
         val key = RoutesMapping.warpProfileKey()
-        val stored = prefs[key] ?: return null
-        val json = cipher.decrypt(key.name, stored) ?: return null
-        return WarpProfile.fromStored(json)
+        val stored = prefs[key] ?: return WireGuardProfiles.empty()
+        val json = cipher.decrypt(key.name, stored) ?: return WireGuardProfiles.empty()
+        return WireGuardProfiles.fromStored(json)
+    }
+
+    private fun writeWireGuardProfiles(prefs: MutablePreferences, profiles: WireGuardProfiles) {
+        val key = RoutesMapping.warpProfileKey()
+        if (profiles.items.isEmpty()) prefs.remove(key)
+        else prefs[key] = cipher.encrypt(key.name, profiles.toJson())
     }
 
     private fun writeVlessKeys(prefs: MutablePreferences, keys: VlessKeys) {

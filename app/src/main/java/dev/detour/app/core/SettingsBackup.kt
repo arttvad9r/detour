@@ -4,7 +4,7 @@ import org.json.JSONObject
 
 /** Versioned, validated user-settings export. Runtime session state is excluded. */
 object SettingsBackup {
-    const val VERSION = 3
+    const val VERSION = 4
     const val MAX_BYTES = 1024 * 1024
     private const val APP = "detour"
     private val themes = setOf(
@@ -26,16 +26,22 @@ object SettingsBackup {
         val warpProfile: WarpProfile? = null,
         val activeVpn: VpnProfileKind = VpnProfileKind.VLESS,
         val showSystemApps: Boolean = false,
+        val wireGuardProfiles: WireGuardProfiles = WireGuardProfiles.fromLegacy(warpProfile),
     )
 
     fun toJson(b: Backup): String {
         val keys = if (b.vlessKeys.items.isNotEmpty()) b.vlessKeys
         else legacyKeys(b.vlessUri)
+        val wireGuardProfiles = if (b.wireGuardProfiles.items.isNotEmpty() || b.wireGuardProfiles.activeId != null) {
+            b.wireGuardProfiles
+        } else {
+            WireGuardProfiles.fromLegacy(b.warpProfile)
+        }
         return JSONObject().apply {
             put("v", VERSION)
             put("app", APP)
             put("vlessKeys", JSONObject(keys.toJson()))
-            put("warpProfile", b.warpProfile?.let { JSONObject(it.toJson()) } ?: JSONObject.NULL)
+            put("wireGuardProfiles", JSONObject(wireGuardProfiles.toJson()))
             put("activeVpn", b.activeVpn.name)
             put("preset", b.presetId)
             put("customArgs", b.dpiCustomArgs)
@@ -55,7 +61,8 @@ object SettingsBackup {
         when (o.optInt("v", 1)) {
             1 -> parseV1(o)
             2 -> parseV2(o)
-            VERSION -> parseV3(o)
+            3 -> parseV3(o)
+            VERSION -> parseV4(o)
             else -> null
         }
     } catch (_: Exception) { null }
@@ -105,6 +112,35 @@ object SettingsBackup {
             vlessUri = keys.active?.uri ?: "",
             warpProfile = warp,
             activeVpn = activeVpn,
+            wireGuardProfiles = WireGuardProfiles.fromLegacy(warp),
+        )
+    }
+
+    private fun parseV4(o: JSONObject): Backup {
+        val b = base(o)
+        val keysObject = o.optJSONObject("vlessKeys") ?: throw IllegalArgumentException("missing keys")
+        val keys = VlessKeys.fromJson(keysObject.toString())
+        val wireGuardObject = o.optJSONObject("wireGuardProfiles")
+            ?: throw IllegalArgumentException("missing WireGuard profiles")
+        val wireGuardProfiles = WireGuardProfiles.fromJson(wireGuardObject.toString())
+        val activeVpnName = o.optString("activeVpn").takeIf { it.isNotBlank() }
+            ?: VpnProfileKind.VLESS.name
+        val activeVpn = VpnProfileKind.entries.firstOrNull { it.name == activeVpnName }
+            ?: throw IllegalArgumentException("unknown VPN profile kind")
+        validateBase(b)
+        validateKeys(keys)
+        validateRoutes(b.routes)
+        when (activeVpn) {
+            VpnProfileKind.VLESS -> if (keys.active != null) require(selectedKeyKind(keys) == VpnProfileKind.VLESS)
+            VpnProfileKind.SUBSCRIPTION -> require(selectedKeyKind(keys) == VpnProfileKind.SUBSCRIPTION)
+            VpnProfileKind.WARP -> require(wireGuardProfiles.active != null)
+        }
+        return b.copy(
+            vlessKeys = keys,
+            vlessUri = keys.active?.uri ?: "",
+            warpProfile = wireGuardProfiles.active,
+            activeVpn = activeVpn,
+            wireGuardProfiles = wireGuardProfiles,
         )
     }
 
