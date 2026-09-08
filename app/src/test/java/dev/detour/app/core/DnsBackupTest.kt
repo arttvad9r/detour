@@ -66,14 +66,36 @@ class SettingsBackupTest {
         ),
     )
 
+    private val awg = WarpProfile(
+        id = "awg",
+        name = "My VPS",
+        proxies = listOf(
+            WarpProxy(
+                name = "AWG", server = "203.0.113.8", port = 51820,
+                ip = "10.8.0.2", privateKey = "private-awg", publicKey = "public-awg",
+                reserved = emptyList(), allowedIps = listOf("0.0.0.0/0"),
+                amnezia = AmneziaWgOptions(version = 3),
+            ),
+        ),
+    )
+
     @Test fun `roundtrip preserves all fields`() {
         val back = SettingsBackup.fromJson(SettingsBackup.toJson(backup))
         assertEquals(backup, back)
     }
 
-    @Test fun `roundtrip preserves WARP profile and selection`() {
-        val source = backup.copy(warpProfile = warp, activeVpn = VpnProfileKind.WARP)
-        assertEquals(source, SettingsBackup.fromJson(SettingsBackup.toJson(source)))
+    @Test fun `roundtrip preserves multiple WireGuard profiles and selection`() {
+        val profiles = WireGuardProfiles(listOf(warp, awg), awg.id)
+        val source = backup.copy(
+            warpProfile = awg,
+            activeVpn = VpnProfileKind.WARP,
+            wireGuardProfiles = profiles,
+        )
+        val restored = SettingsBackup.fromJson(SettingsBackup.toJson(source))!!
+
+        assertEquals(source, restored)
+        assertEquals(listOf(warp.id, awg.id), restored.wireGuardProfiles.items.map { it.id })
+        assertEquals(awg.id, restored.wireGuardProfiles.activeId)
     }
 
     @Test fun `roundtrip preserves explicit no active VLESS key`() {
@@ -93,7 +115,7 @@ class SettingsBackupTest {
 
     @Test
     fun `oversized backup is rejected`() {
-        val oversized = """{"app":"detour","v":3,"customArgs":"${"x".repeat(SettingsBackup.MAX_BYTES)}"}"""
+        val oversized = """{"app":"detour","v":4,"customArgs":"${"x".repeat(SettingsBackup.MAX_BYTES)}"}"""
         assertNull(SettingsBackup.fromJson(oversized))
     }
     @Test fun `foreign file rejected`() {
@@ -116,7 +138,7 @@ class SettingsBackupTest {
             ), "b",
         )
         val restored = SettingsBackup.fromJson(SettingsBackup.toJson(backup.copy(vlessKeys = keys)))!!
-        assertEquals(3, SettingsBackup.VERSION)
+        assertEquals(4, SettingsBackup.VERSION)
         assertEquals(listOf("a", "b", "c"), restored.vlessKeys.items.map { it.id })
         assertEquals("b", restored.vlessKeys.activeId)
     }
@@ -151,6 +173,15 @@ class SettingsBackupTest {
         assertNull(SettingsBackup.fromJson(invalid))
         assertNull(SettingsBackup.fromJson(blank))
         assertTrue(SettingsBackup.fromJson(valid) != null)
+    }
+
+    @Test fun `v3 WARP backup imports into one selected WireGuard profile`() {
+        val json = """{"v":3,"app":"detour","vlessKeys":{"activeId":null,"items":[]},"warpProfile":${warp.toJson()},"activeVpn":"WARP","preset":"recommended","theme":"lavenda","dns":"google","routes":{}}"""
+        val restored = SettingsBackup.fromJson(json)!!
+
+        assertEquals(warp, restored.warpProfile)
+        assertEquals(listOf(warp), restored.wireGuardProfiles.items)
+        assertEquals(warp.id, restored.wireGuardProfiles.activeId)
     }
 
     @Test fun `v3 rejects WARP selection without profile`() {
