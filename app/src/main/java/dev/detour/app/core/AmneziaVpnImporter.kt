@@ -16,7 +16,7 @@ sealed interface AmneziaVpnImportResult {
 }
 
 /**
- * Decoder for Amnezia guest-access `vpn://` links.
+ * Decoder for Amnezia self-hosted guest-access `vpn://` links.
  *
  * Amnezia serializes a JSON document, compresses it with Qt qCompress
  * (4-byte big-endian uncompressed length followed by a zlib stream), and
@@ -28,6 +28,7 @@ object AmneziaVpnImporter {
     private const val MAX_DECOMPRESSED_BYTES = 1024 * 1024
     private const val MAX_CONTAINERS = 32
     private const val MAX_XRAY_CONFIG_CHARS = 512 * 1024
+    private const val DEFAULT_XRAY_FLOW = "xtls-rprx-vision"
 
     fun parse(raw: String): AmneziaVpnImportResult {
         val uri = raw.trim()
@@ -42,8 +43,10 @@ object AmneziaVpnImporter {
             val containers = root.optJSONArray("containers")
                 ?: return AmneziaVpnImportResult.Invalid
             if (containers.length() !in 1..MAX_CONTAINERS) return AmneziaVpnImportResult.Invalid
+            val containerObjects = containers.objectsStrict()
+                ?: return AmneziaVpnImportResult.Invalid
 
-            val xrayContainers = containers.objects().filter {
+            val xrayContainers = containerObjects.filter {
                 it.optString("container").equals("amnezia-xray", ignoreCase = true)
             }
             if (xrayContainers.isEmpty()) return AmneziaVpnImportResult.Unsupported
@@ -67,7 +70,8 @@ object AmneziaVpnImporter {
         }
 
         val outbounds = config.optJSONArray("outbounds") ?: return AmneziaVpnImportResult.Invalid
-        val vless = outbounds.objects().filter {
+        val outboundObjects = outbounds.objectsStrict() ?: return AmneziaVpnImportResult.Invalid
+        val vless = outboundObjects.filter {
             it.optString("protocol").equals("vless", ignoreCase = true)
         }
         if (vless.isEmpty()) return AmneziaVpnImportResult.Unsupported
@@ -82,20 +86,18 @@ object AmneziaVpnImporter {
         val stream = outbound.optJSONObject("streamSettings") ?: return AmneziaVpnImportResult.Invalid
         val reality = stream.optJSONObject("realitySettings") ?: return AmneziaVpnImportResult.Invalid
 
-        if (!stream.optString("network").equals("tcp", ignoreCase = true)) {
-            return AmneziaVpnImportResult.Unsupported
-        }
-        if (!stream.optString("security").equals("reality", ignoreCase = true)) {
-            return AmneziaVpnImportResult.Unsupported
-        }
-        val encryption = user.optString("encryption", "none")
+        val network = stream.optString("network", "tcp").ifBlank { "tcp" }
+        if (!network.equals("tcp", ignoreCase = true)) return AmneziaVpnImportResult.Unsupported
+        val security = stream.optString("security", "reality").ifBlank { "reality" }
+        if (!security.equals("reality", ignoreCase = true)) return AmneziaVpnImportResult.Unsupported
+        val encryption = user.optString("encryption", "none").ifBlank { "none" }
         if (!encryption.equals("none", ignoreCase = true)) return AmneziaVpnImportResult.Unsupported
 
         val address = vnext.optString("address").trim()
         val port = vnext.optInt("port", -1)
         val uuid = user.optString("id").trim()
-        val flow = user.optString("flow").trim()
-        val fingerprint = reality.optString("fingerprint").trim()
+        val flow = user.optString("flow", DEFAULT_XRAY_FLOW).trim().ifBlank { DEFAULT_XRAY_FLOW }
+        val fingerprint = reality.optString("fingerprint", "chrome").trim().ifBlank { "chrome" }
         val publicKey = reality.optString("publicKey").trim()
         val serverName = reality.optString("serverName").trim()
         val shortId = reality.optString("shortId").trim()
@@ -164,8 +166,11 @@ object AmneziaVpnImporter {
         return output.toByteArray()
     }
 
-    private fun JSONArray.objects(): List<JSONObject> =
-        (0 until length()).mapNotNull { optJSONObject(it) }
+    private fun JSONArray.objectsStrict(): List<JSONObject>? = buildList {
+        for (index in 0 until length()) {
+            add(optJSONObject(index) ?: return null)
+        }
+    }
 
     private fun JSONArray.singleObject(): JSONObject? =
         if (length() == 1) optJSONObject(0) else null
