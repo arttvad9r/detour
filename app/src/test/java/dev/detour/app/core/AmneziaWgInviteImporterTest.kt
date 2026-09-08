@@ -35,6 +35,39 @@ class AmneziaWgInviteImporterTest {
         assertEquals("header-key", proxy.amnezia.headerProtectionKey)
     }
 
+    @Test fun `resolves Amnezia DNS placeholders from invite root`() {
+        val templatedConfig = AmneziaWg3ImporterTest.nativeAwg3()
+            .replace("DNS = 1.1.1.1", "DNS = \$PRIMARY_DNS, \$SECONDARY_DNS")
+        val clientConfig = JSONObject().put("config", templatedConfig)
+        val container = JSONObject()
+            .put("container", "amnezia-awg2")
+            .put("awg", JSONObject().put("last_config", clientConfig.toString()))
+        val root = JSONObject()
+            .put("containers", JSONArray().put(container))
+            .put("defaultContainer", "amnezia-awg2")
+            .put("dns1", "1.1.1.1")
+            .put("dns2", "8.8.8.8")
+
+        val result = AmneziaVpnImporter.parse(encodeInvite(root))
+        assertTrue(result is AmneziaVpnImportResult.AmneziaWg)
+        val proxy = (result as AmneziaVpnImportResult.AmneziaWg).profile.proxies.single()
+        assertEquals(listOf("1.1.1.1", "8.8.8.8"), proxy.dns)
+    }
+
+    @Test fun `rejects unresolved Amnezia native placeholders`() {
+        val templatedConfig = AmneziaWg3ImporterTest.nativeAwg3()
+            .replace("DNS = 1.1.1.1", "DNS = \$PRIMARY_DNS, \$SECONDARY_DNS")
+        val clientConfig = JSONObject().put("config", templatedConfig)
+        val container = JSONObject()
+            .put("container", "amnezia-awg2")
+            .put("awg", JSONObject().put("last_config", clientConfig.toString()))
+        val root = JSONObject()
+            .put("containers", JSONArray().put(container))
+            .put("defaultContainer", "amnezia-awg2")
+
+        assertTrue(AmneziaVpnImporter.parse(encodeInvite(root)) is AmneziaVpnImportResult.Invalid)
+    }
+
     @Test fun `uses defaultContainer when invite contains XRay and AWG`() {
         val xrayContainer = JSONObject().put("container", "amnezia-xray").put("xray", JSONObject())
         val awgClient = JSONObject().put("config", AmneziaWg3ImporterTest.nativeAwg3())
