@@ -41,6 +41,14 @@ object VlessKeyParser {
 
     fun parse(uriRaw: String): ParseResult {
         val uri = uriRaw.trim()
+        if (uri.startsWith("vpn://", ignoreCase = true)) {
+            return when (val imported = AmneziaVpnImporter.parse(uri)) {
+                is AmneziaVpnImportResult.XrayVless -> ParseResult.Ok(imported.profile)
+                AmneziaVpnImportResult.Unsupported,
+                AmneziaVpnImportResult.Invalid,
+                -> ParseResult.Err(ERR_FORMAT)
+            }
+        }
         if (uri.startsWith("https://", ignoreCase = true)) return parseSubscription(uri)
         if (!uri.startsWith("vless://")) return ParseResult.Err(ERR_FORMAT)
         return try {
