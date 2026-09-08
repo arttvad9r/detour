@@ -6,14 +6,14 @@
     <string name="profile_amneziawg">AmneziaWG</string>
     <string name="profile_add_vless_action">Add VLESS</string>
     <string name="profile_add_subscription_action">Add subscription</string>
-    <string name="profile_vless_input_label">VLESS link</string>
+    <string name="profile_vless_input_label">VLESS / Amnezia invite</string>
     <string name="profile_subscription_input_label">Subscription URL</string>
-    <string name="profile_vless_input_hint">Paste a VLESS Reality link.</string>
+    <string name="profile_vless_input_hint">Paste a VLESS Reality link or an Amnezia vpn:// invitation containing XRay Reality.</string>
     <string name="profile_subscription_input_hint">Paste an HTTPS subscription URL. Its VLESS servers will appear in this list.</string>
-    <string name="profile_vless_placeholder">vless://…</string>
+    <string name="profile_vless_placeholder">vless://… or vpn://…</string>
     <string name="profile_subscription_placeholder">https://subscription.example/…</string>
-    <string name="profile_vless_invalid">Could not parse this VLESS Reality link.</string>
+    <string name="profile_vless_invalid">Could not parse this VLESS Reality link or Amnezia XRay invitation.</string>
     <string name="profile_subscription_invalid">Could not read this HTTPS subscription URL.</string>
-    <string name="profile_vless_wrong_type">This tab accepts a VLESS Reality link.</string>
+    <string name="profile_vless_wrong_type">This tab accepts a VLESS Reality link or Amnezia XRay invitation.</string>
     <string name="profile_subscription_wrong_type">This tab accepts an HTTPS subscription URL.</string>
 </resources>
