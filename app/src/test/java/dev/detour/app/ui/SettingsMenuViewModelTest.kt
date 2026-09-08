@@ -1,9 +1,13 @@
 package dev.detour.app.ui
 
+import dev.detour.app.core.AmneziaWgOptions
 import dev.detour.app.core.DpiPreset
 import dev.detour.app.core.VlessKey
 import dev.detour.app.core.VlessKeys
 import dev.detour.app.core.VpnProfileKind
+import dev.detour.app.core.WarpProfile
+import dev.detour.app.core.WarpProxy
+import dev.detour.app.core.WireGuardProfiles
 import dev.detour.app.data.TriSettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -31,6 +35,18 @@ class SettingsMenuViewModelTest {
 
         assertFalse(state.hasVless)
         assertTrue(state.hasSubscription)
+    }
+
+    @Test fun `unselected WireGuard profile still counts as configured`() {
+        val profile = wireGuardProfile()
+        val source = settings(autoConnect = false).copy(
+            wireGuardProfiles = WireGuardProfiles(listOf(profile), activeId = null),
+            warpProfile = null,
+        )
+
+        val state = settingsMenuUiState(source, routedCount = 0)
+
+        assertTrue(state.hasWarp)
     }
 
     @Test fun `pending auto connect intent overrides lagging persistence`() {
@@ -87,4 +103,22 @@ class SettingsMenuViewModelTest {
             sessionStartedAt = null,
         )
     }
+
+    private fun wireGuardProfile() = WarpProfile(
+        id = "wg-id",
+        name = "Cloudflare WARP",
+        proxies = listOf(
+            WarpProxy(
+                name = "WARP",
+                server = "203.0.113.1",
+                port = 51820,
+                ip = "10.0.0.2",
+                privateKey = "private",
+                publicKey = "public",
+                reserved = emptyList(),
+                allowedIps = listOf("0.0.0.0/0"),
+                amnezia = AmneziaWgOptions(),
+            ),
+        ),
+    )
 }

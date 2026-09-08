@@ -73,7 +73,7 @@ private const val PROFILES_SCREEN_TEST_TAG = "profiles_screen"
 private data class ProfileGroups(
     val vless: List<VlessKey>,
     val subscriptions: List<VlessKey>,
-    val warp: WarpProfile?,
+    val wireGuard: List<WarpProfile>,
 )
 
 private fun parsedProfile(key: VlessKey): VlessProfile? =
@@ -94,7 +94,8 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
     val c = detourColors
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val vlessItems = state.vlessItems
-    val warpProfile = state.warpProfile
+    val wireGuardProfiles = state.wireGuardProfiles
+    val activeWireGuardId = state.activeWireGuardId
     val activeVpn = state.activeVpn
     val activeVlessId = state.activeVlessId
     val warpImportStatus = state.warpImportStatus
@@ -105,11 +106,11 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
     val vlessFallbackTitle = stringResource(R.string.protocol_vless)
     val subscriptionFallbackTitle = stringResource(R.string.subscription_profile_section)
 
-    val groups = remember(vlessItems, warpProfile) {
+    val groups = remember(vlessItems, wireGuardProfiles) {
         ProfileGroups(
             vless = vlessItems.filter { parsedProfile(it)?.isSubscription != true },
             subscriptions = vlessItems.filter { parsedProfile(it)?.isSubscription == true },
-            warp = warpProfile,
+            wireGuard = wireGuardProfiles,
         )
     }
 
@@ -118,6 +119,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
     var editingSubscription by rememberSaveable { mutableStateOf(false) }
     var showEditor by rememberSaveable { mutableStateOf(false) }
     var suppressWarpNotice by rememberSaveable { mutableStateOf(false) }
+    var replacingWireGuardId by rememberSaveable { mutableStateOf<String?>(null) }
     // Credential drafts deliberately stay process-memory-only. Recreating the
     // Activity must not serialize a VLESS/subscription URI into saved instance state.
     var field by remember { mutableStateOf("") }
@@ -153,9 +155,11 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
     }
 
     val warpLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        val replaceId = replacingWireGuardId
+        replacingWireGuardId = null
         uri?.let {
             suppressWarpNotice = false
-            viewModel.importWarpDocument(it.toString())
+            viewModel.importWarpDocument(it.toString(), replaceProfileId = replaceId)
         }
     }
 
@@ -266,7 +270,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
 
                 val hasProfiles = groups.vless.isNotEmpty() ||
                     groups.subscriptions.isNotEmpty() ||
-                    groups.warp != null
+                    groups.wireGuard.isNotEmpty()
 
                 if (!hasProfiles) {
                     EmptyProfilesCard()
@@ -311,20 +315,24 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                         }
                     }
 
-                    if (groups.warp != null) {
+                    if (groups.wireGuard.isNotEmpty()) {
                         if (groups.vless.isNotEmpty() || groups.subscriptions.isNotEmpty()) {
                             Spacer(Modifier.height(Spacing.space16))
                         }
                         ProfileSectionTitle(stringResource(R.string.profile_section_wireguard))
-                        WarpProfileList(
-                            profile = groups.warp,
-                            selected = activeVpn == VpnProfileKind.WARP,
+                        WireGuardProfileList(
+                            profiles = groups.wireGuard,
+                            activeWireGuardId = activeWireGuardId,
+                            activeVpn = activeVpn,
                             importing = warpImporting,
-                            onEdit = { warpLauncher.launch(arrayOf("*/*")) },
+                            onEdit = { profileId ->
+                                replacingWireGuardId = profileId
+                                warpLauncher.launch(arrayOf("*/*"))
+                            },
                             onDelete = viewModel::deleteWarp,
-                            onClick = {
+                            onClick = { profileId ->
                                 haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                                viewModel.selectWarp()
+                                viewModel.selectWarp(profileId)
                             },
                         )
                     }
@@ -390,6 +398,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                         onClick = {
                             showAddMenu = false
                             suppressWarpNotice = false
+                            replacingWireGuardId = null
                             warpLauncher.launch(arrayOf("*/*"))
                         },
                     )
@@ -602,37 +611,42 @@ private fun ProfileKeyList(
 }
 
 @Composable
-private fun WarpProfileList(
-    profile: WarpProfile?,
-    selected: Boolean,
+private fun WireGuardProfileList(
+    profiles: List<WarpProfile>,
+    activeWireGuardId: String?,
+    activeVpn: VpnProfileKind,
     importing: Boolean,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
-    onClick: () -> Unit,
+    onEdit: (String) -> Unit,
+    onDelete: (String) -> Unit,
+    onClick: (String) -> Unit,
 ) {
-    if (profile == null) return
-    val protocol = when {
-        profile.proxies.any { it.amnezia.version == 3 } -> stringResource(R.string.profile_amneziawg_31)
-        profile.name.contains("Amnezia", ignoreCase = true) -> stringResource(R.string.profile_amneziawg)
-        else -> stringResource(R.string.protocol_warp)
-    }
+    if (profiles.isEmpty()) return
 
     DetourCard(
         Modifier
             .padding(horizontal = Spacing.space16)
             .selectableGroup(),
     ) {
-        CompactProfileRow(
-            title = profile.name,
-            subtitle = stringResource(R.string.profile_wireguard_row_subtitle, protocol, profile.proxies.size),
-            selected = selected,
-            busy = importing,
-            editDescription = stringResource(R.string.warp_replace),
-            deleteDescription = stringResource(R.string.warp_delete),
-            onEdit = onEdit,
-            onDelete = onDelete,
-            onClick = { if (!selected) onClick() },
-        )
+        profiles.forEachIndexed { index, profile ->
+            val protocol = when {
+                profile.proxies.any { it.amnezia.version == 3 } -> stringResource(R.string.profile_amneziawg_31)
+                profile.name.contains("Amnezia", ignoreCase = true) -> stringResource(R.string.profile_amneziawg)
+                else -> stringResource(R.string.protocol_warp)
+            }
+            val selected = activeVpn == VpnProfileKind.WARP && activeWireGuardId == profile.id
+            CompactProfileRow(
+                title = profile.name,
+                subtitle = stringResource(R.string.profile_wireguard_row_subtitle, protocol, profile.proxies.size),
+                selected = selected,
+                busy = importing,
+                editDescription = stringResource(R.string.key_edit),
+                deleteDescription = stringResource(R.string.key_delete),
+                onEdit = { onEdit(profile.id) },
+                onDelete = { onDelete(profile.id) },
+                onClick = { if (!selected) onClick(profile.id) },
+            )
+            if (index < profiles.lastIndex) GroupDivider(startInset = 52)
+        }
     }
 }
 

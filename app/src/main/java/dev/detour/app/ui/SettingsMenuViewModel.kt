@@ -53,7 +53,7 @@ internal fun settingsMenuUiState(
         routedCount = routedCount,
         hasVless = keys.any { it.id !in subscriptionIds },
         hasSubscription = subscriptionIds.isNotEmpty(),
-        hasWarp = settings?.warpProfile != null,
+        hasWarp = settings?.wireGuardProfiles?.items?.isNotEmpty() == true,
         autoConnect = autoConnectOverride ?: (settings?.autoConnect == true),
         sessionStartedAt = settings?.sessionStartedAt,
         activeVpn = settings?.activeVpn ?: VpnProfileKind.VLESS,

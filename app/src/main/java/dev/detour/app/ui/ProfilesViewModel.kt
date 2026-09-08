@@ -49,6 +49,7 @@ sealed interface ProfileDeleteRequest {
     ) : ProfileDeleteRequest
 
     data class Warp(
+        val profileId: String,
         override val active: Boolean,
         override val failed: Boolean = false,
     ) : ProfileDeleteRequest
@@ -61,13 +62,14 @@ internal fun ProfileDeleteRequest.failedCopy(): ProfileDeleteRequest = when (thi
 
 sealed interface ProfileSelection {
     data class Vless(val keyId: String) : ProfileSelection
-    data object Warp : ProfileSelection
+    data class Warp(val profileId: String) : ProfileSelection
 }
 
 data class ProfilesUiState(
     val vlessItems: List<VlessKey> = emptyList(),
     val activeVlessId: String? = null,
-    val warpProfile: WarpProfile? = null,
+    val wireGuardProfiles: List<WarpProfile> = emptyList(),
+    val activeWireGuardId: String? = null,
     val activeVpn: VpnProfileKind = VpnProfileKind.VLESS,
     val warpImportStatus: WarpImportStatus = WarpImportStatus.IDLE,
     val vlessSaveStatus: VlessSaveStatus = VlessSaveStatus.IDLE,
@@ -83,7 +85,7 @@ private fun selectedKeyKind(settings: TriSettings?, keyId: String): VpnProfileKi
 internal fun persistedProfileSelection(settings: TriSettings?): ProfileSelection? = when (settings?.activeVpn) {
     VpnProfileKind.VLESS, VpnProfileKind.SUBSCRIPTION ->
         settings.vlessKeys.activeId?.let(ProfileSelection::Vless)
-    VpnProfileKind.WARP -> ProfileSelection.Warp
+    VpnProfileKind.WARP -> settings.wireGuardProfiles.activeId?.let(ProfileSelection::Warp)
     null -> null
 }
 
@@ -98,12 +100,16 @@ internal fun profilesUiState(
         vlessItems = settings?.vlessKeys?.items.orEmpty(),
         activeVlessId = when (selection) {
             is ProfileSelection.Vless -> selection.keyId
-            ProfileSelection.Warp, null -> settings?.vlessKeys?.activeId
+            is ProfileSelection.Warp, null -> settings?.vlessKeys?.activeId
         },
-        warpProfile = settings?.warpProfile,
+        wireGuardProfiles = settings?.wireGuardProfiles?.items.orEmpty(),
+        activeWireGuardId = when (selection) {
+            is ProfileSelection.Warp -> selection.profileId
+            else -> settings?.wireGuardProfiles?.activeId
+        },
         activeVpn = when (selection) {
             is ProfileSelection.Vless -> selectedKeyKind(settings, selection.keyId)
-            ProfileSelection.Warp -> VpnProfileKind.WARP
+            is ProfileSelection.Warp -> VpnProfileKind.WARP
             null -> settings?.activeVpn ?: VpnProfileKind.VLESS
         },
         warpImportStatus = warpImportStatus,
@@ -125,10 +131,14 @@ internal fun vlessDeleteRequest(
 
 internal fun warpDeleteRequest(
     settings: TriSettings?,
+    profileId: String,
     selectionOverride: ProfileSelection? = null,
 ): ProfileDeleteRequest.Warp {
     val state = profilesUiState(settings, selectionOverride = selectionOverride)
-    return ProfileDeleteRequest.Warp(active = state.activeVpn == VpnProfileKind.WARP)
+    return ProfileDeleteRequest.Warp(
+        profileId = profileId,
+        active = state.activeVpn == VpnProfileKind.WARP && state.activeWireGuardId == profileId,
+    )
 }
 
 internal enum class ProfileTunnelAction { NONE, RESTART, STOP }
@@ -143,13 +153,22 @@ internal fun vlessMutationTunnelAction(
     return if (deleting) ProfileTunnelAction.STOP else ProfileTunnelAction.RESTART
 }
 
+internal fun wireGuardMutationTunnelAction(
+    activeVpn: VpnProfileKind,
+    activeWireGuardId: String?,
+    profileId: String,
+    deleting: Boolean,
+): ProfileTunnelAction {
+    if (activeVpn != VpnProfileKind.WARP || activeWireGuardId != profileId) return ProfileTunnelAction.NONE
+    return if (deleting) ProfileTunnelAction.STOP else ProfileTunnelAction.RESTART
+}
+
+// Retain the old helper for source-compatible tests/callers; production uses the ID-aware variant.
 internal fun warpMutationTunnelAction(
     activeVpn: VpnProfileKind,
     deleting: Boolean,
-): ProfileTunnelAction {
-    if (activeVpn != VpnProfileKind.WARP) return ProfileTunnelAction.NONE
-    return if (deleting) ProfileTunnelAction.STOP else ProfileTunnelAction.RESTART
-}
+): ProfileTunnelAction = if (activeVpn != VpnProfileKind.WARP) ProfileTunnelAction.NONE
+else if (deleting) ProfileTunnelAction.STOP else ProfileTunnelAction.RESTART
 
 class ProfilesViewModel(
     private val settings: StateFlow<TriSettings?>,
@@ -158,9 +177,10 @@ class ProfilesViewModel(
     private val deleteVlessKey: suspend (String) -> Unit,
     private val setActiveVlessKey: suspend (String) -> Unit,
     private val loadWarpConfig: suspend (String) -> String?,
-    private val setWarpProfile: suspend (WarpProfile) -> Unit,
-    private val deleteWarpProfile: suspend () -> Unit,
-    private val setActiveVpn: suspend (VpnProfileKind) -> Unit,
+    private val addWireGuardProfile: suspend (WarpProfile) -> Unit,
+    private val updateWireGuardProfile: suspend (WarpProfile) -> Unit,
+    private val deleteWireGuardProfile: suspend (String) -> Unit,
+    private val setActiveWireGuardProfile: suspend (String) -> Unit,
     private val restartTunnel: () -> Unit,
     private val stopTunnelIfRunning: () -> Unit,
 ) : ViewModel() {
@@ -254,7 +274,7 @@ class ProfilesViewModel(
         selectProfile(ProfileSelection.Vless(keyId))
     }
 
-    fun importWarpDocument(uri: String) {
+    fun importWarpDocument(uri: String, replaceProfileId: String? = null) {
         if (!canStartWarpImport(warpImportStatus.value)) return
         warpImportStatus.value = WarpImportStatus.IMPORTING
         viewModelScope.launch {
@@ -265,7 +285,7 @@ class ProfilesViewModel(
                     return@launch
                 }
                 when (val result = withContext(Dispatchers.Default) { WarpConfigImporter.parse(raw) }) {
-                    is WarpImportResult.Ok -> persistWarpProfile(result.profile)
+                    is WarpImportResult.Ok -> persistWarpProfile(result.profile, replaceProfileId)
                     WarpImportResult.NoCompatibleProxies -> failWarpImport(WarpImportStatus.NO_COMPATIBLE_PROXIES)
                     WarpImportResult.Invalid -> failWarpImport(WarpImportStatus.ERROR)
                 }
@@ -298,9 +318,9 @@ class ProfilesViewModel(
         }
     }
 
-    fun deleteWarp() {
+    fun deleteWarp(profileId: String) {
         if (deleteInFlight.value) return
-        _pendingDelete.value = warpDeleteRequest(settings.value, selectionOverride.value)
+        _pendingDelete.value = warpDeleteRequest(settings.value, profileId, selectionOverride.value)
     }
 
     fun dismissDelete() {
@@ -334,13 +354,18 @@ class ProfilesViewModel(
                             applyTunnelAction(tunnelAction)
                         }
                         is ProfileDeleteRequest.Warp -> {
-                            val tunnelAction = warpMutationTunnelAction(
-                                profilesUiState(settings.value).activeVpn,
+                            val state = profilesUiState(settings.value)
+                            val tunnelAction = wireGuardMutationTunnelAction(
+                                state.activeVpn,
+                                state.activeWireGuardId,
+                                request.profileId,
                                 deleting = true,
                             )
-                            deleteWarpProfile()
-                            if (settings.value?.warpProfile != null) {
-                                settings.first { it?.warpProfile == null }
+                            deleteWireGuardProfile(request.profileId)
+                            if (settings.value?.wireGuardProfiles?.items?.any { it.id == request.profileId } == true) {
+                                settings.first { current ->
+                                    current?.wireGuardProfiles?.items?.none { it.id == request.profileId } != false
+                                }
                             }
                             applyTunnelAction(tunnelAction)
                         }
@@ -356,19 +381,27 @@ class ProfilesViewModel(
         }
     }
 
-    fun selectWarp() {
-        selectProfile(ProfileSelection.Warp)
+    fun selectWarp(profileId: String) {
+        selectProfile(ProfileSelection.Warp(profileId))
     }
 
-    private suspend fun persistWarpProfile(profile: WarpProfile) {
+    private suspend fun persistWarpProfile(profile: WarpProfile, replaceProfileId: String? = null) {
         profileMutationMutex.withLock {
-            val tunnelAction = warpMutationTunnelAction(
-                profilesUiState(settings.value).activeVpn,
-                deleting = false,
-            )
-            setWarpProfile(profile)
-            if (settings.value?.warpProfile != profile) {
-                settings.first { it?.warpProfile == profile }
+            val target = replaceProfileId?.let { profile.copy(id = it) } ?: profile
+            val state = profilesUiState(settings.value)
+            val tunnelAction = if (replaceProfileId == null) {
+                ProfileTunnelAction.NONE
+            } else {
+                wireGuardMutationTunnelAction(
+                    state.activeVpn,
+                    state.activeWireGuardId,
+                    replaceProfileId,
+                    deleting = false,
+                )
+            }
+            if (replaceProfileId == null) addWireGuardProfile(target) else updateWireGuardProfile(target)
+            if (settings.value?.wireGuardProfiles?.items?.none { it == target } != false) {
+                settings.first { current -> current?.wireGuardProfiles?.items?.any { it == target } == true }
             }
             applyTunnelAction(tunnelAction)
             warpImportStatus.value = WarpImportStatus.IDLE
@@ -394,7 +427,7 @@ class ProfilesViewModel(
                     if (persistedProfileSelection(settings.value) != desired) {
                         when (desired) {
                             is ProfileSelection.Vless -> setActiveVlessKey(desired.keyId)
-                            ProfileSelection.Warp -> setActiveVpn(VpnProfileKind.WARP)
+                            is ProfileSelection.Warp -> setActiveWireGuardProfile(desired.profileId)
                         }
                         if (persistedProfileSelection(settings.value) != desired) {
                             settings.first { persistedProfileSelection(it) == desired }
@@ -443,9 +476,10 @@ class ProfilesViewModel(
                     deleteVlessKey = store::deleteVlessKey,
                     setActiveVlessKey = store::setActiveVlessKey,
                     loadWarpConfig = loadWarpConfig,
-                    setWarpProfile = { store.setWarpProfile(it) },
-                    deleteWarpProfile = store::deleteWarpProfile,
-                    setActiveVpn = store::setActiveVpn,
+                    addWireGuardProfile = store::addWireGuardProfile,
+                    updateWireGuardProfile = store::updateWireGuardProfile,
+                    deleteWireGuardProfile = store::deleteWireGuardProfile,
+                    setActiveWireGuardProfile = store::setActiveWireGuardProfile,
                     restartTunnel = restartTunnel,
                     stopTunnelIfRunning = stopTunnelIfRunning,
                 ) as T

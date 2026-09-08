@@ -27,7 +27,7 @@ class ProfileTunnelPolicyTest {
         )
     }
 
-    @Test fun `VLESS mutations do not affect selected WARP tunnel`() {
+    @Test fun `VLESS mutations do not affect selected WireGuard tunnel`() {
         assertEquals(
             ProfileTunnelAction.NONE,
             vlessMutationTunnelAction(VpnProfileKind.WARP, "active", "active", deleting = false),
@@ -38,18 +38,54 @@ class ProfileTunnelPolicyTest {
         )
     }
 
-    @Test fun `selected WARP replacement restarts but delete stops`() {
+    @Test fun `selected WireGuard edit restarts but delete stops`() {
         assertEquals(
             ProfileTunnelAction.RESTART,
-            warpMutationTunnelAction(VpnProfileKind.WARP, deleting = false),
+            wireGuardMutationTunnelAction(
+                VpnProfileKind.WARP,
+                activeWireGuardId = "awg",
+                profileId = "awg",
+                deleting = false,
+            ),
         )
         assertEquals(
             ProfileTunnelAction.STOP,
-            warpMutationTunnelAction(VpnProfileKind.WARP, deleting = true),
+            wireGuardMutationTunnelAction(
+                VpnProfileKind.WARP,
+                activeWireGuardId = "awg",
+                profileId = "awg",
+                deleting = true,
+            ),
+        )
+    }
+
+    @Test fun `inactive WireGuard mutation leaves active tunnel alone`() {
+        assertEquals(
+            ProfileTunnelAction.NONE,
+            wireGuardMutationTunnelAction(
+                VpnProfileKind.WARP,
+                activeWireGuardId = "awg",
+                profileId = "warp",
+                deleting = false,
+            ),
         )
         assertEquals(
             ProfileTunnelAction.NONE,
-            warpMutationTunnelAction(VpnProfileKind.VLESS, deleting = false),
+            wireGuardMutationTunnelAction(
+                VpnProfileKind.WARP,
+                activeWireGuardId = "awg",
+                profileId = "warp",
+                deleting = true,
+            ),
+        )
+        assertEquals(
+            ProfileTunnelAction.NONE,
+            wireGuardMutationTunnelAction(
+                VpnProfileKind.VLESS,
+                activeWireGuardId = "awg",
+                profileId = "awg",
+                deleting = false,
+            ),
         )
     }
 }
