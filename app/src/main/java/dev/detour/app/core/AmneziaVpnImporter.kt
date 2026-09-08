@@ -166,10 +166,12 @@ object AmneziaVpnImporter {
         return output.toByteArray()
     }
 
-    private fun JSONArray.objectsStrict(): List<JSONObject>? = buildList {
+    private fun JSONArray.objectsStrict(): List<JSONObject>? {
+        val result = ArrayList<JSONObject>(length())
         for (index in 0 until length()) {
-            add(optJSONObject(index) ?: return null)
+            result += optJSONObject(index) ?: return null
         }
+        return result
     }
 
     private fun JSONArray.singleObject(): JSONObject? =
