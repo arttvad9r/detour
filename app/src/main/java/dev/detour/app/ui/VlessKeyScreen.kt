@@ -38,7 +38,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -64,7 +63,9 @@ import dev.detour.app.core.VlessKeyParser
 import dev.detour.app.core.VlessProfile
 import dev.detour.app.core.VpnProfileKind
 import dev.detour.app.core.WarpProfile
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.UUID
 
 private const val PROFILES_SCREEN_TEST_TAG = "profiles_screen"
@@ -77,12 +78,6 @@ private data class ProfileGroups(
 
 private fun parsedProfile(key: VlessKey): VlessProfile? =
     (VlessKeyParser.parse(key.uri) as? ParseResult.Ok)?.profile
-
-private fun profileTabFor(kind: VpnProfileKind): Int = when (kind) {
-    VpnProfileKind.VLESS -> 0
-    VpnProfileKind.SUBSCRIPTION -> 1
-    VpnProfileKind.WARP -> 2
-}
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
@@ -106,6 +101,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
     val warpImporting = warpImportStatus == WarpImportStatus.IMPORTING
     val vlessSaveStatus = state.vlessSaveStatus
     val vlessSaving = vlessSaveStatus == VlessSaveStatus.SAVING
+    val importBusy = warpImporting || vlessSaving
     val vlessFallbackTitle = stringResource(R.string.protocol_vless)
     val subscriptionFallbackTitle = stringResource(R.string.subscription_profile_section)
 
@@ -117,52 +113,56 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
         )
     }
 
-    var selectedTab by rememberSaveable { mutableIntStateOf(profileTabFor(activeVpn)) }
-    LaunchedEffect(activeVpn) {
-        selectedTab = profileTabFor(activeVpn)
-    }
-
+    var showAddMenu by rememberSaveable { mutableStateOf(false) }
     var editingId by rememberSaveable { mutableStateOf<String?>(null) }
-    var editorTab by rememberSaveable { mutableIntStateOf(0) }
+    var editingSubscription by rememberSaveable { mutableStateOf(false) }
     var showEditor by rememberSaveable { mutableStateOf(false) }
+    var suppressWarpNotice by rememberSaveable { mutableStateOf(false) }
     // Credential drafts deliberately stay process-memory-only. Recreating the
     // Activity must not serialize a VLESS/subscription URI into saved instance state.
     var field by remember { mutableStateOf("") }
+
     val parse = remember(field) {
         field.trim().takeIf { it.isNotBlank() }?.let(VlessKeyParser::parse)
     }
     val parsed = parse as? ParseResult.Ok
-    val expectsSubscription = editorTab == 1
-    val parsedMatchesEditor = parsed?.profile?.isSubscription == expectsSubscription
+    val directVlessSource = field.trim().startsWith("vless://", ignoreCase = true)
+    val parsedMatchesEditor = when {
+        parsed == null -> false
+        editingSubscription -> parsed.profile.isSubscription
+        editingId != null -> !parsed.profile.isSubscription
+        else -> !parsed.profile.isSubscription && directVlessSource
+    }
+
     val currentVlessSaving = rememberUpdatedState(vlessSaving)
-    val confirmSheetValueChange = remember {
+    val confirmEditorSheetValueChange = remember {
         { target: SheetValue -> !currentVlessSaving.value || target != SheetValue.Hidden }
     }
-    val sheetState = rememberModalBottomSheetState(
+    val editorSheetState = rememberModalBottomSheetState(
         skipPartiallyExpanded = true,
-        confirmValueChange = confirmSheetValueChange,
+        confirmValueChange = confirmEditorSheetValueChange,
     )
+    val addSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val activity = LocalContext.current.findActivity()
     DisposableEffect(showEditor, activity) {
-        if (showEditor) {
-            activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        }
+        if (showEditor) activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         onDispose {
-            if (showEditor) {
-                activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-            }
+            if (showEditor) activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
         }
     }
 
     val warpLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let { viewModel.importWarpDocument(it.toString()) }
+        uri?.let {
+            suppressWarpNotice = false
+            viewModel.importWarpDocument(it.toString())
+        }
     }
 
-    LaunchedEffect(vlessSaveStatus, sheetState) {
+    LaunchedEffect(vlessSaveStatus, editorSheetState) {
         if (vlessSaveStatus == VlessSaveStatus.SAVED) {
             haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-            runCatching { sheetState.hide() }
+            runCatching { editorSheetState.hide() }
             showEditor = false
             field = ""
             viewModel.acknowledgeVlessSave()
@@ -175,24 +175,24 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
         viewModel.warpImportRejected.collect { haptics.performHapticFeedback(HapticFeedbackType.Reject) }
     }
 
-    fun beginEditor(key: VlessKey? = null, tab: Int = selectedTab) {
+    fun beginEditor(key: VlessKey? = null, subscription: Boolean = false) {
         viewModel.clearVlessSaveError()
         editingId = key?.id
         field = key?.uri ?: ""
-        editorTab = key?.let { if (parsedProfile(it)?.isSubscription == true) 1 else 0 }
-            ?: tab.coerceIn(0, 1)
+        editingSubscription = key?.let { parsedProfile(it)?.isSubscription == true } ?: subscription
+        showAddMenu = false
         showEditor = true
     }
 
     fun dismissEditor() {
         scope.launch {
-            runCatching { sheetState.hide() }
+            runCatching { editorSheetState.hide() }
             showEditor = false
             field = ""
         }
     }
 
-    fun pasteWarpInvite() {
+    fun pasteAmneziaInvite() {
         scope.launch {
             val raw = clipboard.getClipEntry()
                 ?.clipData
@@ -203,14 +203,31 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                 .trim()
                 .replace("\r", "")
                 .replace("\n", "")
-            viewModel.importWarpInvite(raw)
-        }
-    }
+            showAddMenu = false
+            viewModel.clearVlessSaveError()
+            suppressWarpNotice = false
 
-    val addButtonText = when (selectedTab) {
-        0 -> stringResource(R.string.profile_add_vless_action)
-        1 -> stringResource(R.string.profile_add_subscription_action)
-        else -> stringResource(if (warpProfile == null) R.string.warp_import else R.string.warp_replace)
+            if (!raw.startsWith("vpn://", ignoreCase = true)) {
+                viewModel.importWarpInvite(raw)
+                return@launch
+            }
+
+            val parsedInvite = withContext(Dispatchers.Default) { VlessKeyParser.parse(raw) }
+            if (parsedInvite is ParseResult.Ok && !parsedInvite.profile.isSubscription) {
+                suppressWarpNotice = true
+                val profile = parsedInvite.profile
+                viewModel.saveVless(
+                    VlessKey(
+                        id = UUID.randomUUID().toString(),
+                        name = profile.name.ifBlank { profile.server.ifBlank { vlessFallbackTitle } },
+                        uri = raw,
+                    ),
+                    isNew = true,
+                )
+            } else {
+                viewModel.importWarpInvite(raw)
+            }
+        }
     }
 
     Scaffold(
@@ -219,31 +236,17 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
             .fillMaxSize(),
         containerColor = c.background,
         bottomBar = {
-            if (!showEditor && !warpImporting) {
+            if (!showEditor && !importBusy) {
                 Box(
                     Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
                         .padding(horizontal = Spacing.space16, vertical = Spacing.space8),
                 ) {
-                    if (selectedTab == 2) {
-                        Column(verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
-                            DetourButton(
-                                text = stringResource(R.string.warp_paste_invite),
-                                onClick = ::pasteWarpInvite,
-                                style = ButtonStyle.SECONDARY,
-                            )
-                            DetourButton(
-                                text = addButtonText,
-                                onClick = { warpLauncher.launch(arrayOf("*/*")) },
-                            )
-                        }
-                    } else {
-                        DetourButton(
-                            text = addButtonText,
-                            onClick = { beginEditor(tab = selectedTab) },
-                        )
-                    }
+                    DetourButton(
+                        text = stringResource(R.string.profile_add_action),
+                        onClick = { showAddMenu = true },
+                    )
                 }
             }
         },
@@ -260,38 +263,39 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
 
             DetourContentColumn {
                 Spacer(Modifier.height(Spacing.space8))
-                SegmentedControl(
-                    options = listOf(
-                        stringResource(R.string.protocol_vless),
-                        stringResource(R.string.subscription_profile_section),
-                        stringResource(R.string.protocol_warp),
-                    ),
-                    selected = selectedTab,
-                    onSelect = { selectedTab = it },
-                    modifier = Modifier.padding(horizontal = Spacing.space16),
-                )
-                Spacer(Modifier.height(Spacing.space16))
 
-                when (selectedTab) {
-                    0 -> ProfileKeyList(
-                        items = groups.vless,
-                        kind = VpnProfileKind.VLESS,
-                        activeVpn = activeVpn,
-                        activeVlessId = activeVlessId,
-                        onEdit = { beginEditor(it) },
-                        onDelete = viewModel::deleteVless,
-                        onSelect = { keyId ->
-                            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                            viewModel.selectVless(keyId)
-                        },
-                    )
-                    1 -> {
+                val hasProfiles = groups.vless.isNotEmpty() ||
+                    groups.subscriptions.isNotEmpty() ||
+                    groups.warp != null
+
+                if (!hasProfiles) {
+                    EmptyProfilesCard()
+                } else {
+                    if (groups.vless.isNotEmpty()) {
+                        ProfileSectionTitle(stringResource(R.string.profile_section_vless))
+                        ProfileKeyList(
+                            items = groups.vless,
+                            kind = VpnProfileKind.VLESS,
+                            activeVpn = activeVpn,
+                            activeVlessId = activeVlessId,
+                            onEdit = { beginEditor(it) },
+                            onDelete = viewModel::deleteVless,
+                            onSelect = { keyId ->
+                                haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                viewModel.selectVless(keyId)
+                            },
+                        )
+                    }
+
+                    if (groups.subscriptions.isNotEmpty()) {
+                        if (groups.vless.isNotEmpty()) Spacer(Modifier.height(Spacing.space16))
+                        ProfileSectionTitle(stringResource(R.string.profile_section_subscriptions))
                         ProfileKeyList(
                             items = groups.subscriptions,
                             kind = VpnProfileKind.SUBSCRIPTION,
                             activeVpn = activeVpn,
                             activeVlessId = activeVlessId,
-                            onEdit = { beginEditor(it) },
+                            onEdit = { beginEditor(it, subscription = true) },
                             onDelete = viewModel::deleteVless,
                             onSelect = { keyId ->
                                 haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
@@ -302,28 +306,95 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                             it.id == activeVlessId && activeVpn == VpnProfileKind.SUBSCRIPTION
                         }
                         if (activeSubscription != null) {
-                            Spacer(Modifier.height(Spacing.space16))
+                            Spacer(Modifier.height(Spacing.space12))
                             SubscriptionRuntimeSection()
                         }
                     }
-                    2 -> WarpProfileList(
-                        profile = groups.warp,
-                        selected = activeVpn == VpnProfileKind.WARP,
-                        importing = warpImporting,
-                        onEdit = { warpLauncher.launch(arrayOf("*/*")) },
-                        onDelete = viewModel::deleteWarp,
-                        onClick = {
-                            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
-                            viewModel.selectWarp()
-                        },
-                    )
+
+                    if (groups.warp != null) {
+                        if (groups.vless.isNotEmpty() || groups.subscriptions.isNotEmpty()) {
+                            Spacer(Modifier.height(Spacing.space16))
+                        }
+                        ProfileSectionTitle(stringResource(R.string.profile_section_wireguard))
+                        WarpProfileList(
+                            profile = groups.warp,
+                            selected = activeVpn == VpnProfileKind.WARP,
+                            importing = warpImporting,
+                            onEdit = { warpLauncher.launch(arrayOf("*/*")) },
+                            onDelete = viewModel::deleteWarp,
+                            onClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                viewModel.selectWarp()
+                            },
+                        )
+                    }
                 }
 
-                if (warpImportStatus != WarpImportStatus.IDLE) {
+                if (!suppressWarpNotice && warpImportStatus != WarpImportStatus.IDLE) {
                     Spacer(Modifier.height(Spacing.space12))
                     ProfileOperationNotice(warpImportStatus)
                 }
+                if (!showEditor && vlessSaveStatus == VlessSaveStatus.ERROR) {
+                    Spacer(Modifier.height(Spacing.space12))
+                    ProfileImportErrorNotice()
+                }
                 Spacer(Modifier.height(Spacing.space24))
+            }
+        }
+    }
+
+    if (showAddMenu) {
+        ModalBottomSheet(
+            onDismissRequest = { showAddMenu = false },
+            sheetState = addSheetState,
+            containerColor = c.background,
+            contentColor = c.textPrimary,
+        ) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.space16),
+            ) {
+                Text(
+                    text = stringResource(R.string.profile_add_title),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = c.textPrimary,
+                    modifier = Modifier.padding(horizontal = Spacing.space4, vertical = Spacing.space12),
+                )
+                DetourCard {
+                    DetourNavigationRow(
+                        title = stringResource(R.string.profile_add_amnezia),
+                        subtitle = stringResource(R.string.profile_add_amnezia_hint),
+                        iconRes = R.drawable.ic_lock,
+                        onClick = ::pasteAmneziaInvite,
+                    )
+                    GroupDivider(startInset = NavigationRowDividerInset)
+                    DetourNavigationRow(
+                        title = stringResource(R.string.profile_add_vless_action),
+                        subtitle = stringResource(R.string.profile_add_vless_hint),
+                        iconRes = R.drawable.ic_lock,
+                        onClick = { beginEditor(subscription = false) },
+                    )
+                    GroupDivider(startInset = NavigationRowDividerInset)
+                    DetourNavigationRow(
+                        title = stringResource(R.string.profile_add_subscription_action),
+                        subtitle = stringResource(R.string.profile_add_subscription_hint),
+                        iconRes = R.drawable.ic_globe,
+                        onClick = { beginEditor(subscription = true) },
+                    )
+                    GroupDivider(startInset = NavigationRowDividerInset)
+                    DetourNavigationRow(
+                        title = stringResource(R.string.profile_import_file),
+                        subtitle = stringResource(R.string.profile_import_file_hint),
+                        iconRes = R.drawable.ic_routes,
+                        onClick = {
+                            showAddMenu = false
+                            suppressWarpNotice = false
+                            warpLauncher.launch(arrayOf("*/*"))
+                        },
+                    )
+                }
+                Spacer(Modifier.navigationBarsPadding().height(Spacing.space16))
             }
         }
     }
@@ -336,29 +407,29 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                     field = ""
                 }
             },
-            sheetState = sheetState,
+            sheetState = editorSheetState,
             containerColor = c.background,
             contentColor = c.textPrimary,
         ) {
-             Column(
-                 Modifier
-                     .fillMaxWidth()
-                     .imePadding()
-                     .verticalScroll(rememberScrollState())
-                     .padding(horizontal = Spacing.space20),
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .imePadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = Spacing.space20),
             ) {
                 Row(
                     Modifier.padding(top = Spacing.space4, bottom = Spacing.space16),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     DetourIconTile(
-                        iconRes = if (expectsSubscription) R.drawable.ic_globe else R.drawable.ic_lock,
+                        iconRes = if (editingSubscription) R.drawable.ic_globe else R.drawable.ic_lock,
                         selected = true,
                     )
                     Text(
                         text = when {
                             editingId != null -> stringResource(R.string.vless_edit_title)
-                            expectsSubscription -> stringResource(R.string.profile_add_subscription_action)
+                            editingSubscription -> stringResource(R.string.profile_add_subscription_action)
                             else -> stringResource(R.string.profile_add_vless_action)
                         },
                         style = MaterialTheme.typography.titleMedium,
@@ -369,12 +440,12 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
 
                 val contextError = when {
                     parse is ParseResult.Err -> stringResource(
-                        if (expectsSubscription) R.string.profile_subscription_invalid
-                        else R.string.profile_vless_invalid,
+                        if (editingSubscription) R.string.profile_subscription_invalid
+                        else R.string.profile_vless_direct_invalid,
                     )
                     parsed != null && !parsedMatchesEditor -> stringResource(
-                        if (expectsSubscription) R.string.profile_subscription_wrong_type
-                        else R.string.profile_vless_wrong_type,
+                        if (editingSubscription) R.string.profile_subscription_wrong_type
+                        else R.string.profile_vless_direct_invalid,
                     )
                     vlessSaveStatus == VlessSaveStatus.ERROR -> stringResource(R.string.vless_save_error)
                     else -> null
@@ -387,20 +458,20 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                         field = value.replace("\r", "").replace("\n", "")
                     },
                     label = stringResource(
-                        if (expectsSubscription) R.string.profile_subscription_input_label
-                        else R.string.profile_vless_input_label,
+                        if (editingSubscription) R.string.profile_subscription_input_label
+                        else R.string.profile_vless_direct_input_label,
                     ),
                     placeholder = stringResource(
-                        if (expectsSubscription) R.string.profile_subscription_placeholder
-                        else R.string.profile_vless_placeholder,
+                        if (editingSubscription) R.string.profile_subscription_placeholder
+                        else R.string.profile_vless_direct_placeholder,
                     ),
                     helper = stringResource(
-                        if (expectsSubscription) R.string.profile_subscription_input_hint
-                        else R.string.profile_vless_input_hint,
+                        if (editingSubscription) R.string.profile_subscription_input_hint
+                        else R.string.profile_vless_direct_input_hint,
                     ),
                     error = contextError,
                     success = parsed?.takeIf { parsedMatchesEditor }?.let { result ->
-                        if (expectsSubscription) {
+                        if (editingSubscription) {
                             stringResource(R.string.subscription_profile_host, result.profile.server)
                         } else {
                             stringResource(
@@ -465,6 +536,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                                 uri = value,
                                 selectedNode = preservedNode,
                             )
+                            suppressWarpNotice = true
                             viewModel.saveVless(key, isNew = editingId == null)
                         },
                         modifier = Modifier.weight(1f),
@@ -477,6 +549,17 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
 }
 
 @Composable
+private fun ProfileSectionTitle(title: String) {
+    val c = detourColors
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelLarge,
+        color = c.textSecondary,
+        modifier = Modifier.padding(horizontal = Spacing.space20, vertical = Spacing.space8),
+    )
+}
+
+@Composable
 private fun ProfileKeyList(
     items: List<VlessKey>,
     kind: VpnProfileKind,
@@ -486,10 +569,7 @@ private fun ProfileKeyList(
     onDelete: (String) -> Unit,
     onSelect: (String) -> Unit,
 ) {
-    if (items.isEmpty()) {
-        EmptyProfilesCard()
-        return
-    }
+    if (items.isEmpty()) return
 
     DetourCard(
         Modifier
@@ -502,8 +582,8 @@ private fun ProfileKeyList(
             val title = profile?.name?.ifBlank { profile.server } ?: key.name
             val subtitle = when {
                 profile == null -> "—"
-                profile.isSubscription -> stringResource(R.string.subscription_profile_host, profile.server)
-                else -> "${profile.server}:${profile.port}"
+                profile.isSubscription -> stringResource(R.string.profile_subscription_row_subtitle, profile.server)
+                else -> stringResource(R.string.profile_vless_row_subtitle, profile.server, profile.port)
             }
             CompactProfileRow(
                 title = title,
@@ -530,9 +610,11 @@ private fun WarpProfileList(
     onDelete: () -> Unit,
     onClick: () -> Unit,
 ) {
-    if (profile == null) {
-        EmptyProfilesCard()
-        return
+    if (profile == null) return
+    val protocol = when {
+        profile.proxies.any { it.amnezia.version == 3 } -> stringResource(R.string.profile_amneziawg_31)
+        profile.name.contains("Amnezia", ignoreCase = true) -> stringResource(R.string.profile_amneziawg)
+        else -> stringResource(R.string.protocol_warp)
     }
 
     DetourCard(
@@ -542,7 +624,7 @@ private fun WarpProfileList(
     ) {
         CompactProfileRow(
             title = profile.name,
-            subtitle = stringResource(R.string.warp_subtitle, profile.proxies.size),
+            subtitle = stringResource(R.string.profile_wireguard_row_subtitle, protocol, profile.proxies.size),
             selected = selected,
             busy = importing,
             editDescription = stringResource(R.string.warp_replace),
@@ -671,9 +753,9 @@ private fun ProfileOperationNotice(status: WarpImportStatus) {
         }
         Text(
             text = when (status) {
-                WarpImportStatus.IMPORTING -> stringResource(R.string.warp_importing)
-                WarpImportStatus.NO_COMPATIBLE_PROXIES -> stringResource(R.string.warp_invalid)
-                WarpImportStatus.ERROR -> stringResource(R.string.warp_import_error)
+                WarpImportStatus.IMPORTING -> stringResource(R.string.profile_importing)
+                WarpImportStatus.NO_COMPATIBLE_PROXIES -> stringResource(R.string.profile_import_invalid)
+                WarpImportStatus.ERROR -> stringResource(R.string.profile_import_error)
                 WarpImportStatus.IDLE -> ""
             },
             style = MaterialTheme.typography.bodySmall,
@@ -681,6 +763,33 @@ private fun ProfileOperationNotice(status: WarpImportStatus) {
             modifier = Modifier
                 .padding(start = Spacing.space12)
                 .weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun ProfileImportErrorNotice() {
+    val c = detourColors
+    Row(
+        modifier = Modifier
+            .padding(horizontal = Spacing.space16)
+            .fillMaxWidth()
+            .background(c.errorSoft, AppShapes.small)
+            .border(1.dp, c.error.copy(alpha = 0.30f), AppShapes.small)
+            .padding(Spacing.space12),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painterResource(R.drawable.ic_warning),
+            contentDescription = null,
+            tint = c.error,
+            modifier = Modifier.size(18.dp),
+        )
+        Text(
+            text = stringResource(R.string.profile_import_error),
+            style = MaterialTheme.typography.bodySmall,
+            color = c.textPrimary,
+            modifier = Modifier.padding(start = Spacing.space12),
         )
     }
 }
