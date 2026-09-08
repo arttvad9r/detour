@@ -3,6 +3,8 @@ package dev.detour.app.ui
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import dev.detour.app.core.AmneziaVpnImportResult
+import dev.detour.app.core.AmneziaVpnImporter
 import dev.detour.app.core.ParseResult
 import dev.detour.app.core.VlessKey
 import dev.detour.app.core.VlessKeyParser
@@ -263,32 +265,32 @@ class ProfilesViewModel(
                     return@launch
                 }
                 when (val result = withContext(Dispatchers.Default) { WarpConfigImporter.parse(raw) }) {
-                    is WarpImportResult.Ok -> {
-                        profileMutationMutex.withLock {
-                            val tunnelAction = warpMutationTunnelAction(
-                                profilesUiState(settings.value).activeVpn,
-                                deleting = false,
-                            )
-                            setWarpProfile(result.profile)
-                            if (settings.value?.warpProfile != result.profile) {
-                                settings.first { it?.warpProfile == result.profile }
-                            }
-                            applyTunnelAction(tunnelAction)
-                            warpImportStatus.value = WarpImportStatus.IDLE
-                            _warpSaved.emit(Unit)
-                        }
-                    }
-                    WarpImportResult.NoCompatibleProxies -> {
-                        failWarpImport(WarpImportStatus.NO_COMPATIBLE_PROXIES)
-                    }
-                    WarpImportResult.Invalid -> {
-                        failWarpImport(WarpImportStatus.ERROR)
-                    }
+                    is WarpImportResult.Ok -> persistWarpProfile(result.profile)
+                    WarpImportResult.NoCompatibleProxies -> failWarpImport(WarpImportStatus.NO_COMPATIBLE_PROXIES)
+                    WarpImportResult.Invalid -> failWarpImport(WarpImportStatus.ERROR)
                 }
             } catch (cancelled: CancellationException) {
-                if (warpImportStatus.value == WarpImportStatus.IMPORTING) {
-                    warpImportStatus.value = WarpImportStatus.IDLE
+                resetWarpImportOnCancellation()
+                throw cancelled
+            } catch (_: Exception) {
+                failWarpImport(WarpImportStatus.ERROR)
+            }
+        }
+    }
+
+    fun importWarpInvite(raw: String) {
+        if (!canStartWarpImport(warpImportStatus.value)) return
+        warpImportStatus.value = WarpImportStatus.IMPORTING
+        viewModelScope.launch {
+            try {
+                when (val result = withContext(Dispatchers.Default) { AmneziaVpnImporter.parse(raw) }) {
+                    is AmneziaVpnImportResult.AmneziaWg -> persistWarpProfile(result.profile)
+                    is AmneziaVpnImportResult.XrayVless,
+                    AmneziaVpnImportResult.Unsupported -> failWarpImport(WarpImportStatus.NO_COMPATIBLE_PROXIES)
+                    AmneziaVpnImportResult.Invalid -> failWarpImport(WarpImportStatus.ERROR)
                 }
+            } catch (cancelled: CancellationException) {
+                resetWarpImportOnCancellation()
                 throw cancelled
             } catch (_: Exception) {
                 failWarpImport(WarpImportStatus.ERROR)
@@ -356,6 +358,28 @@ class ProfilesViewModel(
 
     fun selectWarp() {
         selectProfile(ProfileSelection.Warp)
+    }
+
+    private suspend fun persistWarpProfile(profile: WarpProfile) {
+        profileMutationMutex.withLock {
+            val tunnelAction = warpMutationTunnelAction(
+                profilesUiState(settings.value).activeVpn,
+                deleting = false,
+            )
+            setWarpProfile(profile)
+            if (settings.value?.warpProfile != profile) {
+                settings.first { it?.warpProfile == profile }
+            }
+            applyTunnelAction(tunnelAction)
+            warpImportStatus.value = WarpImportStatus.IDLE
+            _warpSaved.emit(Unit)
+        }
+    }
+
+    private fun resetWarpImportOnCancellation() {
+        if (warpImportStatus.value == WarpImportStatus.IMPORTING) {
+            warpImportStatus.value = WarpImportStatus.IDLE
+        }
     }
 
     private fun selectProfile(selection: ProfileSelection) {
