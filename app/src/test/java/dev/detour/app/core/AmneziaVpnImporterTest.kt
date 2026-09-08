@@ -31,6 +31,15 @@ class AmneziaVpnImporterTest {
         assertTrue(!profile.isSubscription)
     }
 
+    @Test fun `uses the same XRay defaults as Amnezia export`() {
+        val result = VlessKeyParser.parse(xrayInvite(includeDefaults = false))
+
+        assertTrue(result is ParseResult.Ok)
+        val profile = (result as ParseResult.Ok).profile
+        assertEquals("chrome", profile.fingerprint)
+        assertEquals("xtls-rprx-vision", profile.flow)
+    }
+
     @Test fun `rejects Amnezia invite without an XRay container`() {
         val root = JSONObject()
             .put("containers", JSONArray().put(JSONObject().put("container", "amnezia-awg")))
@@ -43,6 +52,12 @@ class AmneziaVpnImporterTest {
     @Test fun `rejects unsupported XRay transport`() {
         val result = AmneziaVpnImporter.parse(xrayInvite(network = "xhttp"))
         assertTrue(result is AmneziaVpnImportResult.Unsupported)
+    }
+
+    @Test fun `rejects malformed container entries instead of ignoring them`() {
+        val valid = decodeRoot(xrayInvite())
+        valid.getJSONArray("containers").put("not-an-object")
+        assertTrue(AmneziaVpnImporter.parse(encodeInvite(valid)) is AmneziaVpnImportResult.Invalid)
     }
 
     @Test fun `rejects malformed compressed invite`() {
@@ -58,30 +73,32 @@ class AmneziaVpnImporterTest {
         assertTrue(VlessKeyParser.parse(invite) is ParseResult.Err)
     }
 
-    private fun xrayInvite(network: String = "tcp"): String {
+    private fun xrayInvite(network: String = "tcp", includeDefaults: Boolean = true): String {
         val user = JSONObject()
             .put("encryption", "none")
-            .put("flow", "xtls-rprx-vision")
             .put("id", "b831381d-6324-4d53-ad4f-8cda48b30811")
+        if (includeDefaults) user.put("flow", "xtls-rprx-vision")
+
         val vnext = JSONObject()
             .put("address", "203.0.113.10")
             .put("port", 443)
             .put("users", JSONArray().put(user))
         val reality = JSONObject()
-            .put("fingerprint", "firefox")
             .put("publicKey", "SbVKOEMjK0sIlbwg4akyBg5mL5KZwwB-ed4eEE7YnRc")
             .put("serverName", "www.example.com")
             .put("shortId", "6ba85179")
+        if (includeDefaults) reality.put("fingerprint", "firefox")
+
+        val stream = JSONObject().put("realitySettings", reality)
+        if (includeDefaults || network != "tcp") {
+            stream.put("network", network)
+        }
+        if (includeDefaults) stream.put("security", "reality")
+
         val outbound = JSONObject()
             .put("protocol", "vless")
             .put("settings", JSONObject().put("vnext", JSONArray().put(vnext)))
-            .put(
-                "streamSettings",
-                JSONObject()
-                    .put("network", network)
-                    .put("security", "reality")
-                    .put("realitySettings", reality),
-            )
+            .put("streamSettings", stream)
         val lastConfig = JSONObject()
             .put("outbounds", JSONArray().put(outbound))
             .toString()
@@ -95,6 +112,21 @@ class AmneziaVpnImporterTest {
             .put("hostName", "203.0.113.10")
 
         return encodeInvite(root)
+    }
+
+    private fun decodeRoot(invite: String): JSONObject {
+        val compressed = Base64.getUrlDecoder().decode(invite.removePrefix("vpn://"))
+        val declaredSize = ((compressed[0].toInt() and 0xff) shl 24) or
+            ((compressed[1].toInt() and 0xff) shl 16) or
+            ((compressed[2].toInt() and 0xff) shl 8) or
+            (compressed[3].toInt() and 0xff)
+        val inflater = java.util.zip.Inflater()
+        inflater.setInput(compressed, 4, compressed.size - 4)
+        val output = ByteArray(declaredSize)
+        val length = inflater.inflate(output)
+        inflater.end()
+        check(length == declaredSize)
+        return JSONObject(String(output, StandardCharsets.UTF_8))
     }
 
     private fun encodeInvite(root: JSONObject): String {
