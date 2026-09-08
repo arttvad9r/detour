@@ -44,6 +44,7 @@ object VlessKeyParser {
         if (uri.startsWith("vpn://", ignoreCase = true)) {
             return when (val imported = AmneziaVpnImporter.parse(uri)) {
                 is AmneziaVpnImportResult.XrayVless -> ParseResult.Ok(imported.profile)
+                is AmneziaVpnImportResult.AmneziaWg,
                 AmneziaVpnImportResult.Unsupported,
                 AmneziaVpnImportResult.Invalid,
                 -> ParseResult.Err(ERR_FORMAT)

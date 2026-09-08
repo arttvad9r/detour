@@ -11,6 +11,7 @@ import java.util.zip.InflaterInputStream
 
 sealed interface AmneziaVpnImportResult {
     data class XrayVless(val profile: VlessProfile) : AmneziaVpnImportResult
+    data class AmneziaWg(val profile: WarpProfile) : AmneziaVpnImportResult
     data object Unsupported : AmneziaVpnImportResult
     data object Invalid : AmneziaVpnImportResult
 }
@@ -29,6 +30,7 @@ object AmneziaVpnImporter {
     private const val MAX_CONTAINERS = 32
     private const val MAX_XRAY_CONFIG_CHARS = 512 * 1024
     private const val DEFAULT_XRAY_FLOW = "xtls-rprx-vision"
+    private val AWG_CONTAINERS = setOf("amnezia-awg", "amnezia-awg2")
 
     fun parse(raw: String): AmneziaVpnImportResult {
         val uri = raw.trim()
@@ -46,13 +48,28 @@ object AmneziaVpnImporter {
             val containerObjects = containers.objectsStrict()
                 ?: return AmneziaVpnImportResult.Invalid
 
-            val xrayContainers = containerObjects.filter {
-                it.optString("container").equals("amnezia-xray", ignoreCase = true)
+            val recognized = containerObjects.filter { container ->
+                val type = container.optString("container").lowercase()
+                type == "amnezia-xray" || type in AWG_CONTAINERS
             }
-            if (xrayContainers.isEmpty()) return AmneziaVpnImportResult.Unsupported
-            if (xrayContainers.size != 1) return AmneziaVpnImportResult.Invalid
+            if (recognized.isEmpty()) return AmneziaVpnImportResult.Unsupported
 
-            parseXrayVless(root, xrayContainers.single())
+            val selected = if (recognized.size == 1) {
+                recognized.single()
+            } else {
+                val defaultContainer = root.optString("defaultContainer").trim().lowercase()
+                val matches = recognized.filter {
+                    it.optString("container").trim().lowercase() == defaultContainer
+                }
+                if (matches.size != 1) return AmneziaVpnImportResult.Invalid
+                matches.single()
+            }
+
+            when (selected.optString("container").trim().lowercase()) {
+                "amnezia-xray" -> parseXrayVless(root, selected)
+                in AWG_CONTAINERS -> parseAmneziaWg(root, selected)
+                else -> AmneziaVpnImportResult.Unsupported
+            }
         } catch (_: Exception) {
             AmneziaVpnImportResult.Invalid
         }
@@ -110,9 +127,7 @@ object AmneziaVpnImporter {
             return AmneziaVpnImportResult.Invalid
         }
 
-        val description = root.optString("description").trim()
-            .takeIf { it.isNotBlank() && it.length <= 256 && !hasControlCharacters(it) }
-            ?: address
+        val description = safeDescription(root, address)
         val host = if (address.contains(':')) "[$address]" else address
         val candidate = buildString {
             append("vless://")
@@ -138,6 +153,36 @@ object AmneziaVpnImporter {
         }
         return AmneziaVpnImportResult.XrayVless(profile)
     }
+
+    private fun parseAmneziaWg(root: JSONObject, container: JSONObject): AmneziaVpnImportResult {
+        val awg = container.optJSONObject("awg") ?: return AmneziaVpnImportResult.Invalid
+        val lastConfig = awg.optString("last_config")
+            .takeIf { it.isNotBlank() && it.length <= MAX_DECOMPRESSED_BYTES }
+            ?: return AmneziaVpnImportResult.Invalid
+        val client = try {
+            JSONObject(lastConfig)
+        } catch (_: Exception) {
+            return AmneziaVpnImportResult.Invalid
+        }
+        val nativeConfig = client.optString("config")
+            .takeIf { it.isNotBlank() && it.length <= WarpConfigImporter.MAX_CHARS }
+            ?: return AmneziaVpnImportResult.Invalid
+
+        return when (val imported = WarpConfigImporter.parse(nativeConfig)) {
+            is WarpImportResult.Ok -> {
+                val fallback = imported.profile.proxies.firstOrNull()?.server ?: "AmneziaWG"
+                val name = safeDescription(root, fallback)
+                AmneziaVpnImportResult.AmneziaWg(imported.profile.copy(name = name))
+            }
+            WarpImportResult.NoCompatibleProxies -> AmneziaVpnImportResult.Unsupported
+            WarpImportResult.Invalid -> AmneziaVpnImportResult.Invalid
+        }
+    }
+
+    private fun safeDescription(root: JSONObject, fallback: String): String =
+        root.optString("description").trim()
+            .takeIf { it.isNotBlank() && it.length <= 256 && !hasControlCharacters(it) }
+            ?: fallback
 
     private fun decodeQtCompressed(encoded: String): ByteArray? {
         if (encoded.isBlank()) return null

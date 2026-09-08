@@ -95,6 +95,7 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
+    val clipboard = LocalClipboard.current
     val c = detourColors
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val vlessItems = state.vlessItems
@@ -191,6 +192,21 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
         }
     }
 
+    fun pasteWarpInvite() {
+        scope.launch {
+            val raw = clipboard.getClipEntry()
+                ?.clipData
+                ?.getItemAt(0)
+                ?.text
+                ?.toString()
+                .orEmpty()
+                .trim()
+                .replace("\r", "")
+                .replace("\n", "")
+            viewModel.importWarpInvite(raw)
+        }
+    }
+
     val addButtonText = when (selectedTab) {
         0 -> stringResource(R.string.profile_add_vless_action)
         1 -> stringResource(R.string.profile_add_subscription_action)
@@ -210,16 +226,24 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                         .navigationBarsPadding()
                         .padding(horizontal = Spacing.space16, vertical = Spacing.space8),
                 ) {
-                    DetourButton(
-                        text = addButtonText,
-                        onClick = {
-                            if (selectedTab == 2) {
-                                warpLauncher.launch(arrayOf("*/*"))
-                            } else {
-                                beginEditor(tab = selectedTab)
-                            }
-                        },
-                    )
+                    if (selectedTab == 2) {
+                        Column(verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+                            DetourButton(
+                                text = stringResource(R.string.warp_paste_invite),
+                                onClick = ::pasteWarpInvite,
+                                style = ButtonStyle.SECONDARY,
+                            )
+                            DetourButton(
+                                text = addButtonText,
+                                onClick = { warpLauncher.launch(arrayOf("*/*")) },
+                            )
+                        }
+                    } else {
+                        DetourButton(
+                            text = addButtonText,
+                            onClick = { beginEditor(tab = selectedTab) },
+                        )
+                    }
                 }
             }
         },
@@ -392,7 +416,6 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                     maxLines = 5,
                 )
 
-                val clipboard = LocalClipboard.current
                 TextButton(
                     onClick = {
                         scope.launch {

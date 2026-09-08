@@ -243,32 +243,46 @@ $rules""".trim()
         p.ipv6?.let { fields += "  ipv6: ${yamlScalar(it)}" }
         fields += "  private-key: ${yamlScalar(p.privateKey)}"
         fields += "  public-key: ${yamlScalar(p.publicKey)}"
+        p.preSharedKey?.let { fields += "  pre-shared-key: ${yamlScalar(it)}" }
         if (p.reserved.isNotEmpty()) fields += "  reserved: [${p.reserved.joinToString(", ")}]"
         fields += "  allowed-ips: ${flowStrings(p.allowedIps)}"
         p.persistentKeepalive?.let { fields += "  persistent-keepalive: $it" }
         fields += "  udp: ${p.udp}"
         fields += "  mtu: ${p.mtu}"
-        // DNS is a Detour setting. Imported WARP profile DNS must not silently
+        // DNS is a Detour setting. Imported WARP/AWG profile DNS must not silently
         // override the resolver selected in Settings -> DNS.
         fields += "  remote-dns-resolve: false"
         fields += "  amnezia-wg-option:"
         val a = p.amnezia
         fun int(name: String, value: Int?) { if (value != null) fields += "    $name: $value" }
         fun str(name: String, value: String?) { if (!value.isNullOrBlank()) fields += "    $name: ${yamlScalar(value)}" }
+        fun bool(name: String, value: Boolean?) { if (value != null) fields += "    $name: $value" }
+        int("version", a.version)
         int("jc", a.jc)
         int("jmin", a.jmin)
         int("jmax", a.jmax)
         int("s1", a.s1)
         int("s2", a.s2)
-        int("h1", a.h1)
-        int("h2", a.h2)
-        int("h3", a.h3)
-        int("h4", a.h4)
+        int("s3", a.s3)
+        int("s4", a.s4)
+        str("h1", a.h1)
+        str("h2", a.h2)
+        str("h3", a.h3)
+        str("h4", a.h4)
         str("i1", a.i1)
         str("i2", a.i2)
         str("i3", a.i3)
         str("i4", a.i4)
         str("i5", a.i5)
+        str("header-protection-key", a.headerProtectionKey)
+        str("content-padding-addition", a.contentPaddingAddition)
+        str("rekey-after-time", a.rekeyAfterTime)
+        str("rekey-timeout", a.rekeyTimeout)
+        str("reject-after-time", a.rejectAfterTime)
+        str("keepalive-timeout", a.keepaliveTimeout)
+        str("max-handshake-attempts", a.maxHandshakeAttempts)
+        bool("random-trailers", a.randomTrailers)
+        bool("disable-cookies", a.disableCookies)
         return fields.joinToString("\n")
     }
 

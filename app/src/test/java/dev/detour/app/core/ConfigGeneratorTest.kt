@@ -31,7 +31,7 @@ class ConfigGeneratorTest {
                 dns = listOf("1.1.1.1"),
                 amnezia = AmneziaWgOptions(
                     jc = 4, jmin = 40, jmax = 70,
-                    s1 = 0, s2 = 0, h1 = 1, h2 = 2, h3 = 3, h4 = 4,
+                    s1 = 0, s2 = 0, h1 = "1", h2 = "2", h3 = "3", h4 = "4",
                     i1 = "<b 0x1234>",
                 ),
             ),
@@ -89,6 +89,51 @@ class ConfigGeneratorTest {
         assertTrue(yaml.contains("name: PROBE_WARP"))
         assertTrue(yaml.contains("proxy: WARP"))
         assertFalse(yaml.contains("type: vless"))
+    }
+
+    @Test fun `awg3 emits version psk and full v3 options`() {
+        val awg3 = warp.copy(
+            name = "AmneziaWG 3.1",
+            proxies = listOf(
+                warp.proxies.single().copy(
+                    preSharedKey = "psk-data",
+                    persistentKeepalive = 30,
+                    amnezia = AmneziaWgOptions(
+                        version = 3,
+                        jc = 5, jmin = 40, jmax = 90,
+                        s1 = 10, s2 = 11, s3 = 12, s4 = 13,
+                        h1 = "100-200", h2 = "2", h3 = "3", h4 = "4",
+                        i1 = "<b 0x1234>",
+                        headerProtectionKey = "hpk-data",
+                        contentPaddingAddition = "10-100",
+                        rekeyAfterTime = "100-120",
+                        rekeyTimeout = "3-7",
+                        rejectAfterTime = "150-180",
+                        keepaliveTimeout = "5-15",
+                        maxHandshakeAttempts = "15-20",
+                        randomTrailers = true,
+                        disableCookies = true,
+                    ),
+                ),
+            ),
+        )
+
+        val yaml = ConfigGenerator.build(input(vpn = VpnOutbound.Warp(awg3)))
+        assertTrue(yaml.contains("pre-shared-key: psk-data"))
+        assertTrue(yaml.contains("version: 3"))
+        assertTrue(yaml.contains("s3: 12"))
+        assertTrue(yaml.contains("s4: 13"))
+        assertTrue(yaml.contains("h1: 100-200"))
+        assertTrue(yaml.contains("header-protection-key: hpk-data"))
+        assertTrue(yaml.contains("content-padding-addition: 10-100"))
+        assertTrue(yaml.contains("rekey-after-time: 100-120"))
+        assertTrue(yaml.contains("rekey-timeout: 3-7"))
+        assertTrue(yaml.contains("reject-after-time: 150-180"))
+        assertTrue(yaml.contains("keepalive-timeout: 5-15"))
+        assertTrue(yaml.contains("max-handshake-attempts: 15-20"))
+        assertTrue(yaml.contains("random-trailers: true"))
+        assertTrue(yaml.contains("disable-cookies: true"))
+        assertTrue(yaml.contains("persistent-keepalive: 30"))
     }
 
     @Test fun `warp uses Detour dns instead of imported proxy dns`() {

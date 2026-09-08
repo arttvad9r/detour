@@ -17,8 +17,18 @@ object WarpConfigImporter {
 
     private val nativeInterfaceHeader = Regex("""(?im)^\s*\[Interface]\s*$""")
     private val amneziaKeys = setOf(
-        "jc", "jmin", "jmax", "s1", "s2", "h1", "h2", "h3", "h4",
-        "i1", "i2", "i3", "i4", "i5",
+        "jc", "jmin", "jmax", "s1", "s2", "s3", "s4", "h1", "h2", "h3", "h4",
+        "i1", "i2", "i3", "i4", "i5", "headerprotectionkey", "contentpaddingaddition",
+        "rekeyaftertime", "rekeytimeout", "rejectaftertime", "keepalivetimeout",
+        "maxhandshakeattempts", "randomtrailers", "disablecookies",
+    )
+    private val awg3NativeKeys = setOf(
+        "headerprotectionkey", "contentpaddingaddition", "rekeyaftertime", "rekeytimeout",
+        "rejectaftertime", "keepalivetimeout", "maxhandshakeattempts", "randomtrailers", "disablecookies",
+    )
+    private val awg3YamlKeys = setOf(
+        "header-protection-key", "content-padding-addition", "rekey-after-time", "rekey-timeout",
+        "reject-after-time", "keepalive-timeout", "max-handshake-attempts", "random-trailers", "disable-cookies",
     )
 
     fun parse(raw: String): WarpImportResult {
@@ -84,21 +94,34 @@ object WarpConfigImporter {
         val mtu = iface["mtu"]?.toIntOrNull() ?: 1280
         val reserved = csvIntList(iface["reserved"])
             ?: return WarpImportResult.NoCompatibleProxies
+        val version = nativeAwgVersion(iface)
         val amnezia = AmneziaWgOptions(
+            version = version,
             jc = iface.iniInt("jc"),
             jmin = iface.iniInt("jmin"),
             jmax = iface.iniInt("jmax"),
             s1 = iface.iniInt("s1"),
             s2 = iface.iniInt("s2"),
-            h1 = iface.iniInt("h1"),
-            h2 = iface.iniInt("h2"),
-            h3 = iface.iniInt("h3"),
-            h4 = iface.iniInt("h4"),
+            s3 = iface.iniInt("s3"),
+            s4 = iface.iniInt("s4"),
+            h1 = iface.iniValue("h1"),
+            h2 = iface.iniValue("h2"),
+            h3 = iface.iniValue("h3"),
+            h4 = iface.iniValue("h4"),
             i1 = iface.iniValue("i1"),
             i2 = iface.iniValue("i2"),
             i3 = iface.iniValue("i3"),
             i4 = iface.iniValue("i4"),
             i5 = iface.iniValue("i5"),
+            headerProtectionKey = iface.iniValue("headerprotectionkey"),
+            contentPaddingAddition = iface.iniValue("contentpaddingaddition"),
+            rekeyAfterTime = iface.iniValue("rekeyaftertime"),
+            rekeyTimeout = iface.iniValue("rekeytimeout"),
+            rejectAfterTime = iface.iniValue("rejectaftertime"),
+            keepaliveTimeout = iface.iniValue("keepalivetimeout"),
+            maxHandshakeAttempts = iface.iniValue("maxhandshakeattempts"),
+            randomTrailers = iface.iniBoolean("randomtrailers"),
+            disableCookies = iface.iniBoolean("disablecookies"),
         )
 
         val proxies = peers.asSequence().mapNotNull { section ->
@@ -107,20 +130,21 @@ object WarpConfigImporter {
                 val publicKey = requireNotNull(peer["publickey"]?.takeIf { it.isNotBlank() })
                 val endpoint = requireNotNull(parseEndpoint(peer["endpoint"] ?: ""))
                 val allowedIps = csv(peer["allowedips"]).ifEmpty { listOf("0.0.0.0/0") }
+                val rawKeepalive = peer["persistentkeepalive"] ?: iface["persistentkeepalive"]
                 WarpProxy(
-                    name = "WARP ${endpoint.first}:${endpoint.second}",
+                    name = if (version == 3) "AmneziaWG ${endpoint.first}:${endpoint.second}" else "WARP ${endpoint.first}:${endpoint.second}",
                     server = endpoint.first,
                     port = endpoint.second,
                     ip = ip,
                     ipv6 = ipv6,
                     privateKey = privateKey,
                     publicKey = publicKey,
+                    preSharedKey = peer["presharedkey"]?.takeIf { it.isNotBlank() },
                     reserved = reserved,
                     allowedIps = allowedIps,
                     udp = true,
                     mtu = mtu,
-                    persistentKeepalive = peer["persistentkeepalive"]?.toIntOrNull()
-                        ?: iface["persistentkeepalive"]?.toIntOrNull(),
+                    persistentKeepalive = normalizePersistentKeepalive(rawKeepalive),
                     remoteDnsResolve = true,
                     dns = dns,
                     amnezia = amnezia,
@@ -132,11 +156,13 @@ object WarpConfigImporter {
             .toList()
 
         if (proxies.isEmpty()) return WarpImportResult.NoCompatibleProxies
-        return WarpImportResult.Ok(WarpProfile.create(name = "WARP / AmneziaWG", proxies = proxies))
+        val profileName = if (version == 3) "AmneziaWG 3.1" else "WARP / AmneziaWG"
+        return WarpImportResult.Ok(WarpProfile.create(name = profileName, proxies = proxies))
     }
 
     private fun parseYamlProxy(map: Map<*, *>): WarpProxy? = runCatching {
         val amz = map["amnezia-wg-option"] as Map<*, *>
+        val version = yamlAwgVersion(amz)
         WarpProxy(
             name = map.string("name")?.takeIf { it.isNotBlank() } ?: "WARP",
             server = requireNotNull(map.string("server")),
@@ -145,31 +171,57 @@ object WarpConfigImporter {
             ipv6 = map.string("ipv6"),
             privateKey = requireNotNull(map.string("private-key")),
             publicKey = requireNotNull(map.string("public-key")),
+            preSharedKey = map.string("pre-shared-key"),
             reserved = requireNotNull(map.intList("reserved")),
             allowedIps = requireNotNull(map.stringList("allowed-ips")).ifEmpty { listOf("0.0.0.0/0") },
             udp = map.bool("udp") ?: true,
             mtu = map.int("mtu") ?: 1280,
-            persistentKeepalive = map.int("persistent-keepalive"),
+            persistentKeepalive = map.normalizedKeepalive("persistent-keepalive"),
             remoteDnsResolve = map.bool("remote-dns-resolve") ?: true,
             dns = requireNotNull(map.stringList("dns")),
             amnezia = AmneziaWgOptions(
+                version = version,
                 jc = amz.int("jc"),
                 jmin = amz.int("jmin"),
                 jmax = amz.int("jmax"),
                 s1 = amz.int("s1"),
                 s2 = amz.int("s2"),
-                h1 = amz.int("h1"),
-                h2 = amz.int("h2"),
-                h3 = amz.int("h3"),
-                h4 = amz.int("h4"),
+                s3 = amz.int("s3"),
+                s4 = amz.int("s4"),
+                h1 = amz.string("h1"),
+                h2 = amz.string("h2"),
+                h3 = amz.string("h3"),
+                h4 = amz.string("h4"),
                 i1 = amz.string("i1"),
                 i2 = amz.string("i2"),
                 i3 = amz.string("i3"),
                 i4 = amz.string("i4"),
                 i5 = amz.string("i5"),
+                headerProtectionKey = amz.string("header-protection-key"),
+                contentPaddingAddition = amz.string("content-padding-addition"),
+                rekeyAfterTime = amz.string("rekey-after-time"),
+                rekeyTimeout = amz.string("rekey-timeout"),
+                rejectAfterTime = amz.string("reject-after-time"),
+                keepaliveTimeout = amz.string("keepalive-timeout"),
+                maxHandshakeAttempts = amz.string("max-handshake-attempts"),
+                randomTrailers = amz.flexibleBool("random-trailers"),
+                disableCookies = amz.flexibleBool("disable-cookies"),
             ),
         ).also(::validateWarpProxy)
     }.getOrNull()
+
+    private fun nativeAwgVersion(iface: Map<String, String>): Int? {
+        val explicit = iface["protocol_version"]?.trim()
+        if (explicit?.startsWith("3") == true) return 3
+        if (iface.keys.any { it in awg3NativeKeys }) return 3
+        return null
+    }
+
+    private fun yamlAwgVersion(amz: Map<*, *>): Int? {
+        val explicit = amz.int("version")
+        if (explicit != null) return explicit
+        return if (awg3YamlKeys.any(amz::containsKey)) 3 else null
+    }
 
     private data class IniSection(val name: String, val values: Map<String, String>)
 
@@ -219,6 +271,22 @@ object WarpConfigImporter {
         return if (server.isNotEmpty() && port in 1..65535) server to port else null
     }
 
+    private fun normalizePersistentKeepalive(value: String?): Int? {
+        val raw = value?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        raw.toIntOrNull()?.let {
+            require(it in 0..65535)
+            return it
+        }
+        val parts = raw.split('-', limit = 2)
+        require(parts.size == 2)
+        val min = requireNotNull(parts[0].trim().toIntOrNull())
+        val max = requireNotNull(parts[1].trim().toIntOrNull())
+        require(min in 0..65535 && max in min..65535)
+        // Mihomo intentionally keeps standard WireGuard's integer field. AWG 3.1
+        // accepts a range client-side; use its midpoint without changing the server contract.
+        return min + (max - min) / 2
+    }
+
     private fun csv(value: String?): List<String> =
         value?.split(',')?.mapNotNull { it.trim().takeIf(String::isNotEmpty) }.orEmpty()
 
@@ -229,6 +297,7 @@ object WarpConfigImporter {
 
     private fun Map<String, String>.iniInt(key: String): Int? = this[key]?.toIntOrNull()
     private fun Map<String, String>.iniValue(key: String): String? = this[key]?.takeIf { it.isNotBlank() }
+    private fun Map<String, String>.iniBoolean(key: String): Boolean? = this[key]?.let(::parseFlexibleBoolean)
 
     private fun Map<*, *>.string(key: String): String? =
         this[key]?.toString()?.trim()?.takeIf { it.isNotEmpty() }
@@ -247,6 +316,24 @@ object WarpConfigImporter {
             else -> null
         }
         else -> null
+    }
+
+    private fun Map<*, *>.flexibleBool(key: String): Boolean? = when (val value = this[key]) {
+        null -> null
+        is Boolean -> value
+        is Number -> when (value.toInt()) { 1 -> true; 0 -> false; else -> null }
+        else -> parseFlexibleBoolean(value.toString())
+    }
+
+    private fun parseFlexibleBoolean(value: String): Boolean? = when (value.trim().lowercase()) {
+        "true", "on", "1" -> true
+        "false", "off", "0" -> false
+        else -> null
+    }
+
+    private fun Map<*, *>.normalizedKeepalive(key: String): Int? {
+        if (!containsKey(key)) return null
+        return normalizePersistentKeepalive(this[key]?.toString())
     }
 
     private fun Map<*, *>.stringList(key: String): List<String>? {
