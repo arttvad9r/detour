@@ -1,0 +1,32 @@
+name: Apply selected row polish
+
+on:
+  push:
+    branches:
+      - release/final-ui-polish
+    paths:
+      - tools/soften_selected_rows.py
+      - .github/workflows/apply-selected-row-polish.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: release/final-ui-polish
+          fetch-depth: 0
+      - name: Apply selected row polish
+        run: python3 tools/soften_selected_rows.py
+      - name: Commit polished source
+        run: |
+          set -euo pipefail
+          rm tools/soften_selected_rows.py .github/workflows/apply-selected-row-polish.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Soften large selected row surfaces"
+          git push origin HEAD:release/final-ui-polish
