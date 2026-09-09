@@ -89,6 +89,7 @@ class RoutesStoreInstrumentedTest {
             dnsCustom = before.dnsCustom,
             routes = before.routes.mapValues { it.value.name },
             showSystemApps = before.showSystemApps,
+            wireGuardProfiles = before.wireGuardProfiles,
         )
         val expectedKeys = VlessKeys(
             items = listOf(
@@ -157,6 +158,7 @@ class RoutesStoreInstrumentedTest {
 
         try {
             runCatching { store.deleteVlessKey(id) }
+            store.deleteWireGuardProfile(warp.id)
             store.addVlessKey(VlessKey(id, "Encrypted", secretUri))
             store.addWireGuardProfile(warp)
 
