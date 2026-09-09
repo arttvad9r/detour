@@ -158,6 +158,39 @@ jobs:
           KEYSTORE_PATH="$RUNNER_TEMP/detour-release.keystore"
           printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_PATH"
           chmod 600 "$KEYSTORE_PATH"
+      - name: Validate release key material
+        shell: bash
+        env:
+          STORE_PASSWORD: ${{ secrets.DETOUR_RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.DETOUR_RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.DETOUR_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KEYSTORE_PATH="$RUNNER_TEMP/detour-release.keystore"
+          export STORE_PASSWORD KEY_PASSWORD
+
+          keytool -list \
+            -keystore "$KEYSTORE_PATH" \
+            -storepass:env STORE_PASSWORD \
+            -alias "$KEY_ALIAS" \
+            >/dev/null
+
+          TEMP_KEYSTORE="$RUNNER_TEMP/detour-release-key-check.p12"
+          TEMP_PASSWORD="$(openssl rand -hex 32)"
+          export TEMP_PASSWORD
+          trap 'rm -f "$TEMP_KEYSTORE"' EXIT
+
+          keytool -importkeystore \
+            -srckeystore "$KEYSTORE_PATH" \
+            -srcstorepass:env STORE_PASSWORD \
+            -srcalias "$KEY_ALIAS" \
+            -srckeypass:env KEY_PASSWORD \
+            -destkeystore "$TEMP_KEYSTORE" \
+            -deststoretype PKCS12 \
+            -deststorepass:env TEMP_PASSWORD \
+            -destkeypass:env TEMP_PASSWORD \
+            -noprompt \
+            >/dev/null
       - name: Build signed arm64 release APK
         env:
           DETOUR_RELEASE_KEYSTORE: ${{ runner.temp }}/detour-release.keystore
@@ -240,3 +273,4 @@ jobs:
               --verify-tag \
               --generate-notes \
               --title "Detour $VERSION_NAME"
+          fi
