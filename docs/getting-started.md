@@ -15,6 +15,31 @@ Open the [latest GitHub release](https://github.com/arttvad9r/detour/releases/la
 
 Android may ask you to allow installation from the browser or file manager you used to open the APK. That is an Android package-install permission; Detour does not need it after installation.
 
+### Verify the downloaded APK
+
+Each public release also includes a `.sha256` file produced from the signed release APK. Download both files into the same directory and verify them before installation:
+
+```bash
+sha256sum -c detour-<version>-arm64.apk.sha256
+```
+
+A successful check should report `OK`. If the checksum does not match, do not install that file; download the release again from this repository.
+
+### Google Play Protect warning or block
+
+Detour is currently distributed through GitHub Releases rather than Google Play. Google Play Protect checks apps installed from other sources and may ask to scan an app it has not seen before, warn about it, or block installation.
+
+Keep Play Protect enabled. If Android offers to scan the APK, allow the scan. Do not disable Play Protect globally just to install Detour.
+
+If Play Protect explicitly blocks a Detour release:
+
+1. Confirm that the APK came from this repository's **GitHub Releases** page and that its SHA-256 checksum matches.
+2. Record the Detour version, Android version, Play Protect message, and a screenshot of the warning.
+3. Do not force-install a file that failed verification or that Play Protect identifies as harmful.
+4. Report a reproducible false positive to the project. Maintainers can use Google's official [Play Protect appeal form](https://support.google.com/googleplay/android-developer/contact/protectappeals) when a release is incorrectly flagged.
+
+Google's general Play Protect documentation is available in [Google Play Help](https://support.google.com/googleplay/answer/2812853).
+
 ## 2. Add a VPN profile
 
 Open **Settings → VPN profiles** and tap **Add**.
