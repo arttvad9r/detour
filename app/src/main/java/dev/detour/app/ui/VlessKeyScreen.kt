@@ -669,7 +669,7 @@ private fun CompactProfileRow(
             .detourSelectable(
                 selected = selected,
                 onClick = onClick,
-                idleColor = if (selected) c.surfaceSelected else Color.Transparent,
+                idleColor = if (selected) c.surfaceSoft else Color.Transparent,
                 pressedColor = c.surfaceSelected,
                 pressScale = Motion.PRESS_RADIO,
             )
