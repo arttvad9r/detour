@@ -23,14 +23,13 @@ Open-source клиент для Android, в котором можно выбра
 </div>
 
 <p align="center">
-  <img src="docs/assets/screenshots/settings.jpg" width="200" alt="Настройки Detour">
-  <img src="docs/assets/screenshots/dns.jpg" width="200" alt="DNS в Detour">
+  <img src="docs/assets/screenshots/product-settings.jpg" width="290" alt="Настройки и управление маршрутами Detour">&nbsp;&nbsp;
+  <img src="docs/assets/screenshots/product-dpi-test.jpg" width="290" alt="Тест стратегий ByeDPI в Detour">
 </p>
 <p align="center">
-  <img src="docs/assets/screenshots/dpi-bypass.jpg" width="200" alt="Обход DPI в Detour">
-  <img src="docs/assets/screenshots/appearance.jpg" width="200" alt="Темы Detour">
+  <img src="docs/assets/screenshots/product-dpi-bypass.jpg" width="290" alt="Настройка обхода DPI в Detour">&nbsp;&nbsp;
+  <img src="docs/assets/screenshots/product-appearance.jpg" width="290" alt="Темы оформления Detour">
 </p>
-<p align="center"><sub>Реальные скриншоты Detour с Android-устройства. Без сгенерированных макетов и без приватных данных VPN-конфигураций.</sub></p>
 
 ## Один туннель. Три маршрута.
 
