@@ -1,0 +1,32 @@
+name: Apply final release polish
+
+on:
+  push:
+    branches:
+      - release/final-ui-polish
+    paths:
+      - tools/apply_final_release_polish.py
+      - .github/workflows/apply-final-release-polish.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: release/final-ui-polish
+          fetch-depth: 0
+      - name: Apply final polish
+        run: python3 tools/apply_final_release_polish.py
+      - name: Commit polished source
+        run: |
+          set -euo pipefail
+          rm tools/apply_final_release_polish.py .github/workflows/apply-final-release-polish.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Polish UI and prepare public release"
+          git push origin HEAD:release/final-ui-polish
