@@ -25,6 +25,11 @@ captures/
 # Signing / secrets
 *.jks
 *.keystore
+*.p12
+*.pfx
+*.pkcs12
+.env
+.env.*
 
 # OS metadata
 .DS_Store

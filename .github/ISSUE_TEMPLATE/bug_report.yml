@@ -1,0 +1,47 @@
+name: Bug report
+description: Report a reproducible Detour problem
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not post VPN invitations, private keys, preshared keys, VLESS/Reality credentials, keystores or other secrets. Redact logs before attaching them.
+  - type: input
+    id: version
+    attributes:
+      label: Detour version / commit
+      placeholder: v0.1.0 or commit SHA
+    validations:
+      required: true
+  - type: input
+    id: android
+    attributes:
+      label: Android version and device
+      placeholder: Android 16, Pixel 9
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Use synthetic/redacted configuration only.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs or screenshots
+      description: Optional. Verify that no credentials or invitation links are present.

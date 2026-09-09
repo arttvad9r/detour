@@ -37,8 +37,8 @@ private enum class SupportingTone { ERROR, SUCCESS, HELPER }
 private data class SupportingText(val text: String, val tone: SupportingTone)
 
 /**
- * Shared Detour input treatment. Focus is communicated through a restrained
- * violet surface/border shift while validation remains semantic and readable.
+ * Shared Detour input treatment. Focus and validation are communicated by the
+ * border, label, cursor and supporting text while the field surface stays neutral.
  */
 @Composable
 fun DetourInputField(
@@ -71,12 +71,7 @@ fun DetourInputField(
         focused -> c.accent
         else -> c.textSecondary
     }
-    val targetContainer = when {
-        !enabled -> c.surfaceSoft
-        error != null -> c.errorSoft.copy(alpha = 0.38f)
-        focused -> c.accentSoft.copy(alpha = 0.54f)
-        else -> c.surface
-    }
+    val targetContainer = if (enabled) c.surface else c.surfaceSoft
     val borderColor by animateColorAsState(targetBorder, tween(Motion.COLOR_MS), label = "fieldBorder")
     val labelColor by animateColorAsState(targetLabel, tween(Motion.COLOR_MS), label = "fieldLabel")
     val containerColor by animateColorAsState(targetContainer, tween(Motion.COLOR_MS), label = "fieldContainer")
