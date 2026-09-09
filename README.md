@@ -23,14 +23,13 @@ Keep selected apps direct, route others through VPN, and use ByeDPI only where n
 </div>
 
 <p align="center">
-  <img src="docs/assets/screenshots/settings.jpg" width="200" alt="Detour settings">
-  <img src="docs/assets/screenshots/dns.jpg" width="200" alt="Detour DNS settings">
+  <img src="docs/assets/screenshots/product-settings.jpg" width="290" alt="Detour settings and routing controls">&nbsp;&nbsp;
+  <img src="docs/assets/screenshots/product-dpi-test.jpg" width="290" alt="Detour ByeDPI strategy testing">
 </p>
 <p align="center">
-  <img src="docs/assets/screenshots/dpi-bypass.jpg" width="200" alt="Detour DPI bypass">
-  <img src="docs/assets/screenshots/appearance.jpg" width="200" alt="Detour themes">
+  <img src="docs/assets/screenshots/product-dpi-bypass.jpg" width="290" alt="Detour DPI bypass configuration">&nbsp;&nbsp;
+  <img src="docs/assets/screenshots/product-appearance.jpg" width="290" alt="Detour theme selection">
 </p>
-<p align="center"><sub>Real Detour captures from an Android device. No generated product mockups and no private VPN configuration data.</sub></p>
 
 ## One tunnel. Three routes.
 
