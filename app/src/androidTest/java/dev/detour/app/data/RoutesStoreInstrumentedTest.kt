@@ -158,11 +158,16 @@ class RoutesStoreInstrumentedTest {
         try {
             runCatching { store.deleteVlessKey(id) }
             store.addVlessKey(VlessKey(id, "Encrypted", secretUri))
-            store.setWarpProfile(warp)
+            store.addWireGuardProfile(warp)
 
             val snapshot = store.snapshot()
             assertEquals(secretUri, snapshot.vlessKeys.items.single { it.id == id }.uri)
-            assertEquals(privateMarker, snapshot.warpProfile?.proxies?.single()?.privateKey)
+            assertEquals(
+                privateMarker,
+                snapshot.wireGuardProfiles.items
+                    .single { it.id == warp.id }
+                    .proxies.single().privateKey,
+            )
 
             val raw = String(
                 ctx.preferencesDataStoreFile("detour_settings").readBytes(),
@@ -172,7 +177,7 @@ class RoutesStoreInstrumentedTest {
             assertFalse("WARP private key must not be stored as plaintext", raw.contains(privateMarker))
         } finally {
             store.deleteVlessKey(id)
-            store.deleteWarpProfile()
+            store.deleteWireGuardProfile(warp.id)
         }
     }
 }

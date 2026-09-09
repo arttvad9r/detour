@@ -173,7 +173,7 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
                     .padding(horizontal = Spacing.space12, vertical = Spacing.space4)
                     .heightIn(min = DenseAppRowMinHeight)
                     .clip(AppShapes.extraSmall)
-                    .background(c.surfaceSoft)
+                    .background(c.surface)
                     .border(1.dp, searchBorder, AppShapes.extraSmall)
                     .padding(horizontal = Spacing.space12),
                 verticalAlignment = Alignment.CenterVertically,
@@ -527,7 +527,7 @@ private fun CompactRouteSelector(
                     )
                     .padding(horizontal = 1.dp, vertical = 6.dp)
                     .background(
-                        if (selected) c.accentSoft else c.surfaceSoft,
+                        if (selected) c.surfaceSelected else c.surfaceSoft,
                         AppShapes.extraSmall,
                     )
                     .border(

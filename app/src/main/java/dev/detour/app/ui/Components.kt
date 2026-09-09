@@ -412,8 +412,8 @@ fun DetourButton(
     val c = detourColors
     val bg = container ?: if (style == ButtonStyle.PRIMARY) c.accent else c.surface
     val fg = contentColor ?: if (style == ButtonStyle.PRIMARY) c.onAccent else c.textPrimary
-    val disBg = disabledContainer ?: if (style == ButtonStyle.PRIMARY) c.accentSoft else c.surfaceSoft
-    val disFg = disabledContent ?: if (style == ButtonStyle.PRIMARY) c.accent else c.textMuted
+    val disBg = disabledContainer ?: c.surfaceSoft
+    val disFg = disabledContent ?: c.textMuted
     val border = when {
         borderColor != null -> androidx.compose.foundation.BorderStroke(1.dp, borderColor)
         style == ButtonStyle.SECONDARY -> androidx.compose.foundation.BorderStroke(1.dp, c.border)
@@ -504,8 +504,8 @@ fun SegmentedControl(
                                 onSelect(i)
                             }
                         },
-                        idleColor = if (on) c.accentSoft else Color.Transparent,
-                        pressedColor = if (on) c.accentSoft else c.surfaceSelected,
+                        idleColor = if (on) c.surfaceSelected else Color.Transparent,
+                        pressedColor = c.surfaceSelected,
                         pressScale = Motion.PRESS_RADIO,
                     )
                     .padding(horizontal = Spacing.space8, vertical = Spacing.space8),

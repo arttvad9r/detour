@@ -42,12 +42,12 @@ fun DetourNavigationRow(
         base.detourClickable(
             onClick = onClick,
             role = androidx.compose.ui.semantics.Role.Button,
-            idleColor = if (selectedBackground) c.accentSoft else Color.Transparent,
+            idleColor = if (selectedBackground) c.surfaceSelected else Color.Transparent,
             pressedColor = c.surfaceSelected.copy(alpha = 0.38f),
             pressScale = Motion.PRESS_ROW,
         )
     } else {
-        base.background(if (selectedBackground) c.accentSoft else Color.Transparent)
+        base.background(if (selectedBackground) c.surfaceSelected else Color.Transparent)
     }
 
     Row(
