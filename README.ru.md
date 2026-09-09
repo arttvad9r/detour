@@ -23,12 +23,7 @@ Open-source клиент для Android, в котором можно выбра
 </div>
 
 <p align="center">
-  <img src="docs/assets/screenshots/product-settings.jpg" width="290" alt="Настройки и управление маршрутами Detour">&nbsp;&nbsp;
-  <img src="docs/assets/screenshots/product-dpi-test.jpg" width="290" alt="Тест стратегий ByeDPI в Detour">
-</p>
-<p align="center">
-  <img src="docs/assets/screenshots/product-dpi-bypass.jpg" width="290" alt="Настройка обхода DPI в Detour">&nbsp;&nbsp;
-  <img src="docs/assets/screenshots/product-appearance.jpg" width="290" alt="Темы оформления Detour">
+  <img src="docs/assets/screenshots/product-gallery-hq.png" width="820" alt="Detour: настройки, тест стратегий ByeDPI, обход DPI и темы оформления">
 </p>
 
 ## Один туннель. Три маршрута.
