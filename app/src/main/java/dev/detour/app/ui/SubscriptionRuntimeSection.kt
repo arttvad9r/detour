@@ -266,8 +266,8 @@ private fun SubscriptionNodeRow(
             .detourSelectable(
                 selected = selected,
                 onClick = { if (enabled && !selected) onSelect() },
-                idleColor = if (selected) c.accentSoft else Color.Transparent,
-                pressedColor = if (selected) c.accentSoft else c.surfaceSelected,
+                idleColor = if (selected) c.surfaceSoft else Color.Transparent,
+                pressedColor = if (selected) c.surfaceSoft else c.surfaceSelected,
                 pressScale = Motion.PRESS_RADIO,
             )
             .heightIn(min = 56.dp)
