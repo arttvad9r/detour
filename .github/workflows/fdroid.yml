@@ -68,8 +68,21 @@ jobs:
               . /etc/profile
               export PATH="/home/vagrant/fdroidserver:$PATH"
               export PYTHONPATH="/home/vagrant/fdroidserver"
+
               cp -a /mnt/fdroiddata/. /build/
               cd /build
+
+              # setup_status_output() in current fdroidserver expects the
+              # metadata workspace itself to be a Git worktree. Recreate that
+              # worktree inside the Docker volume instead of depending on host
+              # bind-mount .git ownership/metadata semantics.
+              rm -rf .git
+              git init -q
+              git config user.name "Detour F-Droid CI"
+              git config user.email "fdroid-ci@localhost"
+              git add -A
+              git commit -q -m "F-Droid CI metadata snapshot"
+
               fdroid readmeta
               fdroid rewritemeta dev.detour.app
               fdroid lint dev.detour.app
