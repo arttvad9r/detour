@@ -36,10 +36,10 @@ jobs:
           sed -i "s/commit: HEAD/commit: $SOURCE_SHA/" \
             "$RUNNER_TEMP/fdroiddata/metadata/dev.detour.app.yml"
 
-          # The official quick-start container runs as `vagrant`; the temporary
-          # fdroiddata checkout must therefore be writable for rewritemeta/build.
-          chmod -R a+rwX "$RUNNER_TEMP/fdroiddata"
-          chmod -R a+rX "$RUNNER_TEMP/fdroidserver"
+          # Mount inputs read-only. The container copies fdroiddata into its own
+          # writable filesystem before rewritemeta/build so metadata writes do
+          # not depend on bind-mount timestamp/ownership semantics.
+          chmod -R a+rX "$RUNNER_TEMP/fdroiddata" "$RUNNER_TEMP/fdroidserver"
 
       - name: Validate metadata and build in F-Droid buildserver
         shell: bash
@@ -48,7 +48,7 @@ jobs:
           docker run --rm \
             -u vagrant \
             --entrypoint /bin/bash \
-            -v "$RUNNER_TEMP/fdroiddata:/build:rw" \
+            -v "$RUNNER_TEMP/fdroiddata:/mnt/fdroiddata:ro" \
             -v "$RUNNER_TEMP/fdroidserver:/home/vagrant/fdroidserver:ro" \
             registry.gitlab.com/fdroid/fdroidserver:buildserver \
             -lc '
@@ -56,8 +56,9 @@ jobs:
               . /etc/profile
               export PATH="/home/vagrant/fdroidserver:$PATH"
               export PYTHONPATH="/home/vagrant/fdroidserver"
-              export JAVA_HOME="$(java -XshowSettings:properties -version 2>&1 >/dev/null | awk -F= "/java.home/ {gsub(/^[ \\t]+|[ \\t]+$/, \"\", \\$2); print \\$2; exit}")"
-              cd /build
+              rm -rf /home/vagrant/fdroiddata
+              cp -a /mnt/fdroiddata /home/vagrant/fdroiddata
+              cd /home/vagrant/fdroiddata
               fdroid readmeta
               fdroid rewritemeta dev.detour.app
               fdroid lint dev.detour.app
