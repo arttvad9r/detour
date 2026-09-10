@@ -34,16 +34,46 @@ jobs:
           go mod vendor
           test -f vendor/modules.txt
           grep -q 'golang.org/x/mobile' vendor/modules.txt
+          grep -q 'golang.org/x/mobile/cmd/gobind' < <(find vendor/golang.org/x/mobile/cmd -maxdepth 2 -type f -print)
           grep -q 'github.com/metacubex/mihomo' vendor/modules.txt
-      - name: Commit vendor tree
+      - name: Make CI initialize source submodules
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PYEOF'
+          from pathlib import Path
+
+          android = Path('.github/workflows/android.yml')
+          text = android.read_text()
+          checkout = '      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1\n'
+          replacement = checkout + '        with:\n          submodules: recursive\n'
+          if 'submodules: recursive' not in text:
+              if text.count(checkout) != 1:
+                  raise SystemExit('Android workflow checkout anchor changed')
+              android.write_text(text.replace(checkout, replacement, 1))
+
+          release = Path('.github/workflows/release.yml')
+          text = release.read_text()
+          anchor = '          fetch-depth: 0\n'
+          if 'submodules: recursive' not in text:
+              if text.count(anchor) != 1:
+                  raise SystemExit('Release workflow checkout anchor changed')
+              release.write_text(text.replace(anchor, anchor + '          submodules: recursive\n', 1))
+          PYEOF
+      - name: Commit offline build inputs
         shell: bash
         run: |
           set -euo pipefail
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git add engine/mihomo/go/go.mod engine/mihomo/go/go.sum engine/mihomo/go/vendor
+          git add \
+            engine/mihomo/go/go.mod \
+            engine/mihomo/go/go.sum \
+            engine/mihomo/go/vendor \
+            .github/workflows/android.yml \
+            .github/workflows/release.yml
           if git diff --cached --quiet; then
-            echo 'Vendor tree already current'
+            echo 'Vendor tree and workflow inputs already current'
             exit 0
           fi
           git commit -m 'Vendor Go dependencies for offline native builds'
