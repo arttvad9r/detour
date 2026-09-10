@@ -2,6 +2,9 @@
 
 package engine
 
-// Keep gomobile in the module graph so `go mod vendor` captures the exact
-// tool source and all of its dependencies for offline/F-Droid builds.
-import _ "golang.org/x/mobile/cmd/gomobile"
+// Keep gomobile and gobind in the module graph so `go mod vendor` captures
+// the exact tool sources and all dependencies for offline/F-Droid builds.
+import (
+    _ "golang.org/x/mobile/cmd/gobind"
+    _ "golang.org/x/mobile/cmd/gomobile"
+)
