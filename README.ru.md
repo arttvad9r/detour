@@ -23,7 +23,7 @@ Open-source клиент для Android, в котором можно выбра
 </div>
 
 <p align="center">
-  <img src="docs/assets/screenshots/product-gallery-hq.png" width="820" alt="Detour: настройки, тест стратегий ByeDPI, обход DPI и темы оформления">
+  <img src="docs/assets/screenshots/product-gallery-hq.png" width="820" alt="Detour: подключение, маршруты приложений Прямой/VPN/DPI, настройки и темы оформления">
 </p>
 
 ## Один туннель. Три маршрута.

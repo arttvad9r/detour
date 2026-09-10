@@ -4,12 +4,14 @@ The root README uses **real Detour captures from an Android device**. Product sc
 
 ## Current product gallery
 
-| File | What it shows |
-| --- | --- |
-| `settings.jpg` | Main settings and feature entry points |
-| `dns.jpg` | Tunnel DNS choices |
-| `dpi-bypass.jpg` | ByeDPI strategy configuration |
-| `appearance.jpg` | Detour and community theme choices |
+The primary README and Fastlane gallery is `product-gallery-hq.png`, a two-by-two montage assembled only from real device captures. It is ordered to explain the product from the main workflow outward:
+
+1. **Connected home** — active Detour tunnel and the main connection overview.
+2. **Per-app routes** — the core feature: different apps assigned to Direct, VPN or DPI routes.
+3. **Settings** — routing, VPN profiles, DPI bypass, DNS and application controls.
+4. **Themes** — Detour Light/Dark and the additional appearance choices.
+
+The existing individual captures such as `settings.jpg`, `dns.jpg`, `dpi-bypass.jpg` and `appearance.jpg` remain useful for feature documentation, but the landing-page gallery should prioritize the connected state and per-app routing.
 
 These are optimized copies of real device screenshots supplied for the project. They are not generated or reconstructed product mockups.
 
@@ -23,7 +25,7 @@ Public screenshots must not expose:
 - exported backup contents or personal notification content;
 - personal app inventory when it is not required to demonstrate a feature.
 
-For future screenshots of VPN profiles, subscriptions, servers or per-app routing, populate the **real app** with clearly synthetic demo data first, then capture the rendered UI. Do not redraw or fabricate the interface after capture.
+For screenshots of VPN profiles, subscriptions, servers or per-app routing, populate the **real app** with clearly synthetic demo data where practical, then capture the rendered UI. Do not redraw or fabricate the interface after capture. App inventory may be visible when it is necessary to demonstrate per-app routing, but it must not reveal sensitive account or configuration data.
 
 ## Capture consistency
 
@@ -33,17 +35,21 @@ For future screenshots of VPN profiles, subscriptions, servers or per-app routin
 - Keep one language within a gallery set.
 - Crop only external framing; do not remove or alter app content to hide secrets.
 
-## README layout
+## README and Fastlane layout
 
-`README.md` and `README.ru.md` reference the same screenshot files. The landing page intentionally uses a simple two-by-two image layout instead of a fixed three-column table so GitHub mobile does not squeeze captions or alt text into narrow cells.
+`README.md` and `README.ru.md` reference the same `product-gallery-hq.png`. The landing page uses a single two-by-two montage so GitHub mobile does not squeeze four portrait screenshots into narrow columns.
 
-When replacing a screenshot, preserve the filename where possible. If a filename changes, update both READMEs in the same pull request.
+Fastlane `en-US` and `ru` phone screenshot metadata reuses the same lossless gallery image. This keeps the public store view aligned with the repository landing page and makes per-app routing visible in both places.
+
+When replacing the gallery, preserve the canonical `product-gallery-hq.png` filename where possible and update both README alt texts in the same pull request.
 
 ## Review checklist
 
 - [ ] Every image is a real Detour render.
-- [ ] No personal profile, subscription, endpoint, credential or app-inventory data is visible.
+- [ ] The gallery visibly demonstrates per-app Direct / VPN / DPI routing.
+- [ ] No personal profile, subscription, endpoint or credential data is visible.
+- [ ] Any visible app inventory is appropriate for demonstrating the routing feature.
 - [ ] The image file opens as a valid JPEG/PNG from the repository.
-- [ ] Alt text describes the represented feature.
-- [ ] Both language READMEs reference files that exist.
+- [ ] Alt text describes the represented features.
+- [ ] README and Fastlane references point to files that exist.
 - [ ] Screens still match the current release UI.
