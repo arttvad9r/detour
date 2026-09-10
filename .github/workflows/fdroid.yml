@@ -33,7 +33,9 @@ jobs:
           git clone --depth=1 https://gitlab.com/fdroid/fdroiddata.git "$RUNNER_TEMP/fdroiddata"
 
           cp .fdroid.yml "$RUNNER_TEMP/fdroiddata/metadata/dev.detour.app.yml"
-          sed -i "s/commit: HEAD/commit: $SOURCE_SHA/" \
+          # The committed upstream recipe points at the latest validated release
+          # tag. PR validation must still build the exact proposed PR head.
+          sed -E -i "s/^    commit: .*/    commit: $SOURCE_SHA/" \
             "$RUNNER_TEMP/fdroiddata/metadata/dev.detour.app.yml"
 
           chmod -R a+rX "$RUNNER_TEMP/fdroiddata" "$RUNNER_TEMP/fdroidserver"
