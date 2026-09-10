@@ -14,6 +14,8 @@ BUILD_CACHE="$CACHE_ROOT/mihomo-build"
 TOOL_BIN="$CACHE_ROOT/bin"
 ORIGINAL="$REPO_ROOT/engine/mihomo/build.sh"
 PATCHED="$REPO_ROOT/engine/mihomo/.build-offline.generated.sh"
+MOBILE_BIND="$BIND_DIR/vendor/golang.org/x/mobile/cmd/gomobile/bind_androidapp.go"
+MOBILE_BIND_BACKUP="$CACHE_ROOT/bind_androidapp.go.orig"
 
 [[ -d "$SOURCE" ]] || {
   echo "Mihomo submodule is missing. Run: git submodule update --init --recursive" >&2
@@ -21,6 +23,10 @@ PATCHED="$REPO_ROOT/engine/mihomo/.build-offline.generated.sh"
 }
 [[ -f "$BIND_DIR/vendor/modules.txt" ]] || {
   echo "Go vendor tree is missing: $BIND_DIR/vendor/modules.txt" >&2
+  exit 2
+}
+[[ -f "$MOBILE_BIND" ]] || {
+  echo "Vendored gomobile source is missing: $MOBILE_BIND" >&2
   exit 2
 }
 
@@ -32,7 +38,7 @@ actual_commit="$(git -C "$SOURCE" rev-parse HEAD)"
 }
 
 mkdir -p "$CACHE_ROOT"
-rm -rf "$LOCAL_ORIGIN" "$BUILD_CACHE" "$TOOL_BIN" "$PATCHED"
+rm -rf "$LOCAL_ORIGIN" "$BUILD_CACHE" "$TOOL_BIN" "$PATCHED" "$MOBILE_BIND_BACKUP"
 
 # Build the legacy patch script against a local-only git remote. It still uses
 # git fetch/reset internally, but every fetch below resolves to this filesystem.
@@ -42,8 +48,34 @@ git -C "$LOCAL_ORIGIN" tag -f "$MIHOMO_TAG" "$MIHOMO_COMMIT"
 git clone --no-hardlinks "$LOCAL_ORIGIN" "$BUILD_CACHE" >/dev/null
 git -C "$BUILD_CACHE" remote set-url origin "$LOCAL_ORIGIN"
 
-# Build the exact gomobile/gobind versions from the committed vendor graph.
-# This happens before network is needed and with the module proxy disabled.
+# gomobile normally creates a temporary Android module and runs `go mod tidy`
+# inside it. That is correct for online development builds but defeats a strict
+# offline/F-Droid build even when the complete dependency graph is committed.
+# Build a local gomobile binary with one narrow change: when
+# DETOUR_GOMOBILE_VENDOR is set, copy that vendor tree into the generated module
+# and skip tidy. The vendored upstream source is restored immediately after the
+# tool binary is compiled, so the repository remains byte-for-byte unchanged.
+cp "$MOBILE_BIND" "$MOBILE_BIND_BACKUP"
+restore_mobile_source() {
+  if [[ -f "$MOBILE_BIND_BACKUP" ]]; then
+    cp "$MOBILE_BIND_BACKUP" "$MOBILE_BIND"
+    rm -f "$MOBILE_BIND_BACKUP"
+  fi
+}
+trap restore_mobile_source EXIT
+python3 - "$MOBILE_BIND" <<'PYEOF'
+from pathlib import Path
+import sys
+
+p = Path(sys.argv[1])
+s = p.read_text()
+old = '''\t\tif err := writeGoMod(srcDir, "android", arch); err != nil {\n\t\t\treturn err\n\t\t}\n\n\t\t// Run `go mod tidy` to force to create go.sum.\n\t\t// Without go.sum, `go build` fails as of Go 1.16.\n\t\tif err := goModTidyAt(srcDir, env); err != nil {\n\t\t\treturn err\n\t\t}\n'''
+new = '''\t\tif err := writeGoMod(srcDir, "android", arch); err != nil {\n\t\t\treturn err\n\t\t}\n\n\t\tif vendorDir := os.Getenv("DETOUR_GOMOBILE_VENDOR"); vendorDir != "" {\n\t\t\tif !buildN {\n\t\t\t\tif err := doCopyAll(filepath.Join(srcDir, "vendor"), vendorDir); err != nil {\n\t\t\t\t\treturn err\n\t\t\t\t}\n\t\t\t}\n\t\t} else {\n\t\t\t// Preserve normal upstream behavior outside Detour's offline build.\n\t\t\tif err := goModTidyAt(srcDir, env); err != nil {\n\t\t\t\treturn err\n\t\t\t}\n\t\t}\n'''
+if old not in s:
+    raise SystemExit('FATAL: gomobile Android module layout changed')
+p.write_text(s.replace(old, new, 1))
+PYEOF
+
 mkdir -p "$TOOL_BIN"
 (
   cd "$BIND_DIR"
@@ -54,15 +86,17 @@ mkdir -p "$TOOL_BIN"
     GOFLAGS='-mod=vendor' \
     go install golang.org/x/mobile/cmd/gomobile golang.org/x/mobile/cmd/gobind
 )
+restore_mobile_source
+trap - EXIT
+
 export PATH="$TOOL_BIN:$PATH"
 export GOPROXY=off
 export GOSUMDB=off
 
-# Reuse the reviewed Detour patch sequence. For the binding stage, materialize
-# the committed vendor graph as a temporary GOPATH and replace only Mihomo with
-# the exact locally patched checkout. GOPATH mode makes gomobile skip its
-# generated-module `go mod tidy`, which would otherwise attempt module
-# resolution even though every source package is already present locally.
+# Reuse the reviewed Detour patch sequence, but make both the package tests and
+# gomobile's generated Android modules consume the committed vendor tree. The
+# pristine Mihomo copy in vendor is replaced by the exact locally patched source
+# before compilation. No module download or remote git fetch is needed.
 python3 - "$ORIGINAL" "$PATCHED" <<'PYEOF'
 from pathlib import Path
 import sys
@@ -71,33 +105,38 @@ src = Path(sys.argv[1])
 dst = Path(sys.argv[2])
 s = src.read_text()
 
-start_anchor = 'cp "$BIND_DIR/go.mod" "$WORK_DIR/go.mod"'
-end_anchor = 'gomobile bind -target android/arm64,android/amd64 -androidapi 24 -javapkg=dev.detour.engine .'
-start = s.find(start_anchor)
-end = s.find(end_anchor)
-if start < 0 or end < 0 or end < start:
-    raise SystemExit('FATAL: Mihomo build script binding anchors changed')
-end += len(end_anchor)
+copy_anchor = 'cp "$BIND_DIR/go.sum" "$WORK_DIR/go.sum"\ncp "$BIND_DIR"/*.go "$WORK_DIR"/'
+copy_replacement = '''cp "$BIND_DIR/go.sum" "$WORK_DIR/go.sum"
+cp -R "$BIND_DIR/vendor" "$WORK_DIR/vendor"
+cp "$BIND_DIR"/*.go "$WORK_DIR"/
+VENDORED_MIHOMO="$WORK_DIR/vendor/github.com/metacubex/mihomo"
+rm -rf "$VENDORED_MIHOMO"
+mkdir -p "$(dirname "$VENDORED_MIHOMO")"
+cp -R "$CACHE" "$VENDORED_MIHOMO"
+rm -rf "$VENDORED_MIHOMO/.git"'''
+if copy_anchor not in s:
+    raise SystemExit('FATAL: Mihomo build script copy anchor changed')
+s = s.replace(copy_anchor, copy_replacement, 1)
 
-gopath_block = r'''GOPATH_DIR="$WORK_DIR/gopath"
-ENGINE_DIR="$GOPATH_DIR/src/engine"
-mkdir -p "$GOPATH_DIR/src" "$ENGINE_DIR"
-cp -R "$BIND_DIR/vendor/." "$GOPATH_DIR/src/"
-cp "$BIND_DIR"/*.go "$ENGINE_DIR/"
-PATCHED_MIHOMO="$GOPATH_DIR/src/github.com/metacubex/mihomo"
-rm -rf "$PATCHED_MIHOMO"
-mkdir -p "$(dirname "$PATCHED_MIHOMO")"
-cp -R "$CACHE" "$PATCHED_MIHOMO"
-rm -rf "$PATCHED_MIHOMO/.git"
+replace_anchor = "line = 'replace github.com/metacubex/mihomo => $CACHE'"
+if replace_anchor not in s:
+    raise SystemExit('FATAL: Mihomo build script replace anchor changed')
+s = s.replace(replace_anchor, "line = ''", 1)
 
-cd "$ENGINE_DIR"
-export GO111MODULE=off
-export GOPATH="$GOPATH_DIR"
-unset GOFLAGS
-go test -tags=with_gvisor ./...
-gomobile bind -tags=with_gvisor -target android/arm64,android/amd64 -androidapi 24 -javapkg=dev.detour.engine .'''
+flags_anchor = 'export GOFLAGS="-mod=mod -tags=with_gvisor"'
+if flags_anchor not in s:
+    raise SystemExit('FATAL: Mihomo build script GOFLAGS anchor changed')
+s = s.replace(flags_anchor, 'export GOFLAGS="-mod=vendor -tags=with_gvisor"', 1)
 
-s = s[:start] + gopath_block + s[end:]
+bind_anchor = 'gomobile bind -target android/arm64,android/amd64 -androidapi 24 -javapkg=dev.detour.engine .'
+if bind_anchor not in s:
+    raise SystemExit('FATAL: Mihomo gomobile bind anchor changed')
+s = s.replace(
+    bind_anchor,
+    'export DETOUR_GOMOBILE_VENDOR="$WORK_DIR/vendor"\n' + bind_anchor,
+    1,
+)
+
 dst.write_text(s)
 PYEOF
 chmod +x "$PATCHED"
