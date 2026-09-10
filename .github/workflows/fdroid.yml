@@ -36,26 +36,38 @@ jobs:
           sed -i "s/commit: HEAD/commit: $SOURCE_SHA/" \
             "$RUNNER_TEMP/fdroiddata/metadata/dev.detour.app.yml"
 
-          # Inputs are mounted read-only; the buildserver copies fdroiddata into
-          # its canonical writable /build workspace before running any command.
           chmod -R a+rX "$RUNNER_TEMP/fdroiddata" "$RUNNER_TEMP/fdroidserver"
 
       - name: Validate metadata and build in F-Droid buildserver
         shell: bash
         run: |
           set -euo pipefail
+          image='registry.gitlab.com/fdroid/fdroidserver:buildserver'
+          volume="fdroid-build-${GITHUB_RUN_ID}"
+          docker volume create "$volume" >/dev/null
+          trap 'docker volume rm -f "$volume" >/dev/null 2>&1 || true' EXIT
+
+          # Docker volumes start root-owned. Initialize the canonical /build
+          # workspace once, then run the actual F-Droid commands as `vagrant`,
+          # matching the official buildserver user.
+          docker run --rm \
+            --entrypoint /bin/chown \
+            -v "$volume:/build" \
+            "$image" \
+            vagrant:vagrant /build
+
           docker run --rm \
             -u vagrant \
             --entrypoint /bin/bash \
+            -v "$volume:/build" \
             -v "$RUNNER_TEMP/fdroiddata:/mnt/fdroiddata:ro" \
             -v "$RUNNER_TEMP/fdroidserver:/home/vagrant/fdroidserver:ro" \
-            registry.gitlab.com/fdroid/fdroidserver:buildserver \
+            "$image" \
             -lc '
               set -euo pipefail
               . /etc/profile
               export PATH="/home/vagrant/fdroidserver:$PATH"
               export PYTHONPATH="/home/vagrant/fdroidserver"
-              find /build -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
               cp -a /mnt/fdroiddata/. /build/
               cd /build
               fdroid readmeta
