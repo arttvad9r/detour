@@ -85,8 +85,11 @@ jobs:
               fdroid rewritemeta dev.detour.app
               fdroid lint dev.detour.app
 
-              # This container is the build VM. --on-server is required to run
-              # recipe sudo: commands, auto-install missing NDKs and propagate
-              # build failures directly instead of trying to manage another VM.
+              # Production F-Droid builds prefetch srclibs outside the build VM.
+              # --on-server deliberately assumes that stage is already complete.
+              fdroid fetchsrclibs --verbose dev.detour.app:2001
+
+              # This container is the build VM. --on-server runs recipe sudo:
+              # commands, installs the requested NDK and propagates failures.
               fdroid build --verbose --on-server --no-tarball dev.detour.app:2001
             '
