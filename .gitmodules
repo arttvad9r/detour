@@ -1,0 +1,9 @@
+[submodule "third_party/mihomo"]
+	path = third_party/mihomo
+	url = https://github.com/MetaCubeX/mihomo.git
+[submodule "third_party/byedpi"]
+	path = third_party/byedpi
+	url = https://github.com/hufrea/byedpi.git
+[submodule "third_party/x-mobile"]
+	path = third_party/x-mobile
+	url = https://github.com/golang/mobile.git
