@@ -1,0 +1,13 @@
+Detour is an open-source Android networking client that lets you choose how each app reaches the internet.
+
+<ul>
+<li><b>Direct</b> — use the normal network connection.</li>
+<li><b>VPN</b> — route selected apps through VLESS Reality, HTTPS subscriptions, WARP or AmneziaWG.</li>
+<li><b>DPI</b> — use native ByeDPI bypass only for the apps that need it.</li>
+</ul>
+
+Detour also includes subscription server selection, sorting and latency checks, tunnel DNS controls, recommended and custom ByeDPI strategies, a strategy-testing workspace, a Quick Settings tile, connect-on-launch, configuration export/import and multiple themes.
+
+No Detour account is required. Sensitive VPN profile material is stored locally with Android Keystore-backed encryption.
+
+Detour is pre-release software. Review imported configurations before connecting.

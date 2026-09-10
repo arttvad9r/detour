@@ -1,0 +1,1 @@
+First public release. Adds per-app Direct/VPN/DPI routing, VLESS Reality, HTTPS subscriptions, WARP and AmneziaWG, multiple WireGuard-family profiles, tunnel DNS controls, ByeDPI strategy testing, backup/restore and release hardening.
