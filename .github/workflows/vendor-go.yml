@@ -1,0 +1,50 @@
+name: Vendor Go dependencies
+
+on:
+  push:
+    branches:
+      - fix/fdroid-offline-build
+    paths:
+      - engine/mihomo/go/tools.go
+      - .github/workflows/vendor-go.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  vendor:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: '1.26.7'
+          cache: false
+      - name: Generate deterministic Go vendor tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd engine/mihomo/go
+          go get golang.org/x/mobile/cmd/gomobile@v0.0.0-20260821190718-4776eadac327
+          go mod tidy
+          go mod vendor
+          test -f vendor/modules.txt
+          grep -q 'golang.org/x/mobile' vendor/modules.txt
+          grep -q 'github.com/metacubex/mihomo' vendor/modules.txt
+      - name: Commit vendor tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add engine/mihomo/go/go.mod engine/mihomo/go/go.sum engine/mihomo/go/vendor
+          if git diff --cached --quiet; then
+            echo 'Vendor tree already current'
+            exit 0
+          fi
+          git commit -m 'Vendor Go dependencies for offline native builds'
+          git push origin HEAD:fix/fdroid-offline-build
