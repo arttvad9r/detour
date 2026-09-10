@@ -45,15 +45,16 @@ Detour назначает маршрут **каждому приложению �
 
 [Полное описание возможностей →](docs/features.md)
 
-## Установка
+## Установка и обновления
 
-Нужен **Android 10 / API 29+**. Текущий публичный релиз на GitHub содержит APK для `arm64-v8a`.
+Нужен **Android 10 / API 29+**. Текущий публичный релиз содержит APK для `arm64-v8a`.
 
-1. Скачайте APK из [GitHub Releases](https://github.com/arttvad9r/detour/releases/latest).
-2. Добавьте или импортируйте VPN-профиль и назначьте маршруты приложениям.
-3. Нажмите **«Подключить»** и разрешите Android создать VPN-подключение.
+- **GitHub Releases:** скачайте подписанный APK и SHA-256 checksum из [последнего релиза](https://github.com/arttvad9r/detour/releases/latest).
+- **Obtainium:** добавьте `https://github.com/arttvad9r/detour` как GitHub-источник приложения, чтобы получать новые релизы Detour напрямую.
 
-[Быстрый старт →](docs/getting-started.md)
+После установки добавьте или импортируйте VPN-профиль, назначьте маршруты приложениям, нажмите **«Подключить»** и разрешите Android создать VPN-подключение.
+
+[Быстрый старт →](docs/getting-started.md) · [Статус дистрибуции →](docs/distribution.md)
 
 > [!NOTE]
 > Detour пока находится на стадии pre-release и распространяется вне Google Play. Проверяйте импортированные конфигурации и устанавливайте релизные APK только из этого репозитория.
@@ -64,13 +65,13 @@ Detour назначает маршрут **каждому приложению �
 
 Код Detour распространяется по [MIT](LICENSE). Встроенные компоненты сохраняют собственные лицензии — см. [third-party notices](THIRD_PARTY_NOTICES.md).
 
-**Документация:** [Быстрый старт](docs/getting-started.md) · [Возможности](docs/features.md) · [Архитектура](docs/architecture.md) · [Тестирование](docs/testing.md) · [Приватность](PRIVACY.md) · [Безопасность](SECURITY.md) · [Участие в разработке](CONTRIBUTING.md)
+**Документация:** [Быстрый старт](docs/getting-started.md) · [Возможности](docs/features.md) · [Дистрибуция](docs/distribution.md) · [Архитектура](docs/architecture.md) · [Тестирование](docs/testing.md) · [Приватность](PRIVACY.md) · [Безопасность](SECURITY.md) · [Участие в разработке](CONTRIBUTING.md)
 
 <details>
 <summary><strong>Разработчикам и мейнтейнерам</strong></summary>
 
 Detour написан на Kotlin и Jetpack Compose. Android `VpnService` управляет туннелем, Mihomo используется как основной data plane, а нативный ByeDPI обслуживает DPI-маршрут.
 
-[Архитектура](docs/architecture.md) · [Тестирование](docs/testing.md) · [Версии зависимостей](docs/pins.md) · [Релизы](docs/releasing.md)
+[Архитектура](docs/architecture.md) · [Тестирование](docs/testing.md) · [Версии зависимостей](docs/pins.md) · [Релизы](docs/releasing.md) · [Публичный запуск](docs/launch.md)
 
 </details>
