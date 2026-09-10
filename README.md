@@ -45,15 +45,16 @@ Detour assigns a route **per application**, instead of forcing the whole phone t
 
 [See the full feature guide →](docs/features.md)
 
-## Install
+## Install & updates
 
-Detour requires **Android 10 / API 29+**. The current public GitHub release provides an `arm64-v8a` APK.
+Detour requires **Android 10 / API 29+**. The current public release provides an `arm64-v8a` APK.
 
-1. Download the APK from [GitHub Releases](https://github.com/arttvad9r/detour/releases/latest).
-2. Add or import a VPN profile and choose routes for your apps.
-3. Tap **Connect** and approve Android's VPN permission.
+- **GitHub Releases:** download the signed APK and its SHA-256 checksum from the [latest release](https://github.com/arttvad9r/detour/releases/latest).
+- **Obtainium:** add `https://github.com/arttvad9r/detour` as a GitHub app source to follow new Detour releases directly.
 
-[Getting started →](docs/getting-started.md)
+After installation, add or import a VPN profile, choose routes for your apps, tap **Connect**, and approve Android's VPN permission.
+
+[Getting started →](docs/getting-started.md) · [Distribution status →](docs/distribution.md)
 
 > [!NOTE]
 > Detour is pre-release software and is currently distributed outside Google Play. Review imported configurations and install release artifacts only from this repository.
@@ -64,13 +65,13 @@ No Detour account is required. Detour does not intentionally send project analyt
 
 Detour-authored code is licensed under [MIT](LICENSE). Embedded components keep their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md).
 
-**Docs:** [Getting started](docs/getting-started.md) · [Features](docs/features.md) · [Architecture](docs/architecture.md) · [Testing](docs/testing.md) · [Privacy](PRIVACY.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
+**Docs:** [Getting started](docs/getting-started.md) · [Features](docs/features.md) · [Distribution](docs/distribution.md) · [Architecture](docs/architecture.md) · [Testing](docs/testing.md) · [Privacy](PRIVACY.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
 
 <details>
 <summary><strong>For developers and maintainers</strong></summary>
 
 Detour is built with Kotlin and Jetpack Compose. Android `VpnService` owns the tunnel, Mihomo provides the main data plane, and native ByeDPI handles the DPI route.
 
-[Architecture](docs/architecture.md) · [Testing](docs/testing.md) · [Dependency pins](docs/pins.md) · [Releasing](docs/releasing.md)
+[Architecture](docs/architecture.md) · [Testing](docs/testing.md) · [Dependency pins](docs/pins.md) · [Releasing](docs/releasing.md) · [Public launch kit](docs/launch.md)
 
 </details>
