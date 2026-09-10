@@ -72,10 +72,8 @@ jobs:
               cp -a /mnt/fdroiddata/. /build/
               cd /build
 
-              # setup_status_output() in current fdroidserver expects the
-              # metadata workspace itself to be a Git worktree. Recreate that
-              # worktree inside the Docker volume instead of depending on host
-              # bind-mount .git ownership/metadata semantics.
+              # Keep metadata checks in a normal Git worktree, independent of
+              # host bind-mount ownership and timestamp semantics.
               rm -rf .git
               git init -q
               git config user.name "Detour F-Droid CI"
@@ -86,5 +84,9 @@ jobs:
               fdroid readmeta
               fdroid rewritemeta dev.detour.app
               fdroid lint dev.detour.app
-              fdroid build dev.detour.app:2001
+
+              # This container is the build VM. --on-server is required to run
+              # recipe sudo: commands, auto-install missing NDKs and propagate
+              # build failures directly instead of trying to manage another VM.
+              fdroid build --verbose --on-server --no-tarball dev.detour.app:2001
             '
