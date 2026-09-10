@@ -36,9 +36,8 @@ jobs:
           sed -i "s/commit: HEAD/commit: $SOURCE_SHA/" \
             "$RUNNER_TEMP/fdroiddata/metadata/dev.detour.app.yml"
 
-          # Mount inputs read-only. The container copies fdroiddata into its own
-          # writable filesystem before rewritemeta/build so metadata writes do
-          # not depend on bind-mount timestamp/ownership semantics.
+          # Inputs are mounted read-only; the buildserver copies fdroiddata into
+          # its canonical writable /build workspace before running any command.
           chmod -R a+rX "$RUNNER_TEMP/fdroiddata" "$RUNNER_TEMP/fdroidserver"
 
       - name: Validate metadata and build in F-Droid buildserver
@@ -56,9 +55,9 @@ jobs:
               . /etc/profile
               export PATH="/home/vagrant/fdroidserver:$PATH"
               export PYTHONPATH="/home/vagrant/fdroidserver"
-              rm -rf /home/vagrant/fdroiddata
-              cp -a /mnt/fdroiddata /home/vagrant/fdroiddata
-              cd /home/vagrant/fdroiddata
+              find /build -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+              cp -a /mnt/fdroiddata/. /build/
+              cd /build
               fdroid readmeta
               fdroid rewritemeta dev.detour.app
               fdroid lint dev.detour.app
