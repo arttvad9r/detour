@@ -1,0 +1,65 @@
+name: F-Droid
+
+on:
+  pull_request:
+    paths:
+      - '.fdroid.yml'
+      - '.gitmodules'
+      - 'build.gradle.kts'
+      - 'engine/**'
+      - 'third_party/**'
+      - 'docs/fdroid-readiness.md'
+      - '.github/workflows/fdroid.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  buildserver:
+    name: official buildserver recipe
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Prepare current F-Droid tools and data
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth=1 https://gitlab.com/fdroid/fdroidserver.git "$RUNNER_TEMP/fdroidserver"
+          git clone --depth=1 https://gitlab.com/fdroid/fdroiddata.git "$RUNNER_TEMP/fdroiddata"
+
+          cp .fdroid.yml "$RUNNER_TEMP/fdroiddata/metadata/dev.detour.app.yml"
+          sed -i "s/commit: HEAD/commit: $SOURCE_SHA/" \
+            "$RUNNER_TEMP/fdroiddata/metadata/dev.detour.app.yml"
+
+          # The official quick-start container runs as `vagrant`; the temporary
+          # fdroiddata checkout must therefore be writable for rewritemeta/build.
+          chmod -R a+rwX "$RUNNER_TEMP/fdroiddata"
+          chmod -R a+rX "$RUNNER_TEMP/fdroidserver"
+
+      - name: Validate metadata and build in F-Droid buildserver
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -u vagrant \
+            --entrypoint /bin/bash \
+            -v "$RUNNER_TEMP/fdroiddata:/build:rw" \
+            -v "$RUNNER_TEMP/fdroidserver:/home/vagrant/fdroidserver:ro" \
+            registry.gitlab.com/fdroid/fdroidserver:buildserver \
+            -lc '
+              set -euo pipefail
+              . /etc/profile
+              export PATH="/home/vagrant/fdroidserver:$PATH"
+              export PYTHONPATH="/home/vagrant/fdroidserver"
+              export JAVA_HOME="$(java -XshowSettings:properties -version 2>&1 >/dev/null | awk -F= "/java.home/ {gsub(/^[ \\t]+|[ \\t]+$/, \"\", \\$2); print \\$2; exit}")"
+              cd /build
+              fdroid readmeta
+              fdroid rewritemeta dev.detour.app
+              fdroid lint dev.detour.app
+              fdroid build dev.detour.app:2001
+            '
