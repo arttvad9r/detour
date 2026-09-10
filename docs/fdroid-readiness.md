@@ -17,6 +17,17 @@ The upstream recipe builds candidate version **0.2.1** (`versionCode 2001`) from
 
 `engine/mihomo/build-offline.sh` and `engine/byedpi/build-offline.sh` only consume these prepared source inputs. The Android workflow has a dedicated native-build step that runs with `GOPROXY=off`, `GOSUMDB=off`, interactive git disabled, and HTTP/HTTPS/ALL proxy variables pointed at an unreachable local port. This check must stay green.
 
+## F-Droid scanner review
+
+The F-Droid scanner reports three binary-looking files in the committed Go vendor graph. They are source-controlled data inputs from FLOSS dependencies rather than downloaded executable artifacts, so the recipe keeps narrowly scoped `scanignore` entries for exactly these paths:
+
+- `golang.org/x/net/publicsuffix/data/nodes` and `data/children` are generated lookup tables. The upstream BSD-licensed `publicsuffix/gen.go` generator writes both files from the Public Suffix List.
+- `github.com/metacubex/zerotier-go/default_planet.bin` is a 570-byte ZeroTier public Earth trust-anchor payload. The MPL-2.0 dependency embeds it directly with `//go:embed default_planet.bin` and parses/validates it at runtime.
+
+The scanner also reports `github.com/vmihailenco/msgpack/v5/package.json` because it is a package-manager manifest without a matching lockfile. Detour does not use that JavaScript packaging metadata for the Go build, so the F-Droid recipe removes only that file with `scandelete` before scanning/building rather than ignoring the warning.
+
+These exceptions must stay path-specific. If any of these dependency versions or files change, review the scanner findings again instead of broadening `scanignore`.
+
 ## FLOSS and Anti-Features review
 
 The Android application dependency graph contains AndroidX/Compose, Kotlin/Kotlinx, SnakeYAML and JSON libraries; it does not include Google Play Services, Firebase, proprietary analytics, advertising SDKs or crash-reporting SDKs. The manifest has no analytics/tracker service components.
