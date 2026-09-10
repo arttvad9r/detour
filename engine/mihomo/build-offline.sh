@@ -97,3 +97,9 @@ chmod +x "$PATCHED"
 trap 'rm -f "$PATCHED"' EXIT
 
 MIHOMO_CACHE="$BUILD_CACHE" bash "$PATCHED"
+
+# Preserve the legacy cache path used by the CI race-detector step. The target
+# itself is the already-patched local checkout built above; no network fetches
+# are involved.
+rm -rf "$REPO_ROOT/.cache/mihomo-src"
+ln -s "$BUILD_CACHE" "$REPO_ROOT/.cache/mihomo-src"
