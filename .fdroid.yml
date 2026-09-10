@@ -30,6 +30,12 @@ Builds:
       - ./make.bash
       - popd
       - printf '\ndetourGoBinary=%s/bin/go\n' "$$go$$" >> ../gradle.properties
+    scanignore:
+      - engine/mihomo/go/vendor/golang.org/x/net/publicsuffix/data/nodes
+      - engine/mihomo/go/vendor/golang.org/x/net/publicsuffix/data/children
+      - engine/mihomo/go/vendor/github.com/metacubex/zerotier-go/default_planet.bin
+    scandelete:
+      - engine/mihomo/go/vendor/github.com/vmihailenco/msgpack/v5/package.json
     gradle:
       - yes
     gradleprops:
