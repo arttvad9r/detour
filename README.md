@@ -23,7 +23,7 @@ Keep selected apps direct, route others through VPN, and use ByeDPI only where n
 </div>
 
 <p align="center">
-  <img src="docs/assets/screenshots/product-gallery-hq.png" width="820" alt="Detour product screens: settings, ByeDPI strategy test, DPI bypass and themes">
+  <img src="docs/assets/screenshots/product-gallery-hq.png" width="820" alt="Detour product screens: connected home, per-app Direct/VPN/DPI routing, settings and themes">
 </p>
 
 ## One tunnel. Three routes.
