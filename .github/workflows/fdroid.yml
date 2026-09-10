@@ -1,0 +1,95 @@
+name: F-Droid
+
+on:
+  pull_request:
+    paths:
+      - '.fdroid.yml'
+      - '.gitmodules'
+      - 'build.gradle.kts'
+      - 'engine/**'
+      - 'third_party/**'
+      - 'docs/fdroid-readiness.md'
+      - '.github/workflows/fdroid.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  buildserver:
+    name: official buildserver recipe
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Prepare current F-Droid tools and data
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth=1 https://gitlab.com/fdroid/fdroidserver.git "$RUNNER_TEMP/fdroidserver"
+          git clone --depth=1 https://gitlab.com/fdroid/fdroiddata.git "$RUNNER_TEMP/fdroiddata"
+
+          cp .fdroid.yml "$RUNNER_TEMP/fdroiddata/metadata/dev.detour.app.yml"
+          sed -i "s/commit: HEAD/commit: $SOURCE_SHA/" \
+            "$RUNNER_TEMP/fdroiddata/metadata/dev.detour.app.yml"
+
+          chmod -R a+rX "$RUNNER_TEMP/fdroiddata" "$RUNNER_TEMP/fdroidserver"
+
+      - name: Validate metadata and build in F-Droid buildserver
+        shell: bash
+        run: |
+          set -euo pipefail
+          image='registry.gitlab.com/fdroid/fdroidserver:buildserver'
+          volume="fdroid-build-${GITHUB_RUN_ID}"
+          docker volume create "$volume" >/dev/null
+          trap 'docker volume rm -f "$volume" >/dev/null 2>&1 || true' EXIT
+
+          # Docker volumes start root-owned. Initialize the canonical /build
+          # workspace once, then run the actual F-Droid commands as `vagrant`,
+          # matching the official buildserver user.
+          docker run --rm \
+            --entrypoint /bin/chown \
+            -v "$volume:/build" \
+            "$image" \
+            vagrant:vagrant /build
+
+          docker run --rm \
+            -u vagrant \
+            --entrypoint /bin/bash \
+            -v "$volume:/build" \
+            -v "$RUNNER_TEMP/fdroiddata:/mnt/fdroiddata:ro" \
+            -v "$RUNNER_TEMP/fdroidserver:/home/vagrant/fdroidserver:ro" \
+            "$image" \
+            -lc '
+              set -euo pipefail
+              . /etc/profile
+              export PATH="/home/vagrant/fdroidserver:$PATH"
+              export PYTHONPATH="/home/vagrant/fdroidserver:/home/vagrant/fdroidserver/examples"
+
+              cp -a /mnt/fdroiddata/. /build/
+              cd /build
+
+              # Keep metadata checks in a normal Git worktree, independent of
+              # host bind-mount ownership and timestamp semantics.
+              rm -rf .git
+              git init -q
+              git config user.name "Detour F-Droid CI"
+              git config user.email "fdroid-ci@localhost"
+              git add -A
+              git commit -q -m "F-Droid CI metadata snapshot"
+
+              fdroid readmeta
+              fdroid rewritemeta dev.detour.app
+              fdroid lint dev.detour.app
+
+              # Production F-Droid builds prefetch srclibs outside the build VM.
+              # --on-server deliberately assumes that stage is already complete.
+              fdroid fetchsrclibs --verbose dev.detour.app:2001
+
+              # This container is the build VM. --on-server runs recipe sudo:
+              # commands, installs the requested NDK and propagates failures.
+              fdroid build --verbose --on-server --no-tarball dev.detour.app:2001
+            '

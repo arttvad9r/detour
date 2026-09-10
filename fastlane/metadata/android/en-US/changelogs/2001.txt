@@ -1,0 +1,1 @@
+Build and distribution update. Native Mihomo and ByeDPI inputs are now pinned and reproducible, offline source builds are supported for F-Droid, and CI verifies native builds without network access plus Android 16/17 compatibility.

@@ -7,38 +7,58 @@ plugins {
     alias(libs.plugins.kotlin.serialization) apply false
 }
 
+// F-Droid can provide its source-built Go toolchain through gradle.properties.
+// Normal local/CI builds keep using the `go` found on PATH.
+val goBinary = providers.gradleProperty("detourGoBinary").orElse("go")
 val goVersion = providers.exec {
-    commandLine("go", "version")
+    commandLine(goBinary.get(), "version")
 }.standardOutput.asText
-val gomobileVersion = providers.exec {
-    commandLine("bash", "-c", "command -v gomobile >/dev/null && gomobile version || true")
+val mihomoRevision = providers.exec {
+    commandLine("git", "-C", "third_party/mihomo", "rev-parse", "HEAD")
+}.standardOutput.asText
+val byeDpiRevision = providers.exec {
+    commandLine("git", "-C", "third_party/byedpi", "rev-parse", "HEAD")
 }.standardOutput.asText
 
 val engineGoSources = fileTree("engine/mihomo/go") {
     include("*.go")
     exclude("*_test.go")
 }
+val engineGoVendor = fileTree("engine/mihomo/go/vendor") {
+    include("**/*")
+}
 
 tasks.register<Exec>("buildMihomoAar") {
-    // Engine output depends on every production bridge source, module metadata,
-    // the embedding script and the exact Go toolchain.
+    // The native engine build is self-contained: pinned source submodule,
+    // committed Go vendor graph, pinned Go toolchain and Android NDK.
     inputs.files(
         "engine/mihomo/build.sh",
+        "engine/mihomo/build-offline.sh",
+        "engine/mihomo/bind-offline.sh",
         "engine/mihomo/go/go.mod",
         "engine/mihomo/go/go.sum",
+        "engine/mihomo/go/tools.go",
     )
     inputs.files(engineGoSources)
+    inputs.files(engineGoVendor)
+    inputs.property("goBinary", goBinary)
     inputs.property("goVersion", goVersion)
-    inputs.property("gomobileVersion", gomobileVersion)
+    inputs.property("mihomoRevision", mihomoRevision)
     inputs.property("androidNdkHome", providers.environmentVariable("ANDROID_NDK_HOME").orElse(""))
     outputs.file("engine/libs/engine.aar")
-    commandLine("bash", "engine/mihomo/build.sh")
+    environment("DETOUR_GO", goBinary.get())
+    commandLine("bash", "engine/mihomo/build-offline.sh")
 }
 
 tasks.register<Exec>("buildByeDpi") {
-    inputs.files("engine/byedpi/build.sh", "engine/byedpi/apply_socks_auth.py")
+    inputs.files(
+        "engine/byedpi/build.sh",
+        "engine/byedpi/build-offline.sh",
+        "engine/byedpi/apply_socks_auth.py",
+    )
+    inputs.property("byeDpiRevision", byeDpiRevision)
     // A different NDK may produce different binaries even with the same script.
     inputs.property("androidNdkHome", providers.environmentVariable("ANDROID_NDK_HOME").orElse(""))
     outputs.dir("app/src/main/jniLibs")
-    commandLine("bash", "engine/byedpi/build.sh")
+    commandLine("bash", "engine/byedpi/build-offline.sh")
 }
