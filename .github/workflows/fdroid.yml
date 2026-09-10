@@ -67,7 +67,7 @@ jobs:
               set -euo pipefail
               . /etc/profile
               export PATH="/home/vagrant/fdroidserver:$PATH"
-              export PYTHONPATH="/home/vagrant/fdroidserver"
+              export PYTHONPATH="/home/vagrant/fdroidserver:/home/vagrant/fdroidserver/examples"
 
               cp -a /mnt/fdroiddata/. /build/
               cd /build
