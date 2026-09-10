@@ -1,0 +1,46 @@
+Categories:
+  - VPN & Proxy
+License: MIT
+AuthorName: Detour contributors
+SourceCode: https://github.com/arttvad9r/detour
+IssueTracker: https://github.com/arttvad9r/detour/issues
+Changelog: https://github.com/arttvad9r/detour/blob/main/CHANGELOG.md
+
+AutoName: Detour
+
+RepoType: git
+Repo: https://github.com/arttvad9r/detour.git
+
+# Upstream CI recipe. The fdroiddata submission should replace HEAD with the
+# release tag/commit after the candidate has been merged and tagged.
+Builds:
+  - versionName: 0.2.1
+    versionCode: 2001
+    commit: HEAD
+    subdir: app
+    submodules: true
+    sudo:
+      - apt-get update
+      - apt-get install -y g++ make
+      - apt-get install -t trixie-backports golang-go
+    srclibs:
+      - go@go1.26.7
+    prebuild:
+      - pushd $$go$$/src
+      - ./make.bash
+      - popd
+      - printf '\ndetourGoBinary=%s/bin/go\n' "$$go$$" >> ../gradle.properties
+    gradle:
+      - yes
+    gradleprops:
+      - detourReleaseAbi=arm64-v8a
+      - detourVersionName=0.2.1
+      - detourVersionCode=2001
+    ndk: r28
+
+# Keep automatic tag discovery disabled in the upstream HEAD recipe. The repo
+# contains a historical v0.2.0 tag that predates this reproducible build path.
+AutoUpdateMode: None
+UpdateCheckMode: None
+CurrentVersion: 0.2.1
+CurrentVersionCode: 2001

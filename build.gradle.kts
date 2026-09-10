@@ -7,8 +7,11 @@ plugins {
     alias(libs.plugins.kotlin.serialization) apply false
 }
 
+// F-Droid can provide its source-built Go toolchain through gradle.properties.
+// Normal local/CI builds keep using the `go` found on PATH.
+val goBinary = providers.gradleProperty("detourGoBinary").orElse("go")
 val goVersion = providers.exec {
-    commandLine("go", "version")
+    commandLine(goBinary.get(), "version")
 }.standardOutput.asText
 val mihomoRevision = providers.exec {
     commandLine("git", "-C", "third_party/mihomo", "rev-parse", "HEAD")
@@ -31,16 +34,19 @@ tasks.register<Exec>("buildMihomoAar") {
     inputs.files(
         "engine/mihomo/build.sh",
         "engine/mihomo/build-offline.sh",
+        "engine/mihomo/bind-offline.sh",
         "engine/mihomo/go/go.mod",
         "engine/mihomo/go/go.sum",
         "engine/mihomo/go/tools.go",
     )
     inputs.files(engineGoSources)
     inputs.files(engineGoVendor)
+    inputs.property("goBinary", goBinary)
     inputs.property("goVersion", goVersion)
     inputs.property("mihomoRevision", mihomoRevision)
     inputs.property("androidNdkHome", providers.environmentVariable("ANDROID_NDK_HOME").orElse(""))
     outputs.file("engine/libs/engine.aar")
+    environment("DETOUR_GO", goBinary.get())
     commandLine("bash", "engine/mihomo/build-offline.sh")
 }
 

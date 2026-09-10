@@ -15,6 +15,12 @@ TOOL_BIN="$CACHE_ROOT/bin"
 ORIGINAL="$REPO_ROOT/engine/mihomo/build.sh"
 PATCHED="$REPO_ROOT/engine/mihomo/.build-offline.generated.sh"
 BIND_HELPER="$REPO_ROOT/engine/mihomo/bind-offline.sh"
+GO_BIN="${DETOUR_GO:-go}"
+
+if [[ "$GO_BIN" == */* ]]; then
+  GO_BIN="$(cd "$(dirname "$GO_BIN")" && pwd)/$(basename "$GO_BIN")"
+  export PATH="$(dirname "$GO_BIN"):$PATH"
+fi
 
 [[ -d "$SOURCE" ]] || {
   echo "Mihomo submodule is missing. Run: git submodule update --init --recursive" >&2
@@ -31,6 +37,10 @@ BIND_HELPER="$REPO_ROOT/engine/mihomo/bind-offline.sh"
 [[ -f "$BIND_HELPER" ]] || {
   echo "Offline binding helper is missing: $BIND_HELPER" >&2
   exit 2
+}
+command -v "$GO_BIN" >/dev/null 2>&1 || {
+  echo "Go toolchain not found: $GO_BIN" >&2
+  exit 127
 }
 
 actual_commit="$(git -C "$SOURCE" rev-parse HEAD)"
@@ -63,7 +73,7 @@ mkdir -p "$TOOL_BIN"
     GOSUMDB=off \
     GOTOOLCHAIN=local \
     GOFLAGS='-mod=vendor' \
-    go install golang.org/x/mobile/cmd/gobind
+    "$GO_BIN" install golang.org/x/mobile/cmd/gobind
 )
 
 export PATH="$TOOL_BIN:$PATH"
@@ -76,7 +86,7 @@ export DETOUR_GOBIND_BIN="$TOOL_BIN/gobind"
 # Reuse the existing reviewed Mihomo patch sequence, but redirect all source and
 # dependency access to committed inputs. The final Android binding step is
 # replaced with bind-offline.sh: it runs gobind, then compiles the generated Go
-# package *inside this existing module* with -mod=vendor. This avoids gomobile's
+# package inside this existing module with -mod=vendor. This avoids gomobile's
 # temporary module and its mandatory `go mod tidy` entirely.
 python3 - "$ORIGINAL" "$PATCHED" <<'PYEOF'
 from pathlib import Path
