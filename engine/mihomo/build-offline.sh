@@ -86,6 +86,15 @@ src = Path(sys.argv[1])
 dst = Path(sys.argv[2])
 s = src.read_text()
 
+gomobile_guard = 'command -v gomobile >/dev/null || { echo "gomobile missing; install golang.org/x/mobile/cmd/gomobile" >&2; exit 127; }'
+if gomobile_guard not in s:
+    raise SystemExit('FATAL: Mihomo gomobile prerequisite guard changed')
+s = s.replace(
+    gomobile_guard,
+    '# Offline build uses vendored gobind directly; gomobile is intentionally not required.',
+    1,
+)
+
 copy_anchor = 'cp "$BIND_DIR/go.sum" "$WORK_DIR/go.sum"\ncp "$BIND_DIR"/*.go "$WORK_DIR"/'
 copy_replacement = '''cp "$BIND_DIR/go.sum" "$WORK_DIR/go.sum"
 cp -R "$BIND_DIR/vendor" "$WORK_DIR/vendor"
