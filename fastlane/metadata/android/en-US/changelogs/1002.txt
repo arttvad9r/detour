@@ -1,0 +1,1 @@
+Made the native engine build reproducible and F-Droid-ready: Mihomo and ByeDPI are pinned to exact source revisions, Go dependencies are committed for offline builds, and CI now verifies the native engines with network access disabled.
