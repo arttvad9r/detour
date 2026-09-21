@@ -17,7 +17,6 @@ package protocol
 
 import (
 	"context"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"net"
@@ -29,6 +28,7 @@ import (
 	"github.com/enfein/mieru/v3/pkg/common"
 	"github.com/enfein/mieru/v3/pkg/log"
 	"github.com/enfein/mieru/v3/pkg/metrics"
+	"github.com/enfein/mieru/v3/pkg/protocol/serveruser"
 	"github.com/enfein/mieru/v3/pkg/replay"
 	"github.com/enfein/mieru/v3/pkg/stderror"
 )
@@ -54,8 +54,7 @@ type PacketUnderlay struct {
 	block      cipher.BlockCipher
 
 	// ---- server fields ----
-	users               map[string]*appctlpb.User
-	userHintIsMandatory bool
+	serverUsers *serveruser.Registry
 }
 
 var _ Underlay = &PacketUnderlay{}
@@ -280,13 +279,30 @@ func (u *PacketUnderlay) onOpenSessionRequest(seg *segment, remoteAddr net.Addr)
 		log.Debugf("%v received openSessionRequest, but session ID %d is already used", u, sessionID)
 		return nil
 	}
-	session := NewSession(sessionID, false, u.MTU(), u.users, u.trafficPattern)
-	if err := u.AddSession(session, remoteAddr); err == nil {
-		if u.deliverSegmentToSession(session, seg) {
-			u.readySessions <- session
-		}
+	session := newSessionWithServerUserPolicy(sessionID, false, u.MTU(), seg.serverUserPolicy, nil, u.trafficPattern)
+	if err := u.AddSession(session, remoteAddr); err != nil {
+		return err
 	}
+	if !u.deliverSegmentToSession(session, seg) {
+		return fmt.Errorf("failed to deliver open session request for session %d", sessionID)
+	}
+	select {
+	case u.readySessions <- session:
+	case <-u.done:
+		return io.ErrClosedPipe
+	}
+	u.commitServerUserAuthentication(seg)
 	return nil
+}
+
+// commitServerUserAuthentication is the single UDP cache-recording point. The
+// open-session handler invokes it only after new-session parsing and dispatch
+// succeed.
+func (u *PacketUnderlay) commitServerUserAuthentication(seg *segment) {
+	if seg == nil || !seg.serverUserAuthentication.Valid() {
+		return
+	}
+	seg.serverUserAuthentication.Record()
 }
 
 func (u *PacketUnderlay) onOpenSessionResponse(seg *segment) error {
@@ -381,6 +397,8 @@ func (u *PacketUnderlay) readOneSegment() (*segment, net.Addr, error) {
 		// Decrypt metadata.
 		var decryptedMeta []byte
 		var blockCipher cipher.BlockCipher
+		var matchedPolicy serveruser.Policy
+		var authentication serveruser.Authentication
 		if u.isClient {
 			decryptedMeta, err = u.block.Decrypt(encryptedMeta)
 			cipher.ClientDirectDecrypt.Add(1)
@@ -395,25 +413,18 @@ func (u *PacketUnderlay) readOneSegment() (*segment, net.Addr, error) {
 			var decrypted bool
 			var err error
 			// Try existing sessions.
-			u.sessionMap.Range(func(k, v any) bool {
-				session := v.(*Session)
-				if session.block.Load() != nil && session.RemoteAddr().String() == addr.String() {
-					decryptedMeta, err = (*session.block.Load()).Decrypt(encryptedMeta)
-					if err == nil {
-						decrypted = true
-						blockCipher = *session.block.Load()
-						return false
-					}
-				}
-				return true
-			})
+			decryptedMeta, blockCipher, matchedPolicy, decrypted = u.tryDecryptExistingSession(encryptedMeta, addr)
 
 			if !decrypted {
-				// This is a new session.
+				// Existing-session lookup intentionally remains first and scans
+				// the session registry. Source-IP candidates are consulted only
+				// after that direct path fails.
 				cipher.ServerIterateDecrypt.Add(1)
-				blockCipher, decryptedMeta, err = u.serverTryDecryptMetadataForNewSession(encryptedMeta, nonce)
+				source := serveruser.SourceFromAddr(addr)
+				blockCipher, decryptedMeta, authentication, err = u.serverTryDecryptMetadataForNewSession(encryptedMeta, source)
 				if err == nil {
 					decrypted = true
+					matchedPolicy = authentication.Policy()
 				}
 			}
 			if !decrypted {
@@ -456,6 +467,20 @@ func (u *PacketUnderlay) readOneSegment() (*segment, net.Addr, error) {
 			}
 			if blockCipher != nil {
 				seg.block = blockCipher
+				seg.serverUserPolicy = matchedPolicy
+			}
+			if authentication.Valid() {
+				if err := validateServerSegmentDirection(seg); err != nil {
+					log.Debugf("%v dropped invalid new session from %v: %v", u, addr, err)
+					continue
+				}
+				if seg.metadata.Protocol() == openSessionRequest {
+					if err := validateNewServerSessionSegment(seg); err != nil {
+						log.Debugf("%v dropped invalid new session from %v: %v", u, addr, err)
+						continue
+					}
+					seg.serverUserAuthentication = authentication
+				}
 			}
 			return seg, addr, nil
 		} else if isDataAckProtocol(protocolType(p)) {
@@ -471,6 +496,13 @@ func (u *PacketUnderlay) readOneSegment() (*segment, net.Addr, error) {
 			}
 			if blockCipher != nil {
 				seg.block = blockCipher
+				seg.serverUserPolicy = matchedPolicy
+			}
+			if authentication.Valid() {
+				if err := validateServerSegmentDirection(seg); err != nil {
+					log.Debugf("%v dropped invalid new session from %v: %v", u, addr, err)
+					continue
+				}
 			}
 			return seg, addr, nil
 		} else {
@@ -645,20 +677,24 @@ func (u *PacketUnderlay) writeOneSegment(seg *segment, addr net.Addr) error {
 		}
 
 		plaintextMetadata := seg.metadata.Marshal()
-		encryptedMetadata, err := blockCipher.Encrypt(plaintextMetadata)
-		if err != nil {
+		encryptedMetadataLen := len(plaintextMetadata) + blockCipher.NonceSize() + blockCipher.Overhead()
+		encryptedPayloadLen := 0
+		if len(seg.payload) > 0 {
+			encryptedPayloadLen = len(seg.payload) + blockCipher.Overhead()
+		}
+		dataToSend := make([]byte, encryptedMetadataLen+encryptedPayloadLen+len(padding))
+		if err := blockCipher.Encrypt(dataToSend[:0], plaintextMetadata); err != nil {
 			return fmt.Errorf("Encrypt() failed: %w", err)
 		}
-		nonce := encryptedMetadata[:cipher.DefaultNonceSize]
-		dataToSend := encryptedMetadata
+		nonce := dataToSend[:blockCipher.NonceSize()]
+		offset := encryptedMetadataLen
 		if len(seg.payload) > 0 {
-			encryptedPayload, err := blockCipher.EncryptWithNonce(seg.payload, nonce)
-			if err != nil {
+			if err := blockCipher.EncryptWithNonce(dataToSend[offset:offset], nonce, seg.payload); err != nil {
 				return fmt.Errorf("EncryptWithNonce() failed: %w", err)
 			}
-			dataToSend = append(dataToSend, encryptedPayload...)
+			offset += encryptedPayloadLen
 		}
-		dataToSend = append(dataToSend, padding...)
+		copy(dataToSend[offset:], padding)
 		if _, err := u.conn.WriteTo(dataToSend, addr); err != nil {
 			return fmt.Errorf("WriteTo() failed: %w", err)
 		}
@@ -691,26 +727,36 @@ func (u *PacketUnderlay) writeOneSegment(seg *segment, addr net.Addr) error {
 		}
 
 		plaintextMetadata := seg.metadata.Marshal()
-		encryptedMetadata, err := blockCipher.Encrypt(plaintextMetadata)
-		if err != nil {
+		encryptedMetadataLen := len(plaintextMetadata) + blockCipher.NonceSize() + blockCipher.Overhead()
+		wirePayloadLen := 0
+		if len(seg.payload) > 0 {
+			wirePayloadLen = len(seg.payload) + blockCipher.Overhead()
+			if lowEntropy {
+				wirePayloadLen = int(das.payloadLen) + blockCipher.Overhead()
+			}
+		}
+		dataToSend := make([]byte, encryptedMetadataLen+len(padding1)+wirePayloadLen+len(padding2))
+		if err := blockCipher.Encrypt(dataToSend[:0], plaintextMetadata); err != nil {
 			return fmt.Errorf("Encrypt() failed: %w", err)
 		}
-		nonce := encryptedMetadata[:cipher.DefaultNonceSize]
-		dataToSend := append(encryptedMetadata, padding1...)
+		nonce := dataToSend[:blockCipher.NonceSize()]
+		offset := encryptedMetadataLen
+		offset += copy(dataToSend[offset:], padding1)
 		if len(seg.payload) > 0 {
-			encryptedPayload, err := blockCipher.EncryptWithNonce(seg.payload, nonce)
-			if err != nil {
+			if err := blockCipher.EncryptWithNonce(dataToSend[offset:offset], nonce, seg.payload); err != nil {
 				return fmt.Errorf("EncryptWithNonce() failed: %w", err)
 			}
 			if lowEntropy {
-				encryptedPayload, err = encodeLowEntropyEncryptedPayload(encryptedPayload, das)
+				encryptedPayloadLen := len(seg.payload) + blockCipher.Overhead()
+				encryptedPayload, err := encodeLowEntropyEncryptedPayload(dataToSend[offset:offset+encryptedPayloadLen], das)
 				if err != nil {
 					return fmt.Errorf("encode low entropy payload failed: %w", err)
 				}
+				copy(dataToSend[offset:], encryptedPayload)
 			}
-			dataToSend = append(dataToSend, encryptedPayload...)
+			offset += wirePayloadLen
 		}
-		dataToSend = append(dataToSend, padding2...)
+		copy(dataToSend[offset:], padding2)
 		if lowEntropy && len(dataToSend) > u.mtu {
 			return fmt.Errorf("low entropy datagram length %d exceeds MTU %d", len(dataToSend), u.mtu)
 		}
@@ -734,67 +780,42 @@ func (u *PacketUnderlay) writeOneSegment(seg *segment, addr net.Addr) error {
 	return nil
 }
 
-// serverTryDecryptMetadataForNewSession attempts to decrypt the metadata of a new
-// session by iterating over registered users.
-func (u *PacketUnderlay) serverTryDecryptMetadataForNewSession(encryptedMeta, nonce []byte) (cipher.BlockCipher, []byte, error) {
-	var matchedBlock cipher.BlockCipher
-	var decryptedMeta []byte
-	var matchedUserName string
-
-	// First, try to narrow down the user using the nonce hint.
-	var hintUsers []*appctlpb.User
-	for _, user := range u.users {
-		if cipher.CheckUserFromHint([]byte(user.GetName()), nonce) {
-			hintUsers = append(hintUsers, user)
-		}
+// serverTryDecryptMetadataForNewSession attempts to decrypt metadata for an
+// unknown session using the source cache before the full user registry.
+func (u *PacketUnderlay) serverTryDecryptMetadataForNewSession(encryptedMeta []byte, source serveruser.Source) (cipher.BlockCipher, []byte, serveruser.Authentication, error) {
+	if u.serverUsers == nil {
+		return nil, nil, serveruser.Authentication{}, fmt.Errorf("server user registry is nil")
 	}
-	for _, hintUser := range hintUsers {
-		cipher.ServerHintMatchDecrypt.Add(1)
-		password, err := hex.DecodeString(hintUser.GetHashedPassword())
-		if err != nil {
-			log.Debugf("Unable to decode hashed password %q from user %q", hintUser.GetHashedPassword(), hintUser.GetName())
-			continue
-		}
-		if len(password) == 0 {
-			password = cipher.HashPassword([]byte(hintUser.GetPassword()), []byte(hintUser.GetName()))
-		}
-		matchedBlock, decryptedMeta, err = cipher.TryDecrypt(encryptedMeta, password, true)
-		if err == nil {
-			matchedUserName = hintUser.GetName()
-			break
-		} else {
-			cipher.ServerFailedHintMatchDecrypt.Add(1)
-		}
+	matchedBlock, decryptedMetadata, authentication, err := u.serverUsers.Discover(encryptedMeta, source, false)
+	if err != nil {
+		return nil, nil, serveruser.Authentication{}, err
 	}
 
-	if matchedBlock == nil && !u.userHintIsMandatory {
-		// Fallback: try all registered users.
-		for _, user := range u.users {
-			password, err := hex.DecodeString(user.GetHashedPassword())
-			if err != nil {
-				continue
-			}
-			if len(password) == 0 {
-				password = cipher.HashPassword([]byte(user.GetPassword()), []byte(user.GetName()))
-			}
-			matchedBlock, decryptedMeta, err = cipher.TryDecrypt(encryptedMeta, password, true)
-			if err == nil {
-				matchedUserName = user.GetName()
-				break
-			}
-		}
-	}
-	if matchedBlock == nil {
-		return nil, nil, fmt.Errorf("cipher.TryDecrypt() failed for all users")
-	}
-
-	matchedBlock.SetBlockContext(cipher.BlockContext{
-		UserName: matchedUserName,
-	})
 	if u.trafficPattern != nil {
 		matchedBlock.SetNoncePattern(u.trafficPattern.GetNonce())
 	}
-	return matchedBlock, decryptedMeta, nil
+	return matchedBlock, decryptedMetadata, authentication, nil
+}
+
+func (u *PacketUnderlay) tryDecryptExistingSession(encryptedMeta []byte, addr net.Addr) (decryptedMeta []byte, blockCipher cipher.BlockCipher, matchedPolicy serveruser.Policy, decrypted bool) {
+	u.sessionMap.Range(func(_, value any) bool {
+		session := value.(*Session)
+		sessionBlock := session.block.Load()
+		if sessionBlock != nil && isSamePacketAddr(session.RemoteAddr(), addr) {
+			plaintext, err := (*sessionBlock).Decrypt(encryptedMeta)
+			if err == nil {
+				decryptedMeta = plaintext
+				blockCipher = *sessionBlock
+				if policy := session.userPolicy.Load(); policy != nil {
+					matchedPolicy = *policy
+				}
+				decrypted = true
+				return false
+			}
+		}
+		return true
+	})
+	return
 }
 
 func (u *PacketUnderlay) cleanSessions() {
@@ -816,4 +837,18 @@ func (u *PacketUnderlay) cleanSessions() {
 		}
 		return true
 	})
+}
+
+// isSamePacketAddr compares UDP endpoints. If input type is not *net.UDPAddr,
+// use string comparison to check if they are the same address.
+func isSamePacketAddr(a, b net.Addr) bool {
+	aUDP, aOK := a.(*net.UDPAddr)
+	bUDP, bOK := b.(*net.UDPAddr)
+	if aOK && bOK {
+		if aUDP == nil || bUDP == nil {
+			return aUDP == bUDP
+		}
+		return aUDP.Port == bUDP.Port && aUDP.Zone == bUDP.Zone && aUDP.IP.Equal(bUDP.IP)
+	}
+	return a.String() == b.String()
 }

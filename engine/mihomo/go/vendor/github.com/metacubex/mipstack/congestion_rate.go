@@ -69,8 +69,8 @@ func tcpDeliveryAfterEqual(value, reference uint32) bool {
 //
 // TCP owns this value. A controller may read it only while handling the event
 // that supplied it and must not retain its pointer. Accessors deliberately
-// hide transport-only sequence and timestamp selection metadata so future
-// sampler changes do not alter the public congestion-control contract.
+// hide transport-only transmission-selection metadata so future sampler
+// changes do not alter the public congestion-control contract.
 type CongestionRateSample struct {
 	priorDelivered      uint32
 	priorDeliveredTotal uint64
@@ -85,7 +85,7 @@ type CongestionRateSample struct {
 	ackTime             time.Time
 	ackStamp            tcpDeliveryTimestamp
 	lastSent            monotonicStamp
-	lastEnd             uint32
+	lastEnd, lastOrder  uint32
 	applicationLimited  bool
 	schedulerLimited    bool
 	retransmitted       bool
@@ -196,7 +196,7 @@ func (s *tcpDeliveryRateSample) observe(segment sentTCPSegment) {
 		return
 	}
 	sent := segment.hostQueue.queuedAt
-	if s.priorStamp != 0 && (sent < s.lastSent || sent == s.lastSent && !tcpSequenceGreater(segment.end, s.lastEnd)) {
+	if s.priorStamp != 0 && (sent < s.lastSent || sent == s.lastSent && !tcpClockTieTransmissionAfter(segment.transmissionOrder, segment.end, s.lastOrder, s.lastEnd)) {
 		return
 	}
 	s.priorDelivered = snapshot.delivered()
@@ -204,6 +204,7 @@ func (s *tcpDeliveryRateSample) observe(segment sentTCPSegment) {
 	s.firstSent = snapshot.firstSent
 	s.lastSent = sent
 	s.lastEnd = segment.end
+	s.lastOrder = segment.transmissionOrder
 	s.applicationLimited = snapshot.applicationLimited()
 	s.schedulerLimited = segment.state.has(sentTCPSegmentDeliverySchedulerLimited)
 	s.retransmitted = segment.isRetransmitted()
@@ -330,15 +331,6 @@ func (d *tcpDeliveryRateEstimator) onDeliveryDataSent(_, _ int, _ time.Time, sta
 
 // onDeliveryRetransmit returns the common snapshot for a retransmitted range.
 func (d *tcpDeliveryRateEstimator) onDeliveryRetransmit(_, _ int, _ time.Time, stamp monotonicStamp, packetsOut uint32) tcpDeliverySnapshot {
-	if packetsOut == 0 {
-		d.restartFlight(stamp)
-	}
-	return d.snapshot()
-}
-
-// snapshotSend captures common delivery state for a range whose snapshot must
-// be refreshed after ACK processing sends more data.
-func (d *tcpDeliveryRateEstimator) snapshotSend(stamp monotonicStamp, packetsOut uint32) tcpDeliverySnapshot {
 	if packetsOut == 0 {
 		d.restartFlight(stamp)
 	}

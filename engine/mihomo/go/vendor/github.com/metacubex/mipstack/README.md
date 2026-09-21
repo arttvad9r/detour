@@ -67,11 +67,21 @@ wait for TCP actors or user forwarder handlers to return. Stack-owned queues
 and caches are discarded before it returns, while actor-owned buffers are
 released as those actors observe cancellation.
 `Read` requires `sizes` to be at least as long as the buffer slice and honors
-the same leading `offset` in every buffer. Both methods report the successfully
-completed packet prefix before any later-buffer error, as expected by wireguard-go's
-packet-device loops. They also accept a buffer slice larger than `BatchSize`
-because a composite WireGuard device may use a larger Bind batch; `Read`
-still returns no more than 64 packets.
+the same leading `offset` in every buffer. Only `sizes` entries below the
+returned count are valid; later entries are unchanged. Both methods report the
+successfully completed packet prefix before any later-buffer error, as expected
+by wireguard-go's packet-device loops. A short `Read` destination consumes and
+discards that packet before returning `io.ErrShortBuffer`. Invalid, unrelated,
+and unsupported packets passed to `Write` are accounted as drops but count as
+successfully consumed. `Write` accepts a buffer slice larger than `BatchSize`
+because a composite WireGuard device may use a larger Bind batch; `Read` also
+accepts such a slice but still returns no more than 64 packets.
+
+`Read` and `Write` may run concurrently, including multiple calls to the same
+method. Concurrent calls have no relative completion or processing order, and
+each queued outbound packet is assigned to at most one `Read`. The Stack does
+not retain input buffers after `Write` returns or access destination buffers
+after `Read` returns, so callers may immediately reuse them.
 
 The outbound link queue uses byte-based deficit round robin modeled on the
 local-flow scheduling in Linux `sch_fq`. New flows receive a bounded initial
@@ -80,6 +90,21 @@ therefore do not sit behind an entire queue of bulk TCP packets. TCP pacing
 remains connection-owned: the scheduler only chooses among packets that a TCP
 actor has already made eligible. Local loopback delivery remains FIFO because
 it has no serialized external-link bottleneck.
+
+When the fixed link queue is full of published packets, flow-aware admission
+prevents an earlier bulk flow from excluding later UDP, IP, and control flows
+from the scheduler.
+
+The link queue is finite. If `Stack.Read` stops, TCP retains protocol output
+until capacity returns while its actors remain responsive and stream writes
+continue to obey their send-buffer and deadline rules. UDP and IP socket
+writes instead make one immediate bounded admission attempt. Failure to admit
+unicast output or an external-link non-unicast copy is silent by default and
+reports `ENOBUFS` when `ReceiveErrors` is enabled. Receive-side multicast and
+broadcast loopback copies remain independently best effort. Best-effort control
+packets may displace queued backlog or be discarded, and `Stack.Write` itself
+does not wait for outbound capacity. A successful socket write accepts the
+message but does not guarantee that every resulting packet reaches `Stack.Read`.
 
 For integration with userspace packet-device consumers, `Stack` also provides
 `MTU`, `Name`, and `BatchSize`. `LocalAddresses` returns an independent
@@ -121,10 +146,22 @@ historic NS bit remains explicitly available. IPv6 encoding similarly clears
 PadN data and Fragment reserved fields without hiding the received bytes from
 a parsed `IPPacket`.
 
+`IPPacket.MarshalRawBinary` and `AppendRawBinary` instead encode a valid fixed
+IP header while treating IPv4 options and the IPv6 Protocol and Payload as
+opaque wire data. They preserve IPv4 End padding and IPv6 extension-header
+reserved fields, and allow malformed IPv4 option framing and representable but
+semantically invalid fragment payloads for protocol testing. The corresponding
+`SetRawIPv6ExtensionHeaders` links recognized extension descriptors without
+enforcing their framing, order, uniqueness, option, or Fragment semantics.
+These opt-in methods do not produce malformed fixed headers; callers testing
+such fields can mutate the owned result. They also do not perform automatic raw
+fragmentation: `MarshalFragments` remains the strict source-fragmentation
+planner, while callers can encode or mutate each deliberately invalid fragment.
+
 IPv4 option parsing likewise follows Linux's tolerant EOL behavior: received
 bytes after End remain available in `IPPacket.IPv4Options`, while structured
-option traversal stops at End and packet encoding writes canonical zero
-padding.
+option traversal stops at End. Strict packet encoding writes canonical zero
+padding, while raw encoding preserves the complete supplied option area.
 
 `ICMPMessage.IsEchoRequest` and `IsEchoReply` identify complete IPv4 and IPv6
 Echo messages, while `Echo` returns their identifier, sequence, and a borrowed
@@ -147,11 +184,17 @@ copies that quote; route selection, rate limiting, recursive-error suppression,
 and quote truncation remain transmission policy rather than codec behavior.
 The exported untyped ICMP type and code constants cover every error subtype the
 stack accepts as well as Echo Request and Reply. This includes the RFC 8883
-IPv6 Parameter Problem processing-limit codes and RFC 9914 P-Route errors.
-RFC 8883's Destination Unreachable "Headers too long" code remains excluded
-because its required RFC 4884 extension object is not represented by
-`ICMPError`; accepting it as an ordinary quoted error would lose its pointer
-and misidentify extension bytes as part of the quoted packet.
+IPv6 Parameter Problem processing-limit codes and Destination Unreachable
+"Headers too long", plus RFC 9914 P-Route errors. `ICMPError.Extensions`
+retains the RFC 4884 object sequence without its four-byte Extension Header;
+`ExtensionObjects` exposes ordered borrowed `ICMPExtensionObject` views and
+`SetExtensionObjects` performs the copying reverse conversion. Unknown and
+repeated objects remain lossless. `ICMPExtensionObject.Pointer` and
+`SetPointer` handle RFC 8883's Extended Information Pointer object, including
+pointers beyond the available quote. Encoding supplies the version, checksum,
+128-byte minimum quotation, and family-specific four- or eight-byte padding;
+decoding verifies those fields and never guesses an extension when the RFC
+4884 Length field is zero.
 
 TCP options are available in wire order through `TCPSegment.HeaderOptions` and
 `SetHeaderOptions`. `TCPHeaderOption` preserves unknown and repeated kinds and
@@ -276,6 +319,22 @@ MIPS provides:
   destinations;
 - exported `TCPConn`, `TCPListener`, `UDPConn`, and `IPConn` implementations of the
   corresponding standard `net` interfaces.
+
+The `Stack` dial methods and their `Dialer` counterparts return `net.Conn`.
+`Stack.ListenTCP` and `ListenConfig.ListenTCP` return `net.Listener`, while
+ordinary UDP and IP listen methods return `net.PacketConn`. Their dynamic types
+are `*TCPConn`, `*TCPListener`, `*UDPConn`, and `*IPConn` as appropriate, and
+`TCPListener.Accept` returns a `net.Conn` with dynamic type `*TCPConn`. Callers
+only need a type assertion when using MIPS-specific extensions.
+`ListenMulticastUDP` returns `*UDPConn`.
+
+`TCPConn.SetQuickACK` mirrors Linux's transient `TCP_QUICKACK` policy.
+Enabling it replenishes a bounded immediate-ACK budget, leaves
+response-piggybacking mode, and queues an immediate flush of any pending
+acknowledgement; disabling it favors response piggybacking. Protocol events and
+the delayed-ACK timer may subsequently change the mode, so the setting is not
+persistent. A successful call queues the actor-owned change without waiting
+for the acknowledgement to reach the embedding link.
 
 The zero-value `ListenConfig` and `Dialer` mirror the creation-time policy
 pattern used by `net.ListenConfig` and `net.Dialer`. Their `Options` slices are
@@ -409,6 +468,15 @@ ordinary wildcard sockets transparent and does not generate automatic replies;
 admitted nonlocal traffic without a matching protocol forwarder is silently
 dropped.
 
+`LocalAddresses` may be empty when `Promiscuous` is enabled. Such a Stack has
+no addresses for ordinary socket binding, source selection, multicast, or
+loopback delivery; only forwarder-created endpoints and forwarder reply or
+reject actions may emit from intercepted addresses. `Routes == nil` installs
+source-less IPv4 and IPv6 default routes in this configuration. An explicit
+route slice can limit return destinations, and a non-nil empty slice permits
+interception but causes forwarder actions requiring a return path to report
+`syscall.ENETUNREACH`.
+
 `NewTCPForwarder`, `NewUDPForwarder`, `NewIPForwarder`, and
 `NewICMPForwarder` install one protocol-specific fallback handler each. All
 four constructors take their own options type so later protocol policy can
@@ -539,8 +607,9 @@ terminal request actions report the same error.
 
 A detached UDP, IP, or ICMP responder permits repeated or concurrent reply
 operations while it is active or restricted to replies. An argument,
-forwarder, configuration, route, PMTU, queue, or stack error fails only that
-call and may be followed by another reply or, while active, a terminal action.
+forwarder, configuration, route, PMTU, or stack error fails only that call and
+may be followed by another reply or, while active, a terminal action. Local
+output queue pressure follows the best-effort policy described below.
 Concurrent calls have no ordering guarantee.
 
 `RestrictToReplies` irreversibly converts a responder returned by `Detach` to
@@ -574,16 +643,16 @@ caller-owned snapshot. Configuration changes remain dynamic and are reported
 by individual calls.
 
 Request-scoped `Reply` and every `Reject` action are nonblocking with respect to
-the outbound packet queue. They report `ErrResourceLimit` when capacity is
-unavailable; a fragmented reply reserves all required slots before publishing
-any fragment. TCP resets and ICMP errors generated automatically for unhandled
-local traffic follow the same best-effort policy but silently discard queue
-pressure. Applications that need ordinary UDP write backpressure should use
-`Accept` or `Listen`, retain the returned `UDPConn`, and set a write deadline.
+the outbound packet queue. They use best-effort link output: queue pressure may
+discard a packet or any queued member of a source-fragmented sequence sent to
+the external link without turning the action into an error. TCP resets and ICMP
+errors generated automatically for unhandled local traffic follow the same
+policy. Ordinary UDP and IP sockets use the bounded-admission policy described
+below; a stopped device reader never makes their writes wait.
 
 `ForwarderInfo.Pending` excludes caller-owned responders and handlers that
 continue running after selecting an action. `Accepted` counts created TCP/UDP
-endpoints, `Replies` counts successfully queued reply calls, and `ReplyErrors`
+endpoints, `Replies` counts completed best-effort reply calls, and `ReplyErrors`
 counts failed output attempts, including argument and packet validation
 failures. Calls rejected because a terminal action already completed the
 request or responder are lifecycle misuse rather than output attempts and do
@@ -615,10 +684,11 @@ socket creation does not perform another system-random read.
 its zero value does not impose an artificial connection limit. Listener count
 is controlled only by available memory and explicit application creation.
 
-`Config.Routes == nil` installs one default route for each configured address
-family. A non-nil empty route slice deliberately admits only destinations that
-are themselves local. IPv4-only stacks accept MTUs down to 68; configurations
-containing IPv6 require the IPv6 minimum MTU of 1280.
+`Config.Routes == nil` installs one default route for each configured local
+address family, or both families for an addressless promiscuous Stack. A
+non-nil empty route slice deliberately admits only destinations that are
+themselves local. IPv4-only stacks accept MTUs down to 68; configurations with
+IPv6 local addresses or output routes require the IPv6 minimum MTU of 1280.
 `Config.AddressProperties` supplies the deprecated and temporary state that a
 `netip.Prefix` cannot express. Automatic source selection applies the RFC 6724
 same-address, scope, deprecation, label, temporary-address, and longest-prefix
@@ -635,10 +705,11 @@ connection tuple; a nonzero value fixes the label for new connections. A zero
 maximum pacing rate is unlimited; nonzero values cap paced data in bytes per
 second. The initial data burst and control packets are not strictly shaped, so
 this policy is not a byte-exact traffic shaper.
-Congestion control accepts
-`CongestionControlCUBIC`, `CongestionControlReno`, `CongestionControlBBR`, or
-`CongestionControlBBR3`; its zero value selects CUBIC. A programmatic caller
-may instead supply a local `CongestionControlFactory`, described below.
+Congestion-control selectors accept registered string names. The built-in names
+are available as `CongestionControlCUBIC`, `CongestionControlReno`,
+`CongestionControlBBR`, and `CongestionControlBBR3`; an empty name selects
+CUBIC. A programmatic caller may instead supply a local
+`CongestionControlFactory`, described below.
 `UpdateConfig` applies a changed congestion controller to established
 connections without an explicit per-connection override. Existing sockets
 retain the other inherited policies. Receive window
@@ -660,7 +731,8 @@ one bounded group may be credited ahead of the pacing clock.
 
 `Config.UDP` and `Config.IP` define the receive-buffer capacity, path-MTU
 policy, default TTL/Hop Limit, default TOS/Traffic Class, and IPv6 Flow Label
-policy inherited by new datagram sockets. `SetReadBuffer`,
+policy inherited by new datagram sockets. `Config.IP` additionally selects
+whether new IP protocol sockets read or write complete IP packets. `SetReadBuffer`,
 `SetPathMTUDiscovery`, `SetHopLimit`, `SetTrafficClass`, and `SetFlowLabel`
 provide per-socket overrides. A zero configured Flow Label uses a stable keyed
 label for each flow; explicitly setting a socket label to zero disables
@@ -679,7 +751,7 @@ uses the link MTU, leaves DF clear, and rejects an oversized local packet;
 ICMP PMTU updates for that socket, matching Linux. The zero value is `Dont` and
 preserves MIPS's fragmentable datagram default.
 
-Socket operation failures use `*net.OpError`. `errors.Is` continues to identify
+Socket operation failures use `*net.OpError`. `errors.Is` identifies
 `os.ErrDeadlineExceeded`, `net.ErrClosed`, and syscall errors. Orderly TCP EOF
 is returned directly as `io.EOF`, and destination-specific writes on connected
 UDP or IP sockets retain `net.ErrWriteToConnected`. Validated asynchronous ICMP
@@ -691,23 +763,45 @@ queue's approximate retained-memory capacity; payload, per-datagram metadata,
 and asynchronous errors share the bound. `IPConn` applies the same policy.
 `SetReceiveErrors(true)` reserves asynchronous ICMP errors for nonblocking
 `ReadError`; an empty error queue returns `EAGAIN`. With the default false
-setting, ordinary reads return queued errors after already queued payloads,
-preserving the original socket behavior. `ReceiveErrors` reports the current
-mode. UDP and IP writes are synchronous with packet delivery to the embedding
-device, so `SetWriteBuffer` is a validated no-op.
+setting, ordinary reads return queued errors after already queued payloads.
+`ReceiveErrors` reports the current mode. UDP and IP writes make one immediate
+bounded queue-admission attempt. Published backlog is subject to flow-aware
+replacement. Failure to admit unicast output or an external-link non-unicast
+copy reports `ENOBUFS` when enabled and is otherwise a successful message
+write. The option does not report packets displaced after admission.
+Receive-side multicast and broadcast loopback copies remain best effort. UDP
+and IP sockets retain no per-socket transmit queue, so `SetWriteBuffer` is a
+validated no-op and a write deadline is checked only before the attempt.
 
 UDP and IP `ReadBatch`/`WriteBatch` also accept Linux-compatible message flags.
 `MessageFlagPeek` preserves an ordinary queued payload, while pending socket
 errors and successful `MessageFlagErrorQueue` reads are consumed like Linux. A
 `MessageFlagErrorQueue` read never blocks and returns the quoted failed payload,
 the original destination in `Addr`, and a Linux `sock_extended_err` record in
-`OOB`; `SocketErrorControlMessage.Parse` provides its structured form.
-`MessageFlagDontWait` makes packet-queue reads and writes return `EAGAIN`
-instead of waiting. `MessageFlagTruncated` requests the complete payload length
-and, along with `MessageFlagControlTruncated`, also reports output truncation.
-Nonblocking fragmented output reserves the complete fragment set before
-publishing it, so a failed send cannot leave a partial datagram on the link or
-loopback path.
+`OOB`.
+`MessageFlagDontWait` makes the first batch read nonblocking. Writes are already
+nonblocking with respect to device capacity, so the flag is accepted without
+changing their admission result.
+`MessageFlagTruncated` requests the complete payload length and, along with
+`MessageFlagControlTruncated`, also reports output truncation. Source-fragmented
+external output admits fragments independently in wire order. Flow-aware
+overload can discard queued fragments like ordinary link loss, and a later
+admission failure leaves surviving fragments published. Local loopback output
+remains all-or-nothing so its reassembler never receives a capacity-truncated
+datagram.
+
+`SocketErrorControlMessage.Parse` finds one Linux `sock_extended_err` record in
+a possibly compound OOB buffer. `MarshalBinary` and `AppendBinary` encode the
+structured value as one canonical, complete, aligned record; with sufficient
+destination capacity, `AppendBinary` can append it to other ancillary data
+without allocating. The offender address selects `IP_RECVERR` or
+`IPV6_RECVERR`; IPv4-mapped addresses retain their IPv6 sockaddr representation,
+matching Linux IPv6 socket error queues.
+Fields not represented by `SocketErrorControlMessage`, including reserved
+bytes and sockaddr port, flow-info, and scope fields, are written as zero.
+An offender must be a valid, unzoned address; `Parse` rejects Linux
+`AF_UNSPEC` offenders because the structured value does not otherwise retain
+the cmsg address family needed for an unambiguous re-encoding.
 
 An ordinary `IPConn` exchanges upper-layer protocol payloads. With
 `IPHeaderIncludedOnWrite`, IPv4 writes follow Linux `IP_HDRINCL`: the stack
@@ -740,13 +834,16 @@ from network loss.
 the accept and SYN backlogs, along with handshake, SYN-cookie, accept, timeout,
 and queue-drop counters. `UDPConn.Info` and `IPConn.Info` expose endpoint
 identity, queue occupancy, socket defaults, path MTU for connected sockets,
-and cumulative accepted, dropped, and transmitted datagram counters. Both
-also report the PMTU-discovery mode, explicit-error mode, queued error count and
-bytes, and errors dropped by the shared receive-buffer bound. They retain the
-latest correlated ICMP error while open; closing the socket releases that
-diagnostic state while preserving cumulative counters. An automatic `IPConn`
-Flow Label is reported as zero because raw payload fields may select a different
-flow on each write; fixed socket labels are reported directly.
+and cumulative receive, receive-drop, and successful socket-write counters.
+The write counters include default-policy writes silently rejected by local
+admission and remain cumulative for packets later dropped by link scheduling.
+Both also report the PMTU-discovery mode, explicit-error mode,
+queued error count and bytes, and errors dropped by the shared receive-buffer
+bound. They retain the latest correlated ICMP error while open. Closing the
+socket releases that diagnostic state while preserving cumulative counters.
+An automatic `IPConn` Flow Label is reported as zero because raw payload fields
+may select a different flow on each write; fixed socket labels are reported
+directly.
 
 UDP message methods use the Linux 64-bit little-endian control-message layout
 on every host. `ReadMsgUDP` emits `IP_PKTINFO` or `IPV6_PKTINFO` for the local
@@ -790,7 +887,12 @@ send and receive buffers, adaptive RTO with exponential backoff, selectable
 CUBIC, Reno, BBRv1, and BBRv3 congestion control, window scaling,
 delayed ACKs, SACK multi-hole recovery with Proportional Rate Reduction, RACK
 time-based loss detection, tail-loss probes, timestamp negotiation with PAWS,
-and classic ECN feedback. Text and FIN carried in a stateful SYN or SYN-ACK are
+and classic ECN feedback. The receive ACK policy learns the peer's effective
+segment size without mistaking variable SACK options or application remnants
+for a smaller MSS. It sends an ACK once unacknowledged data exceeds one learned
+segment, uses a bounded quick-ACK budget for startup, idle restart, reordering,
+loss, and ECN feedback, and favors acknowledgement piggybacking for prompt
+request/reply traffic. Text and FIN carried in a stateful SYN or SYN-ACK are
 retained through the handshake and processed only after the connection enters
 ESTABLISHED. SYN-cookie mode remains stateless, so unacknowledged SYN text is
 accepted only when the peer retransmits it with or after the final ACK.
@@ -857,24 +959,34 @@ tail-loss-probe recovery events. `CongestionRateSample.TailLossProbeACK`
 identifies the Linux-style ambiguous ACK that exactly covers a retransmitted
 TLP range, allowing a model to preserve delivery signals until later ACK or
 DSACK evidence resolves the loss.
-`CongestionControlFeatureCustomRecovery` opts into PRR and recovery-window
-decisions. Without it TCP applies its RFC recovery defaults without dispatching
-those detailed stages; checkpoint and undo notifications remain available to
-every controller for restoring private state after spurious recovery.
+`CongestionControlFeatureCustomRecovery` opts into PRR, recovery-window, and
+spurious-undo window decisions. Without it TCP applies its RFC recovery
+defaults without dispatching those detailed stages; checkpoint and undo
+notifications remain available to every controller for restoring private state
+after spurious recovery.
+`CongestionControlFeatureCustomWindowValidation` leaves idle and
+application-limited cwnd validation to a controller that consumes transmission
+events, as required by model-based algorithms.
 
 Validated network- and host-unreachable feedback for `SND.UNA` applies RFC
 6069 TCP-LD one-step RTO backoff reversion without turning an established
 connection's soft network error into a hard failure.
 On a SACK-negotiated connection, only newly reported scoreboard information
 counts toward RFC 6675 `DupAcks`; repeated cumulative ACKs and window-probe
-responses without new SACK data cannot manufacture a loss episode.
-Initial Reno and CUBIC slow start uses RFC 9406 HyStart++ and Conservative Slow
+responses without new SACK data cannot manufacture a loss episode. The receive
+path preserves three prompt duplicate ACKs and then applies Linux-style bounded
+SACK compression; the sender gives apparent SACK reneging a short grace period
+before clearing contradictory scoreboard state and entering timeout recovery.
+Initial Reno and CUBIC slow start use RFC 9406 HyStart++ and Conservative Slow
 Start; BBR retains its own Startup model. Eifel timestamps and conservative
-DSACK accounting detect spurious fast retransmits and timeouts, while the RFC
-4015 response bounds the restored congestion window and makes the RTO more
-conservative after a spurious timeout. TCP also handles overlap-aware receive
-reassembly, data-bearing zero-window probes, reset validation, deadlines,
-half-close, FIN states, and TIME_WAIT.
+DSACK accounting detect spurious fast retransmits and timeouts, while RFC 5682
+F-RTO detects a spurious timeout without requiring either option. The RFC 4015
+response bounds the restored congestion window and makes the RTO more
+conservative after a spurious timeout is detected. Reno and CUBIC also apply
+Linux-style RFC 2861 idle and application-limited congestion-window validation;
+model-based controllers retain their own window policy. TCP also handles
+overlap-aware receive reassembly, data-bearing zero-window probes, reset
+validation, deadlines, half-close, FIN states, and TIME_WAIT.
 
 BBR is a byte-scaled implementation of Linux BBRv1. Each original or
 retransmitted range carries a Linux-style delivery snapshot; ACK processing
@@ -997,10 +1109,13 @@ insertion and verification at an even payload offset through `IPv6Checksum`.
 Checksum processing occurs before source fragmentation and after reassembly,
 and does not alter caller-owned header-included writes.
 
-`Stack.Stats` returns a lock-free snapshot of active socket counts, categorized
+`Stack.Stats` returns a lock-free snapshot of active socket counts, separate
+external-link and loopback packet admissions and queue drops, categorized
 IP/TCP packet and actor-queue drops, passive handshake, SYN-cookie and accept
 queue outcomes, retransmission modes, PMTU changes, fragment cleanup, and rate
-limiting.
+limiting. `OutboundQueueDrops` covers admission rejection and replacement;
+`LoopbackQueueDrops` covers local admission rejection. Neither includes loss
+after a packet is returned by `Stack.Read`.
 
 Optional surfaces are arranged for ordinary Go linker reachability rather than
 build tags. A consumer that only dials TCP and listens for UDP does not retain

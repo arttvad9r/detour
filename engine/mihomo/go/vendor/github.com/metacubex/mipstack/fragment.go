@@ -2,7 +2,6 @@ package mipstack
 
 import (
 	"encoding/binary"
-	"errors"
 	"net/netip"
 	"sort"
 	"syscall"
@@ -176,6 +175,18 @@ const (
 type sourceFragmentation struct {
 	allow        bool
 	dontFragment bool
+}
+
+// ipFragmentLayout is the validated, immutable source-fragmentation plan
+// shared by packet builders and queue writers. Emitters derive their private
+// cursor from the bounded payload size and capacity, both of which fit in 16
+// bits for non-jumbogram IP output.
+type ipFragmentLayout struct {
+	options          ipPacketOptions
+	identification   uint32
+	payloadSize      uint16
+	fragmentCapacity uint16
+	headerSize       uint8
 }
 
 // requiresIPv4ID reports whether Linux gives the datagram a fragmentation
@@ -374,7 +385,7 @@ func (r *IPPacketReassembly) Reset() {
 // fragment needs a complete owned wire image: later fragments contribute no
 // header fields to the reassembled packet.
 func publicReassemblyFragment(packet IPPacket) (ipPacketReassemblyFragment, error) {
-	packet, headerSize, totalSize, err := packet.wireLayout()
+	packet, headerSize, totalSize, err := packet.wireLayout(true)
 	if err != nil {
 		return ipPacketReassemblyFragment{}, err
 	}
@@ -392,7 +403,7 @@ func publicReassemblyFragment(packet IPPacket) (ipPacketReassemblyFragment, erro
 		}
 		if view.Offset == 0 {
 			wire := make([]byte, totalSize)
-			marshalPublicIPPacket(wire, packet, headerSize)
+			marshalPublicIPPacket(wire, packet, headerSize, true)
 			fragment.payload = wire[headerSize:]
 			fragment.header = wire[:headerSize]
 			fragment.original = wire
@@ -420,7 +431,7 @@ func publicReassemblyFragment(packet IPPacket) (ipPacketReassemblyFragment, erro
 	}
 	if view.Offset == 0 {
 		wire := make([]byte, totalSize)
-		marshalPublicIPPacket(wire, packet, headerSize)
+		marshalPublicIPPacket(wire, packet, headerSize, true)
 		wireOffset := 40 + fragmentOffset
 		fragment.original = wire
 		fragment.header = wire[:wireOffset]
@@ -1106,58 +1117,120 @@ func (s *Stack) pruneFragments(network *networkState) {
 	s.fragmentMu.Unlock()
 }
 
-// ipPayloadPackets builds one packet or a complete source-fragmented sequence
-// using the current destination PMTU.
-func (s *Stack) ipPayloadPackets(source, target netip.Addr, protocol byte, payload []byte, allowFragment bool) ([][]byte, error) {
-	return s.ipPayloadPacketsWithOptions(source, target, protocol, payload, allowFragment, ipPacketOptions{})
+// ipFragmentLayoutForMTU validates the less common source-fragmentation case
+// outside the fitting-packet hot path. Callers resolve protocol-specific fields
+// such as an automatic IPv6 flow label before constructing the layout.
+func (s *Stack) ipFragmentLayoutForMTU(source, target netip.Addr, payloadSize int, fragmentation sourceFragmentation, options ipPacketOptions, mtu int, layout *ipFragmentLayout) error {
+	if !fragmentation.allow {
+		return syscall.EMSGSIZE
+	}
+	baseHeaderSize := ipHeaderSize(source, target, payloadSize)
+	if baseHeaderSize == 0 || baseHeaderSize+payloadSize <= mtu {
+		return syscall.EMSGSIZE
+	}
+	fragmentHeaderSize := baseHeaderSize
+	if source.Is6() {
+		fragmentHeaderSize += 8
+	}
+	ranges, valid := newFragmentRangeCursor(payloadSize, mtu-fragmentHeaderSize)
+	if !valid {
+		return syscall.EMSGSIZE
+	}
+	*layout = ipFragmentLayout{
+		options:          options,
+		payloadSize:      uint16(payloadSize),
+		fragmentCapacity: uint16(ranges.capacity),
+		headerSize:       uint8(fragmentHeaderSize),
+	}
+	if source.Is4() {
+		layout.identification = uint32(uint16(s.ipv4ID.Add(1)))
+	} else {
+		layout.identification = s.ipv6FragmentID.Add(1)
+	}
+	return nil
 }
 
-// ipPayloadPacketsWithOptions is the raw-output form of ipPayloadPackets.
-func (s *Stack) ipPayloadPacketsWithOptions(source, target netip.Addr, protocol byte, payload []byte, allowFragment bool, options ipPacketOptions) ([][]byte, error) {
-	fragmentation := sourceFragmentation{allow: allowFragment, dontFragment: !allowFragment}
-	return s.ipPayloadPacketsForMTU(source, target, protocol, payload, fragmentation, options, s.mtuFor(target))
+// buildIPFragmentPackets materializes a validated layout in independently
+// owned storage for paths that need a complete fragment sequence. Admission
+// and publication semantics remain the caller's responsibility.
+func buildIPFragmentPackets(source, target netip.Addr, protocol byte, payload []byte, layout ipFragmentLayout) [][]byte {
+	if len(payload) != int(layout.payloadSize) {
+		return nil
+	}
+	ranges, valid := newFragmentRangeCursor(int(layout.payloadSize), int(layout.fragmentCapacity))
+	if !valid {
+		return nil
+	}
+	packets := make([][]byte, 0, (len(payload)+ranges.alignedCapacity-1)/ranges.alignedCapacity)
+	for offset, size, more, ok := ranges.next(); ok; offset, size, more, ok = ranges.next() {
+		packet := make([]byte, int(layout.headerSize)+size)
+		if !marshalIPFragmentHeader(packet, source, target, protocol, layout.identification, offset, more, layout.options) {
+			return nil
+		}
+		copy(packet[int(layout.headerSize):], payload[offset:offset+size])
+		packets = append(packets, packet)
+	}
+	return packets
 }
 
-// ipPayloadPacketsForMTU builds output against an explicit ceiling. Ordinary
-// traffic passes the confirmed PMTU; packetization-layer probes pass the
-// first-hop MTU and disable fragmentation.
-func (s *Stack) ipPayloadPacketsForMTU(source, target netip.Addr, protocol byte, payload []byte, fragmentation sourceFragmentation, options ipPacketOptions, mtu int) ([][]byte, error) {
+// writeBestEffortIPPayloadForMTU writes a fitting payload directly into
+// queue-owned packet storage and streams source fragments through the shared
+// fragment writer when the payload exceeds the path MTU. Link admission remains
+// best effort and does not turn local packet loss into a caller error.
+func (s *Stack) writeBestEffortIPPayloadForMTU(source, target netip.Addr, protocol byte, payload []byte, fragmentation sourceFragmentation, options ipPacketOptions, mtu int) error {
+	headerSize := ipHeaderSize(source, target, len(payload))
+	if headerSize == 0 {
+		return syscall.EMSGSIZE
+	}
 	if source.Is6() && !options.flowLabelSet {
 		options.flowLabel = s.automaticFlowLabel(source, target, protocol, payload)
 		options.flowLabelSet = true
 	}
+	if headerSize+len(payload) > mtu {
+		var layout ipFragmentLayout
+		if err := s.ipFragmentLayoutForMTU(source, target, len(payload), fragmentation, options, mtu, &layout); err != nil {
+			return err
+		}
+		err := s.tryWriteIPFragmentsLayout(source, target, protocol, payload, nil, layout)
+		if err == ErrResourceLimit {
+			return nil
+		}
+		return err
+	}
 	var identification uint16
 	if source.Is4() && fragmentation.requiresIPv4ID() {
-		// A router may fragment any IPv4 datagram without DF, so reserve its
-		// ID even when it currently fits the managed link MTU.
 		identification = uint16(s.ipv4ID.Add(1))
 	}
-	headerSize := ipHeaderSize(source, target, len(payload))
-	if headerSize == 0 {
-		return nil, syscall.EMSGSIZE
+	queue, loopback := s.outputQueueFor(target)
+	slot, err := s.tryReservePacket(queue)
+	if err == ErrResourceLimit {
+		slot, err = s.replaceBestEffortPacket(queue)
 	}
-	if headerSize+len(payload) <= mtu {
-		packet := buildIPPacketWithOptions(source, target, protocol, payload, identification, fragmentation.dontFragment, options)
-		return [][]byte{packet}, nil
+	if err != nil {
+		if err == ErrResourceLimit {
+			return nil
+		}
+		return err
 	}
-	if !fragmentation.allow {
-		return nil, syscall.EMSGSIZE
+	packet, reusable := queue.acquireBuffer(headerSize + len(payload))
+	if !marshalIPHeader(packet, source, target, protocol, identification, fragmentation.dontFragment, options) {
+		queue.releaseBuffer(packet, reusable)
+		queue.releaseReserved(slot)
+		return syscall.EMSGSIZE
 	}
-	var fragments [][]byte
-	if source.Is4() {
-		fragments = buildIPv4FragmentsWithOptions(source, target, protocol, payload, mtu, identification, options)
-	} else {
-		fragments = buildIPv6FragmentsWithOptions(source, target, protocol, payload, mtu, s.ipv6FragmentID.Add(1), options)
+	copy(packet[headerSize:], payload)
+	if !queue.enqueueReservedPacket(slot, packet, reusable) {
+		return ErrClosed
 	}
-	if len(fragments) == 0 {
-		return nil, syscall.EMSGSIZE
-	}
-	return fragments, nil
+	s.recordOutput(loopback)
+	return nil
 }
 
-// writeIPPayloadUntilOptionsForMTU emits output against an explicit packet
-// ceiling while preserving socket deadline and closure behavior.
-func (s *Stack) writeIPPayloadUntilOptionsForMTU(source, target netip.Addr, protocol byte, payload []byte, fragmentation sourceFragmentation, options ipPacketOptions, mtu int, state socketWriteState) error {
+// tryWriteIPSocketPayloadForMTU attempts socket output against an explicit
+// packet ceiling without retaining caller payload. Unlike stack-owned control
+// output, external source fragments are admitted separately; overload may
+// discard any queued fragment, and a later failure leaves survivors published.
+func (s *Stack) tryWriteIPSocketPayloadForMTU(source, target netip.Addr, protocol byte, payload []byte, fragmentation sourceFragmentation, options ipPacketOptions, mtu int) error {
 	if source.Is6() && !options.flowLabelSet {
 		options.flowLabel = s.automaticFlowLabel(source, target, protocol, payload)
 		options.flowLabelSet = true
@@ -1172,7 +1245,10 @@ func (s *Stack) writeIPPayloadUntilOptionsForMTU(source, target netip.Addr, prot
 			identification = uint16(s.ipv4ID.Add(1))
 		}
 		queue, loopback := s.outputQueueFor(target)
-		slot, err := s.reservePacketUntil(queue, loopback, state)
+		slot, err := s.tryReservePacket(queue)
+		if err == ErrResourceLimit {
+			slot, err = s.replaceBestEffortPacket(queue)
+		}
 		if err != nil {
 			return err
 		}
@@ -1189,111 +1265,73 @@ func (s *Stack) writeIPPayloadUntilOptionsForMTU(source, target netip.Addr, prot
 		s.recordOutput(loopback)
 		return nil
 	}
-	if !fragmentation.allow {
-		return syscall.EMSGSIZE
+	var layout ipFragmentLayout
+	if err := s.ipFragmentLayoutForMTU(source, target, len(payload), fragmentation, options, mtu, &layout); err != nil {
+		return err
 	}
-	return s.writeIPFragmentsUntilOptionsForMTU(source, target, protocol, payload, nil, options, mtu, state)
+	return s.tryWriteIPFragmentsLayout(source, target, protocol, payload, nil, layout)
 }
 
-// writeIPPayload atomically queues one best-effort protocol response or its
-// complete source-fragmented sequence without waiting for device capacity.
+// writeIPPayload queues one best-effort protocol response without waiting for
+// device capacity.
 func (s *Stack) writeIPPayload(source, target netip.Addr, protocol byte, payload []byte, allowFragment bool) error {
 	if _, routed := s.network.Load().routeFor(target); !routed {
 		return syscall.ENETUNREACH
 	}
-	packets, err := s.ipPayloadPackets(source, target, protocol, payload, allowFragment)
-	if err != nil {
-		return err
-	}
-	return s.tryWritePackets(packets)
-}
-
-// writeIPPayloadUntilOptions emits raw IP output with mutable deadline state.
-func (s *Stack) writeIPPayloadUntilOptions(source, target netip.Addr, protocol byte, payload []byte, allowFragment bool, options ipPacketOptions, state socketWriteState) error {
 	fragmentation := sourceFragmentation{allow: allowFragment, dontFragment: !allowFragment}
-	return s.writeIPPayloadUntilOptionsForMTU(source, target, protocol, payload, fragmentation, options, s.mtuFor(target), state)
+	return s.writeBestEffortIPPayloadForMTU(source, target, protocol, payload, fragmentation, ipPacketOptions{}, s.mtuFor(target))
 }
 
-// writeIPFragmentsUntilOptionsForMTU writes fragments directly into reserved
-// queue storage. first and second are adjacent logical payload regions; this
-// lets UDP prepend its virtual header without gathering the complete datagram.
-func (s *Stack) writeIPFragmentsUntilOptionsForMTU(source, target netip.Addr, protocol byte, first, second []byte, options ipPacketOptions, mtu int, state socketWriteState) error {
+// tryWriteIPFragmentsLayout streams a validated fragment layout directly into
+// bounded external queue storage. first and second are adjacent logical payload
+// regions, allowing UDP to prepend its virtual header without gathering the
+// datagram. Each external fragment has independent link admission. Loopback
+// reserves the complete materialized set so its reassembler never receives a
+// capacity-truncated datagram.
+func (s *Stack) tryWriteIPFragmentsLayout(source, target netip.Addr, protocol byte, first, second []byte, layout ipFragmentLayout) error {
 	payloadSize := len(first) + len(second)
-	if state.dontWait {
+	if payloadSize != int(layout.payloadSize) {
+		return syscall.EMSGSIZE
+	}
+	ranges, valid := newFragmentRangeCursor(int(layout.payloadSize), int(layout.fragmentCapacity))
+	if !valid {
+		return syscall.EMSGSIZE
+	}
+	queue, loopback := s.outputQueueFor(target)
+	if loopback {
 		payload := first
 		if len(second) != 0 {
 			payload = make([]byte, payloadSize)
 			copy(payload, first)
 			copy(payload[len(first):], second)
 		}
-		packets, err := s.ipPayloadPacketsForMTU(source, target, protocol, payload, sourceFragmentation{allow: true}, options, mtu)
-		if err != nil {
-			return err
-		}
-		if err = s.tryWritePackets(packets); errors.Is(err, ErrResourceLimit) {
-			return syscall.EAGAIN
-		}
-		return err
-	}
-	headerSize := 20
-	identification4 := uint16(0)
-	identification6 := uint32(0)
-	if source.Is4() {
-		if payloadSize > 65515 {
+		packets := buildIPFragmentPackets(source, target, protocol, payload, layout)
+		if len(packets) == 0 {
 			return syscall.EMSGSIZE
 		}
-	} else {
-		headerSize = 48
-		if payloadSize > 65535 {
-			return syscall.EMSGSIZE
-		}
+		return s.tryWriteLoopbackPackets(packets)
 	}
-	ranges, valid := newFragmentRangeCursor(payloadSize, mtu-headerSize)
-	if !valid {
-		return syscall.EMSGSIZE
+	prefix := first
+	if len(prefix) == 0 {
+		prefix = second
 	}
-	if source.Is4() {
-		identification4 = uint16(s.ipv4ID.Add(1))
-	} else {
-		identification6 = s.ipv6FragmentID.Add(1)
-	}
-	queue, loopback := s.outputQueueFor(target)
+	flow := queue.ipFlowKey(source, target, protocol, layout.options.flowLabel, prefix)
 	for offset, size, more, ok := ranges.next(); ok; offset, size, more, ok = ranges.next() {
-		slot, err := s.reservePacketUntil(queue, loopback, state)
+		slot, err := s.tryReservePacket(queue)
+		if err == ErrResourceLimit {
+			slot, err = s.replaceBestEffortPacket(queue)
+		}
 		if err != nil {
 			return err
 		}
-		packet, reusable := queue.acquireBuffer(headerSize + size)
-		if source.Is4() {
-			if !marshalIPHeader(packet, source, target, protocol, identification4, false, options) {
-				queue.releaseBuffer(packet, reusable)
-				queue.releaseReserved(slot)
-				return syscall.EMSGSIZE
-			}
-			field := uint16(offset / 8)
-			if more {
-				field |= 0x2000
-			}
-			binary.BigEndian.PutUint16(packet[6:8], field)
-			packet[10], packet[11] = 0, 0
-			binary.BigEndian.PutUint16(packet[10:12], checksum(packet[:20]))
-		} else {
-			if !marshalIPHeader(packet, source, target, IPv6ExtensionHeaderFragment, 0, false, options) {
-				queue.releaseBuffer(packet, reusable)
-				queue.releaseReserved(slot)
-				return syscall.EMSGSIZE
-			}
-			fragment := packet[40:48]
-			fragment[0], fragment[1] = protocol, 0
-			field := uint16(offset)
-			if more {
-				field |= 1
-			}
-			binary.BigEndian.PutUint16(fragment[2:4], field)
-			binary.BigEndian.PutUint32(fragment[4:8], identification6)
+		packet, reusable := queue.acquireBuffer(int(layout.headerSize) + size)
+		if !marshalIPFragmentHeader(packet, source, target, protocol, layout.identification, offset, more, layout.options) {
+			queue.releaseBuffer(packet, reusable)
+			queue.releaseReserved(slot)
+			return syscall.EMSGSIZE
 		}
-		copyIPPayloadParts(packet[headerSize:], offset, first, second)
-		if !queue.enqueueReservedPacket(slot, packet, reusable) {
+		copyIPPayloadParts(packet[int(layout.headerSize):], offset, first, second)
+		if !queue.enqueueReservedPacketForFlow(slot, packet, reusable, flow) {
 			return ErrClosed
 		}
 		s.recordOutput(loopback)
@@ -1340,7 +1378,7 @@ func marshalPublicIPv4Fragments(packet IPPacket, mtu int) ([][]byte, error) {
 		fragment.Payload = packet.Payload[offset : offset+size]
 		fragmentHeaderSize := 20 + (len(options)+3)&^3
 		wire := make([]byte, fragmentHeaderSize+size)
-		marshalPublicIPPacket(wire, fragment, fragmentHeaderSize)
+		marshalPublicIPPacket(wire, fragment, fragmentHeaderSize, true)
 		fragments = append(fragments, wire)
 	}
 	return fragments, nil
@@ -1354,7 +1392,7 @@ func marshalPublicIPv6Fragments(packet IPPacket, totalSize, mtu int, identificat
 		return marshalPublicIPv6PayloadFragments(packet, mtu, identification)
 	}
 	wire := make([]byte, totalSize)
-	marshalPublicIPPacket(wire, packet, 40)
+	marshalPublicIPPacket(wire, packet, 40, true)
 	point, valid := inspectIPv6FragmentPoint(wire, false)
 	if !valid {
 		return nil, syscall.EINVAL
@@ -1448,15 +1486,13 @@ func ipv6FirstFragmentHeaderEnd(packet []byte, point ipv6FragmentPoint) (int, bo
 	return point.insertion + offset + required, complete
 }
 
-// buildIPv4FragmentsWithOptions preserves raw output fields on every fragment.
-func buildIPv4FragmentsWithOptions(source, target netip.Addr, protocol byte, payload []byte, mtu int, identification uint16, options ipPacketOptions) [][]byte {
-	ranges, valid := newFragmentRangeCursor(len(payload), mtu-20)
-	if !valid || len(payload) > 65515 {
-		return nil
-	}
-	result := make([][]byte, 0, (len(payload)+ranges.alignedCapacity-1)/ranges.alignedCapacity)
-	for offset, size, more, ok := ranges.next(); ok; offset, size, more, ok = ranges.next() {
-		packet := buildIPPacketWithOptions(source, target, protocol, payload[offset:offset+size], identification, false, options)
+// marshalIPFragmentHeader writes the complete per-fragment header shared by
+// independently allocated builders and direct queue writers.
+func marshalIPFragmentHeader(packet []byte, source, target netip.Addr, protocol byte, identification uint32, offset int, more bool, options ipPacketOptions) bool {
+	if source.Is4() {
+		if !marshalIPHeader(packet, source, target, protocol, uint16(identification), false, options) {
+			return false
+		}
 		field := uint16(offset / 8)
 		if more {
 			field |= 0x2000
@@ -1464,35 +1500,20 @@ func buildIPv4FragmentsWithOptions(source, target netip.Addr, protocol byte, pay
 		binary.BigEndian.PutUint16(packet[6:8], field)
 		packet[10], packet[11] = 0, 0
 		binary.BigEndian.PutUint16(packet[10:12], checksum(packet[:20]))
-		result = append(result, packet)
+		return true
 	}
-	return result
-}
-
-// buildIPv6FragmentsWithOptions preserves raw output fields on every fragment.
-func buildIPv6FragmentsWithOptions(source, target netip.Addr, protocol byte, payload []byte, mtu int, identification uint32, options ipPacketOptions) [][]byte {
-	ranges, valid := newFragmentRangeCursor(len(payload), mtu-48)
-	if !valid || len(payload) > 65535 {
-		return nil
+	if !marshalIPHeader(packet, source, target, IPv6ExtensionHeaderFragment, 0, false, options) {
+		return false
 	}
-	result := make([][]byte, 0, (len(payload)+ranges.alignedCapacity-1)/ranges.alignedCapacity)
-	for offset, size, more, ok := ranges.next(); ok; offset, size, more, ok = ranges.next() {
-		packet := make([]byte, 48+size)
-		if !marshalIPHeader(packet, source, target, IPv6ExtensionHeaderFragment, 0, false, options) {
-			return nil
-		}
-		fragment := packet[40:]
-		fragment[0] = protocol
-		field := uint16(offset)
-		if more {
-			field |= 1
-		}
-		binary.BigEndian.PutUint16(fragment[2:4], field)
-		binary.BigEndian.PutUint32(fragment[4:8], identification)
-		copy(fragment[8:], payload[offset:offset+size])
-		result = append(result, packet)
+	fragment := packet[40:48]
+	fragment[0], fragment[1] = protocol, 0
+	field := uint16(offset)
+	if more {
+		field |= 1
 	}
-	return result
+	binary.BigEndian.PutUint16(fragment[2:4], field)
+	binary.BigEndian.PutUint32(fragment[4:8], identification)
+	return true
 }
 
 // icmpForwarderIPPackets applies header-included fragmentation while retaining

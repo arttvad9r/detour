@@ -20,7 +20,9 @@ type AddressProperties struct {
 
 // Route admits one unicast destination prefix. Source optionally pins the
 // preferred local source address; Metric breaks ties between equal prefixes.
-// The embedding link remains responsible for next-hop selection.
+// A source-less route may also carry transparent forwarder output when
+// Promiscuous is enabled without a same-family local address. The embedding
+// link remains responsible for next-hop selection.
 type Route struct {
 	// Destination is the admitted unicast prefix.
 	Destination netip.Prefix
@@ -36,8 +38,8 @@ type networkState struct {
 	maxTCPConnections int
 	promiscuous       bool
 	tcpDefaults       TCPSocketDefaults
-	udpDefaults       DatagramSocketDefaults
-	ipDefaults        DatagramSocketDefaults
+	udpDefaults       UDPSocketDefaults
+	ipDefaults        IPSocketDefaults
 	local             map[netip.Addr]struct{}
 	broadcast         map[netip.Addr]struct{}
 	sources           []netip.Addr
@@ -127,11 +129,11 @@ func buildNetworkState(config Config) (*networkState, error) {
 	if err != nil {
 		return nil, err
 	}
-	udpDefaults, err := normalizeDatagramSocketDefaults(config.UDP, udpDefaultReceiveCapacity, udpDatagramMetadataSize)
+	udpDefaults, err := normalizeUDPSocketDefaults(config.UDP)
 	if err != nil {
 		return nil, errors.New("mipstack: invalid UDP socket defaults: " + err.Error())
 	}
-	ipDefaults, err := normalizeDatagramSocketDefaults(config.IP, ipDefaultReceiveCapacity, ipDatagramMetadataSize)
+	ipDefaults, err := normalizeIPSocketDefaults(config.IP)
 	if err != nil {
 		return nil, errors.New("mipstack: invalid IP socket defaults: " + err.Error())
 	}
@@ -141,6 +143,7 @@ func buildNetworkState(config Config) (*networkState, error) {
 		local: make(map[netip.Addr]struct{}, len(config.LocalAddresses)), sources: make([]netip.Addr, 0, len(config.LocalAddresses)),
 		preferTemporary: config.PreferTemporaryAddresses,
 	}
+	configuredPrefixes := make(map[netip.Prefix]struct{}, len(config.LocalAddresses))
 	for _, prefix := range config.LocalAddresses {
 		address := prefix.Addr().Unmap()
 		if !prefix.IsValid() || !address.IsValid() || address.IsUnspecified() || address.IsMulticast() || address.Zone() != "" {
@@ -156,10 +159,28 @@ func buildNetworkState(config Config) (*networkState, error) {
 		if address.Is4() && isIPv4Broadcast(prefix, address, bits) {
 			return nil, errors.New("mipstack: IPv4 broadcast address cannot be local")
 		}
+		// LocalAddresses describes final state rather than a sequence of address
+		// additions, so repeated identical entries are idempotent.
+		configuredPrefix := netip.PrefixFrom(address, bits)
+		if _, duplicate := configuredPrefixes[configuredPrefix]; duplicate {
+			continue
+		}
+		configuredPrefixes[configuredPrefix] = struct{}{}
 		if _, exists := state.local[address]; !exists {
 			state.local[address] = struct{}{}
 			state.sources = append(state.sources, address)
 			state.sourcePrefixBits = append(state.sourcePrefixBits, bits)
+		} else {
+			// One source candidate represents every prefix of an address. Retaining
+			// the longest makes RFC 6724 rule 8 independent of prefix order.
+			for index, source := range state.sources {
+				if source == address {
+					if bits > state.sourcePrefixBits[index] {
+						state.sourcePrefixBits[index] = bits
+					}
+					break
+				}
+			}
 		}
 		masked := netip.PrefixFrom(address, bits).Masked()
 		state.localPrefixes = append(state.localPrefixes, masked)
@@ -194,17 +215,20 @@ func buildNetworkState(config Config) (*networkState, error) {
 			state.addressProperties[normalized] = properties
 		}
 	}
-	if len(state.local) == 0 {
+	addressless := len(state.local) == 0
+	if addressless && !state.promiscuous {
 		return nil, errors.New("mipstack: at least one local address is required")
 	}
-	if mtu < ipv6MinimumMTU {
-		for _, source := range state.sources {
-			if source.Is6() {
-				return nil, errors.New("mipstack: IPv6 requires an MTU of at least 1280")
-			}
+	var haveLocal4, haveLocal6 bool
+	for _, source := range state.sources {
+		if source.Is4() {
+			haveLocal4 = true
+		} else {
+			haveLocal6 = true
 		}
 	}
 	state.routes = make([]Route, 0, len(config.Routes)+2)
+	haveIPv6Output := haveLocal6
 	for _, route := range config.Routes {
 		destination, err := normalizeRoutePrefix(route.Destination)
 		if err != nil {
@@ -221,37 +245,58 @@ func buildNetworkState(config Config) (*networkState, error) {
 		} else {
 			source = netip.Addr{}
 		}
-		state.routes = append(state.routes, Route{Destination: destination, Source: source, Metric: route.Metric})
-	}
-	for _, route := range state.routes {
-		familyAvailable := false
-		for _, source := range state.sources {
-			if source.Is6() == route.Destination.Addr().Is6() {
-				familyAvailable = true
-				break
-			}
+		familyAvailable := haveLocal4
+		if destination.Addr().Is6() {
+			familyAvailable = haveLocal6
+			haveIPv6Output = true
 		}
-		if !familyAvailable {
+		if !familyAvailable && !state.promiscuous {
 			return nil, errors.New("mipstack: route has no local address in its family")
 		}
+		state.routes = append(state.routes, Route{Destination: destination, Source: source, Metric: route.Metric})
 	}
 	if config.Routes == nil {
-		var have4, have6 bool
-		for _, source := range state.sources {
-			if source.Is4() {
-				have4 = true
-			} else {
-				have6 = true
-			}
+		default4, default6 := haveLocal4, haveLocal6
+		if addressless {
+			// Promiscuous admission supports both IP versions. Source-less
+			// defaults let intercepted flows return over the single embedding
+			// link without granting either family to ordinary sockets.
+			default4, default6 = true, true
 		}
-		if have4 {
+		if default4 {
 			state.routes = append(state.routes, Route{Destination: netip.PrefixFrom(netip.IPv4Unspecified(), 0)})
 		}
-		if have6 {
+		if default6 {
 			state.routes = append(state.routes, Route{Destination: netip.PrefixFrom(netip.IPv6Unspecified(), 0)})
+			haveIPv6Output = true
 		}
 	}
+	if mtu < ipv6MinimumMTU && haveIPv6Output {
+		return nil, errors.New("mipstack: IPv6 requires an MTU of at least 1280")
+	}
 	return state, nil
+}
+
+// normalizeUDPSocketDefaults validates and normalizes the shared datagram
+// policies inherited by UDP sockets.
+func normalizeUDPSocketDefaults(value UDPSocketDefaults) (UDPSocketDefaults, error) {
+	defaults, err := normalizeDatagramSocketDefaults(value.DatagramSocketDefaults, udpDefaultReceiveCapacity, udpDatagramMetadataSize)
+	if err != nil {
+		return UDPSocketDefaults{}, err
+	}
+	value.DatagramSocketDefaults = defaults
+	return value, nil
+}
+
+// normalizeIPSocketDefaults validates the shared datagram policies while
+// preserving the IP-specific representation defaults.
+func normalizeIPSocketDefaults(value IPSocketDefaults) (IPSocketDefaults, error) {
+	defaults, err := normalizeDatagramSocketDefaults(value.DatagramSocketDefaults, ipDefaultReceiveCapacity, ipDatagramMetadataSize)
+	if err != nil {
+		return IPSocketDefaults{}, err
+	}
+	value.DatagramSocketDefaults = defaults
+	return value, nil
 }
 
 // acceptsInboundDestination reports whether one unicast destination may enter

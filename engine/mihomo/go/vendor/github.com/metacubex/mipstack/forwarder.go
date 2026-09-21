@@ -104,13 +104,14 @@ type ForwarderInfo struct {
 	// Accepted counts successfully created TCP connections, connected UDP
 	// flows, and unconnected UDP listeners.
 	Accepted uint64
-	// Replies counts successfully queued request and responder replies.
+	// Replies counts completed best-effort request and responder reply calls.
 	Replies uint64
 	// ReplyErrors counts argument, state, and output failures after a Reply call
 	// has entered its request or responder lifetime. Calls rejected because a
 	// terminal action already completed that lifetime are not output attempts.
 	ReplyErrors uint64
-	// Dropped counts explicit, implicit, invalidated, and capacity drops.
+	// Dropped counts explicit, implicit, invalidated, and pending-request
+	// capacity drops.
 	Dropped uint64
 	// Rejected counts explicit protocol rejection decisions.
 	Rejected uint64
@@ -797,11 +798,11 @@ func (r *TCPForwarderRequest) Drop() error {
 	return nil
 }
 
-// Reject consumes the TCP request and attempts to enqueue the RFC 9293 reset
-// response without waiting for outbound capacity. It reports ErrResourceLimit
-// when the queue is full, syscall.EADDRNOTAVAIL when the intercepted destination
-// is no longer admitted, and syscall.ENETUNREACH when no return route remains;
-// the rejection decision remains terminal.
+// Reject consumes the TCP request and makes a best-effort attempt to enqueue the
+// RFC 9293 reset without waiting for outbound capacity. Local output congestion
+// may discard the reset without error. It reports syscall.EADDRNOTAVAIL when the
+// intercepted destination is no longer admitted and syscall.ENETUNREACH when no
+// return route remains; the rejection decision remains terminal.
 func (r *TCPForwarderRequest) Reject() error {
 	if !r.complete(forwarderRequestRejected) {
 		return ErrForwarderRequestCompleted
@@ -895,8 +896,9 @@ func (r *UDPForwarderRequest) Listen(options ...SocketOption) (*UDPConn, error) 
 // retaining a UDP endpoint. Use ReplyFrom to select a different source. The
 // method may be called repeatedly or concurrently, including before a later
 // terminal action, but every call must finish before the handler returns. Each
-// call atomically queues the complete datagram or all of its fragments without
-// waiting for outbound capacity and may be retried after any error.
+// call uses the current Config.UDP output defaults and makes one immediate
+// best-effort output attempt. Local output congestion may discard the datagram
+// or any of its source fragments without error. Other errors may be retried.
 func (r *UDPForwarderRequest) Reply(payload []byte) (int, error) {
 	return r.replyFrom(payload, r.flow.Destination)
 }
@@ -944,12 +946,13 @@ func (r *UDPForwarderRequest) Drop() error {
 	return nil
 }
 
-// Reject consumes the UDP datagram and attempts to enqueue ICMP Port
-// Unreachable without waiting for outbound capacity. It reports
-// ErrResourceLimit when the queue is full, syscall.EADDRNOTAVAIL when the
-// intercepted destination is no longer admitted, and syscall.ENETUNREACH when
-// no return route remains. It may follow any number of Reply or ReplyFrom
-// attempts; the rejection decision remains terminal.
+// Reject consumes the UDP datagram and makes a best-effort attempt to enqueue
+// ICMP Port Unreachable without waiting for outbound capacity. Local output
+// congestion may discard the response without error. It reports
+// syscall.EADDRNOTAVAIL when the intercepted destination is no longer admitted
+// and syscall.ENETUNREACH when no return route remains. It may follow any
+// number of Reply or ReplyFrom attempts; the rejection decision remains
+// terminal.
 func (r *UDPForwarderRequest) Reject() error {
 	if !r.complete(forwarderRequestRejected) {
 		return ErrForwarderRequestCompleted
@@ -966,8 +969,10 @@ func (r *IPForwarderRequest) Message() IPForwarderMessage {
 
 // Reply sends one payload with the triggering protocol number from Destination
 // to Source. Calls may be repeated or concurrent before a later terminal action
-// and must finish before the handler returns. Each reply atomically queues all
-// required fragments without waiting for capacity and may be retried on error.
+// and must finish before the handler returns. Each call uses the current
+// Config.IP output defaults and makes one immediate best-effort output attempt.
+// Local output congestion may discard the payload or any of its source
+// fragments without error. Other errors may be retried.
 func (r *IPForwarderRequest) Reply(payload []byte) error {
 	if err := r.beginReply(); err != nil {
 		return err
@@ -994,8 +999,9 @@ func (r *IPForwarderRequest) Drop() error {
 	return nil
 }
 
-// Reject consumes the IP payload and attempts to enqueue the address-family
-// protocol-unreachable response without waiting for outbound capacity. It
+// Reject consumes the IP payload and makes a best-effort attempt to enqueue the
+// address-family protocol-unreachable response without waiting for outbound
+// capacity. Local output congestion may discard the response without error. It
 // reports syscall.EADDRNOTAVAIL when the intercepted destination is no longer
 // admitted and syscall.ENETUNREACH when no return route remains. It may follow
 // any number of Reply attempts.
@@ -1025,9 +1031,9 @@ func (r *ICMPForwarderRequest) IPPacket() []byte { return r.packet.original }
 // Reply sends a complete ICMP protocol message from Destination to Source. The
 // method may be called repeatedly or concurrently, including before a later
 // terminal action, but every call must finish before the handler returns. The
-// stack copies payload, recalculates its checksum, and atomically queues every
-// required fragment without waiting for outbound capacity. A call may be
-// retried after any error.
+// stack copies payload, recalculates its checksum, and makes one immediate
+// best-effort output attempt. Local output congestion may discard the message
+// or any of its source fragments without error. Other errors may be retried.
 func (r *ICMPForwarderRequest) Reply(payload []byte) error {
 	return r.reply(payload, false)
 }
@@ -1067,12 +1073,14 @@ func (r *ICMPForwarderRequest) writeReply(payload []byte, owned bool) error {
 // be any valid same-family address; it need not belong to LocalAddresses and is
 // not classified as unicast, multicast, or broadcast here. MIPS copies packet,
 // normalizes its IP length and outer IPv4 and ICMP checksums,
-// preserves other legal header fields and extension headers, and atomically
+// preserves other legal header fields and extension headers, and
 // source-fragments it when permitted. A non-atomic input fragment is invalid.
 // An IPv6 atomic Fragment header is preserved when the packet fits; when
 // fragmentation is required, it is replaced by the emitted fragment sequence
-// instead of nesting another header. The method may be retried after validation
-// or output failure and does not prevent a later terminal action.
+// instead of nesting another header. Output does not wait for capacity; local
+// congestion may discard the packet or any of its source fragments without
+// error. The method may be retried after other validation or output failures
+// and does not prevent a later terminal action.
 func (r *ICMPForwarderRequest) ReplyIPPacket(packet []byte) error {
 	if err := r.beginReply(); err != nil {
 		return err
@@ -1123,10 +1131,11 @@ func (r *ICMPForwarderRequest) Drop() error {
 
 // Reject consumes the ICMP message and emits an administratively prohibited
 // response when ICMP rules permit an error response. It does not wait for
-// outbound capacity and reports ErrResourceLimit when the queue is full,
-// syscall.EADDRNOTAVAIL when the intercepted destination is no longer admitted,
-// and syscall.ENETUNREACH when no return route remains. The rejection decision
-// remains terminal and may follow any number of reply attempts.
+// outbound capacity, and local output congestion may discard the response
+// without error. It reports syscall.EADDRNOTAVAIL when the intercepted
+// destination is no longer admitted and syscall.ENETUNREACH when no return
+// route remains. The rejection decision remains terminal and may follow any
+// number of reply attempts.
 func (r *ICMPForwarderRequest) Reject() error {
 	if !r.complete(forwarderRequestRejected) {
 		return ErrForwarderRequestCompleted
@@ -1748,12 +1757,12 @@ func (f *ICMPForwarder) closeFromStack() {
 // Detach transfers one UDP request out of the synchronous handler lifetime.
 // On success it removes the request from the forwarder's pending set and
 // returns a caller-owned flow and payload snapshot. The responder points back
-// to the originating forwarder's state for output and Done, but the forwarder does not
-// retain the responder or impose a capacity or timeout. The caller may hand it
-// to another goroutine or discard it without a terminal action. Detach itself
-// is the request's action and consumes the request even when it returns an
-// error. It may be called after any number of Reply or ReplyFrom attempts; the
-// responder remains available for further replies.
+// to the originating forwarder's state for output and Done, but the forwarder
+// does not retain the responder or impose a capacity or timeout. The caller
+// may hand it to another goroutine or discard it without a terminal action.
+// Detach itself is the request's action and consumes the request even when it
+// returns an error. It may be called after any number of Reply or ReplyFrom
+// attempts; the responder remains available for further replies.
 func (r *UDPForwarderRequest) Detach() (*UDPForwarderResponder, error) {
 	_, ok := r.claim()
 	if !ok {
@@ -1880,15 +1889,16 @@ func (r *UDPForwarderResponder) RestrictToReplies() error {
 	return nil
 }
 
-// Reply atomically queues one reverse-flow datagram from Destination to Source
-// without waiting for outbound capacity. Use ReplyFrom to select a different
-// source. It reports ErrResourceLimit without emitting partial fragments when
-// the queue is full. Calls may be repeated or concurrent while the responder
-// is active or restricted to replies, with no ordering guarantee between
-// concurrent calls. Any call may be retried after failure; each call
+// Reply makes one immediate best-effort output attempt for a reverse-flow
+// datagram from Destination to Source. Use ReplyFrom to select a different
+// source. Local output congestion may discard the datagram or any of its source
+// fragments without error. Calls may be repeated or concurrent while
+// the responder is active or restricted to replies, with no ordering guarantee
+// between concurrent calls. Any call may be retried after failure; each call
 // revalidates the forwarder and current destination policy and copies payload
-// before returning. It reports net.ErrClosed after a terminal action or when
-// the originating forwarder is closed.
+// before returning. It uses the current Config.UDP output defaults and reports
+// net.ErrClosed after a terminal action or when the originating forwarder is
+// closed.
 func (r *UDPForwarderResponder) Reply(payload []byte) (int, error) {
 	return r.replyFrom(payload, r.flow.Destination)
 }
@@ -1916,10 +1926,11 @@ func (r *UDPForwarderResponder) replyFrom(payload []byte, source netip.AddrPort)
 	return n, r.recordReply(err)
 }
 
-// Reject terminates the detached datagram and attempts to enqueue ICMP Port
-// Unreachable without waiting for outbound capacity. It remains valid after
-// replies and revalidates the forwarder and current destination policy. Once
-// selected, the rejection decision remains terminal on output error. It
+// Reject terminates the detached datagram and makes a best-effort attempt to
+// enqueue ICMP Port Unreachable without waiting for outbound capacity. Local
+// output congestion may discard the response without error. It remains valid
+// after replies and revalidates the forwarder and current destination policy.
+// Once selected, the rejection decision remains terminal on output error. It
 // reports net.ErrClosed if the responder is already terminal or restricted to
 // replies, including one returned by DetachForReplies, or if the originating
 // forwarder is closed.
@@ -2024,17 +2035,13 @@ func (f *forwarderRuntime) replyIPPayload(packet ipPacket, payload []byte) error
 	if _, routed := network.routeFor(packet.source); !routed {
 		return syscall.ENETUNREACH
 	}
-	defaults := network.ipDefaults
+	defaults := network.ipDefaults.DatagramSocketDefaults
 	options := ipPacketOptions{
 		hopLimit: byte(defaults.HopLimit), trafficClass: defaults.TrafficClass,
 		flowLabel: defaults.FlowLabel, flowLabelSet: defaults.FlowLabel != 0,
 	}
 	mtu, fragmentation := f.stack.pathMTUOutputPolicy(packet.source, defaults.PathMTUDiscovery)
-	packets, err := f.stack.ipPayloadPacketsForMTU(packet.target, packet.source, packet.protocol, payload, fragmentation, options, mtu)
-	if err != nil {
-		return err
-	}
-	return f.stack.tryWritePackets(packets)
+	return f.stack.writeBestEffortIPPayloadForMTU(packet.target, packet.source, packet.protocol, payload, fragmentation, options, mtu)
 }
 
 // Message returns the detached IP metadata and independently owned payload.
@@ -2061,13 +2068,14 @@ func (r *IPForwarderResponder) RestrictToReplies() error {
 	return nil
 }
 
-// Reply atomically queues one reverse protocol payload without waiting for
-// outbound capacity. Calls may be repeated or concurrent until a terminal
-// action or while restricted to replies, with no ordering guarantee between
-// concurrent calls. Failed calls may be retried, and Drop or Reject may follow
-// any number of replies while the responder remains active. It reports
-// net.ErrClosed after a terminal action or when the originating forwarder is
-// closed.
+// Reply makes one immediate best-effort output attempt for a reverse protocol
+// payload. Local output congestion may discard the payload or any of its source
+// fragments without error. Calls may be repeated or concurrent until a
+// terminal action or while restricted to replies, with no ordering guarantee
+// between concurrent calls. Failed calls may be retried, and Drop or Reject may
+// follow any number of replies while the responder remains active.
+// Each call uses the current Config.IP output defaults. It reports net.ErrClosed
+// after a terminal action or when the originating forwarder is closed.
 func (r *IPForwarderResponder) Reply(payload []byte) error {
 	if err := r.beginReply(); err != nil {
 		return err
@@ -2075,10 +2083,11 @@ func (r *IPForwarderResponder) Reply(payload []byte) error {
 	return r.recordReply(r.runtime.replyIPPayload(r.packet, payload))
 }
 
-// Reject terminates the detached payload and attempts to enqueue a protocol-
-// unreachable response. It remains valid after replies and revalidates current
-// destination policy. It reports net.ErrClosed if the responder is already
-// terminal or restricted to replies, including one returned by
+// Reject terminates the detached payload and makes a best-effort attempt to
+// enqueue a protocol-unreachable response. Local output congestion may discard
+// the response without error. It remains valid after replies and revalidates
+// current destination policy. It reports net.ErrClosed if the responder is
+// already terminal or restricted to replies, including one returned by
 // DetachForReplies, or if the originating forwarder is closed.
 func (r *IPForwarderResponder) Reject() error {
 	if err := r.beginReject(); err != nil {
@@ -2207,10 +2216,10 @@ func (r *ICMPForwarderResponder) RestrictToReplies() error {
 	return nil
 }
 
-// Reply atomically queues one reverse ICMP message without waiting for
-// outbound capacity. It reports ErrResourceLimit without emitting partial
-// fragments when the queue is full. Calls may be repeated or concurrent until
-// a terminal action or while restricted to replies, with no ordering guarantee
+// Reply makes one immediate best-effort output attempt for a reverse ICMP
+// message. Local output congestion may discard the message or any of its source
+// fragments without error. Calls may be repeated or concurrent until a
+// terminal action or while restricted to replies, with no ordering guarantee
 // between concurrent calls. Any call may be retried after failure; each call
 // revalidates the forwarder and current destination policy and copies payload
 // before returning. It reports net.ErrClosed after a terminal action or when
@@ -2243,8 +2252,10 @@ func (r *ICMPForwarderResponder) writeReply(payload []byte, owned bool) error {
 // Calls may be repeated or concurrent until a terminal action or while
 // restricted to replies. The packet is copied before return, concurrent calls
 // have no ordering guarantee, and a failed call may be retried or followed by
-// Drop or Reject while the responder remains active. It reports net.ErrClosed
-// after a terminal action or when the originating forwarder is closed.
+// Drop or Reject while the responder remains active. Local output congestion
+// may discard the packet or any of its source fragments without error. It
+// reports net.ErrClosed after a terminal action or when the originating
+// forwarder is closed.
 func (r *ICMPForwarderResponder) ReplyIPPacket(packet []byte) error {
 	if err := r.beginReply(); err != nil {
 		return err
@@ -2259,10 +2270,10 @@ func (r *ICMPForwarderResponder) ReplyIPPacket(packet []byte) error {
 // ReplyEcho copies the detached Echo Request into an Echo Reply, preserving its
 // identifier, sequence, and data. It reports syscall.EINVAL when the retained
 // message is not an IPv4 or IPv6 Echo Request. Calls may be repeated or
-// concurrent until a terminal action and may be followed by Drop or Reject. It
-// reports net.ErrClosed if the responder is terminal or restricted to replies,
-// including one returned by DetachForReplies, or if the originating forwarder
-// is closed.
+// concurrent until a terminal action and may be followed by Drop or Reject. Its
+// best-effort output behavior matches Reply. It reports net.ErrClosed if the
+// responder is terminal or restricted to replies, including one returned by
+// DetachForReplies, or if the originating forwarder is closed.
 func (r *ICMPForwarderResponder) ReplyEcho() error {
 	if err := r.beginInputReply(); err != nil {
 		return err
@@ -2281,9 +2292,10 @@ func (r *ICMPForwarderResponder) ReplyEcho() error {
 // administratively prohibited response without waiting for outbound capacity.
 // It remains valid after replies and revalidates the forwarder and current
 // destination policy. Once selected, the decision remains terminal on output
-// error. It reports net.ErrClosed if the responder is already terminal or
-// restricted to replies, including one returned by DetachForReplies, or if the
-// originating forwarder is closed.
+// error. Local output congestion may discard the response without error. It
+// reports net.ErrClosed if the responder is already terminal or restricted to
+// replies, including one returned by DetachForReplies, or if the originating
+// forwarder is closed.
 func (r *ICMPForwarderResponder) Reject() error {
 	if err := r.beginReject(); err != nil {
 		return err
