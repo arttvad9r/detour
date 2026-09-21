@@ -145,7 +145,7 @@ type userTimeoutSocketOption socketOptionOverride[time.Duration]
 // congestionControlSocketOption stores one registered TCP congestion-control
 // name. It shares its destination slot with congestionControlFactorySocketOption.
 type congestionControlSocketOption struct {
-	name CongestionControl
+	name string
 	set  bool
 }
 
@@ -162,7 +162,8 @@ type acceptQueueSocketOption socketOptionOverride[int]
 // synBacklogSocketOption stores one stateful TCP handshake limit.
 type synBacklogSocketOption socketOptionOverride[int]
 
-// receiveErrorsSocketOption stores one UDP or IP asynchronous-error policy.
+// receiveErrorsSocketOption stores one UDP or IP error-delivery and
+// output-admission reporting policy.
 type receiveErrorsSocketOption socketOptionBoolOverride
 
 // pathMTUDiscoverySocketOption stores one UDP or IP PMTU-discovery policy.
@@ -286,8 +287,8 @@ func (option flowLabelSocketOption) apply(set socketOptionSet, use socketOptionU
 
 // WriteBuffer fixes the send-buffer capacity of a newly created TCP
 // connection and disables send auto-tuning for that connection. It is not a
-// UDP or IP option because those protocols synchronously hand writes to the
-// stack output queue and retain no per-socket send buffer.
+// UDP or IP option because those protocols make one immediate attempt to admit
+// output to a bounded stack queue and retain no per-socket send buffer.
 //
 // It is valid for ListenConfig.ListenTCP, Dialer.DialTCP, and
 // TCPForwarderRequest.Accept.
@@ -471,11 +472,11 @@ func (option userTimeoutSocketOption) apply(set socketOptionSet, use socketOptio
 	return set, nil
 }
 
-// CongestionControl selects one registered algorithm for newly created TCP
-// connections. It overrides CongestionControlFactory when it appears later in
-// the same option list. It is valid for ListenConfig.ListenTCP,
+// CongestionControl selects one registered algorithm by name for newly created
+// TCP connections. It overrides CongestionControlFactory when it appears later
+// in the same option list. It is valid for ListenConfig.ListenTCP,
 // Dialer.DialTCP, and TCPForwarderRequest.Accept.
-func (SocketOptionFactory) CongestionControl(algorithm CongestionControl) SocketOption {
+func (SocketOptionFactory) CongestionControl(algorithm string) SocketOption {
 	return congestionControlSocketOption{name: algorithm, set: true}
 }
 
@@ -618,20 +619,23 @@ func (option synBacklogSocketOption) apply(set socketOptionSet, use socketOption
 
 // ReceiveErrors controls whether newly created UDP and IP sockets reserve
 // asynchronous errors for ReadError instead of returning them from ordinary
-// reads after queued payloads. It is valid for the UDP and IP creation methods
-// on ListenConfig and Dialer, and for UDPForwarderRequest.Accept and
-// UDPForwarderRequest.Listen.
+// reads after queued payloads. It also makes immediate failure to admit unicast
+// output, or the external-link copy of multicast or broadcast output, fail
+// writes with ENOBUFS. It does not report packets displaced after admission.
+// Receive-side non-unicast loopback copies remain best effort. It is valid for
+// the UDP and IP creation methods on ListenConfig and Dialer, and for
+// UDPForwarderRequest.Accept and UDPForwarderRequest.Listen.
 func (SocketOptionFactory) ReceiveErrors(enabled bool) SocketOption {
 	return receiveErrorsSocketOption(newSocketOptionBoolOverride(enabled))
 }
 
-// UnsetReceiveErrors restores the current Stack asynchronous-error policy. It
-// is valid for every socket creation operation.
+// UnsetReceiveErrors restores the current Stack ReceiveErrors policy. It is
+// valid for every socket creation operation.
 func (SocketOptionFactory) UnsetReceiveErrors() SocketOption {
 	return receiveErrorsSocketOption(socketOptionBoolOverrideUnset)
 }
 
-// apply validates and applies one UDP or IP asynchronous-error override.
+// apply validates and applies one UDP or IP ReceiveErrors override.
 func (option receiveErrorsSocketOption) apply(set socketOptionSet, use socketOptionUse) (socketOptionSet, error) {
 	override := socketOptionBoolOverride(option)
 	if !override.valid() {
@@ -878,9 +882,9 @@ func (SocketOptionFactory) IPHeaderIncludedOnWrite(enabled bool) SocketOption {
 	return ipHeaderIncludedOnWriteSocketOption(newSocketOptionBoolOverride(enabled))
 }
 
-// UnsetIPHeaderIncludedOnWrite restores protocol-payload writes, overriding
-// earlier IPHeaderIncludedOnWrite options in the same list. The unset marker
-// is valid for every socket creation operation.
+// UnsetIPHeaderIncludedOnWrite restores the current Stack IP write default,
+// overriding earlier IPHeaderIncludedOnWrite options in the same list. The
+// unset marker is valid for every socket creation operation.
 func (SocketOptionFactory) UnsetIPHeaderIncludedOnWrite() SocketOption {
 	return ipHeaderIncludedOnWriteSocketOption(socketOptionBoolOverrideUnset)
 }
@@ -892,13 +896,13 @@ func (option ipHeaderIncludedOnWriteSocketOption) apply(set socketOptionSet, use
 		return set, syscall.EINVAL
 	}
 	if override == socketOptionBoolOverrideUnset {
-		set.ip.headerIncludedOnWrite = false
+		set.ip.headerIncludedOnWrite = override
 		return set, nil
 	}
 	if use != socketOptionIPListen && use != socketOptionIPDial {
 		return set, syscall.ENOPROTOOPT
 	}
-	set.ip.headerIncludedOnWrite = override == socketOptionBoolOverrideEnabled
+	set.ip.headerIncludedOnWrite = override
 	return set, nil
 }
 
@@ -911,9 +915,9 @@ func (SocketOptionFactory) IPHeaderIncludedOnRead(enabled bool) SocketOption {
 	return ipHeaderIncludedOnReadSocketOption(newSocketOptionBoolOverride(enabled))
 }
 
-// UnsetIPHeaderIncludedOnRead restores protocol-payload reads, overriding
-// earlier IPHeaderIncludedOnRead options in the same list. The unset marker is
-// valid for every socket creation operation.
+// UnsetIPHeaderIncludedOnRead restores the current Stack IP read default,
+// overriding earlier IPHeaderIncludedOnRead options in the same list. The
+// unset marker is valid for every socket creation operation.
 func (SocketOptionFactory) UnsetIPHeaderIncludedOnRead() SocketOption {
 	return ipHeaderIncludedOnReadSocketOption(socketOptionBoolOverrideUnset)
 }
@@ -925,13 +929,13 @@ func (option ipHeaderIncludedOnReadSocketOption) apply(set socketOptionSet, use 
 		return set, syscall.EINVAL
 	}
 	if override == socketOptionBoolOverrideUnset {
-		set.ip.headerIncludedOnRead = false
+		set.ip.headerIncludedOnRead = override
 		return set, nil
 	}
 	if use != socketOptionIPListen && use != socketOptionIPDial {
 		return set, syscall.ENOPROTOOPT
 	}
-	set.ip.headerIncludedOnRead = override == socketOptionBoolOverrideEnabled
+	set.ip.headerIncludedOnRead = override
 	return set, nil
 }
 
@@ -1065,8 +1069,8 @@ type datagramSocketOptionSet struct {
 
 // ipSocketOptionSet contains policies meaningful only to raw IP sockets.
 type ipSocketOptionSet struct {
-	headerIncludedOnWrite bool
-	headerIncludedOnRead  bool
+	headerIncludedOnWrite socketOptionBoolOverride
+	headerIncludedOnRead  socketOptionBoolOverride
 	icmpV4Filter          socketOptionOverride[ICMPv4Filter]
 	icmpV6Filter          socketOptionOverride[ICMPv6Filter]
 	ipv6Checksum          socketOptionOverride[ipv6ChecksumPolicy]
@@ -1221,8 +1225,9 @@ type ListenConfig struct {
 	Options []SocketOption
 }
 
-// ListenTCP binds a TCP listener on stack.
-func (config *ListenConfig) ListenTCP(ctx context.Context, stack *Stack, network string, local netip.AddrPort) (*TCPListener, error) {
+// ListenTCP binds a TCP listener on stack. The returned net.Listener has
+// dynamic type *TCPListener.
+func (config *ListenConfig) ListenTCP(ctx context.Context, stack *Stack, network string, local netip.AddrPort) (net.Listener, error) {
 	if stack == nil {
 		return nil, socketOperationError("listen", network, nil, net.TCPAddrFromAddrPort(local), errors.New("mipstack: nil Stack"))
 	}
@@ -1237,7 +1242,8 @@ func (config *ListenConfig) ListenTCP(ctx context.Context, stack *Stack, network
 	return stack.listenTCP(ctx, network, local, binding, options.tcp)
 }
 
-// ListenUDP binds an unconnected UDP packet socket on stack.
+// ListenUDP binds an unconnected UDP packet socket on stack. The returned
+// net.PacketConn has dynamic type *UDPConn.
 func (config *ListenConfig) ListenUDP(ctx context.Context, stack *Stack, network string, local netip.AddrPort) (net.PacketConn, error) {
 	if stack == nil {
 		return nil, socketOperationError("listen", network, nil, net.UDPAddrFromAddrPort(local), errors.New("mipstack: nil Stack"))
@@ -1255,8 +1261,9 @@ func (config *ListenConfig) ListenUDP(ctx context.Context, stack *Stack, network
 	return stack.listenUDP(ctx, network, local, binding, options.datagram)
 }
 
-// ListenIP binds an unconnected IP protocol socket on stack.
-func (config *ListenConfig) ListenIP(ctx context.Context, stack *Stack, network string, local netip.Addr) (*IPConn, error) {
+// ListenIP binds an unconnected IP protocol socket on stack. The returned
+// net.PacketConn has dynamic type *IPConn.
+func (config *ListenConfig) ListenIP(ctx context.Context, stack *Stack, network string, local netip.Addr) (net.PacketConn, error) {
 	if stack == nil {
 		return nil, socketOperationError("listen", network, nil, ipNetAddr(local), errors.New("mipstack: nil Stack"))
 	}

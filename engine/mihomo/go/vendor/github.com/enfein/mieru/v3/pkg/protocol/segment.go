@@ -18,7 +18,6 @@ package protocol
 import (
 	"fmt"
 	"math"
-	"net"
 	"sync"
 	"time"
 
@@ -27,6 +26,7 @@ import (
 	"github.com/enfein/mieru/v3/pkg/common"
 	"github.com/enfein/mieru/v3/pkg/log"
 	"github.com/enfein/mieru/v3/pkg/mathext"
+	"github.com/enfein/mieru/v3/pkg/protocol/serveruser"
 	"github.com/enfein/mieru/v3/pkg/stderror"
 	"github.com/google/btree"
 )
@@ -42,22 +42,11 @@ const (
 	segmentTimeFormat = "15:04:05.999"
 )
 
-// maxFragmentSize returns the maximum payload size in a fragment.
-func maxFragmentSize(mtu int, transport common.TransportProtocol) int {
-	if transport == common.StreamTransport {
-		// No fragment needed.
-		return maxPDU
-	}
-
-	res := mtu - packetOverhead
-	return mathext.Max(0, res)
-}
-
-// maxFragmentSizeWithLowEntropy returns the maximum plaintext fragment size for the
-// selected low entropy send mode.
-func maxFragmentSizeWithLowEntropy(mtu int, transport common.TransportProtocol, mode appctlpb.LowEntropyMode) (int, error) {
+// maxFragmentSize returns the maximum plaintext fragment size for the selected
+// low entropy send mode.
+func maxFragmentSize(mtu int, transport common.TransportProtocol, mode appctlpb.LowEntropyMode) (int, error) {
 	if mode == appctlpb.LowEntropyMode_LOW_ENTROPY_MODE_OFF {
-		return maxFragmentSize(mtu, transport), nil
+		return maxFragmentSizeInternal(mtu, transport), nil
 	}
 
 	params, err := buildLowEntropyParams(mode)
@@ -68,7 +57,7 @@ func maxFragmentSizeWithLowEntropy(mtu int, transport common.TransportProtocol, 
 
 	switch transport {
 	case common.StreamTransport:
-		fragmentSize := maxFragmentSize(mtu, transport)
+		fragmentSize := maxFragmentSizeInternal(mtu, transport)
 		maxEncodableFragmentSize := maxEncodableChunkCount * params.sourceBytesPerChunk
 		return mathext.Min(fragmentSize, maxEncodableFragmentSize), nil
 	case common.PacketTransport:
@@ -78,8 +67,20 @@ func maxFragmentSizeWithLowEntropy(mtu int, transport common.TransportProtocol, 
 		}
 		return mtuChunkCount * params.sourceBytesPerChunk, nil
 	default:
-		return maxFragmentSize(mtu, transport), nil
+		return maxFragmentSizeInternal(mtu, transport), nil
 	}
+}
+
+// maxFragmentSizeInternal returns the maximum payload size in a fragment
+// without accounting for the low entropy send mode.
+func maxFragmentSizeInternal(mtu int, transport common.TransportProtocol) int {
+	if transport == common.StreamTransport {
+		// No fragment needed.
+		return maxPDU
+	}
+
+	res := mtu - packetOverhead
+	return mathext.Max(0, res)
 }
 
 // segment contains metadata and actual payload.
@@ -92,6 +93,13 @@ type segment struct {
 	txTime    int64                    // most recent transmission time in microseconds since Unix epoch
 	txTimeout time.Duration            // need to receive ACK within this duration
 	block     cipher.BlockCipher       // cipher block to encrypt or decrypt the payload
+
+	// serverUserPolicy is set when server-side discovery authenticates a new session.
+	serverUserPolicy serveruser.Policy
+
+	// serverUserAuthentication is temporary and is consumed by the
+	// underlay event loop after successful initial protocol dispatch.
+	serverUserAuthentication serveruser.Authentication
 }
 
 // Protocol returns the protocol of the segment.
@@ -156,12 +164,6 @@ func (s *segment) String() string {
 
 func segmentLessFunc(a, b *segment) bool {
 	return a.Less(b)
-}
-
-// bufferWithAddr associate a raw network packet payload with a remote network address.
-type bufferWithAddr struct {
-	b    []byte
-	addr net.Addr
 }
 
 // segmentIterator processes the given segment.
