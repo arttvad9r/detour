@@ -8,7 +8,7 @@ This document tracks how Detour reaches users and the current readiness of each 
 | --- | --- | --- |
 | GitHub Releases | Live | Canonical upstream distribution. Signed `arm64-v8a` APK plus SHA-256 checksum. |
 | Obtainium | Compatible | Add `https://github.com/arttvad9r/detour` as a GitHub app source. Obtainium can follow GitHub Releases directly. |
-| F-Droid.org | Ready for submission | `v0.2.1` has a validated offline/source build and upstream metadata. The remaining step is the normal `fdroiddata` inclusion/review process. |
+| F-Droid.org | Ready for submission | `v0.3.0` has a validated offline/source build and upstream metadata. The remaining step is the normal `fdroiddata` inclusion/review process. |
 
 ## Obtainium
 
@@ -22,7 +22,7 @@ The public Detour release is currently `arm64-v8a` only. Keep release asset nami
 
 ## F-Droid upstream metadata
 
-Store metadata lives under `fastlane/metadata/android/` with English fallback metadata and a Russian translation. Changelog `2001.txt` corresponds to release `0.2.1` / `versionCode 2001`.
+Store metadata lives under `fastlane/metadata/android/` with English fallback metadata and a Russian translation. Each changelog file is named after the release `versionCode`; the latest is `3000.txt` for release `0.3.0`.
 
 F-Droid accepts PNG and JPEG screenshots from upstream metadata. The current metadata reuses the repository's lossless public product gallery so no private VPN profiles, subscription URLs or server credentials are exposed.
 
@@ -43,6 +43,6 @@ Detour can now be proposed to the official `fdroiddata` repository. Acceptance i
 
 ## Release trust
 
-Release `v0.2.1` points at a commit contained in `main` that passed the full Android push workflow. The published APK is signed with the project release key, certificate-checked, 16 KB alignment-checked, size-checked and accompanied by a SHA-256 checksum.
+Release `v0.3.0` points at a commit contained in `main` that passed the full Android push workflow. The published APK is signed with the project release key, certificate-checked, 16 KB alignment-checked, size-checked and accompanied by a SHA-256 checksum.
 
 For public communication, link to the GitHub Releases page rather than re-uploading APKs to file hosts.
