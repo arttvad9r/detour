@@ -1,5 +1,11 @@
 package dev.detour.app.ui
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalContext
+import android.provider.Settings
+import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -111,6 +117,22 @@ internal fun SettingsMenuScreen(
         SettingsSection.APPEARANCE,
     ) to onOpenTheme
 
+    val context = LocalContext.current
+    var showAlwaysOn by rememberSaveable { mutableStateOf(false) }
+    if (showAlwaysOn) {
+        AlwaysOnVpnDialog(
+            onOpenSettings = {
+                showAlwaysOn = false
+                runCatching {
+                    context.startActivity(
+                        Intent(Settings.ACTION_VPN_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                    )
+                }
+            },
+            onDismiss = { showAlwaysOn = false },
+        )
+    }
+
     Column(
         modifier.fillMaxSize()
             .background(c.background)
@@ -153,6 +175,14 @@ internal fun SettingsMenuScreen(
                             compact = true,
                         )
                     },
+                )
+
+                GroupDivider(startInset = NavigationRowDividerInset)
+                DetourNavigationRow(
+                    title = stringResource(R.string.always_on_vpn),
+                    subtitle = stringResource(R.string.always_on_vpn_sub),
+                    iconRes = R.drawable.ic_lock,
+                    onClick = { showAlwaysOn = true },
                 )
 
                 SettingsSectionDivider()

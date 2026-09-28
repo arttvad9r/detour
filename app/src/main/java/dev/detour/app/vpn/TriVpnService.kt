@@ -82,19 +82,27 @@ class TriVpnService : VpnService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            ACTION_START -> executor.execute { startSequence() }
-            ACTION_STOP -> {
+        val sessionLive = VpnController.state.value == VpnState.Active ||
+            VpnController.state.value == VpnState.Starting
+        val command = classifyVpnServiceCommand(intent?.action, isAlwaysOn, sessionLive)
+        val appAction = intent?.action in setOf(ACTION_START, ACTION_STOP, ACTION_RESTART)
+        if (!appAction) ServiceLog.i("system start: action=${intent?.action} live=$sessionLive -> $command")
+        when (command) {
+            VpnServiceCommand.START -> {
+                executor.execute { startSequence() }
+            }
+            VpnServiceCommand.STOP -> {
                 stopQueued.set(true)
                 executor.execute { restartQueued.set(false); stopSequence(stopSelf = true); stopQueued.set(false) }
             }
-            ACTION_RESTART -> if (!stopQueued.get() && restartQueued.compareAndSet(false, true)) {
+            VpnServiceCommand.RESTART -> if (!stopQueued.get() && restartQueued.compareAndSet(false, true)) {
                 executor.execute {
                     restartQueued.set(false)
                     if (!stopQueued.get()) { stopSequence(stopSelf = false); startSequence() }
                 }
             }
-            null -> stopSelf()
+            // Never let an unknown start bring up a tunnel; release it when idle.
+            VpnServiceCommand.IGNORE -> if (!sessionLive) stopSelf(startId)
         }
         return START_NOT_STICKY
     }
