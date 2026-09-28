@@ -4,9 +4,9 @@ import android.content.Context
 import android.net.VpnService
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -54,8 +54,8 @@ import dev.detour.app.ui.Motion
 import dev.detour.app.ui.ProfileDeleteConfirmationDialog
 import dev.detour.app.ui.ProfilesViewModel
 import dev.detour.app.ui.SettingsMenuScreen
-import dev.detour.app.ui.SettingsSection
 import dev.detour.app.ui.SettingsMenuViewModel
+import dev.detour.app.ui.SettingsSection
 import dev.detour.app.ui.ThemeScreen
 import dev.detour.app.ui.ThemeViewModel
 import dev.detour.app.ui.VlessKeyScreen

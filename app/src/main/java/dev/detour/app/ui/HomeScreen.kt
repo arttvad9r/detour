@@ -1,7 +1,7 @@
 package dev.detour.app.ui
 
-import android.text.format.Formatter
 import android.app.Activity
+import android.text.format.Formatter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.compose.animation.AnimatedContent
@@ -28,8 +28,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -65,10 +65,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.window.core.layout.WindowSizeClass
 import androidx.window.core.layout.WindowSizeClass.Companion.WIDTH_DP_EXPANDED_LOWER_BOUND
 import dev.detour.app.R
-import dev.detour.app.core.TunnelTrafficStats
-import dev.detour.app.core.formatTunnelTrafficRates
 import dev.detour.app.core.DnsOptions
+import dev.detour.app.core.TunnelTrafficStats
 import dev.detour.app.core.VpnProfileKind
+import dev.detour.app.core.formatTunnelTrafficRates
 import dev.detour.app.vpn.VpnController
 import dev.detour.app.vpn.VpnState
 import kotlinx.coroutines.delay

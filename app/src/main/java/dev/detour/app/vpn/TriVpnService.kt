@@ -7,8 +7,8 @@ import android.net.NetworkCapabilities
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
-import dev.detour.app.R
 import dev.detour.app.DetourApp
+import dev.detour.app.R
 import dev.detour.app.core.AppRoute
 import dev.detour.app.core.ConfigGenerator
 import dev.detour.app.core.DnsOptions
@@ -19,10 +19,10 @@ import dev.detour.app.core.ProbeAuth
 import dev.detour.app.core.ProbeCredentials
 import dev.detour.app.core.RoutingInput
 import dev.detour.app.core.VlessKeyParser
-import dev.detour.app.core.formatTunnelTrafficRates
-import dev.detour.app.core.parseTunnelTrafficStats
 import dev.detour.app.core.VpnOutbound
 import dev.detour.app.core.VpnProfileKind
+import dev.detour.app.core.formatTunnelTrafficRates
+import dev.detour.app.core.parseTunnelTrafficStats
 import dev.detour.app.data.RoutesStore
 import dev.detour.app.log.ServiceLog
 import dev.detour.engine.engine.Engine
