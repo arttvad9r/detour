@@ -11,11 +11,11 @@ AutoName: Detour
 RepoType: git
 Repo: https://github.com/arttvad9r/detour.git
 
-# Upstream recipe for the first reproducible F-Droid-ready release.
+# Upstream recipe for the latest validated F-Droid-ready release.
 Builds:
-  - versionName: 0.2.1
-    versionCode: 2001
-    commit: v0.2.1
+  - versionName: 0.3.0
+    versionCode: 3000
+    commit: v0.3.0
     subdir: app
     submodules: true
     sudo:
@@ -39,14 +39,14 @@ Builds:
       - yes
     gradleprops:
       - detourReleaseAbi=arm64-v8a
-      - detourVersionName=0.2.1
-      - detourVersionCode=2001
+      - detourVersionName=0.3.0
+      - detourVersionCode=3000
     ndk: r28
 
 # Automatic tag discovery remains disabled until the historical v0.2.0 tag
 # and the preferred long-term release/update policy have been reviewed for
-# fdroiddata. The tested inclusion candidate is v0.2.1 above.
+# fdroiddata. The tested inclusion candidate is v0.3.0 above.
 AutoUpdateMode: None
 UpdateCheckMode: None
-CurrentVersion: 0.2.1
-CurrentVersionCode: 2001
+CurrentVersion: 0.3.0
+CurrentVersionCode: 3000

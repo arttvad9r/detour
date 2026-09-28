@@ -37,6 +37,10 @@ jobs:
           # tag. PR validation must still build the exact proposed PR head.
           sed -E -i "s/^    commit: .*/    commit: $SOURCE_SHA/" \
             "$RUNNER_TEMP/fdroiddata/metadata/dev.detour.app.yml"
+          # Build the version the recipe declares instead of a hardcoded code.
+          version_code="$(sed -n 's/^CurrentVersionCode: *//p' .fdroid.yml)"
+          [[ "$version_code" =~ ^[0-9]+$ ]]
+          echo "DETOUR_FDROID_VERSION_CODE=$version_code" >> "$GITHUB_ENV"
 
           chmod -R a+rX "$RUNNER_TEMP/fdroiddata" "$RUNNER_TEMP/fdroidserver"
 
@@ -60,6 +64,7 @@ jobs:
 
           docker run --rm \
             -u vagrant \
+            -e "DETOUR_FDROID_VERSION_CODE=$DETOUR_FDROID_VERSION_CODE" \
             --entrypoint /bin/bash \
             -v "$volume:/build" \
             -v "$RUNNER_TEMP/fdroiddata:/mnt/fdroiddata:ro" \
@@ -89,9 +94,9 @@ jobs:
 
               # Production F-Droid builds prefetch srclibs outside the build VM.
               # --on-server deliberately assumes that stage is already complete.
-              fdroid fetchsrclibs --verbose dev.detour.app:2001
+              fdroid fetchsrclibs --verbose "dev.detour.app:$DETOUR_FDROID_VERSION_CODE"
 
               # This container is the build VM. --on-server runs recipe sudo:
               # commands, installs the requested NDK and propagates failures.
-              fdroid build --verbose --on-server --no-tarball dev.detour.app:2001
+              fdroid build --verbose --on-server --no-tarball "dev.detour.app:$DETOUR_FDROID_VERSION_CODE"
             '

@@ -4,7 +4,7 @@ Detour keeps an upstream `.fdroid.yml` so the F-Droid build path is continuously
 
 ## Current candidate
 
-**v0.2.1** (`versionCode 2001`) is the first validated F-Droid-ready release. The upstream recipe points at the exact `v0.2.1` tag. That tag resolves to release commit `f2588120ce5df15c57d082fe9b23cdc6a2fa9315`, which contains the Fastlane metadata, pinned source inputs and offline native build path.
+**v0.3.0** (`versionCode 3000`) is the current F-Droid candidate. The upstream recipe points at the exact `v0.3.0` tag, which resolves to release commit `a6ca68be88112d4f21b1645698a7afdde7123dc2`. The first reproducible release was `v0.2.1` (`versionCode 2001`, commit `f2588120ce5df15c57d082fe9b23cdc6a2fa9315`).
 
 The repository also contains a historical `v0.2.0` tag that predates this reproducible build path. Automatic update/tag discovery therefore remains disabled in the upstream recipe until the long-term `fdroiddata` update policy is reviewed.
 
@@ -32,13 +32,13 @@ These exceptions must stay path-specific. If any of these dependency versions or
 
 ## FLOSS and Anti-Features review
 
-The Android application dependency graph contains AndroidX/Compose, Kotlin/Kotlinx, SnakeYAML and JSON libraries; it does not include Google Play Services, Firebase, proprietary analytics, advertising SDKs or crash-reporting SDKs. The manifest has no analytics/tracker service components.
+The Android application dependency graph contains AndroidX/Compose, Kotlin/Kotlinx, SnakeYAML, JSON and ZXing core (Apache-2.0, QR decoding from a picked image) libraries; it does not include Google Play Services, Firebase, proprietary analytics, advertising SDKs or crash-reporting SDKs. The manifest has no analytics/tracker service components.
 
 Detour is not tied to a mandatory proprietary VPN backend: users import or configure their own VPN profiles and subscriptions, and routing/DPI features work locally. Optional DNS presets and support for third-party VPN services do not make those services mandatory. F-Droid packagers remain the final authority on Anti-Feature classification, so any future telemetry, mandatory hosted service, advertising or proprietary dependency must trigger a fresh review.
 
-## Validation completed for v0.2.1
+## Validation completed for v0.3.0
 
-The candidate passed all of the following before release:
+The F-Droid CI job builds the recipe version declared by `CurrentVersionCode` from the exact proposed commit. The `v0.3.0` release commit passed all of the following before release (as did `v0.2.1` before it):
 
 - `fdroid readmeta`
 - `fdroid rewritemeta`
@@ -53,14 +53,14 @@ The candidate passed all of the following before release:
 - signed arm64 APK verification
 - instrumentation tests on Android 16 and Android 17
 
-The GitHub release `v0.2.1` was then built from the same release commit and published with the signed APK and SHA-256 checksum.
+The GitHub release `v0.3.0` was then built from the same release commit and published with the signed APK and SHA-256 checksum.
 
 ## Remaining F-Droid work
 
 The upstream reproducible-build blocker is closed. What remains is the normal downstream inclusion process:
 
 1. Copy the tested recipe to `fdroiddata` for `dev.detour.app`.
-2. Keep `commit: v0.2.1` (or the exact release commit) in the submission.
+2. Keep `commit: v0.3.0` (or the exact release commit) in the submission.
 3. Review the preferred `UpdateCheckMode`/`AutoUpdateMode` policy with F-Droid maintainers.
 4. Submit the `fdroiddata` merge request and address packager review feedback.
 

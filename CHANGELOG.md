@@ -4,6 +4,10 @@ All notable user-facing changes to Detour are recorded here.
 
 ## Unreleased
 
+No user-facing changes have been recorded after the current public release yet.
+
+## 0.3.0 — 2026-09-28
+
 ### Added
 - Subscription plan card: traffic left, usage bar and expiry date reported by the provider, with a warning color near the limit or expiry.
 - Server picker for subscriptions: search, sort by ping and one-tap latency test in a bottom sheet.
