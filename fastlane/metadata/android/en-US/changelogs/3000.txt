@@ -1,0 +1,1 @@
+Subscriptions show traffic left and expiry, and servers are picked in a sheet with search and sort by ping. Add profiles from the clipboard or from a QR code in a screenshot. Live speed on Home and in the notification. Always-on VPN support, so Detour starts after reboot. Smoother animations.

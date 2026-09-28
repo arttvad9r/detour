@@ -4,7 +4,26 @@ All notable user-facing changes to Detour are recorded here.
 
 ## Unreleased
 
-No user-facing changes have been recorded after the current public release yet.
+### Added
+- Subscription plan card: traffic left, usage bar and expiry date reported by the provider, with a warning color near the limit or expiry.
+- Server picker for subscriptions: search, sort by ping and one-tap latency test in a bottom sheet.
+- The provider's own subscription title replaces the host name until you rename the profile.
+- Add profiles from the clipboard with automatic link type detection (`vless://`, HTTPS subscription, `vpn://`).
+- Import a profile from a QR code in a screenshot or photo, decoded on the device without camera permission.
+- Live download/upload speed and session traffic on Home and in the VPN notification.
+- Android Always-on VPN: Detour now starts by itself after reboot when selected as the Always-on VPN.
+
+### Changed
+- One "Add by link" editor accepts both VLESS keys and subscription URLs.
+- The Home server row opens server selection for subscriptions.
+- Appearing cards, notices and the traffic line animate in place instead of shifting the layout.
+- Build toolchain updated: AGP 9.4.1, Kotlin 2.4.20, Compose BOM 2026.09.00, Baseline Profile 1.5.0.
+
+## 0.2.1 — 2026-09-10
+
+### Changed
+- Native engines (Mihomo, ByeDPI) are pinned to exact revisions and build reproducibly offline, enabling F-Droid source builds.
+- Obtainium and F-Droid metadata, bilingual product page and APK verification guidance.
 
 ## 0.1.1 — 2026-09-09
 
