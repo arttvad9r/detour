@@ -37,6 +37,7 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import dev.detour.app.core.parseTunnelTrafficStats
 import dev.detour.app.data.AppInventory
 import dev.detour.app.data.RoutesStore
 import dev.detour.app.ui.AppsScreen
@@ -241,6 +242,9 @@ internal fun DetourNavigation(
                                     .trim()
                                     .takeIf { it.isNotBlank() }
                             }
+                        },
+                        readTrafficStats = {
+                            withContext(Dispatchers.IO) { parseTunnelTrafficStats(Engine.trafficStats()) }
                         },
                     ),
                 )

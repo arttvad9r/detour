@@ -1,5 +1,6 @@
 package dev.detour.app.ui
 
+import android.text.format.Formatter
 import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
@@ -63,6 +64,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.window.core.layout.WindowSizeClass
 import androidx.window.core.layout.WindowSizeClass.Companion.WIDTH_DP_EXPANDED_LOWER_BOUND
 import dev.detour.app.R
+import dev.detour.app.core.TunnelTrafficStats
+import dev.detour.app.core.formatTunnelTrafficRates
 import dev.detour.app.core.DnsOptions
 import dev.detour.app.core.VpnProfileKind
 import dev.detour.app.vpn.VpnController
@@ -256,6 +259,7 @@ fun HomeScreen(
                     state = visualState,
                     statusContent = statusContent,
                     sessionStartedAt = uiState.sessionStartedAt,
+                    traffic = uiState.traffic,
                     profileName = uiState.profileName,
                     activeVpn = uiState.activeVpn,
                     serverHost = uiState.serverHost,
@@ -278,6 +282,7 @@ private fun HomeConnectionContent(
     state: VpnState,
     statusContent: Color,
     sessionStartedAt: Long?,
+    traffic: TunnelTrafficStats?,
     profileName: String?,
     activeVpn: VpnProfileKind,
     serverHost: String?,
@@ -305,6 +310,7 @@ private fun HomeConnectionContent(
                 state = state,
                 statusContent = statusContent,
                 sessionStartedAt = sessionStartedAt,
+                traffic = traffic,
                 protocol = protocol,
                 modifier = Modifier.weight(1f),
             )
@@ -331,6 +337,7 @@ private fun HomeConnectionContent(
                 state = state,
                 statusContent = statusContent,
                 sessionStartedAt = sessionStartedAt,
+                traffic = traffic,
                 protocol = protocol,
             )
             Spacer(Modifier.height(Spacing.space12))
@@ -397,6 +404,7 @@ private fun ConnectionHero(
     state: VpnState,
     statusContent: Color,
     sessionStartedAt: Long?,
+    traffic: TunnelTrafficStats?,
     protocol: String,
     modifier: Modifier = Modifier,
 ) {
@@ -476,6 +484,7 @@ private fun ConnectionHero(
                             sessionStartedAt = sessionStartedAt,
                             color = c.textPrimary,
                         )
+                        traffic?.let { TrafficLine(it) }
                     }
                     if (routeDescription.isNotBlank()) {
                         Text(
@@ -611,6 +620,8 @@ private fun ConnectionDetails(
                 iconRes = R.drawable.ic_server,
                 label = stringResource(R.string.row_server),
                 value = serverHost ?: stringResource(R.string.server_missing),
+                // Subscription servers are chosen on the profiles screen.
+                onClick = onOpenProfiles.takeIf { activeVpn == VpnProfileKind.SUBSCRIPTION },
             )
         }
         DetailsDivider()
@@ -660,6 +671,32 @@ private fun SessionTimer(sessionStartedAt: Long?, color: Color) {
         color = color,
         modifier = Modifier.padding(top = Spacing.space2),
     )
+}
+
+@Composable
+private fun TrafficLine(traffic: TunnelTrafficStats) {
+    val c = detourColors
+    val context = LocalContext.current
+    Row(
+        modifier = Modifier.padding(top = Spacing.space4),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = formatTunnelTrafficRates(context, traffic),
+            style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
+            color = c.textSecondary,
+        )
+        if (traffic.totalBytes > 0L) {
+            Text(
+                text = " · " + stringResource(
+                    R.string.traffic_session_total,
+                    Formatter.formatShortFileSize(context, traffic.totalBytes),
+                ),
+                style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
+                color = c.textMuted,
+            )
+        }
+    }
 }
 
 @Composable
