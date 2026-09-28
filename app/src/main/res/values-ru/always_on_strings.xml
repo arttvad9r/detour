@@ -1,0 +1,7 @@
+<resources>
+    <string name="always_on_vpn">Постоянный VPN</string>
+    <string name="always_on_vpn_sub">Запуск после перезагрузки · настройки Android</string>
+    <string name="always_on_vpn_message">Android сможет сам запускать Detour после перезагрузки телефона или если VPN-сервис был остановлен системой. Включается в системных настройках VPN.</string>
+    <string name="always_on_vpn_lockdown_warning">Не включайте «Блокировать подключения без VPN», если какие-то приложения идут напрямую (Direct): Android отключит им интернет.</string>
+    <string name="always_on_vpn_open_settings">Открыть настройки VPN</string>
+</resources>

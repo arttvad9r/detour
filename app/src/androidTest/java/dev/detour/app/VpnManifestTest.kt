@@ -7,14 +7,16 @@ import android.os.Build
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import dev.detour.app.vpn.TriVpnService
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class VpnManifestTest {
 
-    @Test fun vpnServiceOptsOutOfUnsupportedAlwaysOnMode() {
+    @Test fun vpnServiceSupportsAlwaysOnAndOnlyTheSystemCanStartIt() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val component = ComponentName(context, TriVpnService::class.java)
         val serviceInfo = if (Build.VERSION.SDK_INT >= 33) {
@@ -27,9 +29,13 @@ class VpnManifestTest {
             context.packageManager.getServiceInfo(component, PackageManager.GET_META_DATA)
         }
 
-        assertFalse(
-            serviceInfo.metaData?.getBoolean("android.net.VpnService.SUPPORTS_ALWAYS_ON", true)
-                ?: true,
+        assertTrue(
+            serviceInfo.metaData?.getBoolean("android.net.VpnService.SUPPORTS_ALWAYS_ON", false)
+                ?: false,
         )
+        // Start classification trusts the platform VpnService action only
+        // because no other app can deliver an intent to this service.
+        assertFalse(serviceInfo.exported)
+        assertEquals(android.Manifest.permission.BIND_VPN_SERVICE, serviceInfo.permission)
     }
 }

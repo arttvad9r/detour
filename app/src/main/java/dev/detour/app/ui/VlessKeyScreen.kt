@@ -5,7 +5,10 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -58,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.detour.app.R
 import dev.detour.app.core.ParseResult
+import dev.detour.app.core.QrImageDecoder
 import dev.detour.app.core.VlessKey
 import dev.detour.app.core.VlessKeyParser
 import dev.detour.app.core.VlessProfile
@@ -120,6 +124,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
     var showEditor by rememberSaveable { mutableStateOf(false) }
     var suppressWarpNotice by rememberSaveable { mutableStateOf(false) }
     var replacingWireGuardId by rememberSaveable { mutableStateOf<String?>(null) }
+    var qrImportFailed by rememberSaveable { mutableStateOf(false) }
     // Credential drafts deliberately stay process-memory-only. Recreating the
     // Activity must not serialize a VLESS/subscription URI into saved instance state.
     var field by remember { mutableStateOf("") }
@@ -129,11 +134,16 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
     }
     val parsed = parse as? ParseResult.Ok
     val directVlessSource = field.trim().startsWith("vless://", ignoreCase = true)
+    // Editing keeps the profile's type; a new link is typed by its content.
+    val subscriptionEditor = if (editingId != null) {
+        editingSubscription
+    } else {
+        parsed?.profile?.isSubscription ?: field.trim().startsWith("https://", ignoreCase = true)
+    }
     val parsedMatchesEditor = when {
         parsed == null -> false
-        editingSubscription -> parsed.profile.isSubscription
-        editingId != null -> !parsed.profile.isSubscription
-        else -> !parsed.profile.isSubscription && directVlessSource
+        editingId != null -> parsed.profile.isSubscription == editingSubscription
+        else -> parsed.profile.isSubscription || directVlessSource
     }
 
     val currentVlessSaving = rememberUpdatedState(vlessSaving)
@@ -147,6 +157,7 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
     val addSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val activity = LocalContext.current.findActivity()
+    val contentResolver = LocalContext.current.contentResolver
     DisposableEffect(showEditor, activity) {
         if (showEditor) activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         onDispose {
@@ -179,10 +190,10 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
         viewModel.warpImportRejected.collect { haptics.performHapticFeedback(HapticFeedbackType.Reject) }
     }
 
-    fun beginEditor(key: VlessKey? = null, subscription: Boolean = false) {
+    fun beginEditor(key: VlessKey? = null, subscription: Boolean = false, prefill: String = "") {
         viewModel.clearVlessSaveError()
         editingId = key?.id
-        field = key?.uri ?: ""
+        field = key?.uri ?: prefill
         editingSubscription = key?.let { parsedProfile(it)?.isSubscription == true } ?: subscription
         showAddMenu = false
         showEditor = true
@@ -196,7 +207,43 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
         }
     }
 
-    fun pasteAmneziaInvite() {
+    /**
+     * One entry point for links from the clipboard or a QR code. The link type
+     * decides the destination; a malformed VLESS/subscription link opens the
+     * editor prefilled so the user sees exactly what is wrong with it.
+     */
+    fun importLink(rawInput: String) {
+        val raw = rawInput.trim().replace("\r", "").replace("\n", "")
+        showAddMenu = false
+        qrImportFailed = false
+        viewModel.clearVlessSaveError()
+        suppressWarpNotice = false
+        scope.launch {
+            val parsedLink = withContext(Dispatchers.Default) { VlessKeyParser.parse(raw) }
+            val amneziaInvite = raw.startsWith("vpn://", ignoreCase = true)
+            when {
+                parsedLink is ParseResult.Ok && !(amneziaInvite && parsedLink.profile.isSubscription) -> {
+                    suppressWarpNotice = true
+                    val profile = parsedLink.profile
+                    val fallback = if (profile.isSubscription) subscriptionFallbackTitle else vlessFallbackTitle
+                    viewModel.saveVless(
+                        VlessKey(
+                            id = UUID.randomUUID().toString(),
+                            name = profile.name.ifBlank { profile.server.ifBlank { fallback } },
+                            uri = raw,
+                        ),
+                        isNew = true,
+                    )
+                }
+                raw.startsWith("vless://", ignoreCase = true) ||
+                    raw.startsWith("https://", ignoreCase = true) ->
+                    beginEditor(subscription = raw.startsWith("https://", ignoreCase = true), prefill = raw)
+                else -> viewModel.importWarpInvite(raw)
+            }
+        }
+    }
+
+    fun pasteFromClipboard() {
         scope.launch {
             val raw = clipboard.getClipEntry()
                 ?.clipData
@@ -204,32 +251,20 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                 ?.text
                 ?.toString()
                 .orEmpty()
-                .trim()
-                .replace("\r", "")
-                .replace("\n", "")
-            showAddMenu = false
-            viewModel.clearVlessSaveError()
-            suppressWarpNotice = false
+            importLink(raw)
+        }
+    }
 
-            if (!raw.startsWith("vpn://", ignoreCase = true)) {
-                viewModel.importWarpInvite(raw)
-                return@launch
-            }
-
-            val parsedInvite = withContext(Dispatchers.Default) { VlessKeyParser.parse(raw) }
-            if (parsedInvite is ParseResult.Ok && !parsedInvite.profile.isSubscription) {
-                suppressWarpNotice = true
-                val profile = parsedInvite.profile
-                viewModel.saveVless(
-                    VlessKey(
-                        id = UUID.randomUUID().toString(),
-                        name = profile.name.ifBlank { profile.server.ifBlank { vlessFallbackTitle } },
-                        uri = raw,
-                    ),
-                    isNew = true,
-                )
-            } else {
-                viewModel.importWarpInvite(raw)
+    val qrLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val text = withContext(Dispatchers.IO) { QrImageDecoder.decode(contentResolver, uri) }
+                if (text == null) {
+                    haptics.performHapticFeedback(HapticFeedbackType.Reject)
+                    qrImportFailed = true
+                } else {
+                    importLink(text)
+                }
             }
         }
     }
@@ -309,9 +344,15 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                         val activeSubscription = groups.subscriptions.firstOrNull {
                             it.id == activeVlessId && activeVpn == VpnProfileKind.SUBSCRIPTION
                         }
-                        if (activeSubscription != null) {
-                            Spacer(Modifier.height(Spacing.space12))
-                            SubscriptionRuntimeSection()
+                        AnimatedVisibility(
+                            visible = activeSubscription != null,
+                            enter = Motion.reveal,
+                            exit = Motion.conceal,
+                        ) {
+                            Column {
+                                Spacer(Modifier.height(Spacing.space12))
+                                SubscriptionRuntimeSection()
+                            }
                         }
                     }
 
@@ -338,13 +379,31 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                     }
                 }
 
-                if (!suppressWarpNotice && warpImportStatus != WarpImportStatus.IDLE) {
-                    Spacer(Modifier.height(Spacing.space12))
-                    ProfileOperationNotice(warpImportStatus)
+                AnimatedVisibility(
+                    visible = !suppressWarpNotice && warpImportStatus != WarpImportStatus.IDLE,
+                    enter = Motion.reveal,
+                    exit = Motion.conceal,
+                ) {
+                    Column {
+                        Spacer(Modifier.height(Spacing.space12))
+                        ProfileOperationNotice(warpImportStatus)
+                    }
                 }
-                if (!showEditor && vlessSaveStatus == VlessSaveStatus.ERROR) {
-                    Spacer(Modifier.height(Spacing.space12))
-                    ProfileImportErrorNotice()
+                AnimatedVisibility(
+                    visible = !showEditor && vlessSaveStatus == VlessSaveStatus.ERROR,
+                    enter = Motion.reveal,
+                    exit = Motion.conceal,
+                ) {
+                    Column {
+                        Spacer(Modifier.height(Spacing.space12))
+                        ProfileImportErrorNotice()
+                    }
+                }
+                AnimatedVisibility(visible = qrImportFailed, enter = Motion.reveal, exit = Motion.conceal) {
+                    Column {
+                        Spacer(Modifier.height(Spacing.space12))
+                        ProfileImportErrorNotice(stringResource(R.string.profile_qr_not_found))
+                    }
                 }
                 Spacer(Modifier.height(Spacing.space24))
             }
@@ -371,30 +430,35 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                 )
                 DetourCard {
                     DetourNavigationRow(
-                        title = stringResource(R.string.profile_add_amnezia),
-                        subtitle = stringResource(R.string.profile_add_amnezia_hint),
-                        iconRes = R.drawable.ic_lock,
-                        onClick = ::pasteAmneziaInvite,
+                        title = stringResource(R.string.profile_add_paste),
+                        subtitle = stringResource(R.string.profile_add_paste_hint),
+                        iconRes = R.drawable.ic_clipboard,
+                        onClick = ::pasteFromClipboard,
                     )
                     GroupDivider(startInset = NavigationRowDividerInset)
                     DetourNavigationRow(
-                        title = stringResource(R.string.profile_add_vless_action),
-                        subtitle = stringResource(R.string.profile_add_vless_hint),
-                        iconRes = R.drawable.ic_lock,
+                        title = stringResource(R.string.profile_add_qr),
+                        subtitle = stringResource(R.string.profile_add_qr_hint),
+                        iconRes = R.drawable.ic_qr,
+                        onClick = {
+                            showAddMenu = false
+                            qrLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                            )
+                        },
+                    )
+                    GroupDivider(startInset = NavigationRowDividerInset)
+                    DetourNavigationRow(
+                        title = stringResource(R.string.profile_add_link),
+                        subtitle = stringResource(R.string.profile_add_link_hint),
+                        iconRes = R.drawable.ic_link,
                         onClick = { beginEditor(subscription = false) },
-                    )
-                    GroupDivider(startInset = NavigationRowDividerInset)
-                    DetourNavigationRow(
-                        title = stringResource(R.string.profile_add_subscription_action),
-                        subtitle = stringResource(R.string.profile_add_subscription_hint),
-                        iconRes = R.drawable.ic_globe,
-                        onClick = { beginEditor(subscription = true) },
                     )
                     GroupDivider(startInset = NavigationRowDividerInset)
                     DetourNavigationRow(
                         title = stringResource(R.string.profile_import_file),
                         subtitle = stringResource(R.string.profile_import_file_hint),
-                        iconRes = R.drawable.ic_routes,
+                        iconRes = R.drawable.ic_import,
                         onClick = {
                             showAddMenu = false
                             suppressWarpNotice = false
@@ -432,14 +496,13 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     DetourIconTile(
-                        iconRes = if (editingSubscription) R.drawable.ic_globe else R.drawable.ic_lock,
+                        iconRes = if (subscriptionEditor) R.drawable.ic_globe else R.drawable.ic_lock,
                         selected = true,
                     )
                     Text(
                         text = when {
                             editingId != null -> stringResource(R.string.vless_edit_title)
-                            editingSubscription -> stringResource(R.string.profile_add_subscription_action)
-                            else -> stringResource(R.string.profile_add_vless_action)
+                            else -> stringResource(R.string.profile_add_link)
                         },
                         style = MaterialTheme.typography.titleMedium,
                         color = c.textPrimary,
@@ -449,11 +512,11 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
 
                 val contextError = when {
                     parse is ParseResult.Err -> stringResource(
-                        if (editingSubscription) R.string.profile_subscription_invalid
+                        if (subscriptionEditor) R.string.profile_subscription_invalid
                         else R.string.profile_vless_direct_invalid,
                     )
                     parsed != null && !parsedMatchesEditor -> stringResource(
-                        if (editingSubscription) R.string.profile_subscription_wrong_type
+                        if (subscriptionEditor) R.string.profile_subscription_wrong_type
                         else R.string.profile_vless_direct_invalid,
                     )
                     vlessSaveStatus == VlessSaveStatus.ERROR -> stringResource(R.string.vless_save_error)
@@ -467,20 +530,29 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                         field = value.replace("\r", "").replace("\n", "")
                     },
                     label = stringResource(
-                        if (editingSubscription) R.string.profile_subscription_input_label
-                        else R.string.profile_vless_direct_input_label,
+                        when {
+                            editingId == null -> R.string.profile_link_input_label
+                            subscriptionEditor -> R.string.profile_subscription_input_label
+                            else -> R.string.profile_vless_direct_input_label
+                        },
                     ),
                     placeholder = stringResource(
-                        if (editingSubscription) R.string.profile_subscription_placeholder
-                        else R.string.profile_vless_direct_placeholder,
+                        when {
+                            editingId == null -> R.string.profile_link_placeholder
+                            subscriptionEditor -> R.string.profile_subscription_placeholder
+                            else -> R.string.profile_vless_direct_placeholder
+                        },
                     ),
                     helper = stringResource(
-                        if (editingSubscription) R.string.profile_subscription_input_hint
-                        else R.string.profile_vless_direct_input_hint,
+                        when {
+                            editingId == null -> R.string.profile_add_link_hint
+                            subscriptionEditor -> R.string.profile_subscription_input_hint
+                            else -> R.string.profile_vless_direct_input_hint
+                        },
                     ),
                     error = contextError,
                     success = parsed?.takeIf { parsedMatchesEditor }?.let { result ->
-                        if (editingSubscription) {
+                        if (subscriptionEditor) {
                             stringResource(R.string.subscription_profile_host, result.profile.server)
                         } else {
                             stringResource(
@@ -583,12 +655,19 @@ private fun ProfileKeyList(
     DetourCard(
         Modifier
             .padding(horizontal = Spacing.space16)
+            .animateContentSize(Motion.SIZE_SPEC)
             .selectableGroup(),
     ) {
         items.forEachIndexed { index, key ->
             val profile = remember(key.uri) { parsedProfile(key) }
             val selected = activeVpn == kind && key.id == activeVlessId
-            val title = profile?.name?.ifBlank { profile.server } ?: key.name
+            val title = when {
+                profile == null -> key.name
+                // Subscriptions keep the stored name so a provider title (or a
+                // user rename) wins over the bare host from the URL.
+                profile.isSubscription -> key.name.ifBlank { profile.server }
+                else -> profile.name.ifBlank { profile.server }
+            }
             val subtitle = when {
                 profile == null -> "—"
                 profile.isSubscription -> stringResource(R.string.profile_subscription_row_subtitle, profile.server)
@@ -625,6 +704,7 @@ private fun WireGuardProfileList(
     DetourCard(
         Modifier
             .padding(horizontal = Spacing.space16)
+            .animateContentSize(Motion.SIZE_SPEC)
             .selectableGroup(),
     ) {
         profiles.forEachIndexed { index, profile ->
@@ -782,7 +862,7 @@ private fun ProfileOperationNotice(status: WarpImportStatus) {
 }
 
 @Composable
-private fun ProfileImportErrorNotice() {
+private fun ProfileImportErrorNotice(message: String = stringResource(R.string.profile_import_error)) {
     val c = detourColors
     Row(
         modifier = Modifier
@@ -800,7 +880,7 @@ private fun ProfileImportErrorNotice() {
             modifier = Modifier.size(18.dp),
         )
         Text(
-            text = stringResource(R.string.profile_import_error),
+            text = message,
             style = MaterialTheme.typography.bodySmall,
             color = c.textPrimary,
             modifier = Modifier.padding(start = Spacing.space12),

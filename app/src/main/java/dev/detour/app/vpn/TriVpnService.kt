@@ -7,8 +7,8 @@ import android.net.NetworkCapabilities
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
-import dev.detour.app.R
 import dev.detour.app.DetourApp
+import dev.detour.app.R
 import dev.detour.app.core.AppRoute
 import dev.detour.app.core.ConfigGenerator
 import dev.detour.app.core.DnsOptions
@@ -21,6 +21,8 @@ import dev.detour.app.core.RoutingInput
 import dev.detour.app.core.VlessKeyParser
 import dev.detour.app.core.VpnOutbound
 import dev.detour.app.core.VpnProfileKind
+import dev.detour.app.core.formatTunnelTrafficRates
+import dev.detour.app.core.parseTunnelTrafficStats
 import dev.detour.app.data.RoutesStore
 import dev.detour.app.log.ServiceLog
 import dev.detour.engine.engine.Engine
@@ -28,6 +30,8 @@ import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.net.InetAddress
 import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledFuture
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -37,9 +41,14 @@ class TriVpnService : VpnService() {
         const val ACTION_START = "dev.detour.app.action.START"
         const val ACTION_STOP = "dev.detour.app.action.STOP"
         const val ACTION_RESTART = "dev.detour.app.action.RESTART"
+
+        /** Often enough to feel live, rare enough to stay off the battery radar. */
+        private const val TRAFFIC_NOTIFICATION_INTERVAL_S = 2L
     }
 
     private val executor = Executors.newSingleThreadExecutor()
+    private val trafficExecutor = Executors.newSingleThreadScheduledExecutor()
+    private var trafficTask: ScheduledFuture<*>? = null
     private val healthExecutor = Executors.newSingleThreadExecutor()
     private val validationGeneration = AtomicInteger(0)
     private val restartQueued = AtomicBoolean(false)
@@ -73,19 +82,27 @@ class TriVpnService : VpnService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            ACTION_START -> executor.execute { startSequence() }
-            ACTION_STOP -> {
+        val sessionLive = VpnController.state.value == VpnState.Active ||
+            VpnController.state.value == VpnState.Starting
+        val command = classifyVpnServiceCommand(intent?.action, isAlwaysOn, sessionLive)
+        val appAction = intent?.action in setOf(ACTION_START, ACTION_STOP, ACTION_RESTART)
+        if (!appAction) ServiceLog.i("system start: action=${intent?.action} live=$sessionLive -> $command")
+        when (command) {
+            VpnServiceCommand.START -> {
+                executor.execute { startSequence() }
+            }
+            VpnServiceCommand.STOP -> {
                 stopQueued.set(true)
                 executor.execute { restartQueued.set(false); stopSequence(stopSelf = true); stopQueued.set(false) }
             }
-            ACTION_RESTART -> if (!stopQueued.get() && restartQueued.compareAndSet(false, true)) {
+            VpnServiceCommand.RESTART -> if (!stopQueued.get() && restartQueued.compareAndSet(false, true)) {
                 executor.execute {
                     restartQueued.set(false)
                     if (!stopQueued.get()) { stopSequence(stopSelf = false); startSequence() }
                 }
             }
-            null -> stopSelf()
+            // Never let an unknown start bring up a tunnel; release it when idle.
+            VpnServiceCommand.IGNORE -> if (!sessionLive) stopSelf(startId)
         }
         return START_NOT_STICKY
     }
@@ -103,6 +120,7 @@ class TriVpnService : VpnService() {
         lastNetwork = null
         stopQueued.set(true)
         healthExecutor.shutdownNow()
+        trafficExecutor.shutdownNow()
         executor.shutdownNow()
         // Native shutdown remains synchronous so the TUN and child resources are
         // definitely closed before service destruction. Persistence is delegated
@@ -271,9 +289,11 @@ class TriVpnService : VpnService() {
             return
         }
 
+        runCatching { Engine.resetTrafficStats() }
         VpnController.setState(VpnState.Active)
         runBlocking { store.setSessionStartedAt(System.currentTimeMillis()) }
         foreground.show(getString(R.string.notif_active))
+        startTrafficUpdates()
         ServiceLog.i("active; validating routes")
         validateRoutesAsync(effVpn, effDpi, settings.activeVpn, probeCredentials)
     }
@@ -320,11 +340,41 @@ class TriVpnService : VpnService() {
         }
     }
 
+    /**
+     * Mirrors live tunnel speed into the foreground notification. Updates run
+     * under the lifecycle lock so a late tick can never re-post the
+     * notification after stopSequence removed it.
+     */
+    private fun startTrafficUpdates() {
+        trafficTask?.cancel(false)
+        trafficTask = trafficExecutor.scheduleWithFixedDelay(
+            {
+                val stats = runCatching { parseTunnelTrafficStats(Engine.trafficStats()) }.getOrNull()
+                    ?: return@scheduleWithFixedDelay
+                synchronized(lifecycleLock) {
+                    if (VpnController.state.value != VpnState.Active) return@synchronized
+                    foreground.update(
+                        getString(
+                            R.string.notif_active_traffic,
+                            getString(R.string.notif_active),
+                            formatTunnelTrafficRates(this, stats),
+                        ),
+                    )
+                }
+            },
+            TRAFFIC_NOTIFICATION_INTERVAL_S,
+            TRAFFIC_NOTIFICATION_INTERVAL_S,
+            TimeUnit.SECONDS,
+        )
+    }
+
     private fun stopSequence(
         stopSelf: Boolean,
         persistSessionSynchronously: Boolean = true,
     ) {
         synchronized(lifecycleLock) {
+            trafficTask?.cancel(false)
+            trafficTask = null
             validationGeneration.incrementAndGet()
             if (persistSessionSynchronously) {
                 runCatching { runBlocking { store.setSessionStartedAt(null) } }

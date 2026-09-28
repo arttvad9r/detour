@@ -1,7 +1,18 @@
 package dev.detour.app.ui
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
+import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.IntSize
 
 /**
  * One restrained motion language for the whole app.
@@ -55,4 +66,18 @@ object Motion {
     const val SPRING_DAMPING = 1f
     const val SPRING_STIFFNESS = 750f
     const val SPRING_STIFFNESS_SOFT = 550f
+
+    /** Height changes of cards and sections settle like the rest of the UI. */
+    val SIZE_SPEC: FiniteAnimationSpec<IntSize> =
+        spring(dampingRatio = SPRING_DAMPING, stiffness = SPRING_STIFFNESS_SOFT)
+
+    /** Content that appears inside a column: grow in place, then fade in. */
+    val reveal: EnterTransition =
+        expandVertically(SIZE_SPEC, expandFrom = Alignment.Top) +
+            fadeIn(tween(CONTENT_IN_MS, delayMillis = PRESS_TONE_MS, easing = ENTER_EASING))
+
+    /** Mirror of [reveal]: fade out quickly, then collapse the space. */
+    val conceal: ExitTransition =
+        fadeOut(tween(CONTENT_OUT_MS, easing = EXIT_EASING)) +
+            shrinkVertically(SIZE_SPEC, shrinkTowards = Alignment.Top)
 }

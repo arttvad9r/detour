@@ -30,7 +30,28 @@ internal class VpnForegroundNotifier(private val service: VpnService) {
         )
     }
 
+    private val notificationManager: NotificationManager
+        get() = service.getSystemService(NotificationManager::class.java)
+
     fun show(text: String) {
+        val notification = build(text)
+        if (Build.VERSION.SDK_INT >= 34) {
+            service.startForeground(
+                NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
+            )
+        } else {
+            service.startForeground(NOTIFICATION_ID, notification)
+        }
+    }
+
+    /** Refreshes the text of an already-foreground notification without alerting. */
+    fun update(text: String) {
+        notificationManager.notify(NOTIFICATION_ID, build(text))
+    }
+
+    private fun build(text: String): Notification {
         val content = PendingIntent.getActivity(
             service,
             0,
@@ -43,23 +64,14 @@ internal class VpnForegroundNotifier(private val service: VpnService) {
             Intent(service, TriVpnService::class.java).setAction(TriVpnService.ACTION_STOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val notification: Notification = NotificationCompat.Builder(service, CHANNEL_ID)
+        return NotificationCompat.Builder(service, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_lock)
             .setContentTitle(service.getString(R.string.app_name))
             .setContentText(text)
             .setContentIntent(content)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
             .addAction(0, service.getString(R.string.notif_stop), stop)
             .build()
-
-        if (Build.VERSION.SDK_INT >= 34) {
-            service.startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE,
-            )
-        } else {
-            service.startForeground(NOTIFICATION_ID, notification)
-        }
     }
 }

@@ -2,7 +2,7 @@
     <string name="subscription_profile_section">Подписки</string>
     <string name="subscription_profile_kind">VLESS</string>
     <string name="subscription_profile_host">VLESS · %1$s</string>
-    <string name="subscription_runtime_title">Серверы подписки</string>
+    <string name="subscription_runtime_title">Серверы</string>
     <string name="subscription_runtime_disconnected">Сервер можно выбрать и проверить до подключения. Доступность активного провайдера появится после запуска VPN.</string>
     <string name="subscription_runtime_loading">Загрузка серверов подписки…</string>
     <string name="subscription_runtime_unavailable">Данные о доступности серверов пока не получены.</string>
@@ -12,11 +12,11 @@
     <string name="subscription_runtime_refreshing">Обновление…</string>
     <string name="subscription_runtime_refresh_error">Не удалось обновить подписку. Текущий туннель не изменён.</string>
     <string name="subscription_catalog_error">Не удалось получить VLESS-серверы из подписки. Проверьте ссылку и попробуйте обновить.</string>
-    <string name="subscription_selected_server">Выбранный сервер</string>
+    <string name="subscription_selected_server">Сервер</string>
     <string name="subscription_select_server">Выберите сервер</string>
     <string name="subscription_search_hint">Поиск серверов…</string>
     <string name="subscription_sort_default">По порядку</string>
-    <string name="subscription_sort_latency">Задержка</string>
+    <string name="subscription_sort_latency">По пингу</string>
     <string name="subscription_sort_name">Имя</string>
     <string name="subscription_selection_error">Не удалось выбрать сервер. Предыдущий выбор сохранён.</string>
     <string name="subscription_latency_test">Проверить пинг</string>
@@ -28,4 +28,19 @@
     <string name="subscription_node_unknown">Не проверен</string>
     <string name="subscription_node_delay">%1$d мс</string>
     <string name="subscription_nodes_more">Ещё серверов: %1$d</string>
+    <string name="subscription_server_with_delay">%1$s · %2$d мс</string>
+    <string name="subscription_catalog_error_short">Не удалось загрузить серверы</string>
+    <string name="subscription_plan">Тариф</string>
+    <string name="subscription_expires_on">до %1$s</string>
+    <string name="subscription_expired">Истекла</string>
+    <string name="subscription_traffic_left">Осталось %1$s из %2$s</string>
+    <string name="subscription_traffic_unlimited">Использовано %1$s · без лимита</string>
+    <string name="subscription_search_empty">Нет серверов по запросу «%1$s»</string>
+    <string name="subscription_latency_timeout">нет ответа</string>
+    <plurals name="subscription_server_count">
+        <item quantity="one">%1$d сервер</item>
+        <item quantity="few">%1$d сервера</item>
+        <item quantity="many">%1$d серверов</item>
+        <item quantity="other">%1$d сервера</item>
+    </plurals>
 </resources>
