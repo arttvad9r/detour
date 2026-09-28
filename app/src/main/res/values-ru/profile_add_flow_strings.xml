@@ -20,4 +20,13 @@
     <string name="profile_importing">Импорт профиля…</string>
     <string name="profile_import_invalid">Совместимый VPN-профиль не найден.</string>
     <string name="profile_import_error">Не удалось импортировать VPN-профиль.</string>
+    <string name="profile_add_paste">Вставить из буфера</string>
+    <string name="profile_add_paste_hint">vless:// · подписка · vpn://</string>
+    <string name="profile_add_qr">QR-код с картинки</string>
+    <string name="profile_add_qr_hint">Скриншот или фото из галереи</string>
+    <string name="profile_add_link">Добавить по ссылке</string>
+    <string name="profile_add_link_hint">VLESS-ключ или HTTPS-ссылка на подписку</string>
+    <string name="profile_link_input_label">Ссылка</string>
+    <string name="profile_link_placeholder">vless://… или https://…</string>
+    <string name="profile_qr_not_found">На картинке не найден QR-код.</string>
 </resources>

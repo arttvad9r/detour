@@ -215,7 +215,7 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
 
     Column(modifier.padding(horizontal = Spacing.space16)) {
         DetourCard {
-            state.info?.let { info ->
+            state.info?.takeIf { it.hasTraffic || it.hasExpiry || it.usedBytes > 0L }?.let { info ->
                 SubscriptionInfoBlock(info)
                 GroupDivider(startInset = Spacing.space16.value.toInt())
             }
@@ -287,10 +287,25 @@ private fun SubscriptionInfoBlock(info: SubscriptionInfo) {
         }
     }
 
+    // The provider title already names the profile row, so this block only
+    // carries the numbers: traffic on the left, expiry on the right.
+    val trafficText = when {
+        info.hasTraffic -> stringResource(
+            R.string.subscription_traffic_left,
+            Formatter.formatShortFileSize(context, info.remainingBytes),
+            Formatter.formatShortFileSize(context, info.totalBytes),
+        )
+        info.usedBytes > 0L -> stringResource(
+            R.string.subscription_traffic_unlimited,
+            Formatter.formatShortFileSize(context, info.usedBytes),
+        )
+        else -> stringResource(R.string.subscription_plan)
+    }
+
     Column(Modifier.padding(horizontal = Spacing.space16, vertical = Spacing.space12)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = info.title ?: stringResource(R.string.subscription_plan),
+                text = trafficText,
                 style = MaterialTheme.typography.titleSmall,
                 color = c.textPrimary,
                 maxLines = 1,
@@ -331,26 +346,6 @@ private fun SubscriptionInfoBlock(info: SubscriptionInfo) {
                         .background(if (nearlyExhausted) c.error else c.accent),
                 )
             }
-            Spacer(Modifier.height(Spacing.space8))
-            Text(
-                text = stringResource(
-                    R.string.subscription_traffic_left,
-                    Formatter.formatShortFileSize(context, info.remainingBytes),
-                    Formatter.formatShortFileSize(context, info.totalBytes),
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                color = c.textSecondary,
-            )
-        } else if (info.usedBytes > 0L) {
-            Text(
-                text = stringResource(
-                    R.string.subscription_traffic_unlimited,
-                    Formatter.formatShortFileSize(context, info.usedBytes),
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                color = c.textSecondary,
-                modifier = Modifier.padding(top = Spacing.space4),
-            )
         }
     }
 }
