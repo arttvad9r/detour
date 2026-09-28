@@ -66,6 +66,7 @@ internal fun homeProfilePresentation(
     warpName: String?,
     warpEndpointCount: Int,
     subscriptionNode: String? = null,
+    subscriptionName: String? = null,
 ): HomeProfilePresentation = when (activeVpn) {
     VpnProfileKind.VLESS -> {
         val profile = (VlessKeyParser.parse(vlessUri) as? ParseResult.Ok)?.profile
@@ -77,7 +78,8 @@ internal fun homeProfilePresentation(
     VpnProfileKind.SUBSCRIPTION -> {
         val profile = (VlessKeyParser.parse(vlessUri) as? ParseResult.Ok)?.profile
         HomeProfilePresentation(
-            name = profile?.name?.ifBlank { profile.server },
+            name = subscriptionName?.trim()?.takeIf { it.isNotBlank() }
+                ?: profile?.name?.ifBlank { profile.server },
             server = subscriptionNode?.trim()?.takeIf { it.isNotBlank() },
         )
     }
@@ -101,6 +103,7 @@ internal fun homeUiState(
         warpName = settings?.warpProfile?.name,
         warpEndpointCount = settings?.warpProfile?.proxies?.size ?: 0,
         subscriptionNode = subscriptionNode,
+        subscriptionName = settings?.vlessKeys?.active?.name,
     )
     return HomeUiState(
         vpnState = vpnState,

@@ -28,6 +28,26 @@ data class SubscriptionCatalogNode(
     val type: String,
 )
 
+/** Provider-reported plan details; any field may be absent. */
+data class SubscriptionInfo(
+    val title: String? = null,
+    val usedBytes: Long = 0L,
+    val totalBytes: Long = 0L,
+    val expireAtEpochSeconds: Long = 0L,
+) {
+    val hasTraffic: Boolean get() = totalBytes > 0L
+    val remainingBytes: Long get() = (totalBytes - usedBytes).coerceAtLeast(0L)
+    val usedFraction: Float
+        get() = if (totalBytes > 0L) (usedBytes.toDouble() / totalBytes).toFloat().coerceIn(0f, 1f) else 0f
+    val hasExpiry: Boolean get() = expireAtEpochSeconds > 0L
+    val isEmpty: Boolean get() = title == null && !hasTraffic && !hasExpiry
+}
+
+internal data class SubscriptionCatalog(
+    val nodes: List<SubscriptionCatalogNode> = emptyList(),
+    val info: SubscriptionInfo? = null,
+)
+
 data class SubscriptionLatencyError(
     val errorClass: String,
     val errorText: String,
@@ -42,6 +62,7 @@ data class SubscriptionLatencyResult(
 data class SubscriptionRuntimeUiState(
     val provider: SubscriptionProviderState = SubscriptionProviderState.Unavailable,
     val catalog: List<SubscriptionCatalogNode> = emptyList(),
+    val info: SubscriptionInfo? = null,
     val status: SubscriptionRuntimeStatus = SubscriptionRuntimeStatus.IDLE,
     val catalogStatus: SubscriptionCatalogStatus = SubscriptionCatalogStatus.IDLE,
     val selectedNode: String? = null,
@@ -95,6 +116,37 @@ internal fun parseSubscriptionLatencyResult(raw: String): SubscriptionLatencyRes
             errorByName = errors,
         )
     }.getOrDefault(SubscriptionLatencyResult())
+}
+
+private const val MAX_CATALOG_NODES = 256
+private const val MAX_CATALOG_JSON_CHARS = 512 * 1024
+
+internal fun parseSubscriptionCatalog(raw: String): SubscriptionCatalog {
+    if (raw.isBlank() || raw.length > MAX_CATALOG_JSON_CHARS) return SubscriptionCatalog()
+    return runCatching {
+        val root = JSONObject(raw)
+        val array = root.optJSONArray("nodes") ?: return@runCatching SubscriptionCatalog()
+        val nodes = buildList {
+            for (index in 0 until minOf(array.length(), MAX_CATALOG_NODES)) {
+                val node = array.optJSONObject(index) ?: continue
+                val name = safeLatencyDiagnostic(node.optString("name"), 256) ?: continue
+                val type = safeLatencyDiagnostic(node.optString("type"), 64) ?: continue
+                if (!type.equals("vless", ignoreCase = true)) continue
+                add(SubscriptionCatalogNode(name, type))
+            }
+        }.distinctBy { it.name }
+        val info = root.optJSONObject("meta")?.let { meta ->
+            val upload = meta.optLong("uploadBytes", 0L).coerceAtLeast(0L)
+            val download = meta.optLong("downloadBytes", 0L).coerceAtLeast(0L)
+            SubscriptionInfo(
+                title = safeLatencyDiagnostic(meta.optString("title"), 256),
+                usedBytes = upload + download,
+                totalBytes = meta.optLong("totalBytes", 0L).coerceAtLeast(0L),
+                expireAtEpochSeconds = meta.optLong("expireAtUnix", 0L).coerceAtLeast(0L),
+            ).takeUnless { it.isEmpty }
+        }
+        SubscriptionCatalog(nodes, info)
+    }.getOrDefault(SubscriptionCatalog())
 }
 
 class SubscriptionRuntimeViewModel : ViewModel() {
@@ -262,12 +314,14 @@ class SubscriptionRuntimeViewModel : ViewModel() {
         catalogJob = viewModelScope.launch {
             try {
                 _uiState.value = _uiState.value.copy(catalogStatus = SubscriptionCatalogStatus.LOADING)
-                val nodes = withContext(Dispatchers.IO) {
-                    parseCatalog(Engine.fetchPreparedSubscriptionCatalog(url))
+                val parsed = withContext(Dispatchers.IO) {
+                    parseSubscriptionCatalog(Engine.fetchPreparedSubscriptionCatalog(url))
                 }
+                val nodes = parsed.nodes
                 val names = nodes.mapTo(HashSet()) { it.name }
                 _uiState.value = _uiState.value.copy(
                     catalog = nodes,
+                    info = parsed.info ?: _uiState.value.info,
                     catalogStatus = if (nodes.isEmpty()) {
                         SubscriptionCatalogStatus.ERROR
                     } else {
@@ -341,34 +395,9 @@ class SubscriptionRuntimeViewModel : ViewModel() {
         return last
     }
 
-    private fun parseCatalog(raw: String): List<SubscriptionCatalogNode> {
-        if (raw.isBlank() || raw.length > MAX_CATALOG_JSON_CHARS) return emptyList()
-        return runCatching {
-            val nodes = JSONObject(raw).optJSONArray("nodes") ?: return@runCatching emptyList()
-            buildList {
-                for (index in 0 until minOf(nodes.length(), MAX_CATALOG_NODES)) {
-                    val node = nodes.optJSONObject(index) ?: continue
-                    val name = safeLabel(node.optString("name"), 256) ?: continue
-                    val type = safeLabel(node.optString("type"), 64) ?: continue
-                    if (!type.equals("vless", ignoreCase = true)) continue
-                    add(SubscriptionCatalogNode(name, type))
-                }
-            }.distinctBy { it.name }
-        }.getOrDefault(emptyList())
-    }
-
-    private fun safeLabel(value: String, maxChars: Int): String? {
-        val trimmed = value.trim()
-        if (trimmed.isBlank() || trimmed.length > maxChars) return null
-        if (trimmed.any { it.code < 0x20 || it.code == 0x7f }) return null
-        return trimmed
-    }
-
     private companion object {
         const val PROVIDER_POLL_ATTEMPTS = 24
         const val PROVIDER_POLL_DELAY_MS = 350L
-        const val MAX_CATALOG_NODES = 256
-        const val MAX_CATALOG_JSON_CHARS = 512 * 1024
         const val PROXY_CONFIG_LOG_TAG = "DetourProxyConfig"
     }
 }

@@ -588,7 +588,13 @@ private fun ProfileKeyList(
         items.forEachIndexed { index, key ->
             val profile = remember(key.uri) { parsedProfile(key) }
             val selected = activeVpn == kind && key.id == activeVlessId
-            val title = profile?.name?.ifBlank { profile.server } ?: key.name
+            val title = when {
+                profile == null -> key.name
+                // Subscriptions keep the stored name so a provider title (or a
+                // user rename) wins over the bare host from the URL.
+                profile.isSubscription -> key.name.ifBlank { profile.server }
+                else -> profile.name.ifBlank { profile.server }
+            }
             val subtitle = when {
                 profile == null -> "—"
                 profile.isSubscription -> stringResource(R.string.profile_subscription_row_subtitle, profile.server)
