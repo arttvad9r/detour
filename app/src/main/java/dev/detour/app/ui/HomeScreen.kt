@@ -5,6 +5,7 @@ import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -484,7 +485,13 @@ private fun ConnectionHero(
                             sessionStartedAt = sessionStartedAt,
                             color = c.textPrimary,
                         )
-                        traffic?.let { TrafficLine(it) }
+                        // Keep the last reading while hiding so the line
+                        // does not blank out mid-animation.
+                        var lastTraffic by remember { mutableStateOf(traffic) }
+                        if (traffic != null) lastTraffic = traffic
+                        AnimatedVisibility(visible = traffic != null, enter = Motion.reveal, exit = Motion.conceal) {
+                            lastTraffic?.let { TrafficLine(it) }
+                        }
                     }
                     if (routeDescription.isNotBlank()) {
                         Text(

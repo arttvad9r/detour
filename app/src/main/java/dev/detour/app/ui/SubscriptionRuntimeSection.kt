@@ -2,6 +2,7 @@ package dev.detour.app.ui
 
 import android.text.format.Formatter
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -214,7 +215,7 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
     }
 
     Column(modifier.padding(horizontal = Spacing.space16)) {
-        DetourCard {
+        DetourCard(Modifier.animateContentSize(Motion.SIZE_SPEC)) {
             state.info?.takeIf { it.hasTraffic || it.hasExpiry || it.usedBytes > 0L }?.let { info ->
                 SubscriptionInfoBlock(info)
                 GroupDivider(startInset = Spacing.space16.value.toInt())
@@ -242,8 +243,8 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
 
         AnimatedVisibility(
             visible = state.selectionStatus == SubscriptionSelectionStatus.ERROR,
-            enter = fadeIn(tween(Motion.CONTENT_IN_MS)),
-            exit = fadeOut(tween(Motion.CONTENT_OUT_MS)),
+            enter = Motion.reveal,
+            exit = Motion.conceal,
         ) {
             SubscriptionNotice(
                 text = stringResource(R.string.subscription_selection_error),

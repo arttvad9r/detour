@@ -1,5 +1,7 @@
 package dev.detour.app.ui
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.AnimatedVisibility
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -342,9 +344,15 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                         val activeSubscription = groups.subscriptions.firstOrNull {
                             it.id == activeVlessId && activeVpn == VpnProfileKind.SUBSCRIPTION
                         }
-                        if (activeSubscription != null) {
-                            Spacer(Modifier.height(Spacing.space12))
-                            SubscriptionRuntimeSection()
+                        AnimatedVisibility(
+                            visible = activeSubscription != null,
+                            enter = Motion.reveal,
+                            exit = Motion.conceal,
+                        ) {
+                            Column {
+                                Spacer(Modifier.height(Spacing.space12))
+                                SubscriptionRuntimeSection()
+                            }
                         }
                     }
 
@@ -371,17 +379,31 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                     }
                 }
 
-                if (!suppressWarpNotice && warpImportStatus != WarpImportStatus.IDLE) {
-                    Spacer(Modifier.height(Spacing.space12))
-                    ProfileOperationNotice(warpImportStatus)
+                AnimatedVisibility(
+                    visible = !suppressWarpNotice && warpImportStatus != WarpImportStatus.IDLE,
+                    enter = Motion.reveal,
+                    exit = Motion.conceal,
+                ) {
+                    Column {
+                        Spacer(Modifier.height(Spacing.space12))
+                        ProfileOperationNotice(warpImportStatus)
+                    }
                 }
-                if (!showEditor && vlessSaveStatus == VlessSaveStatus.ERROR) {
-                    Spacer(Modifier.height(Spacing.space12))
-                    ProfileImportErrorNotice()
+                AnimatedVisibility(
+                    visible = !showEditor && vlessSaveStatus == VlessSaveStatus.ERROR,
+                    enter = Motion.reveal,
+                    exit = Motion.conceal,
+                ) {
+                    Column {
+                        Spacer(Modifier.height(Spacing.space12))
+                        ProfileImportErrorNotice()
+                    }
                 }
-                if (qrImportFailed) {
-                    Spacer(Modifier.height(Spacing.space12))
-                    ProfileImportErrorNotice(stringResource(R.string.profile_qr_not_found))
+                AnimatedVisibility(visible = qrImportFailed, enter = Motion.reveal, exit = Motion.conceal) {
+                    Column {
+                        Spacer(Modifier.height(Spacing.space12))
+                        ProfileImportErrorNotice(stringResource(R.string.profile_qr_not_found))
+                    }
                 }
                 Spacer(Modifier.height(Spacing.space24))
             }
@@ -633,6 +655,7 @@ private fun ProfileKeyList(
     DetourCard(
         Modifier
             .padding(horizontal = Spacing.space16)
+            .animateContentSize(Motion.SIZE_SPEC)
             .selectableGroup(),
     ) {
         items.forEachIndexed { index, key ->
@@ -681,6 +704,7 @@ private fun WireGuardProfileList(
     DetourCard(
         Modifier
             .padding(horizontal = Spacing.space16)
+            .animateContentSize(Motion.SIZE_SPEC)
             .selectableGroup(),
     ) {
         profiles.forEachIndexed { index, profile ->
