@@ -171,6 +171,16 @@ The versioned backup model covers product settings including:
 
 Because a backup can contain VPN credentials, it should be handled as secret material.
 
+### Password-protected backups
+
+On export you can choose to encrypt the file with a password (at least 8 characters, entered twice). The file is then an envelope (`v` = 5) holding AES-256-GCM ciphertext, with the key derived from the password by PBKDF2-HMAC-SHA256 (600,000 iterations, random salt and IV). The envelope header is authenticated, so changing it makes decryption fail.
+
+Exporting without a password is still available and produces the plain format. On import Detour detects an encrypted file and asks for the password; older plain backups (v1–v4) import as before. The password is never stored and cannot be recovered: without it the backup cannot be opened.
+
+## IPv4-only tunnel
+
+The VPN tunnel currently carries IPv4 only. IPv6 traffic of selected applications is rejected inside the tunnel instead of leaking over the physical interface. On IPv6-only networks (without NAT64/464XLAT) selected applications therefore have no connectivity while Detour is connected.
+
 ## Local protection of credentials
 
 Sensitive persisted profile values are encrypted locally with key material backed by Android Keystore before being written to DataStore.
