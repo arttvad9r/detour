@@ -8,6 +8,7 @@ import dev.detour.app.core.ParseResult
 import dev.detour.app.core.TunnelTrafficStats
 import dev.detour.app.core.VlessKeyParser
 import dev.detour.app.core.VpnProfileKind
+import dev.detour.app.core.WireGuardFamily
 import dev.detour.app.data.RoutesStore
 import dev.detour.app.data.TriSettings
 import dev.detour.app.vpn.EffectiveRoutes
@@ -50,6 +51,7 @@ data class HomeUiState(
     val routedCount: Int = 0,
     val activeVpn: VpnProfileKind = VpnProfileKind.VLESS,
     val protocol: HomeProtocol = HomeProtocol.NONE,
+    val wireGuardFamily: WireGuardFamily? = null,
     val dnsId: String = "google",
     val dnsCustom: String = "",
     val traffic: TunnelTrafficStats? = null,
@@ -107,7 +109,7 @@ internal fun homeUiState(
     val profile = homeProfilePresentation(
         activeVpn = activeVpn,
         vlessUri = settings?.vlessUri.orEmpty(),
-        warpName = settings?.warpProfile?.name,
+        warpName = settings?.warpProfile?.displayName,
         warpEndpointCount = settings?.warpProfile?.proxies?.size ?: 0,
         subscriptionNode = subscriptionNode,
         subscriptionName = settings?.vlessKeys?.active?.name,
@@ -121,6 +123,7 @@ internal fun homeUiState(
         routedCount = effectiveRoutes.packages.size,
         activeVpn = activeVpn,
         protocol = homeProtocol(effectiveRoutes),
+        wireGuardFamily = settings?.warpProfile?.family.takeIf { activeVpn == VpnProfileKind.WARP },
         dnsId = settings?.dnsId?.ifBlank { null } ?: "google",
         dnsCustom = settings?.dnsCustom.orEmpty(),
         traffic = traffic.takeIf { vpnState == VpnState.Active },

@@ -64,11 +64,34 @@ data class WarpProxy(
     val amnezia: AmneziaWgOptions,
 )
 
+enum class WireGuardFamily(val defaultName: String) {
+    WARP("Cloudflare WARP"),
+    AMNEZIAWG("AmneziaWG"),
+    AMNEZIAWG_31("AmneziaWG 3.1"),
+}
+
+private const val CLOUDFLARE_WARP_PUBLIC_KEY = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo="
+
+// Every accepted profile carries AmneziaWG options, so the endpoint is what tells
+// Cloudflare WARP apart from a self-hosted AmneziaWG server; the profile name is user-editable.
+internal fun wireGuardFamilyOf(proxies: List<WarpProxy>): WireGuardFamily = when {
+    proxies.any {
+        it.publicKey == CLOUDFLARE_WARP_PUBLIC_KEY || it.server.endsWith("cloudflareclient.com", ignoreCase = true)
+    } -> WireGuardFamily.WARP
+    proxies.any { it.amnezia.version == 3 } -> WireGuardFamily.AMNEZIAWG_31
+    else -> WireGuardFamily.AMNEZIAWG
+}
+
 data class WarpProfile(
     val id: String,
     val name: String,
     val proxies: List<WarpProxy>,
 ) {
+    val family: WireGuardFamily get() = wireGuardFamilyOf(proxies)
+
+    /** Older imports were all named "WARP / AmneziaWG" regardless of what they were. */
+    val displayName: String get() = if (name == LEGACY_GENERIC_NAME) family.defaultName else name
+
     init {
         require(id.isNotBlank())
         require(name.isNotBlank())
@@ -85,8 +108,10 @@ data class WarpProfile(
     }.toString()
 
     companion object {
-        fun create(name: String = "Cloudflare WARP", proxies: List<WarpProxy>) =
-            WarpProfile(UUID.randomUUID().toString(), name, proxies)
+        private const val LEGACY_GENERIC_NAME = "WARP / AmneziaWG"
+
+        fun create(name: String? = null, proxies: List<WarpProxy>) =
+            WarpProfile(UUID.randomUUID().toString(), name ?: wireGuardFamilyOf(proxies).defaultName, proxies)
 
         fun fromStored(json: String): WarpProfile? {
             if (json.isBlank()) return null

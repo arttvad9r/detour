@@ -1,7 +1,5 @@
 package dev.detour.app.ui
 
-import android.content.Intent
-import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,12 +16,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
@@ -117,22 +111,6 @@ internal fun SettingsMenuScreen(
         SettingsSection.APPEARANCE,
     ) to onOpenTheme
 
-    val context = LocalContext.current
-    var showAlwaysOn by rememberSaveable { mutableStateOf(false) }
-    if (showAlwaysOn) {
-        AlwaysOnVpnDialog(
-            onOpenSettings = {
-                showAlwaysOn = false
-                runCatching {
-                    context.startActivity(
-                        Intent(Settings.ACTION_VPN_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                    )
-                }
-            },
-            onDismiss = { showAlwaysOn = false },
-        )
-    }
-
     Column(
         modifier.fillMaxSize()
             .background(c.background)
@@ -175,14 +153,6 @@ internal fun SettingsMenuScreen(
                             compact = true,
                         )
                     },
-                )
-
-                GroupDivider(startInset = NavigationRowDividerInset)
-                DetourNavigationRow(
-                    title = stringResource(R.string.always_on_vpn),
-                    subtitle = stringResource(R.string.always_on_vpn_sub),
-                    iconRes = R.drawable.ic_lock,
-                    onClick = { showAlwaysOn = true },
                 )
 
                 SettingsSectionDivider()

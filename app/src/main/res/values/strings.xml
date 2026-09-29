@@ -21,6 +21,7 @@
     <string name="cd_back">Back</string>
     <string name="protocol_vless_dpi">VLESS + DPI</string>
     <string name="protocol_warp_dpi">WARP + DPI</string>
+    <string name="protocol_amneziawg_dpi">AmneziaWG + DPI</string>
     <string name="protocol_dpi">DPI</string>
     <string name="protocol_vless">VLESS</string>
     <string name="protocol_warp">WARP</string>

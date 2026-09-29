@@ -68,6 +68,7 @@ import dev.detour.app.R
 import dev.detour.app.core.DnsOptions
 import dev.detour.app.core.TunnelTrafficStats
 import dev.detour.app.core.VpnProfileKind
+import dev.detour.app.core.WireGuardFamily
 import dev.detour.app.core.formatTunnelTrafficRates
 import dev.detour.app.vpn.VpnController
 import dev.detour.app.vpn.VpnState
@@ -96,15 +97,24 @@ internal fun formatSessionElapsed(seconds: Int): String {
 internal fun homeUsesSplitLayout(windowSizeClass: WindowSizeClass): Boolean =
     windowSizeClass.isWidthAtLeastBreakpoint(WIDTH_DP_EXPANDED_LOWER_BOUND)
 
-internal fun homeProtocolLabelRes(protocol: HomeProtocol, activeVpn: VpnProfileKind): Int = when (protocol) {
+private val WireGuardFamily?.isAmnezia: Boolean
+    get() = this == WireGuardFamily.AMNEZIAWG || this == WireGuardFamily.AMNEZIAWG_31
+
+internal fun homeProtocolLabelRes(
+    protocol: HomeProtocol,
+    activeVpn: VpnProfileKind,
+    wireGuardFamily: WireGuardFamily? = null,
+): Int = when (protocol) {
     HomeProtocol.VLESS_DPI -> when (activeVpn) {
         VpnProfileKind.VLESS, VpnProfileKind.SUBSCRIPTION -> R.string.protocol_vless_dpi
-        VpnProfileKind.WARP -> R.string.protocol_warp_dpi
+        VpnProfileKind.WARP ->
+            if (wireGuardFamily.isAmnezia) R.string.protocol_amneziawg_dpi else R.string.protocol_warp_dpi
     }
     HomeProtocol.DPI -> R.string.protocol_dpi
     HomeProtocol.VLESS -> when (activeVpn) {
         VpnProfileKind.VLESS, VpnProfileKind.SUBSCRIPTION -> R.string.protocol_vless
-        VpnProfileKind.WARP -> R.string.protocol_warp
+        VpnProfileKind.WARP ->
+            if (wireGuardFamily.isAmnezia) R.string.profile_amneziawg else R.string.protocol_warp
     }
     HomeProtocol.NONE -> R.string.protocol_none
 }
@@ -199,7 +209,7 @@ fun HomeScreen(
         }
     }
 
-    val protocol = stringResource(homeProtocolLabelRes(uiState.protocol, uiState.activeVpn))
+    val protocol = stringResource(homeProtocolLabelRes(uiState.protocol, uiState.activeVpn, uiState.wireGuardFamily))
     val dnsValue = when (uiState.dnsId) {
         "google" -> stringResource(R.string.dns_google)
         "cloudflare" -> stringResource(R.string.dns_cloudflare)

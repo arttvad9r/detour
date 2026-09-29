@@ -29,4 +29,8 @@
     <string name="profile_link_input_label">Link</string>
     <string name="profile_link_placeholder">vless://… or https://…</string>
     <string name="profile_qr_not_found">No QR code found in this image.</string>
+    <string name="profile_name_label">Name</string>
+    <string name="profile_name_hint">Shown in your profile list. Leave empty to use the name from the link.</string>
+    <string name="profile_edit_title">Edit profile</string>
+    <string name="profile_replace_config">Replace configuration file</string>
 </resources>

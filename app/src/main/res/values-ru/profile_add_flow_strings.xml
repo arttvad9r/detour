@@ -29,4 +29,8 @@
     <string name="profile_link_input_label">Ссылка</string>
     <string name="profile_link_placeholder">vless://… или https://…</string>
     <string name="profile_qr_not_found">На картинке не найден QR-код.</string>
+    <string name="profile_name_label">Название</string>
+    <string name="profile_name_hint">Показывается в списке профилей. Оставьте пустым, чтобы взять название из ссылки.</string>
+    <string name="profile_edit_title">Изменить профиль</string>
+    <string name="profile_replace_config">Заменить файл конфигурации</string>
 </resources>

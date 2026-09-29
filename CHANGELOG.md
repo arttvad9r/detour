@@ -4,7 +4,16 @@ All notable user-facing changes to Detour are recorded here.
 
 ## Unreleased
 
-No user-facing changes have been recorded after the current public release yet.
+### Added
+- Rename any saved profile: VLESS keys, subscriptions and WireGuard/AmneziaWG/WARP configs. Renaming does not restart an active tunnel.
+- Replace the configuration file of a WireGuard profile without losing its name.
+
+### Changed
+- WireGuard profiles are labelled WARP, AmneziaWG or AmneziaWG 3.1 by their actual endpoint instead of by the profile name, on the profile list and on Home. New imports are named after the detected type.
+- The key editor no longer blocks screenshots and screen recording.
+
+### Removed
+- The "Always-on VPN" row in Settings, which only opened the system VPN list. Android's own Always-on VPN setting still works with Detour.
 
 ## 0.3.0 — 2026-09-28
 
