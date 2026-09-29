@@ -29,6 +29,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -70,7 +72,7 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
-        uri?.let { viewModel.exportDocument(it.toString()) }
+        if (uri != null) viewModel.exportDocument(uri.toString()) else viewModel.discardPreparedExport()
     }
 
     val importLauncher = rememberLauncherForActivityResult(
@@ -79,11 +81,36 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
         uri?.let { viewModel.importDocument(it.toString()) }
     }
 
+    var showExportDialog by rememberSaveable { mutableStateOf(false) }
+    val pendingImport by viewModel.pendingImportUri.collectAsStateWithLifecycle()
+
+    if (showExportDialog) {
+        BackupExportDialog(
+            onConfirm = { password ->
+                showExportDialog = false
+                viewModel.prepareExport(password?.toCharArray())
+                exportLauncher.launch(
+                    if (password == null) "detour-backup.json" else "detour-backup-encrypted.json",
+                )
+            },
+            onDismiss = { showExportDialog = false },
+        )
+    }
+    pendingImport?.let { uri ->
+        BackupImportPasswordDialog(
+            wrongPassword = status == BackupStatus.WRONG_PASSWORD,
+            busy = operation == BackupOperation.IMPORT,
+            onConfirm = { password -> viewModel.importDocument(uri, password.toCharArray()) },
+            onDismiss = viewModel::dismissPendingImport,
+        )
+    }
+
     val statusText = when (status) {
         BackupStatus.EXPORTED -> stringResource(R.string.backup_exported)
         BackupStatus.BAD_FILE -> stringResource(R.string.backup_bad_file)
         BackupStatus.IMPORTED -> stringResource(R.string.backup_imported_reconnect)
         BackupStatus.ERROR -> stringResource(R.string.backup_error)
+        BackupStatus.WRONG_PASSWORD -> ""
         null -> ""
     }
     val statusIsError = status == BackupStatus.BAD_FILE || status == BackupStatus.ERROR
@@ -120,7 +147,7 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
                     enabled = !busy,
                     loading = operation == BackupOperation.EXPORT,
                 ) {
-                    exportLauncher.launch("detour-backup.json")
+                    showExportDialog = true
                 }
                 GroupDivider(startInset = BackupActionDividerInset)
                 ActionRow(

@@ -20,7 +20,7 @@ internal fun readBackupDocument(input: InputStream): String? {
         val count = input.read(buffer)
         if (count < 0) break
         total += count
-        if (total > SettingsBackup.MAX_BYTES) return null
+        if (total > SettingsBackup.MAX_DOCUMENT_BYTES) return null
         out.write(buffer, 0, count)
     }
     return out.toString(Charsets.UTF_8.name())

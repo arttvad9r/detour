@@ -15,7 +15,7 @@ class BackupDocumentIoTest {
     }
 
     @Test fun `reader rejects backup above size limit`() {
-        val oversized = ByteArray(SettingsBackup.MAX_BYTES + 1) { 'a'.code.toByte() }
+        val oversized = ByteArray(SettingsBackup.MAX_DOCUMENT_BYTES + 1) { 'a'.code.toByte() }
 
         assertNull(readBackupDocument(ByteArrayInputStream(oversized)))
     }
