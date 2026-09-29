@@ -110,7 +110,7 @@ object ConfigGenerator {
                     add("""- name: $name
   type: mixed
   listen: 127.0.0.1
-  port: 10810
+  port: ${input.vpnProbePort}
   proxy: $vpnTag
   users:
     - username: $loopbackUser
@@ -121,7 +121,7 @@ object ConfigGenerator {
                 add("""- name: PROBE_DPI
   type: mixed
   listen: 127.0.0.1
-  port: 10811
+  port: ${input.dpiProbePort}
   proxy: DPI
   users:
     - username: $loopbackUser

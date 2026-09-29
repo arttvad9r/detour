@@ -227,6 +227,19 @@ class ConfigGeneratorTest {
         assertEquals(2, Regex("\\n  users:\\n").findAll(yaml).count())
     }
 
+    @Test fun `listener ports follow the routing input`() {
+        val yaml = ConfigGenerator.build(
+            input().copy(dpiPort = 41001, vpnProbePort = 41002, dpiProbePort = 41003),
+        )
+        val dpiBlock = yaml.substringAfter("- name: DPI").substringBefore("listeners:")
+        assertTrue(dpiBlock.contains("port: 41001"))
+        assertTrue(yaml.substringAfter("name: PROBE_VLESS").contains("port: 41002"))
+        assertTrue(yaml.substringAfter("name: PROBE_DPI").contains("port: 41003"))
+        assertFalse(yaml.contains("port: 10808"))
+        assertFalse(yaml.contains("port: 10810"))
+        assertFalse(yaml.contains("port: 10811"))
+    }
+
     @Test fun `whole vless output matches golden yaml`() {
         assertEquals(GOLDEN, ConfigGenerator.build(input()))
     }

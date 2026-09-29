@@ -28,5 +28,7 @@ data class RoutingInput(
     val dpiApps: Set<String>,
     val nameserver: String = "8.8.8.8",
     val dpiPort: Int = 10808,
+    val vpnProbePort: Int = 10810,
+    val dpiProbePort: Int = 10811,
     val probeCredentials: ProbeCredentials = ProbeAuth.current(),
 )
