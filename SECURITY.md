@@ -16,7 +16,6 @@ A useful report includes the affected Detour version/commit, Android version/dev
 
 - Android `VpnService` owns the device TUN and per-app VPN allow-list.
 - VPN profile credentials are stored in encrypted DataStore values backed by Android Keystore.
-- Credential editors use Android secure-window protections where appropriate.
 - Imported configuration is validated before it becomes active routing material.
 - CI includes unit/lint/build checks, native-engine race testing, vulnerability scanning, release APK verification and Android instrumentation.
 
