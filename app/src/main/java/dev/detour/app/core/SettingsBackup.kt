@@ -6,6 +6,8 @@ import org.json.JSONObject
 object SettingsBackup {
     const val VERSION = 4
     const val MAX_BYTES = 1024 * 1024
+    /** Encrypted envelopes carry base64 overhead on top of a plain backup. */
+    const val MAX_DOCUMENT_BYTES = MAX_BYTES * 2
     private const val APP = "detour"
     private val themes = setOf(
         "catppuccin_latte", "catppuccin_mocha", "gruvbox_dark", "dracula",

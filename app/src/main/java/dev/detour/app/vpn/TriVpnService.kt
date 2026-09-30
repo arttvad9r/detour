@@ -14,6 +14,7 @@ import dev.detour.app.core.ConfigGenerator
 import dev.detour.app.core.DnsOptions
 import dev.detour.app.core.DpiArgs
 import dev.detour.app.core.DpiBackend
+import dev.detour.app.core.LoopbackPorts
 import dev.detour.app.core.ParseResult
 import dev.detour.app.core.ProbeAuth
 import dev.detour.app.core.ProbeCredentials
@@ -28,6 +29,7 @@ import dev.detour.app.log.ServiceLog
 import dev.detour.engine.engine.Engine
 import kotlinx.coroutines.runBlocking
 import java.io.File
+import java.io.IOException
 import java.net.InetAddress
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
@@ -217,6 +219,13 @@ class TriVpnService : VpnService() {
         }
 
         val dpiApps = effective.dpiPackages
+        // Internal listeners use free loopback ports chosen per start, so an app
+        // that already holds a fixed port cannot break the tunnel.
+        val (dpiPort, vpnProbePort, dpiProbePort) = try {
+            LoopbackPorts.allocate(3)
+        } catch (e: IOException) {
+            throw IllegalStateException(getString(R.string.err_engine), e)
+        }
         if (dpiApps.isNotEmpty()) {
             ServiceLog.i("dpi: starting (${settings.preset.id})")
             if (settings.preset == dev.detour.app.core.DpiPreset.CUSTOM &&
@@ -227,7 +236,7 @@ class TriVpnService : VpnService() {
                 return
             }
             if (!dpi.start(
-                    DpiArgs.resolve(settings.preset, settings.dpiCustomArgs), 10808,
+                    DpiArgs.resolve(settings.preset, settings.dpiCustomArgs), dpiPort,
                     credentials = probeCredentials,
                     cancelled = { stopQueued.get() || destroyed.get() },
                 )) {
@@ -257,6 +266,9 @@ class TriVpnService : VpnService() {
                     vpn = vpn, vpnApps = effVpn, vpnUids = vpnUids,
                     dpiApps = effDpi,
                     nameserver = DnsOptions.resolve(settings.dnsId, settings.dnsCustom),
+                    dpiPort = dpiPort,
+                    vpnProbePort = vpnProbePort,
+                    dpiProbePort = dpiProbePort,
                     probeCredentials = probeCredentials,
                 ),
             )
@@ -295,7 +307,7 @@ class TriVpnService : VpnService() {
         foreground.show(getString(R.string.notif_active))
         startTrafficUpdates()
         ServiceLog.i("active; validating routes")
-        validateRoutesAsync(effVpn, effDpi, settings.activeVpn, probeCredentials)
+        validateRoutesAsync(effVpn, effDpi, settings.activeVpn, probeCredentials, vpnProbePort, dpiProbePort)
     }
 
     private fun validateRoutesAsync(
@@ -303,6 +315,8 @@ class TriVpnService : VpnService() {
         effDpi: Set<String>,
         vpnKind: VpnProfileKind,
         probeCredentials: ProbeCredentials,
+        vpnProbePort: Int,
+        dpiProbePort: Int,
     ) {
         val generation = validationGeneration.incrementAndGet()
         runCatching {
@@ -318,14 +332,14 @@ class TriVpnService : VpnService() {
                 }
                 val vpnHealthy = effVpn.isEmpty() ||
                     HealthCheck.generate204(
-                        10810,
+                        vpnProbePort,
                         timeoutMs = vpnTimeout,
                         cancelled = cancelled,
                         credentials = probeCredentials,
                     )
                 val dpiHealthy = effDpi.isEmpty() ||
                     (dpi.isAlive() && HealthCheck.generate204(
-                        10811,
+                        dpiProbePort,
                         cancelled = cancelled,
                         credentials = probeCredentials,
                     ))

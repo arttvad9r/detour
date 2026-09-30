@@ -5,10 +5,13 @@ All notable user-facing changes to Detour are recorded here.
 ## Unreleased
 
 ### Added
+- Optional password protection for exported backups (AES-256-GCM). Encrypted files ask for the password on import; plain backups keep working.
 - Rename any saved profile: VLESS keys, subscriptions and WireGuard/AmneziaWG/WARP configs. Renaming does not restart an active tunnel.
 - Replace the configuration file of a WireGuard profile without losing its name.
 
 ### Changed
+- ByeDPI and the engine's probe listeners use free loopback ports chosen at each start instead of fixed 10808/10810/10811.
+- Profile and DPI test screens split into smaller files (no behavior change).
 - WireGuard profiles are labelled WARP, AmneziaWG or AmneziaWG 3.1 by their actual endpoint instead of by the profile name, on the profile list and on Home. New imports are named after the detected type.
 - The key editor no longer blocks screenshots and screen recording.
 

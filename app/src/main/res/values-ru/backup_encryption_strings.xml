@@ -1,0 +1,15 @@
+<resources>
+    <string name="backup_encrypt_title">Защитить резервную копию?</string>
+    <string name="backup_encrypt_message">Задай пароль, чтобы зашифровать файл. Без пароля данные VPN хранятся в открытом виде.</string>
+    <string name="backup_password_label">Пароль</string>
+    <string name="backup_password_confirm_label">Повтори пароль</string>
+    <string name="backup_password_short">Минимум %1$d символов</string>
+    <string name="backup_password_mismatch">Пароли не совпадают</string>
+    <string name="backup_password_warning">Пароль нельзя восстановить. Если потеряешь его, открыть копию будет невозможно.</string>
+    <string name="backup_export_encrypted">Экспорт с паролем</string>
+    <string name="backup_export_plain">Экспорт без шифрования</string>
+    <string name="backup_import_password_title">Зашифрованная копия</string>
+    <string name="backup_import_password_message">Введи пароль, заданный при экспорте этого файла.</string>
+    <string name="backup_import_decrypt">Импортировать</string>
+    <string name="backup_wrong_password">Неверный пароль</string>
+</resources>

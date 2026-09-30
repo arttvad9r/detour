@@ -1,6 +1,5 @@
 package dev.detour.app.ui
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.detour.app.core.SubscriptionProviderState
@@ -226,7 +225,6 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                             selectedNode = selected ?: _uiState.value.selectedNode,
                             status = SubscriptionRuntimeStatus.IDLE,
                         )
-                        selected?.let { logSelectedNodeDiagnostics(boundCacheDir, it) }
                     } catch (cancelled: CancellationException) {
                         _uiState.value = _uiState.value.copy(status = SubscriptionRuntimeStatus.IDLE)
                         throw cancelled
@@ -292,7 +290,6 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                     selectedNode = selected,
                     selectionStatus = SubscriptionSelectionStatus.IDLE,
                 )
-                logSelectedNodeDiagnostics(boundCacheDir, selected)
             } catch (cancelled: CancellationException) {
                 _uiState.value = _uiState.value.copy(
                     selectedNode = previous,
@@ -360,10 +357,6 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                             SubscriptionRuntimeStatus.ERROR
                         },
                     )
-                    val node = selected ?: _uiState.value.selectedNode
-                    if (node != null) {
-                        logSelectedNodeDiagnostics(boundCacheDir, node)
-                    }
                 } catch (cancelled: CancellationException) {
                     _uiState.value = _uiState.value.copy(status = SubscriptionRuntimeStatus.IDLE)
                     throw cancelled
@@ -371,15 +364,6 @@ class SubscriptionRuntimeViewModel : ViewModel() {
                     _uiState.value = _uiState.value.copy(status = SubscriptionRuntimeStatus.ERROR)
                 }
             }
-        }
-    }
-
-    private suspend fun logSelectedNodeDiagnostics(homeDir: String, nodeName: String) {
-        val diagnostics = withContext(Dispatchers.IO) {
-            Engine.subscriptionNodeDiagnostics(homeDir, nodeName)
-        }
-        if (diagnostics.isNotBlank()) {
-            Log.i(PROXY_CONFIG_LOG_TAG, "[DETOUR_PROXY_CONFIG] $diagnostics")
         }
     }
 
@@ -398,6 +382,5 @@ class SubscriptionRuntimeViewModel : ViewModel() {
     private companion object {
         const val PROVIDER_POLL_ATTEMPTS = 24
         const val PROVIDER_POLL_DELAY_MS = 350L
-        const val PROXY_CONFIG_LOG_TAG = "DetourProxyConfig"
     }
 }

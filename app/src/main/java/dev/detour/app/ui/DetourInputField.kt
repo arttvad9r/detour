@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,6 +31,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -56,6 +60,7 @@ fun DetourInputField(
     maxHeight: Dp = if (singleLine) 56.dp else 160.dp,
     maxLines: Int = if (singleLine) 1 else 6,
     monospace: Boolean = false,
+    password: Boolean = false,
 ) {
     val c = detourColors
     var focused by remember { mutableStateOf(false) }
@@ -118,6 +123,8 @@ fun DetourInputField(
                 .padding(horizontal = Spacing.space16, vertical = Spacing.space12),
             singleLine = singleLine,
             maxLines = maxLines,
+            visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
+            keyboardOptions = if (password) KeyboardOptions(keyboardType = KeyboardType.Password) else KeyboardOptions.Default,
             textStyle = textStyle,
             cursorBrush = SolidColor(c.accent),
             decorationBox = { innerTextField ->

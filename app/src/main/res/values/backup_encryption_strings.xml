@@ -1,0 +1,15 @@
+<resources>
+    <string name="backup_encrypt_title">Protect the backup?</string>
+    <string name="backup_encrypt_message">Set a password to encrypt the file. Without one, VPN credentials are stored in readable text.</string>
+    <string name="backup_password_label">Password</string>
+    <string name="backup_password_confirm_label">Repeat password</string>
+    <string name="backup_password_short">Use at least %1$d characters</string>
+    <string name="backup_password_mismatch">Passwords do not match</string>
+    <string name="backup_password_warning">The password cannot be recovered. If you lose it, the backup cannot be opened.</string>
+    <string name="backup_export_encrypted">Export with password</string>
+    <string name="backup_export_plain">Export without encryption</string>
+    <string name="backup_import_password_title">Encrypted backup</string>
+    <string name="backup_import_password_message">Enter the password used when this file was exported.</string>
+    <string name="backup_import_decrypt">Import</string>
+    <string name="backup_wrong_password">Wrong password</string>
+</resources>
