@@ -20,17 +20,4 @@
     <string name="profile_importing">Importing profile…</string>
     <string name="profile_import_invalid">No compatible VPN profile found.</string>
     <string name="profile_import_error">Could not import this VPN profile.</string>
-    <string name="profile_add_paste">Paste from clipboard</string>
-    <string name="profile_add_paste_hint">vless:// · subscription · vpn://</string>
-    <string name="profile_add_qr">Scan QR from image</string>
-    <string name="profile_add_qr_hint">Screenshot or photo from your gallery</string>
-    <string name="profile_add_link">Add by link</string>
-    <string name="profile_add_link_hint">VLESS key or HTTPS subscription URL</string>
-    <string name="profile_link_input_label">Link</string>
-    <string name="profile_link_placeholder">vless://… or https://…</string>
-    <string name="profile_qr_not_found">No QR code found in this image.</string>
-    <string name="profile_name_label">Name</string>
-    <string name="profile_name_hint">Shown in your profile list. Leave empty to use the name from the link.</string>
-    <string name="profile_edit_title">Edit profile</string>
-    <string name="profile_replace_config">Replace configuration file</string>
 </resources>

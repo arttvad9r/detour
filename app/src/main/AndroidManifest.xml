@@ -62,7 +62,7 @@
             android:foregroundServiceType="specialUse">
             <meta-data
                 android:name="android.net.VpnService.SUPPORTS_ALWAYS_ON"
-                android:value="true" />
+                android:value="false" />
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>

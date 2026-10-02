@@ -153,17 +153,6 @@ internal fun vlessMutationTunnelAction(
     return if (deleting) ProfileTunnelAction.STOP else ProfileTunnelAction.RESTART
 }
 
-/** A rename never changes the endpoint, so it must not drop a live tunnel. */
-internal fun vlessSaveTunnelAction(
-    activeVpn: VpnProfileKind,
-    activeVlessId: String?,
-    existing: VlessKey?,
-    updated: VlessKey,
-): ProfileTunnelAction {
-    if (existing != null && existing.copy(name = updated.name) == updated) return ProfileTunnelAction.NONE
-    return vlessMutationTunnelAction(activeVpn, activeVlessId, updated.id, deleting = false)
-}
-
 internal fun wireGuardMutationTunnelAction(
     activeVpn: VpnProfileKind,
     activeWireGuardId: String?,
@@ -239,11 +228,11 @@ class ProfilesViewModel(
             profileMutationMutex.withLock {
                 try {
                     val state = profilesUiState(settings.value)
-                    val tunnelAction = vlessSaveTunnelAction(
+                    val tunnelAction = vlessMutationTunnelAction(
                         state.activeVpn,
                         state.activeVlessId,
-                        settings.value?.vlessKeys?.items?.firstOrNull { it.id == key.id },
-                        key,
+                        key.id,
+                        deleting = false,
                     )
                     if (!isNew && settings.value?.vlessKeys?.items?.none { it.id == key.id } != false) {
                         throw IllegalStateException("VLESS profile no longer exists")
@@ -392,34 +381,13 @@ class ProfilesViewModel(
         }
     }
 
-    fun renameWireGuard(profileId: String, name: String) {
-        val newName = name.trim()
-        if (newName.isBlank()) return
-        viewModelScope.launch {
-            profileMutationMutex.withLock {
-                try {
-                    val current = settings.value?.wireGuardProfiles?.items?.firstOrNull { it.id == profileId }
-                        ?: return@withLock
-                    if (current.name != newName) updateWireGuardProfile(current.copy(name = newName))
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    // The list keeps showing the stored name.
-                }
-            }
-        }
-    }
-
     fun selectWarp(profileId: String) {
         selectProfile(ProfileSelection.Warp(profileId))
     }
 
     private suspend fun persistWarpProfile(profile: WarpProfile, replaceProfileId: String? = null) {
         profileMutationMutex.withLock {
-            val target = replaceProfileId?.let { id ->
-                val keptName = settings.value?.wireGuardProfiles?.items?.firstOrNull { it.id == id }?.name
-                profile.copy(id = id, name = keptName ?: profile.name)
-            } ?: profile
+            val target = replaceProfileId?.let { profile.copy(id = it) } ?: profile
             val state = profilesUiState(settings.value)
             val tunnelAction = if (replaceProfileId == null) {
                 ProfileTunnelAction.NONE

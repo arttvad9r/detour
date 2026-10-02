@@ -5,25 +5,19 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import dev.detour.app.core.AppRoute
 import dev.detour.app.core.ParseResult
-import dev.detour.app.core.TunnelTrafficStats
 import dev.detour.app.core.VlessKeyParser
 import dev.detour.app.core.VpnProfileKind
-import dev.detour.app.core.WireGuardFamily
 import dev.detour.app.data.RoutesStore
 import dev.detour.app.data.TriSettings
 import dev.detour.app.vpn.EffectiveRoutes
 import dev.detour.app.vpn.VpnController
 import dev.detour.app.vpn.VpnState
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.scan
@@ -51,10 +45,8 @@ data class HomeUiState(
     val routedCount: Int = 0,
     val activeVpn: VpnProfileKind = VpnProfileKind.VLESS,
     val protocol: HomeProtocol = HomeProtocol.NONE,
-    val wireGuardFamily: WireGuardFamily? = null,
     val dnsId: String = "google",
     val dnsCustom: String = "",
-    val traffic: TunnelTrafficStats? = null,
 )
 
 fun homeProtocol(routes: EffectiveRoutes): HomeProtocol {
@@ -74,7 +66,6 @@ internal fun homeProfilePresentation(
     warpName: String?,
     warpEndpointCount: Int,
     subscriptionNode: String? = null,
-    subscriptionName: String? = null,
 ): HomeProfilePresentation = when (activeVpn) {
     VpnProfileKind.VLESS -> {
         val profile = (VlessKeyParser.parse(vlessUri) as? ParseResult.Ok)?.profile
@@ -86,8 +77,7 @@ internal fun homeProfilePresentation(
     VpnProfileKind.SUBSCRIPTION -> {
         val profile = (VlessKeyParser.parse(vlessUri) as? ParseResult.Ok)?.profile
         HomeProfilePresentation(
-            name = subscriptionName?.trim()?.takeIf { it.isNotBlank() }
-                ?: profile?.name?.ifBlank { profile.server },
+            name = profile?.name?.ifBlank { profile.server },
             server = subscriptionNode?.trim()?.takeIf { it.isNotBlank() },
         )
     }
@@ -103,16 +93,14 @@ internal fun homeUiState(
     vpnState: VpnState,
     effectiveRoutes: EffectiveRoutes,
     subscriptionNode: String? = null,
-    traffic: TunnelTrafficStats? = null,
 ): HomeUiState {
     val activeVpn = settings?.activeVpn ?: VpnProfileKind.VLESS
     val profile = homeProfilePresentation(
         activeVpn = activeVpn,
         vlessUri = settings?.vlessUri.orEmpty(),
-        warpName = settings?.warpProfile?.displayName,
+        warpName = settings?.warpProfile?.name,
         warpEndpointCount = settings?.warpProfile?.proxies?.size ?: 0,
         subscriptionNode = subscriptionNode,
-        subscriptionName = settings?.vlessKeys?.active?.name,
     )
     return HomeUiState(
         vpnState = vpnState,
@@ -123,10 +111,8 @@ internal fun homeUiState(
         routedCount = effectiveRoutes.packages.size,
         activeVpn = activeVpn,
         protocol = homeProtocol(effectiveRoutes),
-        wireGuardFamily = settings?.warpProfile?.family.takeIf { activeVpn == VpnProfileKind.WARP },
         dnsId = settings?.dnsId?.ifBlank { null } ?: "google",
         dnsCustom = settings?.dnsCustom.orEmpty(),
-        traffic = traffic.takeIf { vpnState == VpnState.Active },
     )
 }
 
@@ -135,7 +121,6 @@ class HomeViewModel(
     vpnState: StateFlow<VpnState>,
     private val resolveRoutes: suspend (Map<String, AppRoute>) -> EffectiveRoutes,
     private val readSubscriptionNode: suspend () -> String? = { null },
-    private val readTrafficStats: suspend () -> TunnelTrafficStats? = { null },
 ) : ViewModel() {
     private val routeRefresh = MutableStateFlow(0L)
 
@@ -207,43 +192,17 @@ class HomeViewModel(
             initialValue = null,
         )
 
-    // Polled only while the tunnel is up and Home is observed; stopping the
-    // collection (WhileSubscribed) stops the engine calls with it.
-    @OptIn(ExperimentalCoroutinesApi::class)
-    private val trafficStats: StateFlow<TunnelTrafficStats?> = vpnState
-        .map { it == VpnState.Active }
-        .distinctUntilChanged()
-        .flatMapLatest { active ->
-            if (!active) {
-                flowOf<TunnelTrafficStats?>(null)
-            } else {
-                flow {
-                    while (true) {
-                        emit(runCatching { readTrafficStats() }.getOrNull())
-                        delay(TRAFFIC_POLL_MS)
-                    }
-                }
-            }
-        }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = null,
-        )
-
     val uiState: StateFlow<HomeUiState> = combine(
         settings,
         vpnState,
         effectiveRoutes,
         selectedSubscriptionNode,
-        trafficStats,
-    ) { currentSettings, currentVpnState, routes, subscriptionNode, traffic ->
+    ) { currentSettings, currentVpnState, routes, subscriptionNode ->
         homeUiState(
             settings = currentSettings,
             vpnState = currentVpnState,
             effectiveRoutes = routes,
             subscriptionNode = subscriptionNode,
-            traffic = traffic,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -256,14 +215,11 @@ class HomeViewModel(
     }
 
     companion object {
-        private const val TRAFFIC_POLL_MS = 1_000L
-
         fun factory(
             settings: StateFlow<TriSettings?>,
             vpnState: StateFlow<VpnState>,
             resolveRoutes: suspend (Map<String, AppRoute>) -> EffectiveRoutes,
             readSubscriptionNode: suspend () -> String? = { null },
-            readTrafficStats: suspend () -> TunnelTrafficStats? = { null },
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 require(modelClass.isAssignableFrom(HomeViewModel::class.java))
@@ -273,7 +229,6 @@ class HomeViewModel(
                     vpnState = vpnState,
                     resolveRoutes = resolveRoutes,
                     readSubscriptionNode = readSubscriptionNode,
-                    readTrafficStats = readTrafficStats,
                 ) as T
             }
         }
@@ -282,13 +237,11 @@ class HomeViewModel(
             store: RoutesStore,
             resolveRoutes: suspend (Map<String, AppRoute>) -> EffectiveRoutes,
             readSubscriptionNode: suspend () -> String? = { null },
-            readTrafficStats: suspend () -> TunnelTrafficStats? = { null },
         ): ViewModelProvider.Factory = factory(
             settings = store.settings,
             vpnState = VpnController.state,
             resolveRoutes = resolveRoutes,
             readSubscriptionNode = readSubscriptionNode,
-            readTrafficStats = readTrafficStats,
         )
     }
 }

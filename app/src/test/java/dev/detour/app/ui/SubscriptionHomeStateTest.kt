@@ -31,16 +31,4 @@ class SubscriptionHomeStateTest {
         assertEquals("subscription.example", presentation.name)
         assertNull(presentation.server)
     }
-
-    @Test fun `subscription presentation prefers the stored profile name`() {
-        val presentation = homeProfilePresentation(
-            activeVpn = VpnProfileKind.SUBSCRIPTION,
-            vlessUri = "https://subscription.example/opaque-token",
-            warpName = null,
-            warpEndpointCount = 0,
-            subscriptionName = "My VPN",
-        )
-
-        assertEquals("My VPN", presentation.name)
-    }
 }

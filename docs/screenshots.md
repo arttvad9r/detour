@@ -4,14 +4,12 @@ The root README uses **real Detour captures from an Android device**. Product sc
 
 ## Current product gallery
 
-The primary README and Fastlane gallery is `product-gallery-hq.png`, a two-by-two layout assembled only from real device captures. The four screens are visually separated rather than blended into one continuous surface. It is ordered to explain the product from the main workflow outward:
-
-1. **Connected home** — active Detour tunnel and the main connection overview.
-2. **Per-app routes** — the core feature: different apps assigned to Direct, VPN or DPI routes.
-3. **Settings** — routing, VPN profiles, DPI bypass, DNS and application controls.
-4. **Themes** — Detour Light/Dark and the additional appearance choices.
-
-The Android status bar and navigation bar are cropped from the landing-page gallery so the focus stays on the Detour UI. The existing individual captures such as `settings.jpg`, `dns.jpg`, `dpi-bypass.jpg` and `appearance.jpg` remain useful for feature documentation.
+| File | What it shows |
+| --- | --- |
+| `settings.jpg` | Main settings and feature entry points |
+| `dns.jpg` | Tunnel DNS choices |
+| `dpi-bypass.jpg` | ByeDPI strategy configuration |
+| `appearance.jpg` | Detour and community theme choices |
 
 These are optimized copies of real device screenshots supplied for the project. They are not generated or reconstructed product mockups.
 
@@ -25,33 +23,27 @@ Public screenshots must not expose:
 - exported backup contents or personal notification content;
 - personal app inventory when it is not required to demonstrate a feature.
 
-For screenshots of VPN profiles, subscriptions, servers or per-app routing, populate the **real app** with clearly synthetic demo data where practical, then capture the rendered UI. Do not redraw or fabricate the interface after capture. App inventory may be visible when it is necessary to demonstrate per-app routing, but it must not reveal sensitive account or configuration data.
+For future screenshots of VPN profiles, subscriptions, servers or per-app routing, populate the **real app** with clearly synthetic demo data first, then capture the rendered UI. Do not redraw or fabricate the interface after capture.
 
 ## Capture consistency
 
 - Prefer one phone/emulator form factor for a gallery set.
 - Keep portrait orientation, matching dimensions and a consistent font scale.
+- Use a consistent Android/system-bar style where practical.
 - Keep one language within a gallery set.
-- For the landing-page montage, crop Android status/navigation bars consistently across all panels.
 - Crop only external framing; do not remove or alter app content to hide secrets.
 
-## README and Fastlane layout
+## README layout
 
-`README.md` and `README.ru.md` reference the same `product-gallery-hq.png`. The landing page uses one two-by-two image with clear spacing between the four portrait screens so they read as separate product views while remaining usable on GitHub mobile.
+`README.md` and `README.ru.md` reference the same screenshot files. The landing page intentionally uses a simple two-by-two image layout instead of a fixed three-column table so GitHub mobile does not squeeze captions or alt text into narrow cells.
 
-Fastlane `en-US` and `ru` phone screenshot metadata reuses the same lossless gallery image. This keeps the public store view aligned with the repository landing page and makes per-app routing visible in both places.
-
-When replacing the gallery, preserve the canonical `product-gallery-hq.png` filename where possible and update README alt text when represented features change.
+When replacing a screenshot, preserve the filename where possible. If a filename changes, update both READMEs in the same pull request.
 
 ## Review checklist
 
 - [ ] Every image is a real Detour render.
-- [ ] The gallery visibly demonstrates per-app Direct / VPN / DPI routing.
-- [ ] The four screens remain visually distinct at README display size.
-- [ ] Android status/navigation bars are cropped consistently.
-- [ ] No personal profile, subscription, endpoint or credential data is visible.
-- [ ] Any visible app inventory is appropriate for demonstrating the routing feature.
+- [ ] No personal profile, subscription, endpoint, credential or app-inventory data is visible.
 - [ ] The image file opens as a valid JPEG/PNG from the repository.
-- [ ] Alt text describes the represented features.
-- [ ] README and Fastlane references point to files that exist.
+- [ ] Alt text describes the represented feature.
+- [ ] Both language READMEs reference files that exist.
 - [ ] Screens still match the current release UI.

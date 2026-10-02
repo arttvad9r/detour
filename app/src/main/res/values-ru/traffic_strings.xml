@@ -1,6 +1,0 @@
-<resources>
-    <string name="traffic_rate">%1$s/с</string>
-    <string name="traffic_rates">↓ %1$s   ↑ %2$s</string>
-    <string name="traffic_session_total">%1$s за сессию</string>
-    <string name="notif_active_traffic">%1$s · %2$s</string>
-</resources>

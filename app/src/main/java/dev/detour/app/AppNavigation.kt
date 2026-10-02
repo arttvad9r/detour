@@ -4,9 +4,9 @@ import android.content.Context
 import android.net.VpnService
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -37,7 +37,6 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
-import dev.detour.app.core.parseTunnelTrafficStats
 import dev.detour.app.data.AppInventory
 import dev.detour.app.data.RoutesStore
 import dev.detour.app.ui.AppsScreen
@@ -54,8 +53,8 @@ import dev.detour.app.ui.Motion
 import dev.detour.app.ui.ProfileDeleteConfirmationDialog
 import dev.detour.app.ui.ProfilesViewModel
 import dev.detour.app.ui.SettingsMenuScreen
-import dev.detour.app.ui.SettingsMenuViewModel
 import dev.detour.app.ui.SettingsSection
+import dev.detour.app.ui.SettingsMenuViewModel
 import dev.detour.app.ui.ThemeScreen
 import dev.detour.app.ui.ThemeViewModel
 import dev.detour.app.ui.VlessKeyScreen
@@ -242,9 +241,6 @@ internal fun DetourNavigation(
                                     .trim()
                                     .takeIf { it.isNotBlank() }
                             }
-                        },
-                        readTrafficStats = {
-                            withContext(Dispatchers.IO) { parseTunnelTrafficStats(Engine.trafficStats()) }
                         },
                     ),
                 )

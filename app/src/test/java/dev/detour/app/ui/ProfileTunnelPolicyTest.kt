@@ -1,6 +1,5 @@
 package dev.detour.app.ui
 
-import dev.detour.app.core.VlessKey
 import dev.detour.app.core.VpnProfileKind
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -87,22 +86,6 @@ class ProfileTunnelPolicyTest {
                 profileId = "awg",
                 deleting = false,
             ),
-        )
-    }
-
-    @Test fun `renaming the selected VLESS profile keeps the tunnel up`() {
-        val stored = VlessKey("active", "Old", "vless://x", selectedNode = "node")
-        assertEquals(
-            ProfileTunnelAction.NONE,
-            vlessSaveTunnelAction(VpnProfileKind.VLESS, "active", stored, stored.copy(name = "New")),
-        )
-    }
-
-    @Test fun `changing the link of the selected VLESS profile still restarts`() {
-        val stored = VlessKey("active", "Old", "vless://x")
-        assertEquals(
-            ProfileTunnelAction.RESTART,
-            vlessSaveTunnelAction(VpnProfileKind.VLESS, "active", stored, stored.copy(name = "New", uri = "vless://y")),
         )
     }
 }

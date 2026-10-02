@@ -85,11 +85,8 @@ func PrepareSubscriptionProvider(subscriptionURL string, homeDir string) string 
 // PrepareSubscriptionProvider writes for runtime. Keeping catalog and provider
 // on one normalization path prevents the UI from offering a node that would
 // later make Mihomo reject the complete file provider.
-//
-// Presentation metadata from the same response (title, traffic, expiry) is
-// returned under "meta" so the UI does not download the subscription twice.
 func FetchPreparedSubscriptionCatalog(subscriptionURL string) string {
-	proxies, metadata, err := fetchPreparedSubscription(subscriptionURL)
+	proxies, err := fetchPreparedSubscriptionProxies(subscriptionURL)
 	if err != nil || len(proxies) == 0 {
 		return ""
 	}
@@ -109,11 +106,7 @@ func FetchPreparedSubscriptionCatalog(subscriptionURL string) string {
 	if len(nodes) == 0 {
 		return ""
 	}
-	catalog := map[string]any{"nodes": nodes}
-	if !metadata.empty() {
-		catalog["meta"] = metadata
-	}
-	payload, err := json.Marshal(catalog)
+	payload, err := json.Marshal(map[string]any{"nodes": nodes})
 	if err != nil {
 		return ""
 	}
@@ -351,15 +344,9 @@ func inferredTLSName(mapping map[string]any, fallback string) string {
 }
 
 func fetchPreparedSubscriptionProxies(subscriptionURL string) ([]map[string]any, error) {
-	proxies, _, err := fetchPreparedSubscription(subscriptionURL)
-	return proxies, err
-}
-
-func fetchPreparedSubscription(subscriptionURL string) ([]map[string]any, subscriptionMetadata, error) {
-	var metadata subscriptionMetadata
 	parsed, err := parseSubscriptionURL(subscriptionURL)
 	if err != nil {
-		return nil, metadata, err
+		return nil, err
 	}
 	client := &http.Client{
 		Timeout: 15 * time.Second,
@@ -378,24 +365,22 @@ func fetchPreparedSubscription(subscriptionURL string) ([]map[string]any, subscr
 	}
 	req, err := http.NewRequest(http.MethodGet, parsed.String(), nil)
 	if err != nil {
-		return nil, metadata, err
+		return nil, err
 	}
 	req.Header.Set("User-Agent", subscriptionUserAgent)
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, metadata, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, metadata, errors.New("subscription request failed")
+		return nil, errors.New("subscription request failed")
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxSubscriptionBodyBytes+1))
 	if err != nil || len(body) == 0 || len(body) > maxSubscriptionBodyBytes {
-		return nil, metadata, errors.New("invalid subscription body")
+		return nil, errors.New("invalid subscription body")
 	}
-	metadata = parseSubscriptionMetadataHeaders(resp.Header)
-	proxies, err := parsePreparedSubscriptionProxies(body)
-	return proxies, metadata, err
+	return parsePreparedSubscriptionProxies(body)
 }
 
 func sameSubscriptionOrigin(a, b *url.URL) bool {

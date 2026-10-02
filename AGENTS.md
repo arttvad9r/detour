@@ -22,5 +22,6 @@ Android per-app routing client: each app goes Direct, VPN (VLESS Reality, subscr
 - Scope: not a NekoBox clone or a generic Mihomo panel; advanced knobs stay out of the main UI.
 
 ## Status
-- 0.3.1 released 2026-10-02 (GitHub Releases, Obtainium). Distribution is GitHub Releases only.
+- 0.4.0 (2026-10-02): main is the 0.2.1 feature set with updated dependencies; GitHub Releases only.
+- The 0.3.x work (live traffic, subscription UI, import flow) continues on `dev`.
 - Next: not recorded yet.

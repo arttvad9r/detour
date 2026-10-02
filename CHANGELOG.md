@@ -6,6 +6,18 @@ All notable user-facing changes to Detour are recorded here.
 
 No user-facing changes have been recorded after the current public release yet.
 
+## 0.4.0 — 2026-10-02
+
+Detour returns to the 0.2.1 feature set on an updated toolchain. Saved profiles, routes and backups from 0.3.x keep working: the settings format did not change.
+
+### Removed
+- Everything added in 0.3.0 and 0.3.1, including live speed on Home and in the notification, the subscription plan card and server picker sheet, clipboard and QR import, profile renaming and WireGuard type labels.
+- Start as Android's Always-on VPN. If Detour was selected there, Android turns that setting off after the update.
+- F-Droid build metadata. Detour is distributed through GitHub Releases, which Obtainium can follow.
+
+### Changed
+- Toolchain and libraries: Gradle 9.8.0, AGP 9.4.1, Kotlin 2.4.20, Compose BOM 2026.09.00, Navigation 3 1.2.0, AndroidX Core 1.19.1, Baseline Profile 1.5.0, SnakeYAML 2.7.
+
 ## 0.3.1 — 2026-10-02
 
 ### Added
