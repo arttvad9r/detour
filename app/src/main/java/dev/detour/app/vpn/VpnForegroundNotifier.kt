@@ -33,7 +33,14 @@ internal class VpnForegroundNotifier(private val service: VpnService) {
     private val notificationManager: NotificationManager
         get() = service.getSystemService(NotificationManager::class.java)
 
+    // A fresh Builder stamps `when` with the current time; reusing one stamp keeps
+    // the shade from re-sorting the entry and re-showing it as new on every tick.
+    private var postedAt = 0L
+    private var lastText: String? = null
+
     fun show(text: String) {
+        postedAt = System.currentTimeMillis()
+        lastText = text
         val notification = build(text)
         if (Build.VERSION.SDK_INT >= 34) {
             service.startForeground(
@@ -48,6 +55,8 @@ internal class VpnForegroundNotifier(private val service: VpnService) {
 
     /** Refreshes the text of an already-foreground notification without alerting. */
     fun update(text: String) {
+        if (text == lastText) return
+        lastText = text
         notificationManager.notify(NOTIFICATION_ID, build(text))
     }
 
@@ -68,6 +77,10 @@ internal class VpnForegroundNotifier(private val service: VpnService) {
             .setSmallIcon(R.drawable.ic_lock)
             .setContentTitle(service.getString(R.string.app_name))
             .setContentText(text)
+            .setWhen(postedAt)
+            .setShowWhen(false)
+            .setSilent(true)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setContentIntent(content)
             .setOngoing(true)
             .setOnlyAlertOnce(true)

@@ -4,6 +4,10 @@ All notable user-facing changes to Detour are recorded here.
 
 ## Unreleased
 
+No user-facing changes have been recorded after the current public release yet.
+
+## 0.3.1 — 2026-10-02
+
 ### Added
 - Rename any saved profile: VLESS keys, subscriptions and WireGuard/AmneziaWG/WARP configs. Renaming does not restart an active tunnel.
 - Replace the configuration file of a WireGuard profile without losing its name.
@@ -14,6 +18,10 @@ All notable user-facing changes to Detour are recorded here.
 
 ### Removed
 - The "Always-on VPN" row in Settings, which only opened the system VPN list. Android's own Always-on VPN setting still works with Detour.
+- F-Droid build metadata. Detour is distributed through GitHub Releases, which Obtainium can follow.
+
+### Fixed
+- The VPN notification no longer looks like a new message on every speed update, and it stays in place while the tunnel restarts after a network or route change.
 
 ## 0.3.0 — 2026-09-28
 

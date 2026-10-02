@@ -29,7 +29,7 @@ Documentation is grouped by audience so the repository landing page can stay pro
 | --- | --- |
 | [Release process](releasing.md) | Signed semantic-tag release workflow |
 | [Release checklist](release-checklist.md) | Pre-release verification gate |
-| [Distribution](distribution.md) | GitHub Releases, Obtainium and F-Droid readiness/status |
+| [Distribution](distribution.md) | GitHub Releases and Obtainium |
 | [Public launch kit](launch.md) | Positioning, GitHub discovery metadata, social-preview plan and announcement copy |
 | [Changelog](../CHANGELOG.md) | User-facing changes for the current product line |
 

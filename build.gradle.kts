@@ -7,7 +7,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization) apply false
 }
 
-// F-Droid can provide its source-built Go toolchain through gradle.properties.
+// A source-built Go toolchain can be supplied through gradle.properties.
 // Normal local/CI builds keep using the `go` found on PATH.
 val goBinary = providers.gradleProperty("detourGoBinary").orElse("go")
 val goVersion = providers.exec {

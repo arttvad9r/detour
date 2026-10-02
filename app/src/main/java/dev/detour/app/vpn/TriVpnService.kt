@@ -98,7 +98,7 @@ class TriVpnService : VpnService() {
             VpnServiceCommand.RESTART -> if (!stopQueued.get() && restartQueued.compareAndSet(false, true)) {
                 executor.execute {
                     restartQueued.set(false)
-                    if (!stopQueued.get()) { stopSequence(stopSelf = false); startSequence() }
+                    if (!stopQueued.get()) { stopSequence(stopSelf = false, restarting = true); startSequence() }
                 }
             }
             // Never let an unknown start bring up a tunnel; release it when idle.
@@ -371,6 +371,9 @@ class TriVpnService : VpnService() {
     private fun stopSequence(
         stopSelf: Boolean,
         persistSessionSynchronously: Boolean = true,
+        // A restart reposts "Connecting…" right away; removing the notification
+        // in between would make it reappear in the shade as a new one.
+        restarting: Boolean = false,
     ) {
         synchronized(lifecycleLock) {
             trafficTask?.cancel(false)
@@ -384,7 +387,7 @@ class TriVpnService : VpnService() {
             runCatching { Engine.stop() }
             dpi.stop()
             if (VpnController.state.value !is VpnState.Failed) VpnController.setState(VpnState.Idle)
-            stopForeground(STOP_FOREGROUND_REMOVE)
+            if (!restarting) stopForeground(STOP_FOREGROUND_REMOVE)
             if (stopSelf) stopSelf()
             ServiceLog.i("stopped")
         }
@@ -464,7 +467,7 @@ class TriVpnService : VpnService() {
                     executor.execute {
                         restartQueued.set(false)
                         if (!destroyed.get() && !stopQueued.get()) {
-                            stopSequence(stopSelf = false)
+                            stopSequence(stopSelf = false, restarting = true)
                             startSequence()
                         }
                     }
