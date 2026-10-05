@@ -366,7 +366,7 @@ func newForwarder(logf logger.Logf, netMon *netmon.Monitor, linkSel ForwardLinkS
 		dialer:       dialer,
 		health:       health,
 		controlKnobs: knobs,
-		verboseFwd:   verboseDNSForward(),
+		verboseFwd:   true,
 	}
 	f.ctx, f.ctxCancel = context.WithCancel(context.Background())
 	return f
@@ -628,8 +628,9 @@ var (
 //
 // send expects the reply to have the same txid as txidOut.
 func (f *forwarder) send(ctx context.Context, fq *forwardQuery, rr resolverAndDelay) (ret []byte, err error) {
+	var id uint64
 	if f.verboseFwd {
-		id := forwarderCount.Add(1)
+		id = forwarderCount.Add(1)
 		domain, typ, _ := nameFromQuery(fq.packet)
 		f.logf("forwarder.send(%q, %d, %v, %d) from %v [%d] ...", rr.name.Addr, fq.txid, typ, len(domain), fq.src, id)
 		defer func() {
@@ -692,7 +693,12 @@ func (f *forwarder) send(ctx context.Context, fq *forwardQuery, rr resolverAndDe
 		}
 	}()
 
-	firstUDP := func(ctx context.Context) ([]byte, error) {
+	firstUDP := func(ctx context.Context) (ret []byte, err error) {
+		if f.verboseFwd {
+			defer func() {
+				f.logf("forwarder.sendUDP(%q) [%d] = %v, %v", rr.name.Addr, id, len(ret), err)
+			}()
+		}
 		resp, err := f.sendUDP(ctx, fq, rr)
 		if err != nil {
 			return nil, err
@@ -724,7 +730,12 @@ func (f *forwarder) send(ctx context.Context, fq *forwardQuery, rr resolverAndDe
 		explicitRetry.Store(true)
 		return nil, truncatedResponseError{resp}
 	}
-	thenTCP := func(ctx context.Context) ([]byte, error) {
+	thenTCP := func(ctx context.Context) (ret []byte, err error) {
+		if f.verboseFwd {
+			defer func() {
+				f.logf("forwarder.sendTCP(%q) [%d] = %v, %v", rr.name.Addr, id, len(ret), err)
+			}()
+		}
 		// If we're skipping the TCP fallback, then wait until the
 		// context is canceled and return that error (i.e. not
 		// returning anything).
@@ -797,19 +808,8 @@ func (f *forwarder) sendUDP(ctx context.Context, fq *forwardQuery, rr resolverAn
 	metricDNSFwdUDP.Add(1)
 	ctx = sockstats.WithSockStats(ctx, sockstats.LabelDNSForwarderUDP, f.logf)
 
-	ln, err := f.packetListener(ipp.Addr())
+	conn, err := f.dialUDP(ctx, ipp)
 	if err != nil {
-		return nil, err
-	}
-
-	// Specify the exact UDP family to work around https://github.com/golang/go/issues/52264
-	udpFam := "udp4"
-	if ipp.Addr().Is6() {
-		udpFam = "udp6"
-	}
-	conn, err := ln.ListenPacket(ctx, udpFam, ":0")
-	if err != nil {
-		f.logf("ListenPacket failed: %v", err)
 		return nil, err
 	}
 	defer conn.Close()
@@ -892,6 +892,60 @@ func (f *forwarder) sendUDP(ctx context.Context, fq *forwardQuery, rr resolverAn
 	return out, nil
 }
 
+// dialUDP returns a UDP conn to ipp, over netstack if that's the only way to
+// reach it. Same dispatch as [tsdial.Dialer.dialOneUser].
+func (f *forwarder) dialUDP(ctx context.Context, ipp netip.AddrPort) (nettype.PacketConn, error) {
+	if f.dialer.UseNetstackForIP != nil && f.dialer.UseNetstackForIP(ipp.Addr()) {
+		f.logf("forwarder.dialUDP: dialing %v via netstack", ipp)
+		if f.dialer.NetstackDialUDP == nil {
+			return nil, errors.New("dialer not initialized correctly: no NetstackDialUDP")
+		}
+		conn, err := f.dialer.NetstackDialUDP(ctx, ipp)
+		if err != nil {
+			return nil, err
+		}
+		return &netstackPacketConn{Conn: conn, peer: ipp}, nil
+	}
+
+	f.logf("forwarder.dialUDP: dialing %v via packet listener", ipp)
+	ln, err := f.packetListener(ipp.Addr())
+	if err != nil {
+		return nil, err
+	}
+
+	// Name the family explicitly: netns looks for a "6" in this string to
+	// choose between IP_BOUND_IF and IPV6_BOUND_IF on macOS, and "udp" would
+	// give a v6 socket bound with the v4 option.
+	udpFam := "udp4"
+	if ipp.Addr().Is6() {
+		udpFam = "udp6"
+	}
+	conn, err := ln.ListenPacket(ctx, udpFam, ":0")
+	if err != nil {
+		f.logf("ListenPacket failed: %v", err)
+		return nil, err
+	}
+	return conn, nil
+}
+
+// netstackPacketConn presents a conn already connected to peer as a
+// [nettype.PacketConn].
+type netstackPacketConn struct {
+	net.Conn
+	peer netip.AddrPort
+}
+
+func (c *netstackPacketConn) WriteToUDPAddrPort(b []byte, _ netip.AddrPort) (int, error) {
+	return c.Write(b)
+}
+
+// ReadFromUDPAddrPort returns how much of the datagram fit in b; gVisor drops
+// the rest without erroring, as a kernel socket does.
+func (c *netstackPacketConn) ReadFromUDPAddrPort(b []byte) (int, netip.AddrPort, error) {
+	n, err := c.Read(b)
+	return n, c.peer, err
+}
+
 var optDNSForwardUseRoutes = envknob.RegisterOptBool("TS_DEBUG_DNS_FORWARD_USE_ROUTES")
 
 // ShouldUseRoutes reports whether the DNS resolver should consider routes when dialing
@@ -923,10 +977,7 @@ func ShouldUseRoutes(knobs *controlknobs.Knobs) bool {
 }
 
 func (f *forwarder) getDialerType() netx.DialFunc {
-	if ShouldUseRoutes(f.controlKnobs) {
-		return f.dialer.UserDial
-	}
-	return f.dialer.SystemDial
+	return f.dialer.UserDial
 }
 
 func (f *forwarder) sendTCP(ctx context.Context, fq *forwardQuery, rr resolverAndDelay) (ret []byte, err error) {
@@ -949,8 +1000,10 @@ func (f *forwarder) sendTCP(ctx context.Context, fq *forwardQuery, rr resolverAn
 
 	conn, err := f.getDialerType()(ctx, tcpFam, ipp.String())
 	if err != nil {
+		f.logf("forwarder.sendTCP: dialing %v via UserDial failed: %v", ipp, err)
 		return nil, err
 	}
+	f.logf("forwarder.sendTCP: dialing %v via UserDial succeeded", ipp)
 	defer conn.Close()
 
 	fq.closeOnCtxDone.Add(conn)

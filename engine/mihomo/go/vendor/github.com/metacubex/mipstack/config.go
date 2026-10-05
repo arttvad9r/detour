@@ -7,6 +7,136 @@ import (
 	"syscall"
 )
 
+const (
+	// rxChecksumOffloadIPv4Header delegates IPv4 header checksums to the link.
+	rxChecksumOffloadIPv4Header uint32 = 1 << iota
+	// rxChecksumOffloadTCP delegates complete TCP checksums to the link.
+	rxChecksumOffloadTCP
+	// rxChecksumOffloadUDP delegates nonzero UDP checksums to the link.
+	rxChecksumOffloadUDP
+	// rxChecksumOffloadICMPv4 delegates outer ICMPv4 checksums to the link.
+	rxChecksumOffloadICMPv4
+	// rxChecksumOffloadICMPv6 delegates ICMPv6 and MLD checksums to the link.
+	rxChecksumOffloadICMPv6
+	// rxChecksumOffloadIGMP delegates IGMP checksums to the link.
+	rxChecksumOffloadIGMP
+)
+
+// rxChecksumOffloadGenerated covers checksums produced by the Stack's protocol
+// builders. Raw output never acquires this guarantee solely from its IP header.
+const rxChecksumOffloadGenerated = rxChecksumOffloadIPv4Header | rxChecksumOffloadTCP | rxChecksumOffloadUDP |
+	rxChecksumOffloadICMPv4 | rxChecksumOffloadICMPv6 | rxChecksumOffloadIGMP
+
+// RXChecksumOffload selects checksum verification delegated to the input
+// link. Its zero value retains all verification. An enabled category requires
+// the caller to supply valid complete packets with correct checksums or an
+// equivalent validation guarantee.
+//
+// Offload does not disable framing or protocol checks, including IPv6 UDP's
+// zero-checksum prohibition. Reassembled payloads, public codecs, checksums
+// configured for other raw IPv6 protocols, and independent ICMP extension
+// checksums retain their verification. Configure the policy before delivering
+// input packets.
+type RXChecksumOffload struct {
+	flags uint32
+}
+
+// SetIPv4Header controls IPv4 header checksum offload, including fragment
+// headers, and returns o for chained configuration.
+func (o *RXChecksumOffload) SetIPv4Header(enabled bool) *RXChecksumOffload {
+	if enabled {
+		o.flags |= rxChecksumOffloadIPv4Header
+	} else {
+		o.flags &^= rxChecksumOffloadIPv4Header
+	}
+	return o
+}
+
+// IPv4Header reports whether IPv4 header checksum offload is enabled.
+func (o RXChecksumOffload) IPv4Header() bool { return o.flags&rxChecksumOffloadIPv4Header != 0 }
+
+// SetTCP controls TCP checksum offload for both address families and returns
+// o for chained configuration.
+func (o *RXChecksumOffload) SetTCP(enabled bool) *RXChecksumOffload {
+	if enabled {
+		o.flags |= rxChecksumOffloadTCP
+	} else {
+		o.flags &^= rxChecksumOffloadTCP
+	}
+	return o
+}
+
+// TCP reports whether TCP checksum offload is enabled.
+func (o RXChecksumOffload) TCP() bool { return o.flags&rxChecksumOffloadTCP != 0 }
+
+// SetUDP controls UDP checksum offload for both address families and returns
+// o for chained configuration. IPv6 zero-checksum datagrams remain invalid.
+func (o *RXChecksumOffload) SetUDP(enabled bool) *RXChecksumOffload {
+	if enabled {
+		o.flags |= rxChecksumOffloadUDP
+	} else {
+		o.flags &^= rxChecksumOffloadUDP
+	}
+	return o
+}
+
+// UDP reports whether UDP checksum offload is enabled.
+func (o RXChecksumOffload) UDP() bool { return o.flags&rxChecksumOffloadUDP != 0 }
+
+// SetICMPv4 controls outer ICMPv4 checksum offload and returns o for chained
+// configuration. Independent extension checksums remain verified.
+func (o *RXChecksumOffload) SetICMPv4(enabled bool) *RXChecksumOffload {
+	if enabled {
+		o.flags |= rxChecksumOffloadICMPv4
+	} else {
+		o.flags &^= rxChecksumOffloadICMPv4
+	}
+	return o
+}
+
+// ICMPv4 reports whether outer ICMPv4 checksum offload is enabled.
+func (o RXChecksumOffload) ICMPv4() bool { return o.flags&rxChecksumOffloadICMPv4 != 0 }
+
+// SetICMPv6 controls ICMPv6 checksum offload, including MLD, and returns o
+// for chained configuration. Independent extension checksums remain verified.
+func (o *RXChecksumOffload) SetICMPv6(enabled bool) *RXChecksumOffload {
+	if enabled {
+		o.flags |= rxChecksumOffloadICMPv6
+	} else {
+		o.flags &^= rxChecksumOffloadICMPv6
+	}
+	return o
+}
+
+// ICMPv6 reports whether ICMPv6 checksum offload is enabled.
+func (o RXChecksumOffload) ICMPv6() bool { return o.flags&rxChecksumOffloadICMPv6 != 0 }
+
+// SetIGMP controls IGMP checksum offload and returns o for chained configuration.
+func (o *RXChecksumOffload) SetIGMP(enabled bool) *RXChecksumOffload {
+	if enabled {
+		o.flags |= rxChecksumOffloadIGMP
+	} else {
+		o.flags &^= rxChecksumOffloadIGMP
+	}
+	return o
+}
+
+// IGMP reports whether IGMP checksum offload is enabled.
+func (o RXChecksumOffload) IGMP() bool { return o.flags&rxChecksumOffloadIGMP != 0 }
+
+// SetRXChecksumOffload replaces the input link's checksum verification policy.
+// Configure it before delivering packets; changes do not establish a processing
+// boundary for input already in progress. It does not affect socket defaults.
+func (s *Stack) SetRXChecksumOffload(offload RXChecksumOffload) {
+	s.rxChecksumOffload.Store(offload.flags)
+}
+
+// RXChecksumOffload returns an independent copy of the input link's checksum
+// verification policy.
+func (s *Stack) RXChecksumOffload() RXChecksumOffload {
+	return RXChecksumOffload{flags: s.rxChecksumOffload.Load()}
+}
+
 // AddressProperties supplies RFC 6724 source-selection state that cannot be
 // represented by a netip.Prefix alone.
 type AddressProperties struct {
@@ -20,7 +150,9 @@ type AddressProperties struct {
 
 // Route admits one unicast destination prefix. Source optionally pins the
 // preferred local source address; Metric breaks ties between equal prefixes.
-// The embedding link remains responsible for next-hop selection.
+// A source-less route may also carry transparent forwarder output when
+// Promiscuous is enabled without a same-family local address. The embedding
+// link remains responsible for next-hop selection.
 type Route struct {
 	// Destination is the admitted unicast prefix.
 	Destination netip.Prefix
@@ -36,8 +168,8 @@ type networkState struct {
 	maxTCPConnections int
 	promiscuous       bool
 	tcpDefaults       TCPSocketDefaults
-	udpDefaults       DatagramSocketDefaults
-	ipDefaults        DatagramSocketDefaults
+	udpDefaults       UDPSocketDefaults
+	ipDefaults        IPSocketDefaults
 	local             map[netip.Addr]struct{}
 	broadcast         map[netip.Addr]struct{}
 	sources           []netip.Addr
@@ -127,11 +259,11 @@ func buildNetworkState(config Config) (*networkState, error) {
 	if err != nil {
 		return nil, err
 	}
-	udpDefaults, err := normalizeDatagramSocketDefaults(config.UDP, udpDefaultReceiveCapacity, udpDatagramMetadataSize)
+	udpDefaults, err := normalizeUDPSocketDefaults(config.UDP)
 	if err != nil {
 		return nil, errors.New("mipstack: invalid UDP socket defaults: " + err.Error())
 	}
-	ipDefaults, err := normalizeDatagramSocketDefaults(config.IP, ipDefaultReceiveCapacity, ipDatagramMetadataSize)
+	ipDefaults, err := normalizeIPSocketDefaults(config.IP)
 	if err != nil {
 		return nil, errors.New("mipstack: invalid IP socket defaults: " + err.Error())
 	}
@@ -141,6 +273,7 @@ func buildNetworkState(config Config) (*networkState, error) {
 		local: make(map[netip.Addr]struct{}, len(config.LocalAddresses)), sources: make([]netip.Addr, 0, len(config.LocalAddresses)),
 		preferTemporary: config.PreferTemporaryAddresses,
 	}
+	configuredPrefixes := make(map[netip.Prefix]struct{}, len(config.LocalAddresses))
 	for _, prefix := range config.LocalAddresses {
 		address := prefix.Addr().Unmap()
 		if !prefix.IsValid() || !address.IsValid() || address.IsUnspecified() || address.IsMulticast() || address.Zone() != "" {
@@ -156,10 +289,28 @@ func buildNetworkState(config Config) (*networkState, error) {
 		if address.Is4() && isIPv4Broadcast(prefix, address, bits) {
 			return nil, errors.New("mipstack: IPv4 broadcast address cannot be local")
 		}
+		// LocalAddresses describes final state rather than a sequence of address
+		// additions, so repeated identical entries are idempotent.
+		configuredPrefix := netip.PrefixFrom(address, bits)
+		if _, duplicate := configuredPrefixes[configuredPrefix]; duplicate {
+			continue
+		}
+		configuredPrefixes[configuredPrefix] = struct{}{}
 		if _, exists := state.local[address]; !exists {
 			state.local[address] = struct{}{}
 			state.sources = append(state.sources, address)
 			state.sourcePrefixBits = append(state.sourcePrefixBits, bits)
+		} else {
+			// One source candidate represents every prefix of an address. Retaining
+			// the longest makes RFC 6724 rule 8 independent of prefix order.
+			for index, source := range state.sources {
+				if source == address {
+					if bits > state.sourcePrefixBits[index] {
+						state.sourcePrefixBits[index] = bits
+					}
+					break
+				}
+			}
 		}
 		masked := netip.PrefixFrom(address, bits).Masked()
 		state.localPrefixes = append(state.localPrefixes, masked)
@@ -194,17 +345,20 @@ func buildNetworkState(config Config) (*networkState, error) {
 			state.addressProperties[normalized] = properties
 		}
 	}
-	if len(state.local) == 0 {
+	addressless := len(state.local) == 0
+	if addressless && !state.promiscuous {
 		return nil, errors.New("mipstack: at least one local address is required")
 	}
-	if mtu < ipv6MinimumMTU {
-		for _, source := range state.sources {
-			if source.Is6() {
-				return nil, errors.New("mipstack: IPv6 requires an MTU of at least 1280")
-			}
+	var haveLocal4, haveLocal6 bool
+	for _, source := range state.sources {
+		if source.Is4() {
+			haveLocal4 = true
+		} else {
+			haveLocal6 = true
 		}
 	}
 	state.routes = make([]Route, 0, len(config.Routes)+2)
+	haveIPv6Output := haveLocal6
 	for _, route := range config.Routes {
 		destination, err := normalizeRoutePrefix(route.Destination)
 		if err != nil {
@@ -221,37 +375,58 @@ func buildNetworkState(config Config) (*networkState, error) {
 		} else {
 			source = netip.Addr{}
 		}
-		state.routes = append(state.routes, Route{Destination: destination, Source: source, Metric: route.Metric})
-	}
-	for _, route := range state.routes {
-		familyAvailable := false
-		for _, source := range state.sources {
-			if source.Is6() == route.Destination.Addr().Is6() {
-				familyAvailable = true
-				break
-			}
+		familyAvailable := haveLocal4
+		if destination.Addr().Is6() {
+			familyAvailable = haveLocal6
+			haveIPv6Output = true
 		}
-		if !familyAvailable {
+		if !familyAvailable && !state.promiscuous {
 			return nil, errors.New("mipstack: route has no local address in its family")
 		}
+		state.routes = append(state.routes, Route{Destination: destination, Source: source, Metric: route.Metric})
 	}
 	if config.Routes == nil {
-		var have4, have6 bool
-		for _, source := range state.sources {
-			if source.Is4() {
-				have4 = true
-			} else {
-				have6 = true
-			}
+		default4, default6 := haveLocal4, haveLocal6
+		if addressless {
+			// Promiscuous admission supports both IP versions. Source-less
+			// defaults let intercepted flows return over the single embedding
+			// link without granting either family to ordinary sockets.
+			default4, default6 = true, true
 		}
-		if have4 {
+		if default4 {
 			state.routes = append(state.routes, Route{Destination: netip.PrefixFrom(netip.IPv4Unspecified(), 0)})
 		}
-		if have6 {
+		if default6 {
 			state.routes = append(state.routes, Route{Destination: netip.PrefixFrom(netip.IPv6Unspecified(), 0)})
+			haveIPv6Output = true
 		}
 	}
+	if mtu < ipv6MinimumMTU && haveIPv6Output {
+		return nil, errors.New("mipstack: IPv6 requires an MTU of at least 1280")
+	}
 	return state, nil
+}
+
+// normalizeUDPSocketDefaults validates and normalizes the shared datagram
+// policies inherited by UDP sockets.
+func normalizeUDPSocketDefaults(value UDPSocketDefaults) (UDPSocketDefaults, error) {
+	defaults, err := normalizeDatagramSocketDefaults(value.DatagramSocketDefaults, udpDefaultReceiveCapacity, udpDatagramMetadataSize)
+	if err != nil {
+		return UDPSocketDefaults{}, err
+	}
+	value.DatagramSocketDefaults = defaults
+	return value, nil
+}
+
+// normalizeIPSocketDefaults validates the shared datagram policies while
+// preserving the IP-specific representation defaults.
+func normalizeIPSocketDefaults(value IPSocketDefaults) (IPSocketDefaults, error) {
+	defaults, err := normalizeDatagramSocketDefaults(value.DatagramSocketDefaults, ipDefaultReceiveCapacity, ipDatagramMetadataSize)
+	if err != nil {
+		return IPSocketDefaults{}, err
+	}
+	value.DatagramSocketDefaults = defaults
+	return value, nil
 }
 
 // acceptsInboundDestination reports whether one unicast destination may enter
@@ -586,6 +761,46 @@ func (state *networkState) sourceForNonUnicast(destination, requested netip.Addr
 		return netip.Addr{}, syscall.EADDRNOTAVAIL
 	}
 	return selected, nil
+}
+
+// inboundIPv4PacketInfoSource selects ipi_spec_dst for one received IPv4
+// packet. A local unicast destination selects itself. Other destinations use
+// the packet-source route's preferred source, then an address on the source's
+// configured prefix, and finally the first usable address, matching Linux's
+// fib_compute_spec_dst behavior on this single embedding link. The result is
+// computed when receive ancillary data is produced; queued datagrams retain
+// only their wire addresses. Linux computes and stores fib_compute_spec_dst
+// during ingress, so a configuration change before a read can produce a
+// different ipi_spec_dst here. Deriving the value on demand keeps queued
+// datagrams compact and avoids packet-info source selection on ordinary reads.
+func (state *networkState) inboundIPv4PacketInfoSource(source, destination netip.Addr) netip.Addr {
+	source, destination = source.Unmap(), destination.Unmap()
+	if !destination.Is4() {
+		return netip.Addr{}
+	}
+	if _, local := state.local[destination]; local {
+		return destination
+	}
+	if source.Is4() && !source.IsUnspecified() {
+		if selected, err := state.sourceForUnicast(source, netip.Addr{}); err == nil {
+			return selected
+		}
+		for index, candidate := range state.sources {
+			if !candidate.Is4() || candidate.IsLoopback() || index >= len(state.sourcePrefixBits) {
+				continue
+			}
+			prefix := netip.PrefixFrom(candidate, state.sourcePrefixBits[index])
+			if prefix.Contains(source) {
+				return candidate
+			}
+		}
+	}
+	for _, candidate := range state.sources {
+		if candidate.Is4() && !candidate.IsLoopback() {
+			return candidate
+		}
+	}
+	return netip.Addr{}
 }
 
 // hasOutputPath reports whether an established connectionless socket can
