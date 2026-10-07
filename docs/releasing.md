@@ -74,7 +74,13 @@ The published APK is named `detour-MAJOR.MINOR.PATCH-arm64.apk`.
 
 ## Local signed build
 
-The same Gradle path can be exercised locally without putting credentials in Gradle files:
+The same Gradle path can be exercised locally without putting credentials in Gradle files. On the maintainer machine the git-ignored `keystore/` directory holds the release key (`detour-release.jks`, the two `*.password` files, `detour-release-cert.sha256`) and `keystore/release.env`, which exports the four variables below; a new worktree does not contain it:
+
+```bash
+set -a; . keystore/release.env; set +a
+```
+
+Otherwise export them by hand:
 
 ```bash
 export DETOUR_RELEASE_KEYSTORE=/absolute/path/to/release.keystore
