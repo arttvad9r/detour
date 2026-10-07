@@ -140,8 +140,6 @@ dependencies {
     implementation(libs.androidx.profileinstaller)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.snakeyaml)
-    // Pure-Java QR decoding for image imports; no camera or Play Services.
-    implementation(libs.zxing.core)
     testImplementation(libs.junit)
 
     baselineProfile(project(":baselineprofile"))

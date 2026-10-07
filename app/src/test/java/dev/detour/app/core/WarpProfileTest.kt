@@ -45,33 +45,4 @@ class WarpProfileTest {
     @Test fun `corrupt persisted WARP is ignored`() {
         assertNull(WarpProfile.fromStored("{broken"))
     }
-
-    private fun profileOf(
-        server: String = "fi.example.net",
-        publicKey: String = "public",
-        version: Int? = null,
-        name: String = "any",
-    ) = WarpProfile.create(
-        name = name,
-        proxies = listOf(
-            profile.proxies.single().copy(
-                server = server,
-                publicKey = publicKey,
-                amnezia = AmneziaWgOptions(version = version, jc = 4),
-            ),
-        ),
-    )
-
-    @Test fun `family comes from the endpoint, not from the profile name`() {
-        val warpKey = "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo51h2wPfgyo="
-        assertEquals(WireGuardFamily.WARP, profileOf(publicKey = warpKey, name = "My server").family)
-        assertEquals(WireGuardFamily.WARP, profileOf(server = "engage.cloudflareclient.com").family)
-        assertEquals(WireGuardFamily.AMNEZIAWG, profileOf(name = "WARP").family)
-        assertEquals(WireGuardFamily.AMNEZIAWG_31, profileOf(version = 3, name = "WARP").family)
-    }
-
-    @Test fun `legacy generic name is shown as the detected family`() {
-        assertEquals("AmneziaWG", profileOf(name = "WARP / AmneziaWG").displayName)
-        assertEquals("Home", profileOf(name = "Home").displayName)
-    }
 }

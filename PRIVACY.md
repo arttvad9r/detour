@@ -21,10 +21,6 @@ Those third-party services have their own privacy practices. Detour cannot preve
 
 Detour reads the launchable application inventory needed to present per-app routing controls. It does not request Android's broad `QUERY_ALL_PACKAGES` permission.
 
-## QR code images
-
-When you import a profile from a QR code, you pick one image through Android's system photo picker. Detour only gets access to that image, decodes it on the device and does not store or upload it. Detour does not request camera or storage permissions.
-
 ## Diagnostics
 
 Detour does not intentionally upload project analytics or automatic crash reports. If you voluntarily attach logs to a bug report, review and redact them first. Never publish VPN invitation strings, private keys, preshared keys, VLESS/Reality credentials or other secrets.

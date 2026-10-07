@@ -132,7 +132,7 @@ object WarpConfigImporter {
                 val allowedIps = csv(peer["allowedips"]).ifEmpty { listOf("0.0.0.0/0") }
                 val rawKeepalive = peer["persistentkeepalive"] ?: iface["persistentkeepalive"]
                 WarpProxy(
-                    name = "${endpoint.first}:${endpoint.second}",
+                    name = if (version == 3) "AmneziaWG ${endpoint.first}:${endpoint.second}" else "WARP ${endpoint.first}:${endpoint.second}",
                     server = endpoint.first,
                     port = endpoint.second,
                     ip = ip,
@@ -156,7 +156,8 @@ object WarpConfigImporter {
             .toList()
 
         if (proxies.isEmpty()) return WarpImportResult.NoCompatibleProxies
-        return WarpImportResult.Ok(WarpProfile.create(proxies = proxies))
+        val profileName = if (version == 3) "AmneziaWG 3.1" else "WARP / AmneziaWG"
+        return WarpImportResult.Ok(WarpProfile.create(name = profileName, proxies = proxies))
     }
 
     private fun parseYamlProxy(map: Map<*, *>): WarpProxy? = runCatching {

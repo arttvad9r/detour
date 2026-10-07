@@ -1,11 +1,9 @@
 package dev.detour.app.ui
 
 import android.app.Activity
-import android.text.format.Formatter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -28,8 +26,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -66,10 +64,7 @@ import androidx.window.core.layout.WindowSizeClass
 import androidx.window.core.layout.WindowSizeClass.Companion.WIDTH_DP_EXPANDED_LOWER_BOUND
 import dev.detour.app.R
 import dev.detour.app.core.DnsOptions
-import dev.detour.app.core.TunnelTrafficStats
 import dev.detour.app.core.VpnProfileKind
-import dev.detour.app.core.WireGuardFamily
-import dev.detour.app.core.formatTunnelTrafficRates
 import dev.detour.app.vpn.VpnController
 import dev.detour.app.vpn.VpnState
 import kotlinx.coroutines.delay
@@ -97,24 +92,15 @@ internal fun formatSessionElapsed(seconds: Int): String {
 internal fun homeUsesSplitLayout(windowSizeClass: WindowSizeClass): Boolean =
     windowSizeClass.isWidthAtLeastBreakpoint(WIDTH_DP_EXPANDED_LOWER_BOUND)
 
-private val WireGuardFamily?.isAmnezia: Boolean
-    get() = this == WireGuardFamily.AMNEZIAWG || this == WireGuardFamily.AMNEZIAWG_31
-
-internal fun homeProtocolLabelRes(
-    protocol: HomeProtocol,
-    activeVpn: VpnProfileKind,
-    wireGuardFamily: WireGuardFamily? = null,
-): Int = when (protocol) {
+internal fun homeProtocolLabelRes(protocol: HomeProtocol, activeVpn: VpnProfileKind): Int = when (protocol) {
     HomeProtocol.VLESS_DPI -> when (activeVpn) {
         VpnProfileKind.VLESS, VpnProfileKind.SUBSCRIPTION -> R.string.protocol_vless_dpi
-        VpnProfileKind.WARP ->
-            if (wireGuardFamily.isAmnezia) R.string.protocol_amneziawg_dpi else R.string.protocol_warp_dpi
+        VpnProfileKind.WARP -> R.string.protocol_warp_dpi
     }
     HomeProtocol.DPI -> R.string.protocol_dpi
     HomeProtocol.VLESS -> when (activeVpn) {
         VpnProfileKind.VLESS, VpnProfileKind.SUBSCRIPTION -> R.string.protocol_vless
-        VpnProfileKind.WARP ->
-            if (wireGuardFamily.isAmnezia) R.string.profile_amneziawg else R.string.protocol_warp
+        VpnProfileKind.WARP -> R.string.protocol_warp
     }
     HomeProtocol.NONE -> R.string.protocol_none
 }
@@ -209,7 +195,7 @@ fun HomeScreen(
         }
     }
 
-    val protocol = stringResource(homeProtocolLabelRes(uiState.protocol, uiState.activeVpn, uiState.wireGuardFamily))
+    val protocol = stringResource(homeProtocolLabelRes(uiState.protocol, uiState.activeVpn))
     val dnsValue = when (uiState.dnsId) {
         "google" -> stringResource(R.string.dns_google)
         "cloudflare" -> stringResource(R.string.dns_cloudflare)
@@ -270,7 +256,6 @@ fun HomeScreen(
                     state = visualState,
                     statusContent = statusContent,
                     sessionStartedAt = uiState.sessionStartedAt,
-                    traffic = uiState.traffic,
                     profileName = uiState.profileName,
                     activeVpn = uiState.activeVpn,
                     serverHost = uiState.serverHost,
@@ -293,7 +278,6 @@ private fun HomeConnectionContent(
     state: VpnState,
     statusContent: Color,
     sessionStartedAt: Long?,
-    traffic: TunnelTrafficStats?,
     profileName: String?,
     activeVpn: VpnProfileKind,
     serverHost: String?,
@@ -321,7 +305,6 @@ private fun HomeConnectionContent(
                 state = state,
                 statusContent = statusContent,
                 sessionStartedAt = sessionStartedAt,
-                traffic = traffic,
                 protocol = protocol,
                 modifier = Modifier.weight(1f),
             )
@@ -348,7 +331,6 @@ private fun HomeConnectionContent(
                 state = state,
                 statusContent = statusContent,
                 sessionStartedAt = sessionStartedAt,
-                traffic = traffic,
                 protocol = protocol,
             )
             Spacer(Modifier.height(Spacing.space12))
@@ -415,7 +397,6 @@ private fun ConnectionHero(
     state: VpnState,
     statusContent: Color,
     sessionStartedAt: Long?,
-    traffic: TunnelTrafficStats?,
     protocol: String,
     modifier: Modifier = Modifier,
 ) {
@@ -495,13 +476,6 @@ private fun ConnectionHero(
                             sessionStartedAt = sessionStartedAt,
                             color = c.textPrimary,
                         )
-                        // Keep the last reading while hiding so the line
-                        // does not blank out mid-animation.
-                        var lastTraffic by remember { mutableStateOf(traffic) }
-                        if (traffic != null) lastTraffic = traffic
-                        AnimatedVisibility(visible = traffic != null, enter = Motion.reveal, exit = Motion.conceal) {
-                            lastTraffic?.let { TrafficLine(it) }
-                        }
                     }
                     if (routeDescription.isNotBlank()) {
                         Text(
@@ -637,8 +611,6 @@ private fun ConnectionDetails(
                 iconRes = R.drawable.ic_server,
                 label = stringResource(R.string.row_server),
                 value = serverHost ?: stringResource(R.string.server_missing),
-                // Subscription servers are chosen on the profiles screen.
-                onClick = onOpenProfiles.takeIf { activeVpn == VpnProfileKind.SUBSCRIPTION },
             )
         }
         DetailsDivider()
@@ -688,32 +660,6 @@ private fun SessionTimer(sessionStartedAt: Long?, color: Color) {
         color = color,
         modifier = Modifier.padding(top = Spacing.space2),
     )
-}
-
-@Composable
-private fun TrafficLine(traffic: TunnelTrafficStats) {
-    val c = detourColors
-    val context = LocalContext.current
-    Row(
-        modifier = Modifier.padding(top = Spacing.space4),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = formatTunnelTrafficRates(context, traffic),
-            style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
-            color = c.textSecondary,
-        )
-        if (traffic.totalBytes > 0L) {
-            Text(
-                text = " · " + stringResource(
-                    R.string.traffic_session_total,
-                    Formatter.formatShortFileSize(context, traffic.totalBytes),
-                ),
-                style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
-                color = c.textMuted,
-            )
-        }
-    }
 }
 
 @Composable
