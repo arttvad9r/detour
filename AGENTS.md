@@ -11,7 +11,7 @@ Android per-app routing client: each app goes Direct, VPN (VLESS Reality, subscr
 ## Commands
 - Debug build: `./gradlew :app:assembleDebug`
 - Core gate before a PR: see `docs/testing.md` (strict dependency verification, unit tests, lint)
-- Physical device: `ANDROID_SERIAL=<serial> ./gradlew :app:connectedDebugAndroidTest`
+- Instrumentation: claim an emulator with the global `android-emu` skill, then `ANDROID_SERIAL=<serial> ./gradlew :app:connectedDebugAndroidTest`. Never use the owner's physical phone.
 
 ## Rules not obvious from the code
 - Never create a tag or GitHub release without explicit permission from the owner.
@@ -24,4 +24,3 @@ Android per-app routing client: each app goes Direct, VPN (VLESS Reality, subscr
 ## Status
 - 0.4.0 (2026-10-02): main is the 0.2.1 feature set with updated dependencies; GitHub Releases only.
 - The 0.3.x work (live traffic, subscription UI, import flow) continues on `dev`.
-- Next: not recorded yet.
