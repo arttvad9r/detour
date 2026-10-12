@@ -21,6 +21,12 @@ Android per-app routing client: each app goes Direct, VPN (VLESS Reality, subscr
 - Android allows only one active `VpnService`: Detour and Tailscale cannot run at the same time, split tunneling doesn't change that.
 - Scope: not a NekoBox clone or a generic Mihomo panel; advanced knobs stay out of the main UI.
 
+## Git
+- `main` holds released code only; every merge into `main` is a release tagged `vX.Y.Z`.
+- `dev` is the integration branch and must always build and pass checks.
+- Work in `feat/<name>` / `fix/<name>` from `dev`; several branches may run in parallel. Merge verified work into `dev`, then delete the branch.
+- Push, tags and releases only with the owner's explicit permission.
+
 ## Status
 - 0.4.0 (2026-10-02): main is the 0.2.1 feature set with updated dependencies; GitHub Releases only.
 - The 0.3.x work (live traffic, subscription UI, import flow) continues on `dev`.
