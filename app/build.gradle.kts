@@ -40,6 +40,9 @@ require(releaseSigningValueCount == 0 || releaseSigningValueCount == 4) {
 android {
     namespace = "dev.detour.app"
     compileSdk = 37
+    // Pinned so AGP strips native libraries with the NDK that CI installs
+    // instead of its own default, which hosted runners may not preinstall.
+    ndkVersion = "28.0.13004108"
 
     defaultConfig {
         applicationId = "dev.detour.app"
