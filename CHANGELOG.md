@@ -6,6 +6,11 @@ All notable user-facing changes to Detour are recorded here.
 
 No user-facing changes have been recorded after the current public release yet.
 
+## 0.4.2 — 2026-10-14
+
+### Fixed
+- Importing a WARP/AmneziaWG YAML file no longer crashes the app. The release build broke the YAML reader since 0.4.0; native `.conf` files, VLESS keys and subscriptions were not affected.
+
 ## 0.4.1 — 2026-10-14
 
 Maintenance release: same features as 0.4.0 on updated components.

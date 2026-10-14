@@ -82,6 +82,9 @@ android {
         release {
             optimization {
                 enable = true
+                keepRules {
+                    files.add(file("proguard-rules.pro"))
+                }
             }
             signingConfigs.findByName("release")?.let { signingConfig = it }
         }
