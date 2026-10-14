@@ -4,7 +4,7 @@ Contributions are welcome. Keep changes focused, testable and compatible with De
 
 ## Development
 
-- JDK 17 and the Android/Go toolchain versions are documented in `README.md` and `docs/pins.md`.
+- JDK 17 and the Android/Go toolchain versions are documented in `docs/pins.md`.
 - Build with `./gradlew :app:assembleDebug`.
 - Run the core gate described in `docs/testing.md` before submitting a pull request.
 - Do not commit generated native binaries, local SDK paths, keystores or credentials.
