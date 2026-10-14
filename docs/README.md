@@ -1,15 +1,13 @@
 # Detour documentation
 
-Documentation is grouped by audience so the repository landing page can stay product-focused without hiding implementation and release details.
+Documentation grouped by audience.
 
 ## For users
 
 | Document | Purpose |
 | --- | --- |
-| [Getting started](getting-started.md) | Install Detour, add a profile, assign app routes, connect, and troubleshoot common setup issues |
-| [Feature guide](features.md) | Complete map of the user-facing capabilities currently presented as part of Detour |
+| [Getting started](getting-started.md) ([English](getting-started.en.md)) | Install, add a profile, assign app routes, connect, troubleshoot |
 | [WARP profiles](warp-profiles.md) | Cloudflare WARP / AmneziaWG profile import details |
-| [Screenshot and media plan](screenshots.md) | Safe real-capture specification for the public repository gallery |
 | [Privacy policy](../PRIVACY.md) | What Detour stores locally and how configured third-party services are involved |
 | [Security policy](../SECURITY.md) | Security reporting and credential-handling guidance |
 
@@ -29,8 +27,6 @@ Documentation is grouped by audience so the repository landing page can stay pro
 | --- | --- |
 | [Release process](releasing.md) | Signed semantic-tag release workflow |
 | [Release checklist](release-checklist.md) | Pre-release verification gate |
-| [Distribution](distribution.md) | GitHub Releases and Obtainium |
-| [Public launch kit](launch.md) | Positioning, GitHub discovery metadata, social-preview plan and announcement copy |
 | [Changelog](../CHANGELOG.md) | User-facing changes for the current product line |
 
 ## Documentation rules
