@@ -19,7 +19,10 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"fmt"
+	"sync/atomic"
+	"time"
 
+	"github.com/enfein/mieru/v3/apis/constant"
 	"github.com/enfein/mieru/v3/pkg/appctl/appctlpb"
 	"github.com/enfein/mieru/v3/pkg/metrics"
 )
@@ -29,13 +32,11 @@ const (
 	DefaultOverhead  = 16 // 16 bytes
 	DefaultKeyLen    = 32 // 256 bits
 
+	NoncePrefixLenForUserHint = 16 // 16 bytes user hint input
+	NonceSuffixLenForUserHint = 4  // 4 bytes user hint output
+
 	ClientDecryptionMetricGroupName = "cipher - client"
 	ServerDecryptionMetricGroupName = "cipher - server"
-)
-
-const (
-	noncePrefixLenForUserHint = 16 // 16 bytes user hint input
-	nonceSuffixLenForUserHint = 4  // 4 bytes user hint output
 )
 
 var (
@@ -66,12 +67,15 @@ var (
 
 // BlockCipher is an interface of block encryption and decryption.
 type BlockCipher interface {
-	// Encrypt method adds the nonce in the dst, then encryptes the src.
-	Encrypt(plaintext []byte) ([]byte, error)
+	// Encrypt appends the nonce when needed, then the encrypted plaintext, to dst.
+	// The caller must provide enough capacity in dst for the complete result.
+	Encrypt(dst, plaintext []byte) error
 
-	// EncryptWithNonce encrypts the src with the given nonce.
+	// EncryptWithNonce encrypts plaintext with the given nonce and appends the
+	// result to dst. The caller must provide enough capacity in dst for the
+	// complete result.
 	// This method is not supported by stateful BlockCipher.
-	EncryptWithNonce(plaintext, nonce []byte) ([]byte, error)
+	EncryptWithNonce(dst, nonce, plaintext []byte) error
 
 	// Decrypt method removes the nonce in the src, then decryptes the src.
 	Decrypt(ciphertext []byte) ([]byte, error)
@@ -79,6 +83,13 @@ type BlockCipher interface {
 	// DecryptWithNonce decrypts the src with the given nonce.
 	// This method is not supported by stateful BlockCipher.
 	DecryptWithNonce(ciphertext, nonce []byte) ([]byte, error)
+
+	// DecryptStatelessTo decrypts ciphertext with its prepended nonce and
+	// appends the plaintext to dst.
+	// It MUST only be called on a stateless cipher that is not being mutated
+	// concurrently.
+	// This code is performance sensitive and may not check all invariants.
+	DecryptStatelessTo(ciphertext, dst []byte) ([]byte, error)
 
 	// NonceSize returns the size of the nonce that must be passed to Seal
 	// and Open.
@@ -91,6 +102,13 @@ type BlockCipher interface {
 	// Clone method creates a deep copy of block cipher itself.
 	// Panic if this operation fails.
 	Clone() BlockCipher
+
+	// CloneStatelessFast creates a new BlockCipher.
+	// The BlockCipher being cloned must be stateless and not being mutated
+	// concurrently.
+	// BlockContext and NoncePattern are NOT cloned.
+	// This code is performance sensitive and may not check all invariants.
+	CloneStatelessFast() BlockCipher
 
 	// SetImplicitNonceMode enables or disables implicit nonce mode.
 	// Under implicit nonce mode, the nonce is set exactly once on the first
@@ -138,62 +156,119 @@ func HashPassword(rawPassword, uniqueValue []byte) []byte {
 // BlockCipherFromPassword creates a BlockCipher object from the password
 // with the default settings.
 func BlockCipherFromPassword(password []byte, stateless bool) (BlockCipher, error) {
-	cipherList, err := getBlockCipherList(password, stateless)
+	entry, err := getCachedCiphers(string(password), time.Now())
 	if err != nil {
 		return nil, err
 	}
-	return cipherList[1], nil
+	block := entry.cipherList[1].CloneStatelessFast()
+	if !stateless {
+		block.SetImplicitNonceMode(true)
+	}
+	return block, nil
 }
 
 // BlockCipherListFromPassword creates three BlockCipher objects using different salts
 // from the password with the default settings.
 func BlockCipherListFromPassword(password []byte, stateless bool) ([]BlockCipher, error) {
-	return getBlockCipherList(password, stateless)
+	entry, err := getCachedCiphers(string(password), time.Now())
+	if err != nil {
+		return nil, err
+	}
+	blocks := make([]BlockCipher, len(entry.cipherList))
+	for i, template := range entry.cipherList {
+		blocks[i] = template.CloneStatelessFast()
+		if !stateless {
+			blocks[i].SetImplicitNonceMode(true)
+		}
+	}
+	return blocks, nil
 }
 
 // TryDecrypt tries to decrypt the data with all possible keys generated from the password.
 // If successful, returns the block cipher as well as the decrypted results.
 func TryDecrypt(data, password []byte, stateless bool) (BlockCipher, []byte, error) {
-	blocks, err := BlockCipherListFromPassword(password, stateless)
-	if err != nil {
-		return nil, nil, fmt.Errorf("BlockCipherListFromPassword() failed: %w", err)
-	}
-	return SelectDecrypt(data, blocks)
-}
-
-// SelectDecrypt returns the appropriate cipher block that can decrypt the data,
-// as well as the decrypted result.
-func SelectDecrypt(data []byte, blocks []BlockCipher) (BlockCipher, []byte, error) {
-	for _, block := range blocks {
-		decrypted, err := block.Decrypt(data)
+	if stateless {
+		entry, err := getCachedCiphers(string(password), time.Now())
 		if err != nil {
-			continue
+			return nil, nil, fmt.Errorf("getBlockCipherList() failed: %w", err)
 		}
-		return block, decrypted, nil
+		block, plaintext, err := selectDecryptStateless(data, nil, entry.cipherList)
+		if err != nil {
+			return nil, nil, fmt.Errorf("unable to decrypt from supplied %d cipher blocks", len(entry.cipherList))
+		}
+		return block.CloneStatelessFast(), plaintext, nil
 	}
 
-	return nil, nil, fmt.Errorf("unable to decrypt from supplied %d cipher blocks", len(blocks))
-}
-
-// CloneBlockCiphers clones a slice of block ciphers.
-func CloneBlockCiphers(blocks []BlockCipher) []BlockCipher {
-	clones := make([]BlockCipher, len(blocks))
-	for i, b := range blocks {
-		clones[i] = b.Clone()
+	// stateful
+	blocks, err := getBlockCipherList(string(password), stateless)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getBlockCipherList() failed: %w", err)
 	}
-	return clones
+	block, plaintext, err := selectDecrypt(data, blocks)
+	if err != nil {
+		return nil, nil, err
+	}
+	return block, plaintext, nil
 }
 
 // CheckUserFromHint checks if the user is the one associated with the nonce.
-// It panics if the user is empty or the nonce is too short.
+// It panics if the user is empty or too long, or the nonce is too short.
 func CheckUserFromHint(user, nonce []byte) bool {
 	if len(user) == 0 {
 		panic("user is empty")
 	}
-	if len(nonce) < noncePrefixLenForUserHint+nonceSuffixLenForUserHint {
+	if len(user) > constant.MaxUserNameLen {
+		panic(fmt.Sprintf("user name length %d exceeds maximum %d", len(user), constant.MaxUserNameLen))
+	}
+	if len(nonce) < NoncePrefixLenForUserHint+NonceSuffixLenForUserHint {
 		panic(fmt.Sprintf("nonce length %d is too short", len(nonce)))
 	}
-	input := append(user, nonce[:noncePrefixLenForUserHint]...)
-	output := sha256.Sum256(input)
-	return bytes.Equal(output[:nonceSuffixLenForUserHint], nonce[len(nonce)-nonceSuffixLenForUserHint:])
+	var input [constant.MaxUserNameLen + NoncePrefixLenForUserHint]byte
+	n := copy(input[:], user)
+	n += copy(input[n:], nonce[:NoncePrefixLenForUserHint])
+	output := sha256.Sum256(input[:n])
+	return bytes.Equal(output[:NonceSuffixLenForUserHint], nonce[len(nonce)-NonceSuffixLenForUserHint:])
+}
+
+// NewStatelessDecryptor builds a StatelessDecryptor for the given password.
+func NewStatelessDecryptor(password []byte) (*StatelessDecryptor, error) {
+	if len(password) == 0 {
+		return nil, fmt.Errorf("password is empty")
+	}
+	return &StatelessDecryptor{password: string(password)}, nil
+}
+
+// StatelessDecryptor is optimized and safe for concurrent decryption.
+type StatelessDecryptor struct {
+	password string
+	ciphers  atomic.Pointer[cachedCiphers]
+}
+
+func (d *StatelessDecryptor) TryDecrypt(ciphertext, dst []byte) (BlockCipher, []byte, error) {
+	return d.tryDecryptAt(ciphertext, dst, time.Now())
+}
+
+func (d *StatelessDecryptor) tryDecryptAt(ciphertext, dst []byte, now time.Time) (BlockCipher, []byte, error) {
+	if d == nil {
+		return nil, nil, fmt.Errorf("stateless decryptor is nil")
+	}
+	epoch := cipherKeyEpoch(now)
+	entry := d.ciphers.Load()
+	if entry == nil || entry.epoch != epoch {
+		var err error
+		entry, err = getCachedCiphers(d.password, now)
+		if err != nil {
+			return nil, nil, err
+		}
+		d.ciphers.Store(entry)
+	}
+	block, plaintext, err := selectDecryptStateless(ciphertext, dst, entry.cipherList)
+	if err != nil {
+		return nil, nil, err
+	}
+	return block.CloneStatelessFast(), plaintext, nil
+}
+
+func cipherKeyEpoch(t time.Time) int64 {
+	return t.Round(KeyRefreshInterval).Unix()
 }

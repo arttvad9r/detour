@@ -40,7 +40,7 @@ import (
 const (
 	subscriptionProviderName = "DETOUR_SUBSCRIPTION"
 	subscriptionGroupName    = "SUBSCRIPTION"
-	subscriptionUserAgent    = "mihomo/1.19.30"
+	subscriptionUserAgent    = "mihomo/1.19.32"
 	maxSubscriptionBodyBytes = 4 * 1024 * 1024
 	maxSubscriptionNodes     = 256
 )

@@ -8,18 +8,15 @@ import (
 	"time"
 )
 
-// CongestionControl identifies a TCP congestion-control algorithm.
-type CongestionControl string
-
 const (
 	// CongestionControlCUBIC selects RFC 9438 CUBIC with Reno-friendly growth.
-	CongestionControlCUBIC CongestionControl = "cubic"
+	CongestionControlCUBIC = "cubic"
 	// CongestionControlReno selects RFC 5681 Reno congestion avoidance.
-	CongestionControlReno CongestionControl = "reno"
+	CongestionControlReno = "reno"
 	// CongestionControlBBR selects model-based BBR congestion control.
-	CongestionControlBBR CongestionControl = "bbr"
+	CongestionControlBBR = "bbr"
 	// CongestionControlBBR3 selects Google's loss-bounded BBRv3 model.
-	CongestionControlBBR3 CongestionControl = "bbr3"
+	CongestionControlBBR3 = "bbr3"
 )
 
 // CongestionControlContext identifies the TCP connection for which a
@@ -71,8 +68,8 @@ const (
 	// they can advance their clock only after an actual transmission.
 	CongestionControlFeatureTransmissionEvents
 	// CongestionControlFeatureCustomRecovery asks TCP to expose recovery-window
-	// selection, PRR, partial-ACK, duplicate-ACK, and exit decisions. TCP applies
-	// its RFC defaults when this feature is absent.
+	// selection, PRR, partial-ACK, duplicate-ACK, exit, and spurious-undo
+	// decisions. TCP applies its RFC defaults when this feature is absent.
 	CongestionControlFeatureCustomRecovery
 	// CongestionControlFeatureLossEvents asks TCP to retain the opaque packet
 	// state returned by transmission events and report each transmission
@@ -80,6 +77,11 @@ const (
 	// notifications. Transmission events are required so a controller can seed
 	// the state associated with each generation.
 	CongestionControlFeatureLossEvents
+	// CongestionControlFeatureCustomWindowValidation leaves RFC 2861 idle and
+	// under-utilization window validation to the controller. Controllers using
+	// it must request transmission events so they can observe the first send
+	// after an idle interval.
+	CongestionControlFeatureCustomWindowValidation
 )
 
 // congestionControlKnownFeatures is the complete transport-supported feature mask.
@@ -87,7 +89,8 @@ const congestionControlKnownFeatures = CongestionControlFeatureDeliveryRate |
 	CongestionControlFeatureCustomPacing |
 	CongestionControlFeatureTransmissionEvents |
 	CongestionControlFeatureCustomRecovery |
-	CongestionControlFeatureLossEvents
+	CongestionControlFeatureLossEvents |
+	CongestionControlFeatureCustomWindowValidation
 
 // CongestionControlDefinition describes a congestion-control implementation
 // before it is validated and frozen into a CongestionControlFactory. New may
@@ -98,7 +101,7 @@ const congestionControlKnownFeatures = CongestionControlFeatureDeliveryRate |
 // multiple of cwnd; zero retains the ordinary socket auto-tuning policy.
 type CongestionControlDefinition struct {
 	// Name is the diagnostic name and, when registered, the process-registry key.
-	Name CongestionControl
+	Name string
 	// New creates one independent controller for the supplied connection.
 	New func(CongestionControlContext) CongestionController
 	// Features requests optional transport work for the controller.
@@ -129,7 +132,7 @@ func NewCongestionControlFactory(definition CongestionControlDefinition) (*Conge
 
 // Name returns the diagnostic name reported by TCPConnInfo. A nil factory has an
 // empty name and is not a valid connection policy.
-func (f *CongestionControlFactory) Name() CongestionControl {
+func (f *CongestionControlFactory) Name() string {
 	if f == nil {
 		return ""
 	}
@@ -158,14 +161,17 @@ func validateCongestionControlDefinition(definition CongestionControlDefinition)
 	if definition.Features&CongestionControlFeatureLossEvents != 0 && definition.Features&CongestionControlFeatureTransmissionEvents == 0 {
 		return fmt.Errorf("mipstack: congestion control %q loss events require transmission events", definition.Name)
 	}
+	if definition.Features&CongestionControlFeatureCustomWindowValidation != 0 && definition.Features&CongestionControlFeatureTransmissionEvents == 0 {
+		return fmt.Errorf("mipstack: congestion control %q custom window validation requires transmission events", definition.Name)
+	}
 	return nil
 }
 
 // congestionControlRegistry holds built-in and application-registered factories.
 var congestionControlRegistry = struct {
 	sync.RWMutex
-	factories map[CongestionControl]*CongestionControlFactory
-}{factories: map[CongestionControl]*CongestionControlFactory{
+	factories map[string]*CongestionControlFactory
+}{factories: map[string]*CongestionControlFactory{
 	CongestionControlCUBIC: mustCongestionControlFactory(CongestionControlDefinition{
 		Name:     CongestionControlCUBIC,
 		New:      func(CongestionControlContext) CongestionController { return newCUBICCongestionControl() },
@@ -181,7 +187,8 @@ var congestionControlRegistry = struct {
 		Features: CongestionControlFeatureDeliveryRate |
 			CongestionControlFeatureCustomPacing |
 			CongestionControlFeatureTransmissionEvents |
-			CongestionControlFeatureCustomRecovery,
+			CongestionControlFeatureCustomRecovery |
+			CongestionControlFeatureCustomWindowValidation,
 		SendBufferMultiplier: 3,
 	}),
 	CongestionControlBBR3: mustCongestionControlFactory(CongestionControlDefinition{
@@ -191,7 +198,8 @@ var congestionControlRegistry = struct {
 			CongestionControlFeatureCustomPacing |
 			CongestionControlFeatureTransmissionEvents |
 			CongestionControlFeatureCustomRecovery |
-			CongestionControlFeatureLossEvents,
+			CongestionControlFeatureLossEvents |
+			CongestionControlFeatureCustomWindowValidation,
 		SendBufferMultiplier: 3,
 	}),
 }}
@@ -226,9 +234,9 @@ func RegisterCongestionControl(factory *CongestionControlFactory) error {
 
 // AvailableCongestionControls returns the registered algorithm names in
 // lexical order. The returned slice is independent of the registry.
-func AvailableCongestionControls() []CongestionControl {
+func AvailableCongestionControls() []string {
 	congestionControlRegistry.RLock()
-	controls := make([]CongestionControl, 0, len(congestionControlRegistry.factories))
+	controls := make([]string, 0, len(congestionControlRegistry.factories))
 	for name := range congestionControlRegistry.factories {
 		controls = append(controls, name)
 	}
@@ -238,7 +246,7 @@ func AvailableCongestionControls() []CongestionControl {
 }
 
 // registeredCongestionControlFactory returns one stable registry entry.
-func registeredCongestionControlFactory(name CongestionControl) (*CongestionControlFactory, bool) {
+func registeredCongestionControlFactory(name string) (*CongestionControlFactory, bool) {
 	congestionControlRegistry.RLock()
 	factory, exists := congestionControlRegistry.factories[name]
 	congestionControlRegistry.RUnlock()
@@ -390,13 +398,16 @@ const (
 	CongestionRecoveryPartialACK
 	// CongestionRecoveryDuplicateACK applies non-SACK duplicate-ACK inflation.
 	CongestionRecoveryDuplicateACK
-	// CongestionRecoveryUndo reports that recovery was proven spurious.
+	// CongestionRecoveryUndo reports that recovery was proven spurious. A
+	// custom-recovery controller may replace State.CongestionWindow and
+	// State.SlowStartThreshold; TCP otherwise retains its RFC response.
 	CongestionRecoveryUndo
 )
 
 // CongestionRecovery describes a transport-owned recovery transition. TCP
 // places its RFC-default result in State.CongestionWindow before dispatch;
 // controllers with CongestionControlFeatureCustomRecovery may replace it.
+// CongestionRecoveryUndo also permits replacing State.SlowStartThreshold.
 // Flight is initialized to the transport default during
 // CongestionRecoverySelectFlight and is the only mutable field of that stage.
 type CongestionRecovery struct {

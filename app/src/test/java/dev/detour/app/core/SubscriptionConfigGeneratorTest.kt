@@ -44,7 +44,7 @@ class SubscriptionConfigGeneratorTest {
         assertTrue(yaml.contains("profile:\n  store-selected: false"))
         assertTrue(yaml.contains("proxy-providers:\n  DETOUR_SUBSCRIPTION:"))
         assertTrue(yaml.contains("url: \"https://subscription.example/opaque-token\""))
-        assertTrue(yaml.contains("header:\n      User-Agent:\n        - mihomo/1.19.30"))
+        assertTrue(yaml.contains("header:\n      User-Agent:\n        - mihomo/1.19.32"))
         assertTrue(yaml.contains("- name: SUBSCRIPTION\n  type: select"))
         assertTrue(yaml.contains("default-selected: \"Preferred Node\""))
         assertTrue(yaml.contains("use:\n    - DETOUR_SUBSCRIPTION"))

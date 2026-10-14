@@ -17,6 +17,9 @@ func CreateReadWaiter(reader io.Reader) (N.ReadWaiter, bool) {
 	if readWaiter, created := createSyscallReadWaiter(reader); created {
 		return readWaiter, true
 	}
+	if readWaiter, created := createReadWithBufferWaiter(reader); created {
+		return readWaiter, true
+	}
 	return nil, false
 }
 
@@ -29,6 +32,9 @@ func CreatePacketReadWaiter(reader N.PacketReader) (N.PacketReadWaiter, bool) {
 		return readWaitCreator.CreateReadWaiter()
 	}
 	if readWaiter, created := createSyscallPacketReadWaiter(reader); created {
+		return readWaiter, true
+	}
+	if readWaiter, created := createReadFromWithBufferPacketWaiter(reader); created {
 		return readWaiter, true
 	}
 	return nil, false

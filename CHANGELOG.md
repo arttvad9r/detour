@@ -6,6 +6,17 @@ All notable user-facing changes to Detour are recorded here.
 
 No user-facing changes have been recorded after the current public release yet.
 
+## 0.4.1 — 2026-10-14
+
+Maintenance release: same features as 0.4.0 on updated components.
+
+### Changed
+- Embedded Mihomo engine 1.19.32 (from 1.19.30) with upstream connection fixes. Detour keeps its gVisor TUN stack.
+- Toolchain: Gradle 9.8.1, Kotlin 2.4.21, Go 1.26.9, govulncheck 1.9.0.
+
+### Security
+- Go networking library golang.org/x/net 0.60.0 fixes five known vulnerabilities reported by govulncheck.
+
 ## 0.4.0 — 2026-10-02
 
 Detour returns to the 0.2.1 feature set on an updated toolchain. Saved profiles, routes and backups from 0.3.x keep working: the settings format did not change.

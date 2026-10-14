@@ -23,7 +23,7 @@ object ConfigGenerator {
     private const val WARP_GROUP = "WARP"
     private const val SUBSCRIPTION_GROUP = "SUBSCRIPTION"
     private const val SUBSCRIPTION_PROVIDER = "DETOUR_SUBSCRIPTION"
-    private const val SUBSCRIPTION_USER_AGENT = "mihomo/1.19.30"
+    private const val SUBSCRIPTION_USER_AGENT = "mihomo/1.19.32"
     private const val MAX_WARP_PROXIES = 128
 
     fun build(input: RoutingInput): String {
