@@ -1,19 +1,19 @@
 <p align="center">
-  <strong>English</strong> · <a href="README.ru.md">Русский</a>
+  <strong>Русский</strong> · <a href="README.en.md">English</a>
 </p>
 
 <div align="center">
 
 # Detour
 
-### Per-app routing for Android
+### Маршрутизация приложений на Android
 
-**Direct · VPN · DPI**
+**Прямой · VPN · DPI**
 
-Open-source Android networking for choosing **how each app reaches the internet**.
-Keep selected apps direct, route others through VPN, and use ByeDPI only where needed — inside one Android VPN service.
+Open-source клиент для Android, в котором можно выбрать, **как каждое приложение выходит в интернет**.
+Одни приложения оставляйте напрямую, другие отправляйте через VPN, а ByeDPI включайте только там, где он нужен — всё внутри одного Android VPN-сервиса.
 
-[**Download APK**](https://github.com/arttvad9r/detour/releases/latest) · [Quick start](docs/getting-started.md) · [Features](docs/features.md)
+[**Скачать APK**](https://github.com/arttvad9r/detour/releases/latest) · [Быстрый старт](docs/getting-started.md) · [Возможности](docs/features.md)
 
 [![Android 10+](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)](https://github.com/arttvad9r/detour/releases/latest)
 [![Android CI](https://github.com/arttvad9r/detour/actions/workflows/android.yml/badge.svg)](https://github.com/arttvad9r/detour/actions/workflows/android.yml)
@@ -23,55 +23,55 @@ Keep selected apps direct, route others through VPN, and use ByeDPI only where n
 </div>
 
 <p align="center">
-  <img src="docs/assets/screenshots/product-gallery-hq.png" width="820" alt="Detour product screens: settings, ByeDPI strategy test, DPI bypass and themes">
+  <img src="docs/assets/screenshots/product-gallery-hq.png" width="820" alt="Detour: настройки, тест стратегий ByeDPI, обход DPI и темы оформления">
 </p>
 
-## One tunnel. Three routes.
+## Один туннель. Три маршрута.
 
-Detour assigns a route **per application**, instead of forcing the whole phone through one path:
+Detour назначает маршрут **каждому приложению отдельно**, а не заставляет весь телефон работать через один режим:
 
-- **Direct** — normal network connection.
-- **VPN** — VLESS Reality, HTTPS subscriptions, WARP or AmneziaWG.
-- **DPI** — native ByeDPI bypass for selected apps.
+- **Прямой** — обычное подключение к интернету.
+- **VPN** — VLESS Reality, HTTPS-подписки, WARP или AmneziaWG.
+- **DPI** — нативный ByeDPI для выбранных приложений.
 
-## What it does
+## Что умеет Detour
 
-- Per-app **Direct / VPN / DPI** routing with app search.
-- VLESS Reality, HTTPS subscriptions, WARP and AmneziaWG profiles, including supported Amnezia `vpn://` imports.
-- Subscription server selection, sorting, latency checks and live availability.
-- ByeDPI recommended/custom strategies and a strategy-testing workspace.
-- Tunnel DNS: Cloudflare, Google, AdGuard, custom IP or HTTPS DoH.
-- Quick Settings tile, connect-on-launch, export/import and multiple themes.
+- Маршрутизация приложений **Прямой / VPN / DPI** и поиск по списку приложений.
+- Профили VLESS Reality, HTTPS-подписки, WARP и AmneziaWG, включая поддерживаемый импорт Amnezia `vpn://`.
+- Выбор серверов подписки, сортировка, проверка задержки и состояние узлов во время работы.
+- Рекомендуемые и собственные стратегии ByeDPI плюс отдельный тест стратегий.
+- DNS внутри туннеля: Cloudflare, Google, AdGuard, свой IP или HTTPS DoH.
+- Плитка быстрых настроек, подключение при запуске, экспорт/импорт и несколько тем.
 
-[See the full feature guide →](docs/features.md)
+[Полное описание возможностей →](docs/features.md)
 
-## Install & updates
+## Установка и обновления
 
-Detour requires **Android 10 / API 29+**. The current public release provides an `arm64-v8a` APK.
+Нужен **Android 10 / API 29+**. Текущий публичный релиз содержит APK для `arm64-v8a`.
 
-- **GitHub Releases:** download the signed APK and its SHA-256 checksum from the [latest release](https://github.com/arttvad9r/detour/releases/latest).
-- **Obtainium:** add `https://github.com/arttvad9r/detour` as a GitHub app source to follow new Detour releases directly.
+- **GitHub Releases:** скачайте подписанный APK и SHA-256 checksum из [последнего релиза](https://github.com/arttvad9r/detour/releases/latest).
+- **Obtainium:** добавьте `https://github.com/arttvad9r/detour` как GitHub-источник приложения, чтобы получать новые релизы Detour напрямую.
 
-After installation, add or import a VPN profile, choose routes for your apps, tap **Connect**, and approve Android's VPN permission.
+После установки добавьте или импортируйте VPN-профиль, назначьте маршруты приложениям, нажмите **«Подключить»** и разрешите Android создать VPN-подключение.
 
-[Getting started →](docs/getting-started.md) · [Distribution status →](docs/distribution.md)
+[Быстрый старт →](docs/getting-started.md) · [Статус дистрибуции →](docs/distribution.md)
 
 > [!NOTE]
-> Detour is pre-release software and is currently distributed outside Google Play. Review imported configurations and install release artifacts only from this repository.
+> Detour пока находится на стадии pre-release и распространяется вне Google Play. Проверяйте импортированные конфигурации и устанавливайте релизные APK только из этого репозитория.
 
-## Open source by design
+## Открытый код и приватность
 
-No Detour account is required. Detour does not intentionally send project analytics or automatic crash reports. Sensitive profile material is stored locally with Android Keystore-backed encryption.
+Аккаунт Detour не нужен. Приложение намеренно не отправляет аналитику проекта и автоматические crash-отчёты. Чувствительные данные профилей хранятся локально с шифрованием на основе Android Keystore.
 
-Detour-authored code is licensed under [MIT](LICENSE). Embedded components keep their own licenses; see [third-party notices](THIRD_PARTY_NOTICES.md).
+Код Detour распространяется по [MIT](LICENSE). Встроенные компоненты сохраняют собственные лицензии — см. [third-party notices](THIRD_PARTY_NOTICES.md).
 
-**Docs:** [Getting started](docs/getting-started.md) · [Features](docs/features.md) · [Distribution](docs/distribution.md) · [Architecture](docs/architecture.md) · [Testing](docs/testing.md) · [Privacy](PRIVACY.md) · [Security](SECURITY.md) · [Contributing](CONTRIBUTING.md)
+**Документация:** [Быстрый старт](docs/getting-started.md) · [Возможности](docs/features.md) · [Дистрибуция](docs/distribution.md) · [Архитектура](docs/architecture.md) · [Тестирование](docs/testing.md) · [Приватность](PRIVACY.md) · [Безопасность](SECURITY.md) · [Участие в разработке](CONTRIBUTING.md)
 
 <details>
-<summary><strong>For developers and maintainers</strong></summary>
+<summary><strong>Разработчикам и мейнтейнерам</strong></summary>
 
-Detour is built with Kotlin and Jetpack Compose. Android `VpnService` owns the tunnel, Mihomo provides the main data plane, and native ByeDPI handles the DPI route.
+Detour написан на Kotlin и Jetpack Compose. Android `VpnService` управляет туннелем, Mihomo используется как основной data plane, а нативный ByeDPI обслуживает DPI-маршрут.
 
-[Architecture](docs/architecture.md) · [Testing](docs/testing.md) · [Dependency pins](docs/pins.md) · [Releasing](docs/releasing.md) · [Public launch kit](docs/launch.md)
+[Архитектура](docs/architecture.md) · [Тестирование](docs/testing.md) · [Версии зависимостей](docs/pins.md) · [Релизы](docs/releasing.md) · [Публичный запуск](docs/launch.md)
 
 </details>

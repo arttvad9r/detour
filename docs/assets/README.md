@@ -6,7 +6,7 @@ Public Detour media used by the repository landing pages and documentation lives
 
 ```text
 docs/assets/
-├── screenshots/   # real product captures used by README.md / README.ru.md
+├── screenshots/   # real product captures used by README.md (Russian) / README.en.md (English)
 └── brand/         # optional project-authored or properly licensed static artwork
 ```
 

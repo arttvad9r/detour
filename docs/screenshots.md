@@ -35,7 +35,7 @@ For future screenshots of VPN profiles, subscriptions, servers or per-app routin
 
 ## README layout
 
-`README.md` and `README.ru.md` reference the same screenshot files. The landing page intentionally uses a simple two-by-two image layout instead of a fixed three-column table so GitHub mobile does not squeeze captions or alt text into narrow cells.
+`README.md` (Russian) and `README.en.md` (English) reference the same screenshot files. The landing page intentionally uses a simple two-by-two image layout instead of a fixed three-column table so GitHub mobile does not squeeze captions or alt text into narrow cells.
 
 When replacing a screenshot, preserve the filename where possible. If a filename changes, update both READMEs in the same pull request.
 
