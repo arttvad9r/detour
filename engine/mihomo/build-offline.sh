@@ -4,8 +4,8 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-MIHOMO_COMMIT="ac017cdd246ce8bd547653d927e7bf77d7ee73d5"
-MIHOMO_TAG="v1.19.30"
+MIHOMO_COMMIT="88dcbf7f1614a67c3b36b848ee3592dfa92ada36"
+MIHOMO_TAG="v1.19.32"
 SOURCE="$REPO_ROOT/third_party/mihomo"
 BIND_DIR="$REPO_ROOT/engine/mihomo/go"
 CACHE_ROOT="${DETOUR_NATIVE_CACHE:-$REPO_ROOT/.cache/offline-native}"

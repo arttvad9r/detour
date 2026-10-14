@@ -62,6 +62,7 @@ log-level: silent
 proxies: []
 tun:
   enable: true
+  stack: gvisor
   file-descriptor: 2147483647
 rules:
   - MATCH,DIRECT
@@ -81,7 +82,7 @@ func TestFailedReplacementLeavesRuntimeStopped(t *testing.T) {
 	if err := Start(valid, ""); err != nil {
 		t.Fatalf("start valid runtime: %v", err)
 	}
-	failed := "mode: rule\nlog-level: silent\nproxies: []\ntun:\n  enable: true\n  file-descriptor: 2147483647\nrules:\n  - MATCH,DIRECT\n"
+	failed := "mode: rule\nlog-level: silent\nproxies: []\ntun:\n  enable: true\n  stack: gvisor\n  file-descriptor: 2147483647\nrules:\n  - MATCH,DIRECT\n"
 	if err := Start(failed, ""); err == nil {
 		t.Fatal("failed replacement must return an error")
 	}

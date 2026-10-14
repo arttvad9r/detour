@@ -4,8 +4,8 @@ Detour builds its native dependencies from exact upstream revisions. Do not repl
 
 ## Mihomo
 
-- Version: `v1.19.30`
-- Commit: `ac017cdd246ce8bd547653d927e7bf77d7ee73d5`
+- Version: `v1.19.32`
+- Commit: `88dcbf7f1614a67c3b36b848ee3592dfa92ada36`
 - Android AAR build: `engine/mihomo/build.sh`
 - Go build tag: `with_gvisor`
 
@@ -52,9 +52,9 @@ The CI/release contract currently pins:
 - compile SDK 37 and target SDK 36;
 - build-tools 36.0.0;
 - NDK 28.0.13004108;
-- Go 1.26.7;
+- Go 1.26.9;
 - `golang.org/x/mobile/cmd/gomobile@v0.0.0-20260821190718-4776eadac327`;
-- `golang.org/x/vuln/cmd/govulncheck@v1.7.0`.
+- `golang.org/x/vuln/cmd/govulncheck@v1.9.0`.
 
 GitHub Actions themselves are pinned by commit SHA in `.github/workflows/android.yml` and `.github/workflows/release.yml`.
 

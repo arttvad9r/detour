@@ -4,13 +4,13 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-MIHOMO_VERSION="v1.19.30"
-MIHOMO_COMMIT="ac017cdd246ce8bd547653d927e7bf77d7ee73d5"
+MIHOMO_VERSION="v1.19.32"
+MIHOMO_COMMIT="88dcbf7f1614a67c3b36b848ee3592dfa92ada36"
 CACHE="${MIHOMO_CACHE:-$REPO_ROOT/.cache/mihomo-src}"
 BIND_DIR="$REPO_ROOT/engine/mihomo/go"
 OUT="$REPO_ROOT/engine/libs/engine.aar"
 
-command -v go >/dev/null || { echo "Go is required (release builds use Go 1.26.7)" >&2; exit 127; }
+command -v go >/dev/null || { echo "Go is required (release builds use Go 1.26.9)" >&2; exit 127; }
 command -v gomobile >/dev/null || { echo "gomobile missing; install golang.org/x/mobile/cmd/gomobile" >&2; exit 127; }
 
 WORK_DIR="$(mktemp -d)"
@@ -77,7 +77,7 @@ else:
     raise SystemExit(f"FATAL: listener Cleanup layout changed: {p}")
 PYEOF
 
-# Mihomo v1.19.30 stores the global log level in an unsynchronized package
+# Mihomo v1.19.32 stores the global log level in an unsynchronized package
 # variable. WireGuard/AmneziaWG goroutines read it while configuration apply can
 # change it during restart, which is a real race even when shutdown is otherwise
 # ordered. Keep the upstream API but back it with sync/atomic.
@@ -196,7 +196,7 @@ else:
     raise SystemExit(f"FATAL: VLESS gRPC gun config layout changed: {p}")
 PYEOF
 
-# Modern Xray REALITY defaults minClientVer to 26.3.27. Mihomo v1.19.30 still
+# Modern Xray REALITY defaults minClientVer to 26.3.27. Mihomo v1.19.32 still
 # advertises 1.8.2, so advertise the minimum accepted modern Xray version.
 python3 - <<'PYEOF'
 p = 'component/tls/reality.go'
