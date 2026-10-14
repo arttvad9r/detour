@@ -29,4 +29,4 @@ Android per-app routing client: each app goes Direct, VPN (VLESS Reality, subscr
 
 ## Status
 - 0.4.0 (2026-10-02): main is the 0.2.1 feature set with updated dependencies; GitHub Releases only.
-- The 0.3.x work (live traffic, subscription UI, import flow) continues on `dev`.
+- 0.4.0 is the final feature set: `main` and `dev` both match it, and the 0.3.x work (live traffic, subscription UI, import flow) is abandoned.
