@@ -29,5 +29,8 @@
     <string name="setup_save_error">Could not finish setup. Try again.</string>
     <string name="setup_continue">Continue</string>
     <string name="setup_profiles_hint">Select a profile, then tap Continue.</string>
-    <string name="setup_menu_hint">Help with your first connection</string>
+    <string name="help_title">Help</string>
+    <string name="help_menu_hint">Connection help</string>
+    <string name="setup_restart">Run setup again</string>
+    <string name="setup_restart_hint">Choose a profile and app routes step by step. Opening setup keeps your current settings.</string>
 </resources>

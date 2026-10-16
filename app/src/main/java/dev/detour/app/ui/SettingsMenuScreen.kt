@@ -16,7 +16,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -30,7 +29,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.detour.app.R
 
-internal enum class SettingsSection { ROUTES, PROFILES, DPI, DNS, BACKUP, APPEARANCE }
+internal enum class SettingsSection { ROUTES, PROFILES, DPI, DNS, BACKUP, APPEARANCE, HELP }
 
 private data class MenuItem(
     val titleRes: Int,
@@ -50,7 +49,7 @@ internal fun SettingsMenuScreen(
     onOpenDns: () -> Unit,
     onOpenBackup: () -> Unit,
     onBack: () -> Unit,
-    onOpenSetup: () -> Unit,
+    onOpenHelp: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -161,15 +160,10 @@ internal fun SettingsMenuScreen(
                 SettingsSectionLabel(R.string.settings_section_app)
                 SettingsRows(listOf(backup, appearance), selectedSection)
                 GroupDivider(startInset = NavigationRowDividerInset)
-                DetourNavigationRow(
-                    title = stringResource(R.string.setup_title),
-                    subtitle = stringResource(R.string.setup_menu_hint),
-                    iconRes = R.drawable.ic_routes,
-                    titleMaxLines = 2,
-                    subtitleMaxLines = 2,
-                    onClick = onOpenSetup,
-                    modifier = Modifier.testTag("open-setup"),
-                )
+                SettingsRows(listOf(
+                    MenuItem(R.string.help_title, { stringResource(R.string.help_menu_hint) },
+                        R.drawable.ic_help, SettingsSection.HELP) to onOpenHelp,
+                ), selectedSection)
             }
 
             Text(

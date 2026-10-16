@@ -115,6 +115,9 @@ internal sealed interface AppDestination : NavKey {
 
     @Serializable
     data object Backup : AppDestination
+
+    @Serializable
+    data object Help : AppDestination
 }
 
 private fun AppDestination.settingsSectionOrNull(): SettingsSection? = when (this) {
@@ -124,6 +127,7 @@ private fun AppDestination.settingsSectionOrNull(): SettingsSection? = when (thi
     AppDestination.Dns -> SettingsSection.DNS
     AppDestination.Backup -> SettingsSection.BACKUP
     AppDestination.Theme -> SettingsSection.APPEARANCE
+    AppDestination.Help -> SettingsSection.HELP
     AppDestination.Setup,
     is AppDestination.SetupProfiles,
     is AppDestination.SetupRoutes,
@@ -140,6 +144,7 @@ private fun AppDestination.isSettingsDetail(): Boolean = when (this) {
     AppDestination.Theme,
     AppDestination.Dns,
     AppDestination.Backup,
+    AppDestination.Help,
     -> true
     AppDestination.Setup,
     is AppDestination.SetupProfiles,
@@ -376,6 +381,13 @@ internal fun DetourNavigation(
                     onOpenTheme = { openSettingsDetail(AppDestination.Theme) },
                     onOpenDns = { openSettingsDetail(AppDestination.Dns) },
                     onOpenBackup = { openSettingsDetail(AppDestination.Backup) },
+                    onBack = popBack,
+                    onOpenHelp = { openSettingsDetail(AppDestination.Help) },
+                )
+            }
+
+            entry<AppDestination.Help>(metadata = ListDetailSceneStrategy.detailPane()) {
+                dev.detour.app.ui.HelpScreen(
                     onBack = popBack,
                     onOpenSetup = {
                         setupViewModel.chooseGoal(null)

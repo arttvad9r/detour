@@ -29,5 +29,8 @@
     <string name="setup_save_error">Не удалось завершить настройку. Повторите попытку.</string>
     <string name="setup_continue">Продолжить</string>
     <string name="setup_profiles_hint">Выберите профиль и нажмите «Продолжить».</string>
-    <string name="setup_menu_hint">Помощь с первым подключением</string>
+    <string name="help_title">Помощь</string>
+    <string name="help_menu_hint">Помощь с подключением</string>
+    <string name="setup_restart">Пройти настройку заново</string>
+    <string name="setup_restart_hint">Пошаговый выбор профиля и маршрутов. Открытие мастера не сбрасывает текущие настройки.</string>
 </resources>

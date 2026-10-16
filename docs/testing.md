@@ -158,7 +158,9 @@ Exercise repeatedly:
 
 `Home → Settings → App Routes → Back → Back`
 
-Also open VPN profiles, DPI, DNS, Backup and Theme from Settings.
+Also open VPN profiles, DPI, DNS, Backup, Theme and Help from Settings.
+The setup wizard appears automatically on first launch; reopening it is under
+Help → Run setup again and must preserve the current profiles, routes and DNS.
 
 Verify:
 

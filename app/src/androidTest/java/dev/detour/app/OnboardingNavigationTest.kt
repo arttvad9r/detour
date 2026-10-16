@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.ExternalResource
@@ -58,6 +59,24 @@ class OnboardingNavigationTest {
     }).around(compose)
 
     private fun choose(name: String) = compose.onNodeWithTag("setup-goal-$name").performClick()
+
+    @Test fun completedSetupIsReopenedOnlyThroughHelpWithoutResettingSettings() {
+        compose.onNodeWithTag("setup-skip").performClick()
+        runBlocking { store.setRoute("com.example.saved", AppRoute.VPN) }
+        val saved = runBlocking { store.snapshot() }
+        compose.onNodeWithContentDescription(compose.activity.getString(R.string.cd_settings)).performClick()
+        compose.onNodeWithTag("open-setup").assertDoesNotExist()
+        compose.onNodeWithText(compose.activity.getString(R.string.help_title)).performScrollTo().performClick()
+        compose.onNodeWithText(compose.activity.getString(R.string.setup_restart)).assertIsDisplayed()
+        compose.activityRule.scenario.recreate()
+        compose.onNodeWithTag("open-setup").assertIsDisplayed().performClick()
+        compose.onNodeWithTag("setup-goal-DPI").assertIsDisplayed()
+        val reopened = runBlocking { store.snapshot() }
+        assertEquals(saved.routes, reopened.routes)
+        assertEquals(saved.vlessKeys, reopened.vlessKeys)
+        assertEquals(saved.dnsId, reopened.dnsId)
+        assertTrue(reopened.onboardingCompleted)
+    }
 
     @Test fun skipPersistsAndRecreationStaysOnHome() {
         compose.onNodeWithTag("setup-skip").performClick()
