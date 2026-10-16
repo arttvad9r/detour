@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
@@ -119,8 +120,11 @@ class OnboardingNavigationTest {
         compose.activityRule.scenario.recreate()
         compose.onNodeWithTag("app-route-detail").assertIsDisplayed()
         runBlocking { store.setRoute(app.packageName, AppRoute.VPN) }
-        compose.onNodeWithText(compose.activity.getString(R.string.route_detail_profiles))
-            .performScrollTo().performClick()
+        val chooseProfile = compose.activity.getString(R.string.route_detail_profiles)
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithText(chooseProfile).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText(chooseProfile).performScrollTo().performClick()
         compose.onNodeWithContentDescription(compose.activity.getString(R.string.cd_back)).performClick()
         compose.onNodeWithTag("app-route-detail").assertIsDisplayed()
         compose.onNodeWithContentDescription(compose.activity.getString(R.string.cd_back)).performClick()
