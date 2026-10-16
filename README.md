@@ -1,83 +1,83 @@
 <p align="center">
-  <a href="README.ru.md">Русский</a> · <strong>English</strong>
+  <strong>Русский</strong> · <a href="README.en.md">English</a>
 </p>
 
 # Detour
 
-An Android app that lets you pick how each app reaches the internet: directly, through a VPN, or through DPI bypass.
+Приложение для Android, в котором каждому приложению можно выбрать свой путь в интернет: напрямую, через VPN или через обход блокировок (DPI).
 
-[![Latest release](https://img.shields.io/github/v/release/arttvad9r/detour)](https://github.com/arttvad9r/detour/releases/latest)
+[![Последний релиз](https://img.shields.io/github/v/release/arttvad9r/detour?label=релиз)](https://github.com/arttvad9r/detour/releases/latest)
 [![Android 10+](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)](https://github.com/arttvad9r/detour/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 <p align="center">
-  <img src="docs/assets/screenshots/en-home.jpg" width="200" alt="Home: connected, VLESS + DPI">
-  <img src="docs/assets/screenshots/en-routes.jpg" width="200" alt="App routes: Direct, VPN or DPI per app">
-  <img src="docs/assets/screenshots/en-profiles.jpg" width="200" alt="VPN profiles: VLESS and WARP">
-  <img src="docs/assets/screenshots/en-dpi.jpg" width="200" alt="DPI bypass settings">
+  <img src="docs/assets/screenshots/ru-home.jpg" width="200" alt="Главный экран: подключено, VLESS + DPI">
+  <img src="docs/assets/screenshots/ru-routes.jpg" width="200" alt="Маршруты приложений: Прямой, VPN или DPI для каждого приложения">
+  <img src="docs/assets/screenshots/ru-profiles.jpg" width="200" alt="VPN-профили: VLESS и WARP">
+  <img src="docs/assets/screenshots/ru-dpi.jpg" width="200" alt="Настройки обхода DPI">
 </p>
 
-## Why
+## Зачем это нужно
 
-A regular VPN sends the whole phone through one server. Banking apps complain about a foreign IP, and everything else gets slower than it needs to be. With Detour you decide per app:
+Обычный VPN пускает через себя весь телефон. Из-за этого банки и госуслуги ругаются на иностранный IP, а всё остальное работает медленнее, чем могло бы. В Detour вы решаете сами, что куда идёт:
 
-- **Banking, shopping, maps** go **direct**, as if the VPN were off.
-- **YouTube** goes through **DPI** bypass: it needs no server, and the traffic stays in your country.
-- **Instagram or the browser** go through the **VPN**.
+- **Банк, маркетплейсы, карты** работают **напрямую**, как будто VPN выключен.
+- **YouTube** идёт через **DPI**: это обход замедления без всякого сервера, трафик не уходит за границу.
+- **Instagram или браузер** идут через **VPN**.
 
-All of this runs at the same time and starts with one button.
+Всё это работает одновременно, и включается одной кнопкой.
 
-## What you need
+## Что понадобится
 
-Detour is just the app. **It does not include any servers.** For the VPN route you need your own access, one of:
+Detour — это только приложение, **серверов в нём нет**. Для режима VPN нужен свой доступ, один из вариантов:
 
-- a `vless://` key (VLESS Reality) or a subscription URL from your VPN provider;
-- a WARP or AmneziaWG file (Clash/Mihomo YAML, or a `.conf` with AmneziaWG parameters);
-- an Amnezia `vpn://` key.
+- ключ `vless://` (VLESS Reality) или ссылка на подписку от вашего VPN-провайдера;
+- файл WARP или AmneziaWG (YAML для Clash/Mihomo или `.conf` с параметрами AmneziaWG);
+- ключ Amnezia `vpn://`.
 
-If you only need DPI bypass (for example, for YouTube), you need none of this: DPI works without a server.
+Если нужен только обход DPI (например, для YouTube), ничего этого не нужно: DPI работает без сервера.
 
-## Getting started
+## Как начать
 
-1. Download the APK from the [latest release](https://github.com/arttvad9r/detour/releases/latest) and install it.
-2. **Settings → VPN profiles → Add profile**: paste a key or subscription, or pick a file. Skip this step if you only need DPI.
-3. **App routes**: set VPN or DPI for the apps that need it. Everything else stays direct.
-4. Tap **Connect** and let Android create the VPN connection.
+1. Скачайте APK из [последнего релиза](https://github.com/arttvad9r/detour/releases/latest) и установите.
+2. **Настройки → VPN-профили → Добавить профиль**: вставьте ключ, подписку или выберите файл. Если нужен только DPI, этот шаг пропустите.
+3. **Маршруты приложений**: выберите для нужных приложений VPN или DPI. Всё, что не трогали, остаётся напрямую.
+4. Нажмите **«Подключить»** и разрешите Android создать VPN-подключение.
 
-More details, including DPI tuning tips: [guide](docs/getting-started.en.md).
+Подробнее, с советами по настройке DPI: [инструкция](docs/getting-started.md).
 
-To get updates automatically, add `https://github.com/arttvad9r/detour` to [Obtainium](https://obtainium.imranr.dev/).
+Чтобы получать обновления автоматически, добавьте ссылку `https://github.com/arttvad9r/detour` в [Obtainium](https://obtainium.imranr.dev/).
 
-## Also
+## Что ещё умеет
 
-- Subscriptions: server list, search, ping test.
-- Finding a DPI bypass strategy that works with your ISP (Proxy Test).
-- DNS: Cloudflare, Google, AdGuard, a custom address or DoH.
-- Quick Settings tile, connect on launch.
-- Move all settings to another phone (export/import).
-- Light and dark themes plus a few color themes.
+- Подписки: список серверов, поиск, проверка пинга.
+- Подбор стратегии обхода DPI под вашего провайдера («Тест стратегий»).
+- DNS: Cloudflare, Google, AdGuard, свой адрес или DoH.
+- Плитка в шторке уведомлений, подключение при запуске.
+- Перенос всех настроек на другой телефон (экспорт/импорт).
+- Светлая и тёмная темы и несколько цветовых.
 
-## FAQ
+## Частые вопросы
 
-**Can I use it together with another VPN (Tailscale, a work VPN)?**
-No. Android allows only one VPN at a time, and Detour takes that slot.
+**Можно включить вместе с другим VPN (Tailscale, корпоративным)?**
+Нет. Android разрешает только один VPN за раз, и Detour занимает это место.
 
-**Why won't it install?**
-Detour needs Android 10 or newer and a 64-bit (arm64) phone. Old 32-bit phones are not supported.
+**Почему приложение не ставится?**
+Нужен Android 10 или новее и 64-битный телефон (arm64). На старых 32-битных телефонах Detour не работает.
 
-**Google Play Protect shows a warning.**
-Detour is not distributed through Google Play, so Play Protect does not know it. Download the APK only from this repository's [releases page](https://github.com/arttvad9r/detour/releases). Each APK comes with a `.sha256` file you can use to check that it was not tampered with.
+**Google Play Protect предупреждает об опасности.**
+Detour распространяется не через Google Play, поэтому Play Protect его не знает. Скачивайте APK только со [страницы релизов](https://github.com/arttvad9r/detour/releases) этого репозитория. Рядом лежит файл `.sha256`, по нему можно проверить, что APK не подменили.
 
-**What does Detour know about me?**
-It sends nothing: no analytics, no crash reports, no account. Keys and settings stay on the phone, encrypted. Details: [privacy policy](PRIVACY.md).
+**Что Detour знает обо мне?**
+Ничего не отправляет: ни аналитики, ни отчётов об ошибках, аккаунт не нужен. Ключи и настройки хранятся только на телефоне в зашифрованном виде. Подробнее: [политика приватности](PRIVACY.md).
 
-**YouTube is still slow through DPI.**
-DPI bypass depends on your ISP. Open **Settings → DPI bypass → Proxy Test**, find a strategy that works for you and apply it.
+**YouTube всё равно тормозит через DPI.**
+Обход DPI зависит от провайдера. Откройте **Настройки → Обход DPI → Тест стратегий**, найдите стратегию, которая работает у вас, и примените её.
 
-## For developers
+## Для разработчиков
 
-Kotlin and Jetpack Compose, with the tunnel on Android `VpnService`. VPN traffic is handled by an embedded [Mihomo](https://github.com/MetaCubeX/mihomo), DPI bypass by [ByeDPI](https://github.com/hufrea/byedpi). Both are built from source at pinned versions.
+Kotlin и Jetpack Compose, туннель на Android `VpnService`. VPN-трафик обрабатывает встроенный [Mihomo](https://github.com/MetaCubeX/mihomo), обход DPI — [ByeDPI](https://github.com/hufrea/byedpi). Оба собираются из исходников с зафиксированными версиями.
 
-[Architecture](docs/architecture.md) · [Build and tests](docs/testing.md) · [Component versions](docs/pins.md) · [Releasing](docs/releasing.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md)
+[Архитектура](docs/architecture.md) · [Сборка и тесты](docs/testing.md) · [Версии компонентов](docs/pins.md) · [Релизы](docs/releasing.md) · [Участие](CONTRIBUTING.md) · [Безопасность](SECURITY.md) · [Изменения](CHANGELOG.md)
 
-Detour code is licensed under [MIT](LICENSE). Embedded components keep their own licenses, listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+Код Detour распространяется по лицензии [MIT](LICENSE). У встроенных компонентов свои лицензии, они перечислены в [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
