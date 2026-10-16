@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -49,6 +50,7 @@ internal fun SettingsMenuScreen(
     onOpenDns: () -> Unit,
     onOpenBackup: () -> Unit,
     onBack: () -> Unit,
+    onOpenSetup: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -158,6 +160,16 @@ internal fun SettingsMenuScreen(
                 SettingsSectionDivider()
                 SettingsSectionLabel(R.string.settings_section_app)
                 SettingsRows(listOf(backup, appearance), selectedSection)
+                GroupDivider(startInset = NavigationRowDividerInset)
+                DetourNavigationRow(
+                    title = stringResource(R.string.setup_title),
+                    subtitle = stringResource(R.string.setup_menu_hint),
+                    iconRes = R.drawable.ic_routes,
+                    titleMaxLines = 2,
+                    subtitleMaxLines = 2,
+                    onClick = onOpenSetup,
+                    modifier = Modifier.testTag("open-setup"),
+                )
             }
 
             Text(

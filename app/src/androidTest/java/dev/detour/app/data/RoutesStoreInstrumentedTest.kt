@@ -37,6 +37,28 @@ class RoutesStoreInstrumentedTest {
         "&pbk=SbVKOEMjK0sIlbwg4akyBg5mL5KZwwB-ed4eEE7YnRc&sid=6ba85179" +
         "&flow=xtls-rprx-vision"
 
+    @Test fun setupCompletionSurvivesSettingsRestore() = runBlocking {
+        val before = store.snapshot()
+        try {
+            store.setOnboardingStarted()
+            store.setOnboardingCompleted()
+            val backup = SettingsBackup.Backup(
+                vlessKeys = before.vlessKeys, wireGuardProfiles = before.wireGuardProfiles,
+                activeVpn = before.activeVpn, presetId = before.preset.id, dpiCustomArgs = before.dpiCustomArgs,
+                themeId = before.themeId, dnsId = before.dnsId, dnsCustom = before.dnsCustom,
+                showSystemApps = before.showSystemApps, routes = before.routes.mapValues { it.value.name },
+            )
+            store.restoreBackup(backup)
+            assertTrue(store.snapshot().onboardingCompleted)
+            assertTrue(store.snapshot().onboardingStarted)
+            assertFalse(SettingsBackup.toJson(backup).contains("onboarding"))
+        } finally {
+            store.setOnboardingStarted(before.onboardingStarted)
+            store.setOnboardingCompleted(before.onboardingCompleted)
+            store.setAutoConnect(before.autoConnect)
+        }
+    }
+
     @Test fun bulkRoutesPreserveUnrelatedAppsAndRemoveDirectOverrides() = runBlocking {
         val before = store.snapshot()
         val bank = "dev.detour.fixture.bank"

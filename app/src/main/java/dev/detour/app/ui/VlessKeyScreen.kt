@@ -87,7 +87,14 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun VlessKeyScreen(
+    viewModel: ProfilesViewModel,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    setupGoal: SetupGoal? = null,
+    canContinue: Boolean = false,
+    onContinue: (() -> Unit)? = null,
+) {
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboard.current
@@ -188,6 +195,19 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
         showEditor = true
     }
 
+    var setupActionConsumed by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(setupGoal) {
+        if (setupGoal != null && !setupActionConsumed) {
+            setupActionConsumed = true
+            when (setupGoal) {
+                SetupGoal.VLESS -> beginEditor(subscription = false)
+                SetupGoal.SUBSCRIPTION -> beginEditor(subscription = true)
+                SetupGoal.WARP -> showAddMenu = true
+                SetupGoal.DPI -> Unit
+            }
+        }
+    }
+
     fun dismissEditor() {
         scope.launch {
             runCatching { editorSheetState.hide() }
@@ -241,15 +261,23 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
         containerColor = c.background,
         bottomBar = {
             if (!showEditor && !importBusy) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
+                Column(
+                    Modifier.fillMaxWidth().navigationBarsPadding()
                         .padding(horizontal = Spacing.space16, vertical = Spacing.space8),
                 ) {
+                    if (onContinue != null) {
+                        DetourButton(
+                            text = stringResource(R.string.setup_continue),
+                            enabled = canContinue,
+                            onClick = onContinue,
+                            modifier = Modifier.testTag("setup-profile-continue"),
+                        )
+                        Spacer(Modifier.height(Spacing.space4))
+                    }
                     DetourButton(
                         text = stringResource(R.string.profile_add_action),
                         onClick = { showAddMenu = true },
+                        style = if (onContinue == null) ButtonStyle.PRIMARY else ButtonStyle.SECONDARY,
                     )
                 }
             }
@@ -268,6 +296,14 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
             DetourContentColumn {
                 Spacer(Modifier.height(Spacing.space8))
 
+                if (setupGoal != null) {
+                    Text(
+                        stringResource(R.string.setup_profiles_hint),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = c.textSecondary,
+                        modifier = Modifier.padding(horizontal = Spacing.space20, vertical = Spacing.space8),
+                    )
+                }
                 val hasProfiles = groups.vless.isNotEmpty() ||
                     groups.subscriptions.isNotEmpty() ||
                     groups.wireGuard.isNotEmpty()
@@ -377,20 +413,22 @@ fun VlessKeyScreen(viewModel: ProfilesViewModel, onBack: () -> Unit, modifier: M
                         onClick = ::pasteAmneziaInvite,
                     )
                     GroupDivider(startInset = NavigationRowDividerInset)
-                    DetourNavigationRow(
-                        title = stringResource(R.string.profile_add_vless_action),
-                        subtitle = stringResource(R.string.profile_add_vless_hint),
-                        iconRes = R.drawable.ic_lock,
-                        onClick = { beginEditor(subscription = false) },
-                    )
-                    GroupDivider(startInset = NavigationRowDividerInset)
-                    DetourNavigationRow(
-                        title = stringResource(R.string.profile_add_subscription_action),
-                        subtitle = stringResource(R.string.profile_add_subscription_hint),
-                        iconRes = R.drawable.ic_globe,
-                        onClick = { beginEditor(subscription = true) },
-                    )
-                    GroupDivider(startInset = NavigationRowDividerInset)
+                    if (setupGoal != SetupGoal.WARP) {
+                        DetourNavigationRow(
+                            title = stringResource(R.string.profile_add_vless_action),
+                            subtitle = stringResource(R.string.profile_add_vless_hint),
+                            iconRes = R.drawable.ic_lock,
+                            onClick = { beginEditor(subscription = false) },
+                        )
+                        GroupDivider(startInset = NavigationRowDividerInset)
+                        DetourNavigationRow(
+                            title = stringResource(R.string.profile_add_subscription_action),
+                            subtitle = stringResource(R.string.profile_add_subscription_hint),
+                            iconRes = R.drawable.ic_globe,
+                            onClick = { beginEditor(subscription = true) },
+                        )
+                        GroupDivider(startInset = NavigationRowDividerInset)
+                    }
                     DetourNavigationRow(
                         title = stringResource(R.string.profile_import_file),
                         subtitle = stringResource(R.string.profile_import_file_hint),

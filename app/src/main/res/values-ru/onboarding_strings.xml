@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="setup_title">Начальная настройка</string>
+    <string name="setup_question">Что тебе нужно?</string>
+    <string name="setup_intro">Выбери, с чего начать. В одном подключении Detour каждому приложению можно назначить прямой маршрут, VPN или DPI.</string>
+    <string name="setup_goal_dpi">Только YouTube / DPI</string>
+    <string name="setup_goal_dpi_hint">Обход замедления без VPN-сервера. Результат зависит от сети.</string>
+    <string name="setup_goal_vless">У меня VLESS</string>
+    <string name="setup_goal_vless_hint">Вставь ключ vless:// от своего VPN-провайдера.</string>
+    <string name="setup_goal_subscription">У меня подписка</string>
+    <string name="setup_goal_subscription_hint">Добавь HTTPS-ссылку на подписку своего провайдера.</string>
+    <string name="setup_goal_warp">WARP / Amnezia</string>
+    <string name="setup_goal_warp_hint">Импортируй файл конфигурации или вставь ключ Amnezia.</string>
+    <string name="setup_skip">Настрою позже</string>
+    <string name="setup_profile">Выбрать VPN-профиль</string>
+    <string name="setup_profile_hint">Добавь или импортируй профиль, затем выбери его в списке.</string>
+    <string name="setup_profile_ready">Профиль выбран</string>
+    <string name="setup_apps">Выбрать приложения</string>
+    <string name="setup_apps_dpi">Назначь DPI приложениям, которым он нужен.</string>
+    <string name="setup_apps_vpn">Назначь VPN приложениям, которым он нужен.</string>
+    <string name="setup_apps_ready">Приложений на этом маршруте: %1$d</string>
+    <string name="setup_permission_hint">Когда всё готово, нажми «Подключить». Android попросит разрешение на VPN. Одновременно с Detour другой VPN работать не сможет.</string>
+    <string name="setup_existing_vpn">Некоторым приложениям уже назначен VPN. Выбери VPN-профиль или верни им прямой маршрут.</string>
+    <string name="setup_dpi_test">Подобрать стратегию DPI</string>
+    <string name="setup_connected">Подключено. Всё готово к работе.</string>
+    <string name="setup_done">На главный экран</string>
+    <string name="setup_cancel_connect">Отменить подключение</string>
+    <string name="setup_saving">Сохранение…</string>
+    <string name="setup_save_error">Не удалось завершить настройку. Повтори попытку.</string>
+    <string name="setup_continue">Продолжить</string>
+    <string name="setup_profiles_hint">Выбери профиль в списке и нажми «Продолжить».</string>
+    <string name="setup_menu_hint">Помощь с первым подключением</string>
+</resources>

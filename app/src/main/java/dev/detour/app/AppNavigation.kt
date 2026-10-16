@@ -12,6 +12,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
@@ -52,6 +54,12 @@ import dev.detour.app.ui.HomeViewModel
 import dev.detour.app.ui.Motion
 import dev.detour.app.ui.ProfileDeleteConfirmationDialog
 import dev.detour.app.ui.ProfilesViewModel
+import dev.detour.app.ui.OnboardingViewModel
+import dev.detour.app.ui.OnboardingScreen
+import dev.detour.app.ui.SetupGoal
+import dev.detour.app.ui.shouldOfferOnboarding
+import dev.detour.app.ui.setupProfileReady
+import dev.detour.app.ui.rememberManualVpnActions
 import dev.detour.app.ui.SettingsMenuScreen
 import dev.detour.app.ui.SettingsSection
 import dev.detour.app.ui.SettingsMenuViewModel
@@ -74,6 +82,15 @@ import kotlinx.serialization.Serializable
 internal sealed interface AppDestination : NavKey {
     @Serializable
     data object Home : AppDestination
+
+    @Serializable
+    data object Setup : AppDestination
+
+    @Serializable
+    data class SetupProfiles(val goal: SetupGoal) : AppDestination
+
+    @Serializable
+    data class SetupRoutes(val goal: SetupGoal) : AppDestination
 
     @Serializable
     data object Settings : AppDestination
@@ -104,6 +121,9 @@ private fun AppDestination.settingsSectionOrNull(): SettingsSection? = when (thi
     AppDestination.Dns -> SettingsSection.DNS
     AppDestination.Backup -> SettingsSection.BACKUP
     AppDestination.Theme -> SettingsSection.APPEARANCE
+    AppDestination.Setup,
+    is AppDestination.SetupProfiles,
+    is AppDestination.SetupRoutes,
     AppDestination.Home,
     AppDestination.Settings,
     -> null
@@ -117,6 +137,9 @@ private fun AppDestination.isSettingsDetail(): Boolean = when (this) {
     AppDestination.Dns,
     AppDestination.Backup,
     -> true
+    AppDestination.Setup,
+    is AppDestination.SetupProfiles,
+    is AppDestination.SetupRoutes,
     AppDestination.Home,
     AppDestination.Settings,
     -> false
@@ -129,8 +152,33 @@ internal fun DetourNavigation(
     appContext: Context,
     modifier: Modifier = Modifier,
 ) {
+    val settings by store.settings.collectAsStateWithLifecycle()
+    val snapshot = settings
+    if (snapshot == null) {
+        Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        return
+    }
+    val setupViewModel = viewModel<OnboardingViewModel>(factory = OnboardingViewModel.factory(store) { routes ->
+        withContext(Dispatchers.IO) { resolveEffectiveRoutes(appContext.packageManager, routes) }
+    })
+    val setupCompletion by setupViewModel.completion.collectAsStateWithLifecycle()
     val autoConnectLaunchViewModel = viewModel<AutoConnectLaunchViewModel>()
-    val backStack = rememberNavBackStack(AppDestination.Home)
+    val initialDestination = remember {
+        if (shouldOfferOnboarding(snapshot)) AppDestination.Setup else AppDestination.Home
+    }
+    val backStack = rememberNavBackStack(initialDestination)
+    LaunchedEffect(setupViewModel, initialDestination) {
+        if (initialDestination == AppDestination.Setup && !snapshot.onboardingStarted) {
+            setupViewModel.beginAutomaticSetup()
+        }
+    }
+    LaunchedEffect(setupCompletion.finished) {
+        if (setupCompletion.finished) {
+            backStack.clear()
+            backStack.add(AppDestination.Home)
+            setupViewModel.acknowledgeCompletion()
+        }
+    }
     val listDetailStrategy = rememberListDetailSceneStrategy<NavKey>()
     val currentDestination = backStack.lastOrNull()
     var previousDestination by remember { mutableStateOf<NavKey?>(null) }
@@ -226,6 +274,45 @@ internal fun DetourNavigation(
             )
         },
         entryProvider = entryProvider {
+            entry<AppDestination.Setup> {
+                val setupState by setupViewModel.uiState.collectAsStateWithLifecycle()
+                val vpnState by VpnController.state.collectAsStateWithLifecycle()
+                val snackbar = remember { SnackbarHostState() }
+                val actions = rememberManualVpnActions(vpnState, snackbar)
+                androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                    setupViewModel.refreshRoutes()
+                }
+                OnboardingScreen(
+                    state = setupState,
+                    completion = setupCompletion,
+                    vpnState = vpnState,
+                    snackbar = snackbar,
+                    onChooseGoal = setupViewModel::chooseGoal,
+                    onOpenProfiles = { backStack.add(AppDestination.SetupProfiles(setupState.goal ?: SetupGoal.DPI)) },
+                    onOpenRoutes = { backStack.add(AppDestination.SetupRoutes(setupState.goal ?: SetupGoal.DPI)) },
+                    onOpenDpi = { backStack.add(AppDestination.Dpi) },
+                    onConnect = actions.start,
+                    onCancelConnect = actions.stop,
+                    onFinish = setupViewModel::complete,
+                    onSkip = setupViewModel::complete,
+                )
+            }
+            entry<AppDestination.SetupProfiles> { key ->
+                ProfilesDestination(
+                    store, appContext, popBack, setupGoal = key.goal,
+                    canContinue = snapshot.activeVpnConfigured && setupProfileReady(snapshot, key.goal),
+                    onContinue = popBack,
+                )
+            }
+            entry<AppDestination.SetupRoutes> { key ->
+                val setupState by setupViewModel.uiState.collectAsStateWithLifecycle()
+                RoutesDestination(
+                    store, appContext, popBack, setupRoute = key.goal.route,
+                    canContinue = setupState.routedCount > 0 && !setupState.routeConflict,
+                    onContinue = popBack,
+                )
+            }
+
             entry<AppDestination.Home> {
                 val homeViewModel = viewModel<HomeViewModel>(
                     factory = HomeViewModel.factory(
@@ -278,54 +365,19 @@ internal fun DetourNavigation(
                     onOpenDns = { openSettingsDetail(AppDestination.Dns) },
                     onOpenBackup = { openSettingsDetail(AppDestination.Backup) },
                     onBack = popBack,
+                    onOpenSetup = {
+                        setupViewModel.chooseGoal(null)
+                        backStack.add(AppDestination.Setup)
+                    },
                 )
             }
 
             entry<AppDestination.Routes>(metadata = ListDetailSceneStrategy.detailPane()) {
-                val appsViewModel = viewModel<AppsViewModel>(
-                    factory = AppsViewModel.factory(
-                        store = store,
-                        initialApps = AppInventory.peek(),
-                        loadApps = {
-                            withContext(Dispatchers.IO) {
-                                AppInventory.load(appContext)
-                            }
-                        },
-                        restartTunnel = { VpnController.restartIfActive(appContext) },
-                    ),
-                )
-                AppsScreen(appsViewModel, onBack = popBack)
+                RoutesDestination(store, appContext, popBack)
             }
 
             entry<AppDestination.Vless>(metadata = ListDetailSceneStrategy.detailPane()) {
-                val profilesViewModel = viewModel<ProfilesViewModel>(
-                    factory = ProfilesViewModel.factory(
-                        store = store,
-                        loadWarpConfig = { uri ->
-                            withContext(Dispatchers.IO) {
-                                readWarpDocument(appContext, uri)
-                            }
-                        },
-                        restartTunnel = { VpnController.restartIfActive(appContext) },
-                        stopTunnelIfRunning = {
-                            if (
-                                VpnController.state.value == VpnState.Active ||
-                                VpnController.state.value == VpnState.Starting
-                            ) {
-                                VpnController.stop(appContext)
-                            }
-                        },
-                    ),
-                )
-                val pendingDelete by profilesViewModel.pendingDelete.collectAsStateWithLifecycle()
-                VlessKeyScreen(profilesViewModel, onBack = popBack)
-                pendingDelete?.let { request ->
-                    ProfileDeleteConfirmationDialog(
-                        request = request,
-                        onConfirm = profilesViewModel::confirmDelete,
-                        onDismiss = profilesViewModel::dismissDelete,
-                    )
-                }
+                ProfilesDestination(store, appContext, popBack)
             }
 
             entry<AppDestination.Dpi>(metadata = ListDetailSceneStrategy.detailPane()) {
@@ -389,4 +441,63 @@ internal fun DetourNavigation(
 @Composable
 private fun SettingsDetailPlaceholder() {
     dev.detour.app.ui.SettingsDetailEmptyState()
+}
+
+@Composable
+private fun RoutesDestination(
+    store: RoutesStore, appContext: Context, popBack: () -> Unit,
+    setupRoute: dev.detour.app.core.AppRoute? = null,
+    canContinue: Boolean = false, onContinue: (() -> Unit)? = null,
+) {
+    val appsViewModel = viewModel<AppsViewModel>(
+        factory = AppsViewModel.factory(
+            store = store,
+            initialApps = AppInventory.peek(),
+            loadApps = {
+                withContext(Dispatchers.IO) {
+                    AppInventory.load(appContext)
+                }
+            },
+            restartTunnel = { VpnController.restartIfActive(appContext) },
+        ),
+    )
+    AppsScreen(appsViewModel, onBack = popBack, setupRoute = setupRoute,
+        canContinue = canContinue, onContinue = onContinue)
+}
+
+@Composable
+private fun ProfilesDestination(
+    store: RoutesStore, appContext: Context, popBack: () -> Unit,
+    setupGoal: SetupGoal? = null,
+    canContinue: Boolean = false, onContinue: (() -> Unit)? = null,
+) {
+    val profilesViewModel = viewModel<ProfilesViewModel>(
+        factory = ProfilesViewModel.factory(
+            store = store,
+            loadWarpConfig = { uri ->
+                withContext(Dispatchers.IO) {
+                    readWarpDocument(appContext, uri)
+                }
+            },
+            restartTunnel = { VpnController.restartIfActive(appContext) },
+            stopTunnelIfRunning = {
+                if (
+                    VpnController.state.value == VpnState.Active ||
+                    VpnController.state.value == VpnState.Starting
+                ) {
+                    VpnController.stop(appContext)
+                }
+            },
+        ),
+    )
+    val pendingDelete by profilesViewModel.pendingDelete.collectAsStateWithLifecycle()
+    VlessKeyScreen(profilesViewModel, onBack = popBack, setupGoal = setupGoal,
+        canContinue = canContinue, onContinue = onContinue)
+    pendingDelete?.let { request ->
+        ProfileDeleteConfirmationDialog(
+            request = request,
+            onConfirm = profilesViewModel::confirmDelete,
+            onDismiss = profilesViewModel::dismissDelete,
+        )
+    }
 }

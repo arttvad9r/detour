@@ -1,8 +1,5 @@
 package dev.detour.app.ui
 
-import android.app.Activity
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -42,13 +39,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -65,10 +60,8 @@ import androidx.window.core.layout.WindowSizeClass.Companion.WIDTH_DP_EXPANDED_L
 import dev.detour.app.R
 import dev.detour.app.core.DnsOptions
 import dev.detour.app.core.VpnProfileKind
-import dev.detour.app.vpn.VpnController
 import dev.detour.app.vpn.VpnState
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 private const val HOME_PROFILE_ROW_TEST_TAG = "home_profile_row"
 
@@ -115,7 +108,6 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val ctx = LocalContext.current
     val haptics = LocalHapticFeedback.current
     val st = uiState.vpnState
     val c = detourColors
@@ -163,34 +155,18 @@ fun HomeScreen(
     )
 
     val snackbarHostState = remember { SnackbarHostState() }
-    val notificationPermissionTracker = rememberManualNotificationPermissionTracker(
-        vpnState = st,
-        snackbarHostState = snackbarHostState,
-    )
-    val scope = rememberCoroutineScope()
-    val permissionNotGrantedMessage = stringResource(R.string.err_vpn_permission)
-    val consentLauncher = rememberLauncherForActivityResult(StartActivityForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            VpnController.startNow(ctx)
-        } else {
-            notificationPermissionTracker.cancel()
-            scope.launch { snackbarHostState.showSnackbar(permissionNotGrantedMessage) }
-        }
-    }
+    val connectionActions = rememberManualVpnActions(st, snackbarHostState)
     val canCancelStarting = st == VpnState.Starting && showStarting
     val onMainAction: () -> Unit = {
         when {
             st == VpnState.Active -> {
-                notificationPermissionTracker.cancel()
-                VpnController.stop(ctx)
+                connectionActions.stop()
             }
             canCancelStarting -> {
-                notificationPermissionTracker.cancel()
-                VpnController.stop(ctx)
+                connectionActions.stop()
             }
             st != VpnState.Starting -> {
-                notificationPermissionTracker.begin()
-                VpnController.start(ctx, consentLauncher::launch)
+                connectionActions.start()
             }
         }
     }

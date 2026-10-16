@@ -64,6 +64,8 @@ data class TriSettings(
     val showSystemApps: Boolean,
     val sessionStartedAt: Long?,
     val wireGuardProfiles: WireGuardProfiles = WireGuardProfiles.fromLegacy(warpProfile),
+    val onboardingCompleted: Boolean = false,
+    val onboardingStarted: Boolean = false,
 ) {
     val vlessUri: String get() = vlessKeys.active?.uri ?: ""
     val activeVpnConfigured: Boolean get() = when (activeVpn) {
@@ -87,6 +89,8 @@ object RoutesMapping {
     private const val KEY_SHOW_SYSTEM = "show_system_apps"
     private const val KEY_VLESS_MIGRATED = "vless_legacy_migrated"
     private const val KEY_SENSITIVE_MIGRATED = "sensitive_storage_v1_migrated"
+    private const val KEY_ONBOARDING_STARTED = "onboarding_started"
+    private const val KEY_ONBOARDING_COMPLETED = "onboarding_completed"
     private const val PREFIX_ROUTE = "route:"
 
     /** Pure mapping DataStore-snapshot -> settings. JVM-tested. */
@@ -119,9 +123,13 @@ object RoutesMapping {
             showSystemApps = entries[KEY_SHOW_SYSTEM] as? Boolean ?: false,
             sessionStartedAt = entries[KEY_SESSION_STARTED] as? Long,
             wireGuardProfiles = wireGuardProfiles,
+            onboardingCompleted = entries[KEY_ONBOARDING_COMPLETED] as? Boolean ?: false,
+            onboardingStarted = entries[KEY_ONBOARDING_STARTED] as? Boolean ?: false,
         )
     }
 
+    fun onboardingStartedKey() = booleanPreferencesKey(KEY_ONBOARDING_STARTED)
+    fun onboardingCompletedKey() = booleanPreferencesKey(KEY_ONBOARDING_COMPLETED)
     fun routeKey(pkg: String) = stringPreferencesKey(PREFIX_ROUTE + pkg)
     fun uriKey() = stringPreferencesKey(KEY_URI)
     fun keysKey() = stringPreferencesKey(KEY_KEYS)
@@ -221,6 +229,12 @@ class RoutesStore(context: Context) {
 
     suspend fun setSessionStartedAt(value: Long?) = store.edit {
         if (value == null) it.remove(RoutesMapping.sessionStartedAtKey()) else it[RoutesMapping.sessionStartedAtKey()] = value
+    }
+    suspend fun setOnboardingStarted(started: Boolean = true) = store.edit {
+        it[RoutesMapping.onboardingStartedKey()] = started
+    }
+    suspend fun setOnboardingCompleted(completed: Boolean = true) = store.edit {
+        it[RoutesMapping.onboardingCompletedKey()] = completed
     }
     suspend fun setShowSystemApps(value: Boolean) = store.edit { it[RoutesMapping.showSystemKey()] = value }
     suspend fun setVlessKeys(keys: VlessKeys) = store.edit { prefs ->

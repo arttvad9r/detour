@@ -93,7 +93,14 @@ private val DenseAppContentGap = Spacing.space8
 private const val DenseAppRowDividerInset = 52
 
 @Composable
-fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun AppsScreen(
+    viewModel: AppsViewModel,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    setupRoute: AppRoute? = null,
+    canContinue: Boolean = false,
+    onContinue: (() -> Unit)? = null,
+) {
     val haptics = LocalHapticFeedback.current
     val c = detourColors
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -196,6 +203,14 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
                     .fillMaxWidth()
                     .padding(horizontal = Spacing.space16),
             ) {
+                if (setupRoute != null) {
+                    Text(
+                        stringResource(if (setupRoute == AppRoute.DPI) R.string.setup_apps_dpi else R.string.setup_apps_vpn),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = c.textSecondary,
+                        modifier = Modifier.padding(Spacing.space12),
+                    )
+                }
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -392,6 +407,17 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
                         item { Spacer(Modifier.height(Spacing.space8)) }
                     }
                 }
+            }
+        }
+        if (!selecting && onContinue != null) {
+            DetourContentColumn {
+                DetourButton(
+                    text = stringResource(R.string.setup_continue),
+                    enabled = canContinue && !writeState.saving,
+                    onClick = onContinue,
+                    modifier = Modifier.padding(horizontal = Spacing.space16, vertical = Spacing.space8)
+                        .testTag("setup-routes-continue"),
+                )
             }
         }
         if (selecting) {

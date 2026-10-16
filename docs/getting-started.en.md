@@ -45,6 +45,17 @@ For a subscription you can pick a specific server, search the list and test ping
 
 > Keys, subscriptions and config files are your VPN passwords. Do not post them publicly.
 
+## Quick setup
+
+On a clean installation, choose DPI-only, a VLESS key, a subscription or WARP/Amnezia.
+The guide opens the matching profile form and app routes. After importing, select the
+profile in the list, assign VPN or DPI to your apps and tap **Continue** to return to
+the guide. Tap **Connect**, approve Android VPN permission and use **Go to Home** once
+connected to finish.
+
+You can skip the guide and reopen it from **Settings → Quick setup**.
+It does not open automatically when updating an already configured installation.
+
 ## Choose routes
 
 Open **App routes** (on Home or in Settings) and pick a route for each app:

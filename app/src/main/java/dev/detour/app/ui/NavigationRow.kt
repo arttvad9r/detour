@@ -32,6 +32,8 @@ fun DetourNavigationRow(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     selectedBackground: Boolean = false,
+    titleMaxLines: Int = 1,
+    subtitleMaxLines: Int = 1,
     trailing: @Composable (() -> Unit)? = null,
 ) {
     val c = detourColors
@@ -73,7 +75,7 @@ fun DetourNavigationRow(
                 text = title,
                 style = MaterialTheme.typography.titleSmall,
                 color = c.textPrimary,
-                maxLines = 1,
+                maxLines = titleMaxLines,
                 overflow = TextOverflow.Ellipsis,
             )
             if (!subtitle.isNullOrBlank()) {
@@ -81,7 +83,7 @@ fun DetourNavigationRow(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
                     color = c.textSecondary,
-                    maxLines = 1,
+                    maxLines = subtitleMaxLines,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = NavigationRowSubtitleGap),
                 )

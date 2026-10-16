@@ -8,6 +8,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
+import org.junit.Before
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithContentDescription
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -18,6 +22,17 @@ class MainActivitySmokeTest {
 
     @get:Rule
     val rule = createAndroidComposeRule<MainActivity>()
+
+    @Before fun skipFirstRunForExistingScreenChecks() {
+        rule.waitUntil(10_000) {
+            rule.onAllNodesWithTag("setup-skip").fetchSemanticsNodes().isNotEmpty() ||
+                rule.onAllNodesWithContentDescription(rule.activity.getString(R.string.cd_settings))
+                    .fetchSemanticsNodes().isNotEmpty()
+        }
+        if (rule.onAllNodesWithTag("setup-skip").fetchSemanticsNodes().isNotEmpty()) {
+            rule.onNodeWithTag("setup-skip").performClick()
+        }
+    }
 
     @Test fun homeShowsConnectControl() {
         rule.onNodeWithText(rule.activity.getString(R.string.btn_connect)).assertIsDisplayed()
