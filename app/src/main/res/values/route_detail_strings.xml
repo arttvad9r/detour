@@ -1,0 +1,29 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+  <string name="route_detail_title">App route</string>
+  <string name="route_detail_assigned">Assigned route</string>
+  <string name="route_detail_direct_path">App → internet directly, outside Detour.</string>
+  <string name="route_detail_vpn_path">App → Detour → selected VPN profile → internet.</string>
+  <string name="route_detail_dpi_path">App → Detour → DPI bypass → internet. DPI does not hide your IP address.</string>
+  <string name="route_detail_readiness">Configuration check</string>
+  <string name="route_detail_checking">Checking the app and route…</string>
+  <string name="route_detail_unavailable">Could not check this route. Try again.</string>
+  <string name="route_detail_removed">This app is no longer installed. Its saved route is not used.</string>
+  <string name="route_detail_direct_ready">Detour does not handle this app. No VPN profile or Detour connection is needed.</string>
+  <string name="route_detail_excluded">Detour cannot route its own connection. Set this app to Direct.</string>
+  <string name="route_detail_shared_uid">Android shares this app’s system identity with other apps. Detour cannot safely apply this assignment. Set it to Direct or assign the same route to the whole group. Some system groups support only Direct.</string>
+  <string name="route_detail_other_conflict">A route conflict in another app group prevents Detour from connecting. Review system app assignments; set conflicting apps to Direct or give the whole group the same route.</string>
+  <string name="route_detail_missing_profile">A VPN profile must be explicitly selected before Detour can connect. This also applies to DPI apps when another app is assigned to VPN.</string>
+  <string name="route_detail_invalid_dpi">The custom DPI strategy is invalid. Fix it or choose a preset before connecting. This affects the whole Detour connection.</string>
+  <string name="route_detail_configured">The app assignment is valid and the required profile or DPI settings are present. A successful connection still depends on the network.</string>
+  <string name="route_detail_idle">Detour is disconnected. VPN and DPI routes are not operating.</string>
+  <string name="route_detail_starting">Detour is connecting. The route is not confirmed yet.</string>
+  <string name="route_detail_active">Detour is connected.</string>
+  <string name="route_detail_failed">The Detour connection failed. Open the connection screen for details and retry.</string>
+  <string name="route_detail_not_live">This screen shows saved assignments and connection status, not live traffic. After a route change, wait for Detour to reconnect.</string>
+  <string name="route_detail_edit">Back to app routes</string>
+  <string name="route_detail_profiles">Choose VPN profile</string>
+  <string name="route_detail_dpi_settings">DPI settings and test</string>
+  <string name="route_detail_connection">Open connection</string>
+  <string name="route_detail_profile_name">Selected profile: %1$s</string>
+</resources>

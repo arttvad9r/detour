@@ -7,6 +7,9 @@ import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import dev.detour.app.core.AppRoute
@@ -100,4 +103,29 @@ class OnboardingNavigationTest {
         compose.onNodeWithText(compose.activity.getString(R.string.profile_add_amnezia)).assertIsDisplayed()
         compose.onNodeWithText(compose.activity.getString(R.string.profile_add_vless_action)).assertDoesNotExist()
     }
+
+    @Test fun appRouteDetailSurvivesRecreationAndRefreshesProfileRequirements() {
+        choose("DPI")
+        compose.onNodeWithTag("setup-apps").performClick()
+        runBlocking { store.setShowSystemApps(true) }
+        val app = dev.detour.app.data.AppInventory.load(context).first { candidate ->
+            candidate.packageName in dev.detour.app.vpn.resolveEffectiveRoutes(
+                context.packageManager, mapOf(candidate.packageName to AppRoute.DPI),
+            ).dpiPackages
+        }
+        compose.onNode(hasSetTextAction()).performTextInput(app.packageName)
+        compose.onNodeWithTag("app-detail-${app.packageName}").performClick()
+        compose.onNodeWithText(compose.activity.getString(R.string.route_detail_direct_ready)).assertIsDisplayed()
+        compose.activityRule.scenario.recreate()
+        compose.onNodeWithTag("app-route-detail").assertIsDisplayed()
+        runBlocking { store.setRoute(app.packageName, AppRoute.VPN) }
+        compose.onNodeWithText(compose.activity.getString(R.string.route_detail_profiles))
+            .performScrollTo().performClick()
+        compose.onNodeWithContentDescription(compose.activity.getString(R.string.cd_back)).performClick()
+        compose.onNodeWithTag("app-route-detail").assertIsDisplayed()
+        compose.onNodeWithContentDescription(compose.activity.getString(R.string.cd_back)).performClick()
+        compose.onNodeWithTag("setup-routes-continue").assertIsNotEnabled()
+        compose.onNodeWithTag("app-detail-${app.packageName}").assertIsDisplayed()
+    }
+
 }

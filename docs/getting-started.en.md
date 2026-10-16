@@ -72,6 +72,9 @@ To assign a route to several apps, tap **Select**, check individual apps or tap
 Only apps matching the current search and filters are selected. Changing the search,
 route filter or system-app visibility clears the selection.
 
+Tap an app name to see its assigned route, Detour connection state and anything
+that prevents connecting. This checks configuration; it does not monitor live traffic.
+
 ## Connect
 
 Tap **Connect** on Home. The first time, Android asks for VPN permission; allow it.

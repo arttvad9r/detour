@@ -1,0 +1,29 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+  <string name="route_detail_title">Маршрут приложения</string>
+  <string name="route_detail_assigned">Назначенный маршрут</string>
+  <string name="route_detail_direct_path">Приложение → интернет напрямую, вне Detour.</string>
+  <string name="route_detail_vpn_path">Приложение → Detour → выбранный VPN-профиль → интернет.</string>
+  <string name="route_detail_dpi_path">Приложение → Detour → обход DPI → интернет. DPI не скрывает ваш IP-адрес.</string>
+  <string name="route_detail_readiness">Проверка настройки</string>
+  <string name="route_detail_checking">Проверяем приложение и маршрут…</string>
+  <string name="route_detail_unavailable">Не удалось проверить маршрут. Попробуйте ещё раз.</string>
+  <string name="route_detail_removed">Приложение удалено. Его сохранённый маршрут не используется.</string>
+  <string name="route_detail_direct_ready">Detour не обрабатывает это приложение. Профиль VPN и подключение Detour не нужны.</string>
+  <string name="route_detail_excluded">Detour не может обрабатывать собственное соединение. Назначьте этому приложению Direct.</string>
+  <string name="route_detail_shared_uid">Android использует для этого и других приложений общий системный идентификатор. Detour не может безопасно применить назначение. Выберите Direct или назначьте всей группе один маршрут. Для некоторых системных групп доступен только Direct.</string>
+  <string name="route_detail_other_conflict">Конфликт маршрутов в другой группе приложений мешает подключению Detour. Проверьте назначения системных приложений: выберите Direct для конфликтующих приложений или один маршрут для всей группы.</string>
+  <string name="route_detail_missing_profile">Для подключения Detour нужно явно выбрать VPN-профиль. Это касается и приложений DPI, если другому приложению назначен VPN.</string>
+  <string name="route_detail_invalid_dpi">В пользовательской стратегии DPI есть ошибка. Исправьте её или выберите готовую перед подключением. Это влияет на всё подключение Detour.</string>
+  <string name="route_detail_configured">Назначение допустимо, нужный профиль или настройки DPI есть. Успешное подключение также зависит от сети.</string>
+  <string name="route_detail_idle">Detour отключён. Маршруты VPN и DPI не работают.</string>
+  <string name="route_detail_starting">Detour подключается. Работа маршрута пока не подтверждена.</string>
+  <string name="route_detail_active">Detour подключён.</string>
+  <string name="route_detail_failed">Подключение Detour завершилось ошибкой. Откройте экран подключения, чтобы узнать причину и повторить попытку.</string>
+  <string name="route_detail_not_live">Здесь показаны сохранённые назначения и состояние подключения, а не фактический трафик. После смены маршрута дождитесь переподключения Detour.</string>
+  <string name="route_detail_edit">К маршрутам приложений</string>
+  <string name="route_detail_profiles">Выбрать VPN-профиль</string>
+  <string name="route_detail_dpi_settings">Настройки и тест DPI</string>
+  <string name="route_detail_connection">Открыть подключение</string>
+  <string name="route_detail_profile_name">Выбранный профиль: %1$s</string>
+</resources>

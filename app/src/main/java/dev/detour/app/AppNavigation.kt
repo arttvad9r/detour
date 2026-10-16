@@ -99,6 +99,9 @@ internal sealed interface AppDestination : NavKey {
     data object Routes : AppDestination
 
     @Serializable
+    data class AppRouteDetail(val packageName: String) : AppDestination
+
+    @Serializable
     data object Vless : AppDestination
 
     @Serializable
@@ -115,7 +118,7 @@ internal sealed interface AppDestination : NavKey {
 }
 
 private fun AppDestination.settingsSectionOrNull(): SettingsSection? = when (this) {
-    AppDestination.Routes -> SettingsSection.ROUTES
+    AppDestination.Routes, is AppDestination.AppRouteDetail -> SettingsSection.ROUTES
     AppDestination.Vless -> SettingsSection.PROFILES
     AppDestination.Dpi -> SettingsSection.DPI
     AppDestination.Dns -> SettingsSection.DNS
@@ -131,6 +134,7 @@ private fun AppDestination.settingsSectionOrNull(): SettingsSection? = when (thi
 
 private fun AppDestination.isSettingsDetail(): Boolean = when (this) {
     AppDestination.Routes,
+    is AppDestination.AppRouteDetail,
     AppDestination.Vless,
     AppDestination.Dpi,
     AppDestination.Theme,
@@ -310,6 +314,7 @@ internal fun DetourNavigation(
                     store, appContext, popBack, setupRoute = key.goal.route,
                     canContinue = setupState.routedCount > 0 && !setupState.routeConflict,
                     onContinue = popBack,
+                    onOpenApp = { backStack.add(AppDestination.AppRouteDetail(it)) },
                 )
             }
 
@@ -373,7 +378,17 @@ internal fun DetourNavigation(
             }
 
             entry<AppDestination.Routes>(metadata = ListDetailSceneStrategy.detailPane()) {
-                RoutesDestination(store, appContext, popBack)
+                RoutesDestination(store, appContext, popBack,
+                    onOpenApp = { backStack.add(AppDestination.AppRouteDetail(it)) })
+            }
+
+            entry<AppDestination.AppRouteDetail>(metadata = ListDetailSceneStrategy.detailPane()) { key ->
+                dev.detour.app.ui.AppRouteDetailDestination(
+                    key.packageName, store, appContext, popBack,
+                    onOpenProfiles = { backStack.add(AppDestination.Vless) },
+                    onOpenDpi = { backStack.add(AppDestination.Dpi) },
+                    onOpenConnection = { backStack.add(AppDestination.Home) },
+                )
             }
 
             entry<AppDestination.Vless>(metadata = ListDetailSceneStrategy.detailPane()) {
@@ -448,6 +463,7 @@ private fun RoutesDestination(
     store: RoutesStore, appContext: Context, popBack: () -> Unit,
     setupRoute: dev.detour.app.core.AppRoute? = null,
     canContinue: Boolean = false, onContinue: (() -> Unit)? = null,
+    onOpenApp: (String) -> Unit = {},
 ) {
     val appsViewModel = viewModel<AppsViewModel>(
         factory = AppsViewModel.factory(
@@ -462,7 +478,7 @@ private fun RoutesDestination(
         ),
     )
     AppsScreen(appsViewModel, onBack = popBack, setupRoute = setupRoute,
-        canContinue = canContinue, onContinue = onContinue)
+        canContinue = canContinue, onContinue = onContinue, onOpenApp = onOpenApp)
 }
 
 @Composable

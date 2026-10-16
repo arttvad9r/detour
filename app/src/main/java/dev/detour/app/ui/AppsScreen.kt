@@ -100,6 +100,7 @@ fun AppsScreen(
     setupRoute: AppRoute? = null,
     canContinue: Boolean = false,
     onContinue: (() -> Unit)? = null,
+    onOpenApp: (String) -> Unit = {},
 ) {
     val haptics = LocalHapticFeedback.current
     val c = detourColors
@@ -392,6 +393,7 @@ fun AppsScreen(
                                         } else selectedPackages + app.packageName
                                     },
                                     onSelect = { route -> viewModel.setAppRoute(app.packageName, route) },
+                                    onOpen = { onOpenApp(app.packageName) },
                                 )
                                 if (index < apps.lastIndex) {
                                     Box(
@@ -543,6 +545,7 @@ private fun AppRow(
     selectionEnabled: Boolean,
     onToggle: () -> Unit,
     onSelect: (AppRoute) -> Unit,
+    onOpen: () -> Unit,
 ) {
     val ctx = LocalContext.current
     val density = LocalDensity.current
@@ -593,7 +596,10 @@ private fun AppRow(
                     app = app,
                     bitmap = bitmap,
                     compact = true,
-                    modifier = Modifier.weight(1f),
+                    showChevron = true,
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                        .testTag("app-detail-${app.packageName}")
+                        .detourClickable(onClick = onOpen, role = Role.Button),
                 )
                 Spacer(Modifier.width(DenseAppContentGap))
                 CompactRouteSelector(
@@ -608,7 +614,10 @@ private fun AppRow(
                     .fillMaxWidth()
                     .padding(horizontal = Spacing.space12, vertical = Spacing.space8),
             ) {
-                AppIdentity(app = app, bitmap = bitmap, compact = false)
+                AppIdentity(app = app, bitmap = bitmap, compact = false, showChevron = true,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                        .testTag("app-detail-${app.packageName}")
+                        .detourClickable(onClick = onOpen, role = Role.Button))
                 Spacer(Modifier.height(Spacing.space8))
                 SegmentedControl(
                     options = AppRoute.entries.map { stringResource(routeLabel(it)) },
@@ -626,6 +635,7 @@ private fun AppIdentity(
     bitmap: Bitmap?,
     compact: Boolean,
     modifier: Modifier = Modifier,
+    showChevron: Boolean = false,
 ) {
     val c = detourColors
     val tileSize = if (compact) DenseAppTileSize else 38.dp
@@ -673,6 +683,7 @@ private fun AppIdentity(
                 )
             }
         }
+        if (showChevron) Chevron()
     }
 }
 
