@@ -2,9 +2,23 @@
 
 All notable user-facing changes to Detour are recorded here.
 
-## Unreleased
+## 0.4.3 — 2026-10-16
 
-No user-facing changes have been recorded after the current public release yet.
+### Added
+- Filter apps by route and assign Direct, VPN or DPI to several apps at once, including all apps matching the current search and filters.
+- Open an app to inspect its assigned route, connection requirements and Detour status.
+- First-run setup for DPI-only, VLESS, subscriptions and WARP/Amnezia. Reopen it from Settings → Help → Run setup again without resetting existing settings.
+- DPI test summaries explain strategy ranking, partial results and service coverage. Export a diagnostic report without VPN credentials or private network/app data.
+
+### Changed
+- Home puts a compact Direct/VPN/DPI route summary above the VPN profile and DNS settings. When no apps are assigned, the main action opens app selection.
+- Buttons give clearer animated press feedback; connection actions use a light haptic tick.
+- Technical input fields use an ASCII keyboard. Long labels, large font sizes, subscription controls and tablet layouts are easier to read.
+
+### Fixed
+- Backups made with Detour Light/Dark themes can be restored. Import now previews the backup and asks for confirmation before replacing settings and stopping a stale connection.
+- Applied DPI strategy markers follow saved settings and remain correct when reopening test history.
+- Route-filter counts follow the visible search/system-app scope, and profile deletion identifies the selected profile and explains an active-connection interruption only when applicable.
 
 ## 0.4.2 — 2026-10-14
 

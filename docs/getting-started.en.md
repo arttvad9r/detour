@@ -53,7 +53,7 @@ profile in the list, assign VPN or DPI to your apps and tap **Continue** to retu
 the guide. Tap **Connect**, approve Android VPN permission and use **Go to Home** once
 connected to finish.
 
-You can skip the guide and reopen it from **Settings → Quick setup**.
+You can skip the guide and reopen it from **Settings → Help → Run setup again**.
 It does not open automatically when updating an already configured installation.
 
 ## Choose routes
