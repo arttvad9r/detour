@@ -117,6 +117,19 @@ class DpiViewModelStateTest {
         assertEquals(run.results, state.results)
     }
 
+    @Test fun `applied marker follows committed strategy across history selections`() {
+        val first = proxyRun("first", 1000, 1)
+        val second = proxyRun("second", 2000, 2)
+        val current = settings(DpiPreset.CUSTOM, "  " + first.results.single().strategy.args.joinToString("  ") + "  ")
+        val state = DpiProxyTestUiState(history = listOf(second, first), selectedRunId = first.id)
+        assertEquals(first.results.single().strategy.id, appliedDpiStrategyId(state, current))
+        assertEquals(null, appliedDpiStrategyId(state.copy(selectedRunId = second.id), current))
+        assertEquals(first.results.single().strategy.id,
+            appliedDpiStrategyId(state.copy(appliedStrategyId = null), current))
+        assertEquals(null, appliedDpiStrategyId(state, current.copy(preset = DpiPreset.RECOMMENDED)))
+        assertEquals(null, appliedDpiStrategyId(state, current.copy(dpiCustomArgs = "-d1")))
+    }
+
     private fun proxyRun(id: String, createdAt: Long, strategyIndex: Int): DpiProxyTestRun {
         val strategy = DpiProxyTestCatalog.strategies[strategyIndex - 1]
         return DpiProxyTestRun(

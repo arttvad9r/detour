@@ -136,6 +136,12 @@ internal fun dpiUiState(
     )
 }
 
+internal fun appliedDpiStrategyId(state: DpiProxyTestUiState, settings: TriSettings?): String? {
+    if (settings?.preset != DpiPreset.CUSTOM) return null
+    val savedArgs = settings.dpiCustomArgs.trim().split(Regex("\\s+"))
+    return state.results.firstOrNull { it.canApply && it.strategy.args == savedArgs }?.strategy?.id
+}
+
 class DpiViewModel(
     private val settings: StateFlow<TriSettings?>,
     private val setPreset: suspend (DpiPreset) -> Unit,
@@ -174,7 +180,9 @@ class DpiViewModel(
     )
 
     private val _proxyTestState = MutableStateFlow(DpiProxyTestUiState())
-    val proxyTestState: StateFlow<DpiProxyTestUiState> = _proxyTestState
+    val proxyTestState: StateFlow<DpiProxyTestUiState> = combine(_proxyTestState, settings) { state, current ->
+        state.copy(appliedStrategyId = appliedDpiStrategyId(state, current))
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, DpiProxyTestUiState())
     private val _proxyTestOpen = MutableStateFlow(false)
     val proxyTestOpen: StateFlow<Boolean> = _proxyTestOpen
     private var proxyTestJob: Job? = null
@@ -362,7 +370,6 @@ class DpiViewModel(
                 selectedRunId = id,
                 cancelled = false,
                 error = null,
-                appliedStrategyId = null,
                 applyErrorStrategyId = null,
                 diagnostic = DpiProxyTestReport.fromRun(state.history.first { it.id == id }),
             )
@@ -439,7 +446,6 @@ class DpiViewModel(
                 progress = null,
                 error = null,
                 applyingStrategyId = null,
-                appliedStrategyId = null,
                 applyErrorStrategyId = null,
                 diagnostic = null,
             )
@@ -542,7 +548,7 @@ class DpiViewModel(
         val result = state.results.firstOrNull { it.strategy.id == strategyId } ?: return
         if (!result.canApply) return
         val strategy = result.strategy
-        if (state.appliedStrategyId == strategyId && settings.value?.preset == DpiPreset.CUSTOM &&
+        if (settings.value?.preset == DpiPreset.CUSTOM &&
             settings.value?.dpiCustomArgs?.trim() == strategy.command.trim()) return
         if (!DpiArgs.isValid(strategy.command)) return
 
@@ -574,7 +580,6 @@ class DpiViewModel(
                     _proxyTestState.update {
                         it.copy(
                             applyingStrategyId = null,
-                            appliedStrategyId = strategyId,
                             applyErrorStrategyId = null,
                         )
                     }

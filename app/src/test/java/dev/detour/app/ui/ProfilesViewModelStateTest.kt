@@ -120,7 +120,7 @@ class ProfilesViewModelStateTest {
         val settings = settings(activeVpn = VpnProfileKind.VLESS, key = key)
 
         assertEquals(
-            ProfileDeleteRequest.Vless(key.id, active = true),
+            ProfileDeleteRequest.Vless(key.id, active = true, name = key.name),
             vlessDeleteRequest(settings, key.id),
         )
         assertEquals(
@@ -174,11 +174,11 @@ class ProfilesViewModelStateTest {
         )
 
         assertEquals(
-            ProfileDeleteRequest.Warp(awg.id, active = true),
+            ProfileDeleteRequest.Warp(awg.id, active = true, name = awg.name),
             warpDeleteRequest(settings, awg.id),
         )
         assertEquals(
-            ProfileDeleteRequest.Warp(warp.id, active = false),
+            ProfileDeleteRequest.Warp(warp.id, active = false, name = warp.name),
             warpDeleteRequest(settings, warp.id),
         )
     }

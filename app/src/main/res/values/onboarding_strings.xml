@@ -1,33 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="setup_title">Quick setup</string>
+    <string name="setup_title">Setup</string>
     <string name="setup_question">What do you need?</string>
-    <string name="setup_intro">Choose how to get started. Detour assigns Direct, VPN or DPI to each app within one connection.</string>
+    <string name="setup_intro">Choose where to start. Each app can use Direct, VPN, or DPI within one Detour connection.</string>
     <string name="setup_goal_dpi">Just YouTube / DPI</string>
     <string name="setup_goal_dpi_hint">Bypass throttling without a VPN server. Results depend on your network.</string>
     <string name="setup_goal_vless">I have a VLESS key</string>
-    <string name="setup_goal_vless_hint">Paste a vless:// key from your VPN provider.</string>
+    <string name="setup_goal_vless_hint">Paste a vless:// key from your provider.</string>
     <string name="setup_goal_subscription">I have a subscription</string>
-    <string name="setup_goal_subscription_hint">Add your provider’s HTTPS subscription link.</string>
+    <string name="setup_goal_subscription_hint">Add your provider’s HTTPS subscription URL.</string>
     <string name="setup_goal_warp">WARP / Amnezia</string>
-    <string name="setup_goal_warp_hint">Import a config file or paste an Amnezia key.</string>
+    <string name="setup_goal_warp_hint">Import a configuration file or paste an Amnezia key.</string>
     <string name="setup_skip">Set up later</string>
     <string name="setup_profile">Choose a VPN profile</string>
-    <string name="setup_profile_hint">Add or import a profile, then select it in the list.</string>
+    <string name="setup_profile_hint">Add or import a profile, then select it.</string>
     <string name="setup_profile_ready">Profile selected</string>
     <string name="setup_apps">Choose apps</string>
     <string name="setup_apps_dpi">Assign DPI to the apps that need it.</string>
     <string name="setup_apps_vpn">Assign VPN to the apps that need it.</string>
     <string name="setup_apps_ready">Apps on this route: %1$d</string>
-    <string name="setup_permission_hint">Tap Connect when ready. Android will ask for VPN permission. Detour uses the only VPN slot on your phone.</string>
-    <string name="setup_existing_vpn">Some apps already use VPN. Select a VPN profile or change those apps to Direct.</string>
+    <string name="setup_permission_hint">Tap Connect when ready. Android will ask for VPN permission. Detour cannot run alongside another VPN.</string>
+    <string name="setup_existing_vpn">Some apps already use VPN. Select a VPN profile or assign them Direct.</string>
     <string name="setup_dpi_test">Find a DPI strategy</string>
     <string name="setup_connected">Connected. You are ready to go.</string>
     <string name="setup_done">Go to Home</string>
     <string name="setup_cancel_connect">Cancel connection</string>
     <string name="setup_saving">Saving…</string>
-    <string name="setup_save_error">Could not save setup completion. Try again.</string>
+    <string name="setup_save_error">Could not finish setup. Try again.</string>
     <string name="setup_continue">Continue</string>
-    <string name="setup_profiles_hint">Select a profile in the list, then tap Continue.</string>
+    <string name="setup_profiles_hint">Select a profile, then tap Continue.</string>
     <string name="setup_menu_hint">Help with your first connection</string>
 </resources>

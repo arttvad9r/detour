@@ -474,6 +474,14 @@ fun SegmentedControl(
     val haptics = LocalHapticFeedback.current
     if (options.isEmpty()) return
 
+    if (androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.5f && options.size > 2) {
+        Column(modifier.fillMaxWidth().selectableGroup()) {
+            options.forEachIndexed { index, label ->
+                ChoiceRow(title = label, selected = index == selected, onClick = { onSelect(index) })
+            }
+        }
+        return
+    }
     Row(
         modifier
             .fillMaxWidth()

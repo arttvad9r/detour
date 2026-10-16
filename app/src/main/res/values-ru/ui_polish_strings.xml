@@ -1,0 +1,32 @@
+<resources>
+    <string name="details_expanded">Развёрнуто</string>
+    <string name="details_collapsed">Свёрнуто</string>
+    <string name="details_show">%1$s</string>
+    <string name="details_hide">Скрыть: %1$s</string>
+    <string name="backup_confirm_title">Заменить текущие настройки?</string>
+    <string name="backup_preview">VPN-профилей: %1$d\nНазначений приложений: %2$d</string>
+    <string name="backup_confirm_message">Копия заменит профили, маршруты приложений, стратегию DPI, DNS и оформление. Текущее подключение остановится. Автоподключение будет выключено.</string>
+    <string name="backup_replace">Заменить настройки</string>
+    <string name="dpi_service_general">Общие сервисы</string>
+    <string name="dpi_service_social">Социальные сети</string>
+    <string name="dpi_service_turkiye">Турция</string>
+    <string name="dpi_service_googlevideo">Видеопотоки YouTube (GoogleVideo)</string>
+    <string name="dpi_result_explanation">Как понимать результат</string>
+    <string name="dpi_result_probe_short">Проверена доступность по HTTPS. В другой сети результат может измениться.</string>
+    <string name="dpi_report_short">Сводка теста без VPN-ключей и личных настроек.</string>
+    <string name="dpi_report_contents">Что входит в отчёт</string>
+    <string name="route_detail_path_details">Как работает маршрут</string>
+    <string name="setup_choose_apps_first">Сначала выберите приложения для подключения.</string>
+    <plurals name="dpi_strategy_count">
+        <item quantity="one">%1$d стратегия</item>
+        <item quantity="few">%1$d стратегии</item>
+        <item quantity="many">%1$d стратегий</item>
+        <item quantity="other">%1$d стратегии</item>
+    </plurals>
+    <plurals name="dpi_address_count">
+        <item quantity="one">%1$d адрес</item>
+        <item quantity="few">%1$d адреса</item>
+        <item quantity="many">%1$d адресов</item>
+        <item quantity="other">%1$d адреса</item>
+    </plurals>
+</resources>

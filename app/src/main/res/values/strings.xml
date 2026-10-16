@@ -33,7 +33,7 @@
     <string name="settings_section_connection">Connection</string>
     <string name="settings_section_app">App</string>
     <string name="nav_routes">App routes</string>
-    <string name="nav_routes_sub">in tunnel: %1$d</string>
+    <string name="nav_routes_sub">Assigned VPN/DPI: %1$d</string>
     <string name="nav_key">VPN profiles</string>
     <string name="nav_key_sub">VLESS + WARP</string>
     <string name="nav_key_sub_none">not configured</string>
@@ -46,20 +46,20 @@
     <string name="theme_detour_dark">Detour Dark</string>
     <string name="auto_connect">Connect on launch</string>
     <string name="nav_dns">DNS</string>
-    <string name="nav_dns_sub">resolver for the tunnel</string>
+    <string name="nav_dns_sub">DNS for routed apps</string>
     <string name="dns_title">DNS</string>
     <string name="dns_custom">Custom address</string>
     <string name="dns_google">Google DNS</string>
     <string name="dns_cloudflare">Cloudflare</string>
     <string name="dns_adguard">AdGuard</string>
     <string name="dns_custom_label">DNS address</string>
-    <string name="dns_placeholder">1.1.1.1 or https://dns.example/dns-query</string>
-    <string name="dns_custom_hint_https">Enter an IP address or an HTTPS DoH URL.</string>
+    <string name="dns_placeholder">1.1.1.1</string>
+    <string name="dns_custom_hint_https">IP address, for example 1.1.1.1, or HTTPS URL: https://dns.example/dns-query</string>
     <string name="dns_invalid_https">Check the address: enter an IP or an https:// DoH URL.</string>
     <string name="nav_backup">Export / import</string>
-    <string name="nav_backup_sub">move settings to another device</string>
+    <string name="nav_backup_sub">save or restore settings</string>
     <string name="backup_title">Export / import</string>
-    <string name="backup_note">The file contains VPN profiles, app routes, strategy, and theme. VPN credentials are secret, so store the file carefully.</string>
+    <string name="backup_note">Contains profiles, app routes, DPI, DNS, and appearance. Keep the file private: it includes VPN credentials.</string>
     <string name="backup_export">Export to file</string>
     <string name="backup_import">Import from file</string>
     <string name="backup_exported">Exported</string>
@@ -92,7 +92,7 @@
     <string name="key_detected_server">Link recognized · %1$s:%2$d</string>
     <string name="vless_add_title">Add VPN link</string>
     <string name="vless_edit_title">Edit VPN link</string>
-    <string name="profile_empty">No VPN profiles yet. Tap + to add one.</string>
+    <string name="profile_empty">No VPN profiles yet. Tap “Add profile” to begin.</string>
     <string name="profile_add_title">Add VPN profile</string>
     <string name="profile_add_vless">VLESS</string>
     <string name="profile_add_vless_sub">Add a VLESS Reality link or HTTPS subscription URL</string>
@@ -109,10 +109,10 @@
     <string name="warp_invalid">No compatible WARP / AmneziaWG proxies found in this file</string>
     <string name="warp_import_error">Could not read this config</string>
 
-    <string name="backup_warning">The configuration contains secrets. Store the file securely.</string>
+    <string name="backup_warning">Contains secret VPN credentials. Keep the file private.</string>
 
     <string name="dpi_title">DPI bypass</string>
-    <string name="preset_recommended">Recommended</string>
+    <string name="preset_recommended">Standard</string>
     <string name="preset_custom">Custom strategy</string>
     <string name="dpi_custom_label">Strategy arguments</string>
     <string name="dpi_custom_placeholder">-d 1 -s 1+s --timeout 3</string>
@@ -136,8 +136,8 @@
     <string name="tile_error">Connection error</string>
     <string name="tile_disconnected">Disconnected</string>
     <plurals name="tile_routed">
-        <item quantity="one">%1$d app in tunnel</item>
-        <item quantity="other">%1$d apps in tunnel</item>
+        <item quantity="one">%1$d app selected</item>
+        <item quantity="other">%1$d apps selected</item>
     </plurals>
     <string name="theme_midnight">Midnight</string>
     <string name="theme_ocean">Ocean</string>

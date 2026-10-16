@@ -6,7 +6,7 @@ import org.junit.Test
 
 class ThemeBackupTest {
     @Test fun `new palette ids survive backup roundtrip`() {
-        listOf("catppuccin_latte", "catppuccin_mocha", "gruvbox_dark", "dracula").forEach { id ->
+        dev.detour.app.ui.AppTheme.entries.map { it.id }.forEach { id ->
             val restored = SettingsBackup.fromJson(
                 SettingsBackup.toJson(SettingsBackup.Backup(themeId = id)),
             )

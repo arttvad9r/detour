@@ -88,7 +88,7 @@ Profile mutation policy is fail-closed:
 - changing/replacing the active profile restarts the tunnel;
 - deleting the active profile stops the tunnel instead of silently selecting another endpoint.
 
-Backup import also disables auto-connect and stops an active stale tunnel before replacing settings.
+Backup import validates the file and previews profile/route counts before asking the user to confirm replacement. No settings change until confirmation. A confirmed restore disables auto-connect, commits the captured backup, and stops any active tunnel that still represents the previous settings.
 
 ## App inventory
 

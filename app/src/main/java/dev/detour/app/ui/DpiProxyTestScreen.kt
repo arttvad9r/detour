@@ -29,6 +29,8 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -362,13 +364,7 @@ private fun ProxyTestMainScreen(
                         },
                     ),
                 )
-                if (!state.running && selectedRun != null) {
-                    DpiTestRunSummary(selectedRun, state.applyingStrategyId, state.appliedStrategyId,
-                        state.applyErrorStrategyId, enabled = true, onApply = viewModel::applyProxyStrategy)
-                    Spacer(Modifier.height(ProxySectionGap))
-                }
                 DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
-                    var hasPreviousRow = false
 
                     if (selectedRun != null) {
                         DetourNavigationRow(
@@ -381,11 +377,17 @@ private fun ProxyTestMainScreen(
                                 onOpenHistory
                             },
                         )
-                        hasPreviousRow = true
                     }
 
+                }
+                Spacer(Modifier.height(ProxySectionGap))
+                if (!state.running && selectedRun != null) {
+                    DpiTestRunSummary(selectedRun, state.applyingStrategyId, state.appliedStrategyId,
+                        state.applyErrorStrategyId, enabled = true, onApply = viewModel::applyProxyStrategy)
+                    Spacer(Modifier.height(ProxySectionGap))
+                }
+                DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
                     if (state.completed) {
-                        if (hasPreviousRow) GroupDivider(startInset = NavigationRowDividerInset)
                         if (state.results.isEmpty()) {
                             Text(
                                 text = stringResource(R.string.dpi_proxy_test_no_results),
@@ -466,6 +468,7 @@ private fun ProxyTestStrategiesScreen(
         item {
             SectionLabel(stringResource(R.string.dpi_proxy_test_custom_title))
             DetourInputField(
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, autoCorrectEnabled = false),
                 value = state.customStrategyDraft,
                 onValueChange = viewModel::setProxyCustomStrategy,
                 label = stringResource(R.string.dpi_proxy_test_custom_label),
@@ -582,7 +585,7 @@ private fun ProxyTestDomainsScreen(
                 DpiProxyTestCatalog.domainLists.forEachIndexed { index, list ->
                     val selected = list.id in state.selectedDomainIds
                     ProxyDomainRow(
-                        title = list.displayName,
+                        title = dpiServiceLabel(list.id),
                         hostCount = list.hosts.size,
                         selected = selected,
                         enabled = !state.running,
@@ -893,20 +896,20 @@ private fun ProxyTestResultDetailScreen(
                     }
                     GroupDivider(startInset = ProxyPlainDividerInset)
                     Column(Modifier.padding(Spacing.space12)) {
-                        Text(
-                            text = stringResource(R.string.dpi_proxy_test_command_title),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = c.textMuted,
-                        )
                         result.services.forEach { service ->
-                            val name = DpiProxyTestCatalog.domainLists.firstOrNull { it.id == service.serviceId }?.displayName
-                            if (name != null) {
+                            val name = dpiServiceLabel(service.serviceId)
+                            if (name.isNotBlank()) {
                                 Text(stringResource(R.string.dpi_result_service, name, service.fullyWorkingHosts,
                                     service.hostCount, service.successes, service.attempts),
                                     style = MaterialTheme.typography.bodySmall, color = c.textSecondary,
                                     modifier = Modifier.padding(vertical = Spacing.space4))
                             }
                         }
+                        Text(
+                            text = stringResource(R.string.dpi_proxy_test_command_title),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = c.textMuted,
+                        )
                         Text(
                             text = result.strategy.command,
                             style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
@@ -1016,6 +1019,10 @@ private fun ProxyStrategyRow(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = Spacing.space2),
             )
+            DetourDetails(stringResource(R.string.dpi_proxy_test_command_title)) {
+                Text(strategy.command, style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    color = c.textSecondary)
+            }
         }
         DetourSwitch(
             checked = selected,
@@ -1064,8 +1071,6 @@ private fun ProxyHistoryRunRow(
                 text = runHistorySummary(run),
                 style = MaterialTheme.typography.bodySmall,
                 color = c.textMuted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = Spacing.space2),
             )
         }
@@ -1118,15 +1123,11 @@ private fun ProxyResultNavigationRow(
                 text = strategyTitle(result.strategy),
                 style = MaterialTheme.typography.titleSmall,
                 color = c.textPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = compactResultSummary(result, best),
                 style = MaterialTheme.typography.bodySmall,
                 color = c.textSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(top = Spacing.space2),
             )
         }
@@ -1175,11 +1176,12 @@ private fun compactResultSummary(
 @Composable
 private fun runHistorySummary(run: DpiProxyTestRun): String {
     val hosts = run.results.firstOrNull()?.hostCount ?: 0
-    return stringResource(
-        R.string.dpi_proxy_test_history_summary,
-        run.results.size,
-        hosts,
-    )
+    val services = run.selectedDomainIds.map { dpiServiceLabel(it) }.filter { it.isNotBlank() }.joinToString(", ")
+    return listOf(
+        androidx.compose.ui.res.pluralStringResource(R.plurals.dpi_strategy_count, run.results.size, run.results.size),
+        androidx.compose.ui.res.pluralStringResource(R.plurals.dpi_address_count, hosts, hosts),
+        services,
+    ).filter { it.isNotBlank() }.joinToString(" · ")
 }
 
 @Composable
@@ -1203,7 +1205,7 @@ private fun SectionLabel(text: String) {
 }
 
 @Composable
-private fun ProxySliderRow(
+internal fun ProxySliderRow(
     title: String,
     description: String,
     value: Int,
@@ -1227,9 +1229,11 @@ private fun ProxySliderRow(
                 text = title,
                 style = MaterialTheme.typography.titleSmall,
                 color = c.textPrimary,
+                modifier = Modifier.weight(1f).padding(end = Spacing.space8),
             )
             Text(
                 text = "$value$valueSuffix",
+                maxLines = 1,
                 style = MaterialTheme.typography.labelLarge,
                 color = c.textSecondary,
             )
@@ -1238,8 +1242,6 @@ private fun ProxySliderRow(
             text = description,
             style = MaterialTheme.typography.bodySmall,
             color = c.textMuted,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = Spacing.space2),
         )
         Slider(
@@ -1266,8 +1268,12 @@ private fun DpiReportExport(viewModel: DpiViewModel, report: DpiProxyTestReport,
         if (uri != null && payload != null) viewModel.saveDiagnostic(context, uri, payload)
     }
     Column(Modifier.padding(horizontal = Spacing.space16), verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
-        Text(stringResource(R.string.dpi_report_privacy), style = MaterialTheme.typography.bodySmall,
+        Text(stringResource(R.string.dpi_report_short), style = MaterialTheme.typography.bodySmall,
             color = detourColors.textMuted)
+        DetourDetails(stringResource(R.string.dpi_report_contents)) {
+            Text(stringResource(R.string.dpi_report_privacy), style = MaterialTheme.typography.bodySmall,
+                color = detourColors.textMuted)
+        }
         DetourButton(stringResource(R.string.dpi_report_export),
             onClick = {
                 pendingPayload = report.toJson(

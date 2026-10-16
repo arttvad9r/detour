@@ -138,9 +138,10 @@ fun AppsScreen(
     val showSystem = state.showSystemApps
     val loadedApps = state.loadedApps
     val allApps = loadedApps.orEmpty()
-    val routeCounts = remember(allApps, state.routes) {
+    val routeCounts = remember(allApps, state.routes, showSystem, state.query) {
+        val scope = filterApps(allApps, state.routes, state.query, showSystem, AppsRouteFilter.ALL)
         AppRoute.entries.associateWith { route ->
-            allApps.count { app -> (state.routes[app.packageName] ?: AppRoute.DIRECT) == route }
+            scope.count { app -> (state.routes[app.packageName] ?: AppRoute.DIRECT) == route }
         }
     }
     val directLabel = stringResource(routeCompactLabel(AppRoute.DIRECT))
@@ -620,7 +621,7 @@ private fun AppRow(
                         .detourClickable(onClick = onOpen, role = Role.Button))
                 Spacer(Modifier.height(Spacing.space8))
                 SegmentedControl(
-                    options = AppRoute.entries.map { stringResource(routeLabel(it)) },
+                    options = AppRoute.entries.map { stringResource(routeCompactLabel(it)) },
                     selected = AppRoute.entries.indexOf(current),
                     onSelect = { index -> onSelect(AppRoute.entries[index]) },
                 )

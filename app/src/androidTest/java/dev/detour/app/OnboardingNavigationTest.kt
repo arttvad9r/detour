@@ -116,7 +116,7 @@ class OnboardingNavigationTest {
         }
         compose.onNode(hasSetTextAction()).performTextInput(app.packageName)
         compose.onNodeWithTag("app-detail-${app.packageName}").performClick()
-        compose.onNodeWithText(compose.activity.getString(R.string.route_detail_direct_ready)).assertIsDisplayed()
+        compose.onNodeWithText(compose.activity.getString(R.string.route_direct)).assertIsDisplayed()
         compose.activityRule.scenario.recreate()
         compose.onNodeWithTag("app-route-detail").assertIsDisplayed()
         runBlocking { store.setRoute(app.packageName, AppRoute.VPN) }

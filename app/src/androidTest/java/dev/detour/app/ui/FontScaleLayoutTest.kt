@@ -71,7 +71,7 @@ class FontScaleLayoutTest {
         rule.setContent {
             TestTheme {
                 Box {
-                    TaggedNavigationRow("navigation-plain")
+                    TaggedToggleNavigationRow("navigation-plain", showSwitch = false)
                     TaggedToggleNavigationRow("navigation-toggle")
                 }
             }
@@ -166,22 +166,24 @@ private fun TaggedNavigationRow(tag: String) {
 }
 
 @Composable
-private fun TaggedToggleNavigationRow(tag: String) {
+private fun TaggedToggleNavigationRow(tag: String, showSwitch: Boolean = true) {
     Box(Modifier.width(320.dp).testTag(tag)) {
         DetourNavigationRow(
-            title = "Connect automatically",
+            title = "Auto-connect",
             subtitle = null,
             iconRes = R.drawable.ic_power,
             modifier = Modifier.detourToggleable(
                 value = true,
                 onValueChange = {},
             ),
-            trailing = {
-                DetourSwitch(
-                    checked = true,
-                    onCheckedChange = null,
-                    compact = true,
-                )
+            trailing = if (!showSwitch) null else {
+                @Composable {
+                    DetourSwitch(
+                        checked = true,
+                        onCheckedChange = null,
+                        compact = true,
+                    )
+                }
             },
         )
     }

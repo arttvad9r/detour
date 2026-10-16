@@ -21,7 +21,7 @@
   <string name="route_detail_active">Detour is connected.</string>
   <string name="route_detail_failed">The Detour connection failed. Open the connection screen for details and retry.</string>
   <string name="route_detail_not_live">This screen shows saved assignments and connection status, not live traffic. After a route change, wait for Detour to reconnect.</string>
-  <string name="route_detail_edit">Back to app routes</string>
+  <string name="route_detail_edit">Change app route</string>
   <string name="route_detail_profiles">Choose VPN profile</string>
   <string name="route_detail_dpi_settings">DPI settings and test</string>
   <string name="route_detail_connection">Open connection</string>

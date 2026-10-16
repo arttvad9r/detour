@@ -162,18 +162,20 @@ internal fun AppRouteDetailScreen(
                         Text(stringResource(R.string.route_detail_assigned), style = MaterialTheme.typography.labelMedium,
                             color = c.textSecondary)
                         Text(stringResource(routeLabel(route)), style = MaterialTheme.typography.titleLarge, color = c.textPrimary)
+                        DetourDetails(stringResource(R.string.route_detail_path_details)) {
                         Text(stringResource(when (route) {
                             AppRoute.DIRECT -> R.string.route_detail_direct_path
                             AppRoute.VPN -> R.string.route_detail_vpn_path
                             AppRoute.DPI -> R.string.route_detail_dpi_path
                         }), style = MaterialTheme.typography.bodyMedium, color = c.textSecondary)
+                        }
                     }
                 }
                 if (route == AppRoute.VPN && profileName != null) {
                     Text(stringResource(R.string.route_detail_profile_name, profileName),
                         style = MaterialTheme.typography.bodyMedium, color = c.textSecondary)
                 }
-                DetourCard {
+                if (readiness != RouteReadiness.DIRECT) DetourCard {
                     Column(Modifier.padding(Spacing.space16), verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                         Text(stringResource(R.string.route_detail_readiness), style = MaterialTheme.typography.labelMedium,
                             color = c.textSecondary)

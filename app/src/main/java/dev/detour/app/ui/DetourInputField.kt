@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,6 +57,7 @@ fun DetourInputField(
     maxHeight: Dp = if (singleLine) 56.dp else 160.dp,
     maxLines: Int = if (singleLine) 1 else 6,
     monospace: Boolean = false,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
 ) {
     val c = detourColors
     var focused by remember { mutableStateOf(false) }
@@ -105,6 +107,7 @@ fun DetourInputField(
             value = value,
             onValueChange = onValueChange,
             enabled = enabled,
+            keyboardOptions = keyboardOptions,
             modifier = Modifier
                 .fillMaxWidth()
                 .then(fieldHeightModifier)

@@ -8,6 +8,7 @@ object SettingsBackup {
     const val MAX_BYTES = 1024 * 1024
     private const val APP = "detour"
     private val themes = setOf(
+        "detour_light", "detour_dark",
         "catppuccin_latte", "catppuccin_mocha", "gruvbox_dark", "dracula",
         // Legacy ids remain accepted so old Detour backups continue to import.
         "midnight", "ocean", "graphite", "lavenda",

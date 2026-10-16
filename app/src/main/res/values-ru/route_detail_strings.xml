@@ -21,7 +21,7 @@
   <string name="route_detail_active">Detour подключён.</string>
   <string name="route_detail_failed">Подключение Detour завершилось ошибкой. Откройте экран подключения, чтобы узнать причину и повторить попытку.</string>
   <string name="route_detail_not_live">Здесь показаны сохранённые назначения и состояние подключения, а не фактический трафик. После смены маршрута дождитесь переподключения Detour.</string>
-  <string name="route_detail_edit">К маршрутам приложений</string>
+  <string name="route_detail_edit">Изменить маршрут</string>
   <string name="route_detail_profiles">Выбрать VPN-профиль</string>
   <string name="route_detail_dpi_settings">Настройки и тест DPI</string>
   <string name="route_detail_connection">Открыть подключение</string>

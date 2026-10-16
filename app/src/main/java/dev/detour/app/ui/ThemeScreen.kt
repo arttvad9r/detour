@@ -43,14 +43,6 @@ fun ThemeScreen(viewModel: ThemeViewModel, onBack: () -> Unit, modifier: Modifie
 
         DetourContentColumn {
             Spacer(Modifier.height(Spacing.space8))
-            DetourFeatureSummary(
-                iconRes = R.drawable.ic_theme,
-                title = stringResource(R.string.theme_hint_title),
-                subtitle = stringResource(R.string.theme_hint),
-                modifier = Modifier.padding(horizontal = Spacing.space16),
-            )
-
-            Spacer(Modifier.height(Spacing.space12))
             DetourCard(
                 Modifier
                     .padding(horizontal = Spacing.space16)

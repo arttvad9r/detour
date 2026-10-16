@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -113,6 +115,7 @@ fun DpiScreen(viewModel: DpiViewModel, onBack: () -> Unit, modifier: Modifier = 
                     Column {
                         GroupDivider(startInset = ChoiceRowDividerInset)
                         DetourInputField(
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, autoCorrectEnabled = false),
                             value = state.customField,
                             onValueChange = viewModel::setCustomField,
                             label = stringResource(R.string.dpi_custom_label),

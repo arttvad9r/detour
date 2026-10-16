@@ -32,8 +32,8 @@ fun DetourNavigationRow(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     selectedBackground: Boolean = false,
-    titleMaxLines: Int = 1,
-    subtitleMaxLines: Int = 1,
+    titleMaxLines: Int = Int.MAX_VALUE,
+    subtitleMaxLines: Int = Int.MAX_VALUE,
     trailing: @Composable (() -> Unit)? = null,
 ) {
     val c = detourColors

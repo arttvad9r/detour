@@ -34,8 +34,9 @@ class MainActivitySmokeTest {
         }
     }
 
-    @Test fun homeShowsConnectControl() {
-        rule.onNodeWithText(rule.activity.getString(R.string.btn_connect)).assertIsDisplayed()
+    @Test fun emptyHomeGuidesUsersToAppRoutes() {
+        rule.onNodeWithText(rule.activity.getString(R.string.setup_apps)).assertIsDisplayed().performClick()
+        rule.onNodeWithText(rule.activity.getString(R.string.routes_title)).assertIsDisplayed()
     }
 
     @Test fun homeShowsSettingsEntry() {

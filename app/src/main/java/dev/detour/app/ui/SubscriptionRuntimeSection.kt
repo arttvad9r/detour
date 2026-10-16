@@ -124,58 +124,16 @@ internal fun SubscriptionRuntimeSection(modifier: Modifier = Modifier) {
     }
 
     Column(modifier.padding(horizontal = Spacing.space16)) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 48.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(R.string.subscription_runtime_title),
-                style = MaterialTheme.typography.titleSmall,
-                color = c.textPrimary,
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(
-                onClick = runtimeViewModel::testLatency,
-                enabled = subscriptionUrl != null &&
-                    state.catalog.isNotEmpty() &&
-                    !state.latencyTesting &&
-                    state.status != SubscriptionRuntimeStatus.REFRESHING,
-            ) {
-                Text(
-                    text = stringResource(
-                        if (state.latencyTesting) {
-                            R.string.subscription_latency_testing
-                        } else {
-                            R.string.subscription_latency_test
-                        },
-                    ),
-                    style = MaterialTheme.typography.labelLarge,
-                )
-            }
-            TextButton(
-                onClick = { runtimeViewModel.refresh(connected) },
-                enabled = subscriptionUrl != null &&
-                    state.catalogStatus != SubscriptionCatalogStatus.LOADING &&
-                    state.status != SubscriptionRuntimeStatus.REFRESHING &&
-                    !state.latencyTesting,
-            ) {
-                Text(
-                    text = stringResource(
-                        if (
-                            state.catalogStatus == SubscriptionCatalogStatus.LOADING ||
-                            state.status == SubscriptionRuntimeStatus.REFRESHING
-                        ) {
-                            R.string.subscription_runtime_refreshing
-                        } else {
-                            R.string.subscription_runtime_refresh
-                        },
-                    ),
-                    style = MaterialTheme.typography.labelLarge,
-                )
-            }
-        }
+        SubscriptionRuntimeHeader(
+            latencyTesting = state.latencyTesting,
+            refreshing = state.catalogStatus == SubscriptionCatalogStatus.LOADING || state.status == SubscriptionRuntimeStatus.REFRESHING,
+            latencyEnabled = subscriptionUrl != null && state.catalog.isNotEmpty() && !state.latencyTesting &&
+                state.status != SubscriptionRuntimeStatus.REFRESHING,
+            refreshEnabled = subscriptionUrl != null && state.catalogStatus != SubscriptionCatalogStatus.LOADING &&
+                state.status != SubscriptionRuntimeStatus.REFRESHING && !state.latencyTesting,
+            onLatency = runtimeViewModel::testLatency,
+            onRefresh = { runtimeViewModel.refresh(connected) },
+        )
 
         when {
             state.catalog.isNotEmpty() -> {
@@ -368,3 +326,33 @@ private fun SubscriptionNotice(
 
 internal fun shouldAutoSelectSubscriptionNode(status: SubscriptionSelectionStatus): Boolean =
     status == SubscriptionSelectionStatus.IDLE
+
+@Composable
+internal fun SubscriptionRuntimeHeader(
+    latencyTesting: Boolean,
+    refreshing: Boolean,
+    latencyEnabled: Boolean,
+    refreshEnabled: Boolean,
+    onLatency: () -> Unit,
+    onRefresh: () -> Unit,
+) {
+    Text(
+        text = stringResource(R.string.subscription_runtime_title),
+        style = MaterialTheme.typography.titleSmall,
+        color = detourColors.textPrimary,
+        modifier = Modifier.fillMaxWidth(),
+    )
+    androidx.compose.foundation.layout.FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(Spacing.space8),
+    ) {
+        TextButton(onClick = onLatency, enabled = latencyEnabled) {
+            Text(stringResource(if (latencyTesting) R.string.subscription_latency_testing else R.string.subscription_latency_test),
+                style = MaterialTheme.typography.labelLarge)
+        }
+        TextButton(onClick = onRefresh, enabled = refreshEnabled) {
+            Text(stringResource(if (refreshing) R.string.subscription_runtime_refreshing else R.string.subscription_runtime_refresh),
+                style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}

@@ -67,6 +67,19 @@ class DpiStrategyApplyTest {
         assertEquals(DpiPreset.CUSTOM, settings.value?.preset)
     }
 
+    @Test fun appliedMarkerFollowsSavedSettingsWhenHistoryIsReopened() = exercise { vm, settings, _, _, _ ->
+        val run = requireNotNull(vm.proxyTestState.value.selectedRun)
+        val id = requireNotNull(vm.proxyTestState.value.bestCandidate).strategy.id
+        instrumentation.runOnMainSync { vm.applyProxyStrategy(id) }
+        withTimeout(10_000) { vm.proxyTestState.first { it.appliedStrategyId == id } }
+        instrumentation.runOnMainSync { vm.selectProxyRun(run.id) }
+        withTimeout(10_000) { vm.proxyTestState.first { it.appliedStrategyId == id } }
+        instrumentation.runOnMainSync { settings.value = requireNotNull(settings.value).copy(preset = DpiPreset.RECOMMENDED) }
+        withTimeout(10_000) { vm.proxyTestState.first { it.appliedStrategyId == null } }
+        instrumentation.runOnMainSync { settings.value = requireNotNull(settings.value).copy(preset = DpiPreset.CUSTOM) }
+        withTimeout(10_000) { vm.proxyTestState.first { it.appliedStrategyId == id } }
+    }
+
     @Test fun zeroSuccessCannotBeAppliedEvenWhenCalledDirectly() = exercise(successes = 0) { vm, _, writes, restarts, _ ->
         val id = vm.proxyTestState.value.results.single().strategy.id
         instrumentation.runOnMainSync { vm.applyProxyStrategy(id) }

@@ -25,7 +25,7 @@ internal fun backupFromSettings(settings: TriSettings): SettingsBackup.Backup = 
     presetId = settings.preset.id,
     dpiCustomArgs = settings.dpiCustomArgs,
     autoConnect = settings.autoConnect,
-    themeId = settings.themeId,
+    themeId = settings.themeId.ifBlank { AppTheme.byId("").id },
     dnsId = settings.dnsId,
     dnsCustom = settings.dnsCustom,
     routes = settings.routes.mapValues { it.value.name },
@@ -48,6 +48,9 @@ class BackupViewModel(
 
     private val _operation = MutableStateFlow<BackupOperation?>(null)
     val operation: StateFlow<BackupOperation?> = _operation.asStateFlow()
+
+    private val _pendingImport = MutableStateFlow<SettingsBackup.Backup?>(null)
+    val pendingImport: StateFlow<SettingsBackup.Backup?> = _pendingImport.asStateFlow()
 
     private val _feedback = MutableSharedFlow<BackupFeedback>(extraBufferCapacity = 1)
     val feedback: SharedFlow<BackupFeedback> = _feedback
@@ -88,9 +91,29 @@ class BackupViewModel(
                     complete(BackupStatus.BAD_FILE)
                     return@launch
                 }
+                _pendingImport.value = backup
+            } catch (cancelled: CancellationException) {
+                cancelOperation(BackupOperation.IMPORT)
+                throw cancelled
+            } catch (_: Exception) {
+                reportError()
+            }
+        }
+    }
+
+    fun dismissImport() {
+        if (_pendingImport.value == null) return
+        _pendingImport.value = null
+        cancelOperation(BackupOperation.IMPORT)
+    }
+
+    fun confirmImport() {
+        val backup = _pendingImport.value ?: return
+        _pendingImport.value = null
+        viewModelScope.launch {
+            try {
                 restoreBackup(backup)
-                // Restoring intentionally disables auto-connect. Any live tunnel
-                // still represents the old snapshot, so stop it after commit.
+                // The running tunnel still represents the previous settings.
                 stopTunnelIfRunning()
                 complete(BackupStatus.IMPORTED)
             } catch (cancelled: CancellationException) {

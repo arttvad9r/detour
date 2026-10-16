@@ -189,7 +189,8 @@ fun HomeScreen(
                 MainButton(
                     state = visualState,
                     busy = st == VpnState.Starting && !showStarting,
-                    onClick = onMainAction,
+                    onClick = if (uiState.routedCount == 0 && st != VpnState.Active && st != VpnState.Starting) onOpenRoutes else onMainAction,
+                    chooseApps = uiState.routedCount == 0 && st != VpnState.Active && st != VpnState.Starting,
                     modifier = Modifier
                         .align(Alignment.Center)
                         .padding(horizontal = Spacing.space16, vertical = Spacing.space8)
@@ -233,6 +234,7 @@ fun HomeScreen(
                     statusContent = statusContent,
                     sessionStartedAt = uiState.sessionStartedAt,
                     profileName = uiState.profileName,
+                    needsVpn = uiState.protocol != HomeProtocol.DPI,
                     activeVpn = uiState.activeVpn,
                     serverHost = uiState.serverHost,
                     endpointCount = uiState.endpointCount,
@@ -255,6 +257,7 @@ private fun HomeConnectionContent(
     statusContent: Color,
     sessionStartedAt: Long?,
     profileName: String?,
+    needsVpn: Boolean,
     activeVpn: VpnProfileKind,
     serverHost: String?,
     endpointCount: Int,
@@ -286,6 +289,7 @@ private fun HomeConnectionContent(
             )
             ConnectionDetails(
                 profileName = profileName,
+                needsVpn = needsVpn,
                 activeVpn = activeVpn,
                 serverHost = serverHost,
                 endpointCount = endpointCount,
@@ -312,6 +316,7 @@ private fun HomeConnectionContent(
             Spacer(Modifier.height(Spacing.space12))
             ConnectionDetails(
                 profileName = profileName,
+                needsVpn = needsVpn,
                 activeVpn = activeVpn,
                 serverHost = serverHost,
                 endpointCount = endpointCount,
@@ -330,6 +335,7 @@ private fun MainButton(
     state: VpnState,
     busy: Boolean,
     onClick: () -> Unit,
+    chooseApps: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val c = detourColors
@@ -351,7 +357,7 @@ private fun MainButton(
     val text = when (state) {
         VpnState.Active -> stringResource(R.string.btn_disconnect)
         VpnState.Starting -> stringResource(R.string.btn_cancel_connecting)
-        else -> stringResource(R.string.btn_connect)
+        else -> stringResource(if (chooseApps) R.string.setup_apps else R.string.btn_connect)
     }
 
     DetourButton(
@@ -527,7 +533,7 @@ private fun RouteDot(
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.width(84.dp),
+        modifier = Modifier.widthIn(min = 84.dp, max = 140.dp),
     ) {
         Box(
             Modifier
@@ -547,8 +553,6 @@ private fun RouteDot(
             style = MaterialTheme.typography.labelSmall,
             color = detourColors.textSecondary,
             textAlign = TextAlign.Center,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = Spacing.space4),
         )
     }
@@ -557,6 +561,7 @@ private fun RouteDot(
 @Composable
 private fun ConnectionDetails(
     profileName: String?,
+    needsVpn: Boolean,
     activeVpn: VpnProfileKind,
     serverHost: String?,
     endpointCount: Int,
@@ -568,28 +573,30 @@ private fun ConnectionDetails(
     modifier: Modifier = Modifier,
 ) {
     DetourCard(modifier) {
-        HomeInfoRow(
-            iconRes = R.drawable.ic_profile,
-            label = stringResource(R.string.row_profile),
-            value = profileName ?: stringResource(R.string.server_missing),
-            modifier = Modifier.testTag(HOME_PROFILE_ROW_TEST_TAG),
-            onClick = onOpenProfiles,
-        )
-        DetailsDivider()
-        if (activeVpn == VpnProfileKind.WARP) {
+        if (needsVpn) {
             HomeInfoRow(
-                iconRes = R.drawable.ic_server,
-                label = stringResource(R.string.row_endpoints),
-                value = endpointCount.takeIf { it > 0 }?.toString() ?: stringResource(R.string.server_missing),
+                iconRes = R.drawable.ic_profile,
+                label = stringResource(R.string.row_profile),
+                value = profileName ?: stringResource(R.string.server_missing),
+                modifier = Modifier.testTag(HOME_PROFILE_ROW_TEST_TAG),
+                onClick = onOpenProfiles,
             )
-        } else {
-            HomeInfoRow(
-                iconRes = R.drawable.ic_server,
-                label = stringResource(R.string.row_server),
-                value = serverHost ?: stringResource(R.string.server_missing),
-            )
+            DetailsDivider()
+            if (activeVpn == VpnProfileKind.WARP) {
+                HomeInfoRow(
+                    iconRes = R.drawable.ic_server,
+                    label = stringResource(R.string.row_endpoints),
+                    value = endpointCount.takeIf { it > 0 }?.toString() ?: stringResource(R.string.server_missing),
+                )
+            } else {
+                HomeInfoRow(
+                    iconRes = R.drawable.ic_server,
+                    label = stringResource(R.string.row_server),
+                    value = serverHost ?: stringResource(R.string.server_missing),
+                )
+            }
+            DetailsDivider()
         }
-        DetailsDivider()
         HomeInfoRow(
             iconRes = R.drawable.ic_globe,
             label = stringResource(R.string.row_dns),
@@ -703,8 +710,6 @@ private fun HomeInfoRow(
                     shown,
                     style = MaterialTheme.typography.bodySmall,
                     color = c.textSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = NavigationRowSubtitleGap),
                 )
             }

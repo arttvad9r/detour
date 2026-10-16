@@ -1,5 +1,7 @@
 package dev.detour.app.ui
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -29,6 +31,7 @@ fun ProfileDeleteConfirmationDialog(
     request: ProfileDeleteRequest,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
+    connected: Boolean = false,
 ) {
     val c = detourColors
 
@@ -45,7 +48,7 @@ fun ProfileDeleteConfirmationDialog(
             DetourCard(
                 Modifier.widthIn(max = 420.dp),
             ) {
-                Column(Modifier.padding(Spacing.space20)) {
+                Column(Modifier.padding(Spacing.space20).verticalScroll(rememberScrollState())) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -76,9 +79,11 @@ fun ProfileDeleteConfirmationDialog(
                     }
 
                     Spacer(Modifier.height(Spacing.space16))
+                    Text(request.name, style = MaterialTheme.typography.titleSmall, color = c.textPrimary)
+                    Spacer(Modifier.height(Spacing.space8))
                     Text(
                         text = stringResource(
-                            if (request.active) {
+                            if (request.active && connected) {
                                 R.string.profile_delete_active_message
                             } else {
                                 R.string.profile_delete_message

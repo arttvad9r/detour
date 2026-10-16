@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-  <string name="dpi_test_intro">Выберите сервисы и запустите автоматический подбор стратегии. Сначала отключите Detour и другие VPN.</string>
+  <string name="dpi_test_intro">Отключите Detour и другие VPN, затем проверьте нужные сервисы.</string>
   <string name="dpi_result_none">Рабочая стратегия не найдена</string>
   <string name="dpi_result_all">Лучший результат: все проверенные адреса ответили</string>
   <string name="dpi_result_partial">Лучший результат пока частичный</string>

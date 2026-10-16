@@ -53,6 +53,31 @@ fun BackupScreen(viewModel: BackupViewModel, onBack: () -> Unit, modifier: Modif
     val c = detourColors
     val status by viewModel.status.collectAsStateWithLifecycle()
     val operation by viewModel.operation.collectAsStateWithLifecycle()
+    val pendingImport by viewModel.pendingImport.collectAsStateWithLifecycle()
+    pendingImport?.let { backup ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = viewModel::dismissImport,
+            title = { Text(stringResource(R.string.backup_confirm_title)) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Text(stringResource(R.string.backup_preview,
+                        backup.vlessKeys.items.size + backup.wireGuardProfiles.items.size, backup.routes.size))
+                    Spacer(Modifier.height(Spacing.space12))
+                    Text(stringResource(R.string.backup_confirm_message))
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = viewModel::confirmImport) {
+                    Text(stringResource(R.string.backup_replace))
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = viewModel::dismissImport) {
+                    Text(stringResource(R.string.key_cancel))
+                }
+            },
+        )
+    }
     val scrollState = rememberScrollState()
 
     LaunchedEffect(viewModel) {

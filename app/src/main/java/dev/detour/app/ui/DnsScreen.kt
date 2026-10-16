@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -124,10 +126,12 @@ fun DnsScreen(viewModel: DnsViewModel, onBack: () -> Unit, modifier: Modifier = 
                     Column {
                         GroupDivider(startInset = Spacing.space20.value.toInt())
                         DetourInputField(
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, autoCorrectEnabled = false),
                             value = state.customField,
                             onValueChange = viewModel::setCustomField,
                             label = stringResource(R.string.dns_custom_label),
                             placeholder = stringResource(R.string.dns_placeholder),
+                            helper = stringResource(R.string.dns_custom_hint_https),
                             error = when {
                                 state.customInvalid -> stringResource(R.string.dns_invalid_https)
                                 state.saveState == DnsSaveState.ERROR -> stringResource(R.string.dns_save_error)

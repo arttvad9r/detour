@@ -512,6 +512,9 @@ private fun ProfilesDestination(
     pendingDelete?.let { request ->
         ProfileDeleteConfirmationDialog(
             request = request,
+            connected = VpnController.state.collectAsStateWithLifecycle().value.let {
+                it == VpnState.Active || it == VpnState.Starting
+            },
             onConfirm = profilesViewModel::confirmDelete,
             onDismiss = profilesViewModel::dismissDelete,
         )

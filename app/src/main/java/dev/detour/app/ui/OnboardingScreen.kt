@@ -73,6 +73,10 @@ internal fun OnboardingScreen(
             DetourContentColumn(Modifier.navigationBarsPadding()) {
                 Column(Modifier.padding(horizontal = Spacing.space16, vertical = Spacing.space8)) {
                     if (goal != null) {
+                        if (state.routedCount == 0) {
+                            Text(stringResource(R.string.setup_choose_apps_first), style = MaterialTheme.typography.bodySmall,
+                                color = c.textSecondary, modifier = Modifier.padding(bottom = Spacing.space8))
+                        }
                         DetourButton(
                             text = stringResource(when {
                                 completion.saving -> R.string.setup_saving

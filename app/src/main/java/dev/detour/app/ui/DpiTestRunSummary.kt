@@ -33,18 +33,15 @@ internal fun DpiTestRunSummary(
                 best.fullCoverage -> R.string.dpi_result_all
                 else -> R.string.dpi_result_partial
             }), style = MaterialTheme.typography.titleSmall, color = c.textPrimary)
-            Text(stringResource(R.string.dpi_result_ranking), style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
-            Text(stringResource(if (run.config.attemptsPerHost > 1) R.string.dpi_result_repeated else R.string.dpi_result_single,
-                run.config.attemptsPerHost), style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
             best?.services?.forEach { service ->
-                val name = DpiProxyTestCatalog.domainLists.firstOrNull { it.id == service.serviceId }?.displayName
-                if (name != null) {
+                val name = dpiServiceLabel(service.serviceId)
+                if (name.isNotBlank()) {
                     Text(stringResource(R.string.dpi_result_service, name, service.fullyWorkingHosts,
                         service.hostCount, service.successes, service.attempts),
                         style = MaterialTheme.typography.bodyMedium, color = c.textPrimary)
                 }
             }
-            Text(stringResource(R.string.dpi_result_probe_limit), style = MaterialTheme.typography.bodySmall, color = c.textMuted)
+            Text(stringResource(R.string.dpi_result_probe_short), style = MaterialTheme.typography.bodySmall, color = c.textMuted)
             if (best != null) {
                 val applying = applyingId == best.strategy.id
                 val applied = appliedId == best.strategy.id
@@ -62,6 +59,12 @@ internal fun DpiTestRunSummary(
                     Text(stringResource(R.string.dpi_proxy_test_apply_error), color = c.error,
                         style = MaterialTheme.typography.bodySmall)
                 }
+            }
+            DetourDetails(stringResource(R.string.dpi_result_explanation)) {
+                Text(stringResource(R.string.dpi_result_ranking), style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
+                Text(stringResource(if (run.config.attemptsPerHost > 1) R.string.dpi_result_repeated else R.string.dpi_result_single,
+                    run.config.attemptsPerHost), style = MaterialTheme.typography.bodySmall, color = c.textSecondary)
+                Text(stringResource(R.string.dpi_result_probe_limit), style = MaterialTheme.typography.bodySmall, color = c.textMuted)
             }
         }
     }

@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-  <string name="dpi_test_intro">Choose services and start automatic strategy testing. Disconnect Detour and other VPNs first.</string>
+  <string name="dpi_test_intro">Disconnect Detour and other VPNs, then test the services you need.</string>
   <string name="dpi_result_none">No working strategy found</string>
   <string name="dpi_result_all">Best result: all tested addresses responded</string>
   <string name="dpi_result_partial">Best available result is partial</string>

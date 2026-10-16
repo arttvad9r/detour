@@ -93,8 +93,9 @@ fun DetourBrandedHeader(
         Spacer(Modifier.width(Spacing.space8))
         Text(
             text = title,
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.titleMedium,
             color = c.textPrimary,
+            modifier = Modifier.weight(1f),
         )
     }
 }

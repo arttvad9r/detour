@@ -34,6 +34,8 @@ import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -397,6 +399,7 @@ fun VlessKeyScreen(
             Column(
                 Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = Spacing.space16),
             ) {
                 Text(
@@ -499,6 +502,7 @@ fun VlessKeyScreen(
                 }
 
                 DetourInputField(
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, autoCorrectEnabled = false),
                     value = field,
                     onValueChange = { value ->
                         viewModel.clearVlessSaveError()
@@ -701,38 +705,8 @@ private fun CompactProfileRow(
     onClick: () -> Unit,
 ) {
     val c = detourColors
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .detourSelectable(
-                selected = selected,
-                onClick = onClick,
-                idleColor = if (selected) c.surfaceSoft else Color.Transparent,
-                pressedColor = c.surfaceSelected,
-                pressScale = Motion.PRESS_RADIO,
-            )
-            .heightIn(min = 64.dp)
-            .padding(start = Spacing.space16, top = Spacing.space8, bottom = Spacing.space8, end = Spacing.space8),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        SelectionMark(selected)
-        Column(
-            Modifier
-                .padding(start = Spacing.space12)
-                .weight(1f),
-        ) {
-            Text(
-                title,
-                style = MaterialTheme.typography.titleSmall,
-                color = c.textPrimary,
-            )
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = c.textSecondary,
-                modifier = Modifier.padding(top = Spacing.space2),
-            )
-        }
+    val largeText = androidx.compose.ui.platform.LocalDensity.current.fontScale >= 1.3f
+    val actions: @Composable () -> Unit = {
         if (busy) {
             CircularProgressIndicator(
                 modifier = Modifier.padding(horizontal = Spacing.space12).size(18.dp),
@@ -756,6 +730,44 @@ private fun CompactProfileRow(
                     modifier = Modifier.size(18.dp),
                 )
             }
+        }
+    }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .detourSelectable(
+                selected = selected,
+                onClick = onClick,
+                idleColor = if (selected) c.surfaceSoft else Color.Transparent,
+                pressedColor = c.surfaceSelected,
+                pressScale = Motion.PRESS_RADIO,
+            )
+            .heightIn(min = 64.dp)
+            .padding(start = Spacing.space16, top = Spacing.space8, bottom = Spacing.space8, end = Spacing.space8),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SelectionMark(selected)
+            Column(
+                Modifier
+                    .padding(start = Spacing.space12)
+                    .weight(1f),
+            ) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = c.textPrimary,
+                )
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = c.textSecondary,
+                    modifier = Modifier.padding(top = Spacing.space2),
+                )
+            }
+            if (!largeText) actions()
+        }
+        if (largeText) {
+            Row(Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) { actions() }
         }
     }
 }

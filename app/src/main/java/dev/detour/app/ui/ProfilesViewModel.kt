@@ -40,17 +40,20 @@ internal fun canStartWarpImport(status: WarpImportStatus): Boolean =
 
 sealed interface ProfileDeleteRequest {
     val active: Boolean
+    val name: String
     val failed: Boolean
 
     data class Vless(
         val keyId: String,
         override val active: Boolean,
+        override val name: String = "",
         override val failed: Boolean = false,
     ) : ProfileDeleteRequest
 
     data class Warp(
         val profileId: String,
         override val active: Boolean,
+        override val name: String = "",
         override val failed: Boolean = false,
     ) : ProfileDeleteRequest
 }
@@ -123,8 +126,11 @@ internal fun vlessDeleteRequest(
     selectionOverride: ProfileSelection? = null,
 ): ProfileDeleteRequest.Vless {
     val state = profilesUiState(settings, selectionOverride = selectionOverride)
+    val key = state.vlessItems.firstOrNull { it.id == keyId }
+    val profile = key?.let { (VlessKeyParser.parse(it.uri) as? ParseResult.Ok)?.profile }
     return ProfileDeleteRequest.Vless(
         keyId = keyId,
+        name = profile?.name?.ifBlank { profile.server } ?: key?.name.orEmpty(),
         active = state.activeVpn != VpnProfileKind.WARP && state.activeVlessId == keyId,
     )
 }
@@ -137,6 +143,7 @@ internal fun warpDeleteRequest(
     val state = profilesUiState(settings, selectionOverride = selectionOverride)
     return ProfileDeleteRequest.Warp(
         profileId = profileId,
+        name = settings?.wireGuardProfiles?.items?.firstOrNull { it.id == profileId }?.name.orEmpty(),
         active = state.activeVpn == VpnProfileKind.WARP && state.activeWireGuardId == profileId,
     )
 }

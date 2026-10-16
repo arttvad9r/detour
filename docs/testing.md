@@ -63,12 +63,15 @@ The hosted runtime suite intentionally stays below the VPN data plane. It curren
 
 - real `MainActivity` launch and primary Home controls;
 - on-device Preferences DataStore profile mutations and duplicate-id rejection;
-- backup restore policy, including forced-off auto-connect;
+- backup restore policy, including confirmation before replacement and forced-off auto-connect;
 - backup JSON → parser → DataStore round-trip for multiple subscriptions with independent selected nodes;
 - Android-Keystore-backed credential encryption checks;
-- Compose accessibility/layout regression coverage including large-font behavior.
+- Compose accessibility/layout regression coverage including large-font subscription controls and indivisible DPI parameter values;
+- DPI application markers derived from committed settings when reopening history.
 
 VPN consent, live TUN establishment, per-app routing, network changes, DNS behavior and DPI/VPN traffic validation still require the device smoke checklist below.
+
+Run the full suite on a clean leased emulator before seeding profiles or routes for manual UI review. The activity smoke tests exercise the initial empty state.
 
 With a local emulator or device connected, run the same instrumentation suite with:
 

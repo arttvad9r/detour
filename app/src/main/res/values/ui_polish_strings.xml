@@ -1,0 +1,28 @@
+<resources>
+    <string name="details_expanded">Expanded</string>
+    <string name="details_collapsed">Collapsed</string>
+    <string name="details_show">%1$s</string>
+    <string name="details_hide">Hide: %1$s</string>
+    <string name="backup_confirm_title">Replace current settings?</string>
+    <string name="backup_preview">VPN profiles: %1$d\nApp assignments: %2$d</string>
+    <string name="backup_confirm_message">The backup will replace your profiles, app routes, DPI strategy, DNS, and appearance. The current connection will stop. Auto-connect will be turned off.</string>
+    <string name="backup_replace">Replace settings</string>
+    <string name="dpi_service_general">General</string>
+    <string name="dpi_service_social">Social networks</string>
+    <string name="dpi_service_turkiye">Türkiye</string>
+    <string name="dpi_service_googlevideo">YouTube video streams (GoogleVideo)</string>
+    <string name="dpi_result_explanation">How to read the result</string>
+    <string name="dpi_result_probe_short">HTTPS availability only; results may change in another network.</string>
+    <string name="dpi_report_short">Test summary without VPN keys or personal configuration.</string>
+    <string name="dpi_report_contents">Report contents</string>
+    <string name="route_detail_path_details">How this route works</string>
+    <string name="setup_choose_apps_first">Choose apps to enable the connection.</string>
+    <plurals name="dpi_strategy_count">
+        <item quantity="one">%1$d strategy</item>
+        <item quantity="other">%1$d strategies</item>
+    </plurals>
+    <plurals name="dpi_address_count">
+        <item quantity="one">%1$d address</item>
+        <item quantity="other">%1$d addresses</item>
+    </plurals>
+</resources>
