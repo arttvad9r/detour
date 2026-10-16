@@ -1,0 +1,101 @@
+version = 1
+updated_at = "2026-10-16T06:54:22.420131+00:00"
+profiles = ["android-compose-app", "android-navigation", "android-security", "android-performance", "design", "security-core", "docker-build"]
+explicit_skills = []
+targets = ["claude", "codex"]
+
+[[skills]]
+name = "android-cli"
+source = "android-skills"
+revision = "5bda39f154fb859a08d45e2392f3568e049f83fb"
+sha256 = "c8712fbdb846b7e40be5ab0d178fae84e72af036d726fbc1755ead486c17c065"
+
+[[skills]]
+name = "android-emu"
+source = "local"
+revision = "imported-2026-10-16"
+sha256 = "18b5a9ac3febd96730b853104063d29f38d351967d25a4a69c21f7182bb4cfe6"
+
+[[skills]]
+name = "edge-to-edge"
+source = "android-skills"
+revision = "5bda39f154fb859a08d45e2392f3568e049f83fb"
+sha256 = "fc2df8d0ea560296f802555bfd01c5dcc5a3aab583373096f4d247e389d61e2d"
+
+[[skills]]
+name = "navigation-3"
+source = "android-skills"
+revision = "5bda39f154fb859a08d45e2392f3568e049f83fb"
+sha256 = "1d2545952be7009b72e0a62b0d3d759f6e6f89320b2c36d6ed8b9d23bc22db55"
+
+[[skills]]
+name = "navigation-event"
+source = "android-skills"
+revision = "5bda39f154fb859a08d45e2392f3568e049f83fb"
+sha256 = "ce9068c084be0e08a24a22e88946b1ca08138b3e43a08adb23630b6fffa4bdf9"
+
+[[skills]]
+name = "android-intent-security"
+source = "android-skills"
+revision = "5bda39f154fb859a08d45e2392f3568e049f83fb"
+sha256 = "803df9b681b0a0a0228b9b3e8047c26139cd1c3fd8dae9e358f3c9d8f855b356"
+
+[[skills]]
+name = "android-permissions-security"
+source = "android-skills"
+revision = "5bda39f154fb859a08d45e2392f3568e049f83fb"
+sha256 = "30ad82576df2482e9a68aa206f49e45063c144e9d7565c651f295c0fc5954ad9"
+
+[[skills]]
+name = "android-profiler"
+source = "android-skills"
+revision = "5bda39f154fb859a08d45e2392f3568e049f83fb"
+sha256 = "98681efbe1f399cc5c343b5eee5ed0e600db7c7b073839a726198a35ce1bd964"
+
+[[skills]]
+name = "r8-analyzer"
+source = "android-skills"
+revision = "5bda39f154fb859a08d45e2392f3568e049f83fb"
+sha256 = "f5c2b1066697dfde8ff10b3e4a493d0f7a91937d1480a875b780bb50f736f842"
+
+[[skills]]
+name = "impeccable"
+source = "impeccable"
+revision = "5bf0a069dc857e1b5f4b090e004d9d5b231416ca"
+sha256 = "977aa81d50cc637cbbc90aad6920d766635cad029e16727506cd0287c0583d07"
+
+[[skills]]
+name = "create-design-md"
+source = "ui-skills"
+revision = "fdd6c09dd866354a627ddf3fa46b7b01d421176d"
+sha256 = "9100cf1cf18b5dfee479b0365c4beaca93048c637965d6cf6bf2146f460427fe"
+
+[[skills]]
+name = "improve-ui"
+source = "ui-skills"
+revision = "fdd6c09dd866354a627ddf3fa46b7b01d421176d"
+sha256 = "59c575e5c842e9d24f1700ae781c4797205792484e7ff417d3321ac808b32c8d"
+
+[[skills]]
+name = "ui-ux-pro-max"
+source = "ui-ux-pro-max"
+revision = "56ea9cf174ed86786187daa9de0e6247cb0747e4"
+sha256 = "0d3176d6ff898a7d1c5b96e1e2da06135e033c392c8a766051ad57d1f3e7cd30"
+
+[[skills]]
+name = "code-security"
+source = "local"
+revision = "hub-v0.3.0"
+sha256 = "ec02678b8d462c304f6fc295c85bc023998c3684a6a4d59e81d34e0ceb1da4a4"
+
+[[skills]]
+name = "docker-destructive-guardrails"
+source = "docker-skills"
+revision = "8afc2c6ef4e0ec2ea8e4ba024d0b884ea930b926"
+sha256 = "4fda04e8dfa855124ee088b0dd1db33a4ca35956db811c0ddf793041c299df6a"
+
+[[skills]]
+name = "docker-build-strategies"
+source = "docker-skills"
+revision = "8afc2c6ef4e0ec2ea8e4ba024d0b884ea930b926"
+sha256 = "8a8f8df92c6171909b8b95f3649f2436168868bcd0857d08bed2f6bbf3f1cdfa"
