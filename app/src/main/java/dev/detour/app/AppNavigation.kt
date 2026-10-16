@@ -322,6 +322,13 @@ internal fun DetourNavigation(
                 val homeViewModel = viewModel<HomeViewModel>(
                     factory = HomeViewModel.factory(
                         store = store,
+                        loadInstalledPackages = {
+                            withContext(Dispatchers.IO) {
+                                runCatching {
+                                    AppInventory.load(appContext).mapTo(hashSetOf()) { it.packageName }
+                                }.getOrNull()
+                            }
+                        },
                         resolveRoutes = { routes ->
                             withContext(Dispatchers.IO) {
                                 resolveEffectiveRoutes(appContext.packageManager, routes)

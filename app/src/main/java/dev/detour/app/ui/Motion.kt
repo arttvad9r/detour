@@ -42,7 +42,7 @@ object Motion {
     // visibly breathe and is especially distracting in dense settings screens.
     const val PRESS_ROW = 1f
     const val PRESS_RADIO = 1f
-    const val PRESS_BUTTON = 0.992f
+    const val PRESS_BUTTON = 0.975f
     const val PRESS_FAB = 0.98f
     const val PRESS_ICON = 0.97f
 

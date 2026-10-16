@@ -43,6 +43,9 @@ data class HomeUiState(
     val serverHost: String? = null,
     val endpointCount: Int = 0,
     val routedCount: Int = 0,
+    val directCount: Int? = null,
+    val vpnCount: Int = 0,
+    val dpiCount: Int = 0,
     val activeVpn: VpnProfileKind = VpnProfileKind.VLESS,
     val protocol: HomeProtocol = HomeProtocol.NONE,
     val dnsId: String = "google",
@@ -93,6 +96,7 @@ internal fun homeUiState(
     vpnState: VpnState,
     effectiveRoutes: EffectiveRoutes,
     subscriptionNode: String? = null,
+    installedPackages: Set<String>? = null,
 ): HomeUiState {
     val activeVpn = settings?.activeVpn ?: VpnProfileKind.VLESS
     val profile = homeProfilePresentation(
@@ -109,6 +113,13 @@ internal fun homeUiState(
         serverHost = profile.server,
         endpointCount = profile.endpointCount,
         routedCount = effectiveRoutes.packages.size,
+        // Unassigned launcher apps are Direct. Never count a rejected VPN/DPI
+        // assignment as Direct just because the effective allow-list is empty.
+        directCount = installedPackages?.count {
+            (settings?.routes?.get(it) ?: AppRoute.DIRECT) == AppRoute.DIRECT
+        },
+        vpnCount = effectiveRoutes.vpnPackages.size,
+        dpiCount = effectiveRoutes.dpiPackages.size,
         activeVpn = activeVpn,
         protocol = homeProtocol(effectiveRoutes),
         dnsId = settings?.dnsId?.ifBlank { null } ?: "google",
@@ -121,8 +132,14 @@ class HomeViewModel(
     vpnState: StateFlow<VpnState>,
     private val resolveRoutes: suspend (Map<String, AppRoute>) -> EffectiveRoutes,
     private val readSubscriptionNode: suspend () -> String? = { null },
+    private val loadInstalledPackages: suspend () -> Set<String>? = { null },
 ) : ViewModel() {
     private val routeRefresh = MutableStateFlow(0L)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val installedPackages = routeRefresh.mapLatest {
+        loadInstalledPackages()
+    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val effectiveRoutes = combine(
@@ -197,12 +214,14 @@ class HomeViewModel(
         vpnState,
         effectiveRoutes,
         selectedSubscriptionNode,
-    ) { currentSettings, currentVpnState, routes, subscriptionNode ->
+        installedPackages,
+    ) { currentSettings, currentVpnState, routes, subscriptionNode, packages ->
         homeUiState(
             settings = currentSettings,
             vpnState = currentVpnState,
             effectiveRoutes = routes,
             subscriptionNode = subscriptionNode,
+            installedPackages = packages,
         )
     }.stateIn(
         scope = viewModelScope,
@@ -220,6 +239,7 @@ class HomeViewModel(
             vpnState: StateFlow<VpnState>,
             resolveRoutes: suspend (Map<String, AppRoute>) -> EffectiveRoutes,
             readSubscriptionNode: suspend () -> String? = { null },
+            loadInstalledPackages: suspend () -> Set<String>? = { null },
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 require(modelClass.isAssignableFrom(HomeViewModel::class.java))
@@ -229,6 +249,7 @@ class HomeViewModel(
                     vpnState = vpnState,
                     resolveRoutes = resolveRoutes,
                     readSubscriptionNode = readSubscriptionNode,
+                    loadInstalledPackages = loadInstalledPackages,
                 ) as T
             }
         }
@@ -237,11 +258,13 @@ class HomeViewModel(
             store: RoutesStore,
             resolveRoutes: suspend (Map<String, AppRoute>) -> EffectiveRoutes,
             readSubscriptionNode: suspend () -> String? = { null },
+            loadInstalledPackages: suspend () -> Set<String>? = { null },
         ): ViewModelProvider.Factory = factory(
             settings = store.settings,
             vpnState = VpnController.state,
             resolveRoutes = resolveRoutes,
             readSubscriptionNode = readSubscriptionNode,
+            loadInstalledPackages = loadInstalledPackages,
         )
     }
 }

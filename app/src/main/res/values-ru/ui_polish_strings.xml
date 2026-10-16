@@ -29,4 +29,5 @@
         <item quantity="many">%1$d адресов</item>
         <item quantity="other">%1$d адреса</item>
     </plurals>
+    <string name="home_routes_summary">Прямой:\u00A0%1$s · VPN:\u00A0%2$d · DPI:\u00A0%3$d</string>
 </resources>

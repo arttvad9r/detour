@@ -2,13 +2,51 @@ package dev.detour.app.ui
 
 import androidx.window.core.layout.WindowSizeClass
 import dev.detour.app.core.VpnProfileKind
+import dev.detour.app.core.AppRoute
+import dev.detour.app.core.DpiPreset
+import dev.detour.app.core.VlessKeys
+import dev.detour.app.data.TriSettings
 import dev.detour.app.vpn.EffectiveRoutes
+import dev.detour.app.vpn.VpnState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HomePresentationTest {
+    @Test fun `route summary includes implicit Direct apps but excludes removed assignments`() {
+        val settings = summarySettings(mapOf("vpn" to AppRoute.VPN, "dpi" to AppRoute.DPI, "removed" to AppRoute.VPN))
+        val state = homeUiState(
+            settings, VpnState.Idle, EffectiveRoutes(setOf("vpn"), setOf("dpi")),
+            installedPackages = setOf("bank", "browser", "vpn", "dpi"),
+        )
+        assertEquals(2, state.directCount)
+        assertEquals(1, state.vpnCount)
+        assertEquals(1, state.dpiCount)
+        assertEquals(2, state.routedCount)
+    }
+
+    @Test fun `rejected route assignments are not presented as Direct`() {
+        val state = homeUiState(
+            summarySettings(mapOf("vpn" to AppRoute.VPN)), VpnState.Idle,
+            EffectiveRoutes(emptySet(), emptySet(), setOf(10001)),
+            installedPackages = setOf("vpn", "bank"),
+        )
+        assertEquals(1, state.directCount)
+        assertEquals(0, state.vpnCount)
+    }
+
+    @Test fun `missing app inventory does not claim zero Direct apps`() {
+        assertEquals(null, homeUiState(null, VpnState.Idle, EffectiveRoutes(emptySet(), emptySet())).directCount)
+    }
+
+    private fun summarySettings(routes: Map<String, AppRoute>) = TriSettings(
+        vlessKeys = VlessKeys(emptyList(), null), warpProfile = null, activeVpn = VpnProfileKind.VLESS,
+        preset = DpiPreset.RECOMMENDED, dpiCustomArgs = "", autoConnect = false,
+        themeId = "detour_dark", dnsId = "google", dnsCustom = "", routes = routes,
+        showSystemApps = false, sessionStartedAt = null,
+    )
+
     @Test fun `protocol describes effective transports`() {
         assertEquals(
             HomeProtocol.VLESS_DPI,

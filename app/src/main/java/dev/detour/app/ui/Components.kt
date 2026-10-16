@@ -50,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
@@ -408,6 +409,7 @@ fun DetourButton(
     disabledContent: Color? = null,
     borderColor: Color? = null,
     elevation: ButtonElevation? = null,
+    hapticFeedback: HapticFeedbackType? = null,
 ) {
     val c = detourColors
     val bg = container ?: if (style == ButtonStyle.PRIMARY) c.accent else c.surface
@@ -421,6 +423,12 @@ fun DetourButton(
     }
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
+    val haptics = LocalHapticFeedback.current
+    val buttonColor by animateColorAsState(
+        targetValue = if (pressed && enabled) lerp(bg, fg, 0.08f) else bg,
+        animationSpec = tween(Motion.PRESS_TONE_MS),
+        label = "buttonTone",
+    )
     val scale by animateFloatAsState(
         targetValue = if (pressed && enabled) Motion.PRESS_BUTTON else 1f,
         animationSpec = spring(
@@ -430,11 +438,14 @@ fun DetourButton(
         label = "buttonPress",
     )
     Button(
-        onClick = onClick,
+        onClick = {
+            hapticFeedback?.let { haptics.performHapticFeedback(it) }
+            onClick()
+        },
         enabled = enabled,
         shape = AppShapes.small,
         colors = ButtonDefaults.buttonColors(
-            containerColor = bg,
+            containerColor = buttonColor,
             contentColor = fg,
             disabledContainerColor = disBg,
             disabledContentColor = disFg,

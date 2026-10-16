@@ -72,6 +72,8 @@ The hosted runtime suite intentionally stays below the VPN data plane. It curren
 VPN consent, live TUN establishment, per-app routing, network changes, DNS behavior and DPI/VPN traffic validation still require the device smoke checklist below.
 
 Run the full suite on a clean leased emulator before seeding profiles or routes for manual UI review. The activity smoke tests exercise the initial empty state.
+Use the standard system font scale (`1.0`) for this run: the large-font tests
+apply their own `2.0` override and compare it against the system-sized control.
 
 With a local emulator or device connected, run the same instrumentation suite with:
 
@@ -140,6 +142,17 @@ Run this after changes to VPN lifecycle, engine/config generation, routing, pack
 - Scroll/fling should remain smooth while icons are loaded from the process cache/background path.
 
 ### Navigation and motion
+
+Home keeps a single route-summary entry above profile/server and DNS settings.
+Direct counts include unassigned launcher apps (including system apps); VPN/DPI
+counts use the effective installed-package assignments. These are configuration
+counts, not live traffic. Package changes must refresh the summary on resume.
+
+Buttons should yield slightly and change tone while held, then settle on release
+or cancellation without shifting nearby content. Cancelled gestures and disabled
+buttons must not dispatch actions or haptics. The Home connection action uses a
+light tick; navigation-only actions do not. Confirm/reject and route-selection
+haptics retain their existing meanings and respect Android's haptic settings.
 
 Exercise repeatedly:
 

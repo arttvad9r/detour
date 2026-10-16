@@ -25,4 +25,5 @@
         <item quantity="one">%1$d address</item>
         <item quantity="other">%1$d addresses</item>
     </plurals>
+    <string name="home_routes_summary">Direct:\u00A0%1$s · VPN:\u00A0%2$d · DPI:\u00A0%3$d</string>
 </resources>

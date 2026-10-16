@@ -63,6 +63,7 @@ import dev.detour.app.core.VpnProfileKind
 import dev.detour.app.vpn.VpnState
 import kotlinx.coroutines.delay
 
+private const val HOME_ROUTES_ROW_TEST_TAG = "home-routes-row"
 private const val HOME_PROFILE_ROW_TEST_TAG = "home_profile_row"
 
 private enum class VisualVpnState { IDLE, STARTING, ACTIVE, FAILED }
@@ -238,7 +239,12 @@ fun HomeScreen(
                     activeVpn = uiState.activeVpn,
                     serverHost = uiState.serverHost,
                     endpointCount = uiState.endpointCount,
-                    routedCount = uiState.routedCount,
+                    routeSummary = stringResource(
+                        R.string.home_routes_summary,
+                        uiState.directCount?.toString() ?: "…",
+                        uiState.vpnCount,
+                        uiState.dpiCount,
+                    ),
                     protocol = protocol,
                     dns = dnsValue,
                     onOpenProfiles = onOpenProfiles,
@@ -261,7 +267,7 @@ private fun HomeConnectionContent(
     activeVpn: VpnProfileKind,
     serverHost: String?,
     endpointCount: Int,
-    routedCount: Int,
+    routeSummary: String,
     protocol: String,
     dns: String,
     onOpenProfiles: () -> Unit,
@@ -293,7 +299,7 @@ private fun HomeConnectionContent(
                 activeVpn = activeVpn,
                 serverHost = serverHost,
                 endpointCount = endpointCount,
-                routedCount = routedCount,
+                routeSummary = routeSummary,
                 dns = dns,
                 onOpenProfiles = onOpenProfiles,
                 onOpenDns = onOpenDns,
@@ -320,7 +326,7 @@ private fun HomeConnectionContent(
                 activeVpn = activeVpn,
                 serverHost = serverHost,
                 endpointCount = endpointCount,
-                routedCount = routedCount,
+                routeSummary = routeSummary,
                 dns = dns,
                 onOpenProfiles = onOpenProfiles,
                 onOpenDns = onOpenDns,
@@ -371,6 +377,7 @@ private fun MainButton(
         disabledContainer = container,
         disabledContent = content,
         borderColor = borderColor,
+        hapticFeedback = if (chooseApps) null else HapticFeedbackType.SegmentTick,
     )
 }
 
@@ -565,7 +572,7 @@ private fun ConnectionDetails(
     activeVpn: VpnProfileKind,
     serverHost: String?,
     endpointCount: Int,
-    routedCount: Int,
+    routeSummary: String,
     dns: String,
     onOpenProfiles: () -> Unit,
     onOpenDns: () -> Unit,
@@ -573,6 +580,14 @@ private fun ConnectionDetails(
     modifier: Modifier = Modifier,
 ) {
     DetourCard(modifier) {
+        HomeInfoRow(
+            iconRes = R.drawable.ic_apps,
+            label = stringResource(R.string.nav_routes),
+            value = routeSummary,
+            modifier = Modifier.testTag(HOME_ROUTES_ROW_TEST_TAG),
+            onClick = onOpenRoutes,
+        )
+        DetailsDivider()
         if (needsVpn) {
             HomeInfoRow(
                 iconRes = R.drawable.ic_profile,
@@ -602,13 +617,6 @@ private fun ConnectionDetails(
             label = stringResource(R.string.row_dns),
             value = dns,
             onClick = onOpenDns,
-        )
-        DetailsDivider()
-        HomeInfoRow(
-            iconRes = R.drawable.ic_apps,
-            label = stringResource(R.string.nav_routes),
-            value = stringResource(R.string.nav_routes_sub, routedCount),
-            onClick = onOpenRoutes,
         )
     }
 }
