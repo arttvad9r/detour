@@ -17,7 +17,7 @@ class SavedStateViewModelTest {
             initialApps = emptyList(),
             loadApps = { emptyList<AppInfo>() },
             setShowSystemApps = { _ -> },
-            setRoute = { _, _ -> },
+            setRoutes = { _ -> },
             restartTunnel = {},
             savedStateHandle = SavedStateHandle(mapOf("apps_query" to "browser")),
         )

@@ -110,6 +110,21 @@ class AppsViewModelStateTest {
         assertEquals(AppsInventoryStatus.ERROR, failed.status)
     }
 
+    @Test fun `route filter combines with query and system visibility`() {
+        val apps = listOf(
+            AppInfo("com.bank", "Bank", false),
+            AppInfo("com.video", "Video", false),
+            AppInfo("com.system.video", "System Video", true),
+        )
+        val routes = mapOf("com.video" to AppRoute.DPI, "com.system.video" to AppRoute.DPI)
+
+        assertEquals(listOf(apps[0]), filterApps(apps, routes, "", false, AppsRouteFilter.DIRECT))
+        assertEquals(listOf(apps[1]), filterApps(apps, routes, "VIDEO", false, AppsRouteFilter.DPI))
+        assertEquals(listOf(apps[2]), filterApps(apps, routes, "com.system", true, AppsRouteFilter.DPI))
+        assertTrue(filterApps(apps, routes, "Bank", true, AppsRouteFilter.VPN).isEmpty())
+        assertEquals(apps, filterApps(apps, routes, "", true, AppsRouteFilter.ALL))
+    }
+
     private fun settings(
         routes: Map<String, AppRoute> = emptyMap(),
         showSystemApps: Boolean = false,

@@ -31,9 +31,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -45,6 +47,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,8 +57,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -92,6 +97,19 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
     val haptics = LocalHapticFeedback.current
     val c = detourColors
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val writeState by viewModel.routeWriteState.collectAsStateWithLifecycle()
+    var filterIndex by rememberSaveable { mutableStateOf(0) }
+    var selecting by rememberSaveable { mutableStateOf(false) }
+    var selectedPackages by rememberSaveable(state.query, state.showSystemApps, filterIndex) {
+        mutableStateOf(emptyList<String>())
+    }
+    LaunchedEffect(writeState.completedBatches) {
+        if (writeState.completedBatches > 0) {
+            selectedPackages = emptyList()
+            selecting = false
+        }
+    }
+    val keyboard = LocalSoftwareKeyboardController.current
     val searchHint = stringResource(R.string.search_hint)
     var searchFocused by remember { mutableStateOf(false) }
 
@@ -125,18 +143,22 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
         "$dpiLabel ${routeCounts[AppRoute.DPI] ?: 0}"
 
     val screenOrder = remember(allApps) { AppRouteOrdering.snapshot(allApps, state.routes) }
-    val apps = remember(allApps, screenOrder, state.query, showSystem) {
-        AppRouteOrdering.apply(allApps, screenOrder)
-            .filter { showSystem || !it.isSystem }
-            .filter {
-                state.query.isBlank() ||
-                    it.label.contains(state.query, ignoreCase = true) ||
-                    it.packageName.contains(state.query, ignoreCase = true)
-            }
+    val apps = remember(allApps, screenOrder, state.query, showSystem, state.routes, filterIndex) {
+        filterApps(
+            AppRouteOrdering.apply(allApps, screenOrder), state.routes, state.query,
+            showSystem, AppsRouteFilter.entries[filterIndex],
+        )
+    }
+    LaunchedEffect(allApps) {
+        val installed = allApps.mapTo(hashSetOf()) { it.packageName }
+        selectedPackages = selectedPackages.filter { it in installed }
     }
     val appKeys = remember(apps) { apps.map { it.packageName } }
     val listState = rememberLazyListState()
     var listMotionActive by remember { mutableStateOf(false) }
+    LaunchedEffect(state.query, showSystem, filterIndex, selecting) {
+        listState.scrollToItem(0)
+    }
     LaunchedEffect(state.query, showSystem, appKeys) {
         listMotionActive = true
         delay(Motion.LIST_REFRESH_BOOST_MS)
@@ -147,6 +169,7 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
         haptics.performHapticFeedback(
             if (value) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff,
         )
+        selectedPackages = emptyList()
         viewModel.setShowSystem(value)
     }
 
@@ -157,82 +180,132 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
             .statusBarsPadding()
             .navigationBarsPadding(),
     ) {
-        DetourBrandedHeader(stringResource(R.string.routes_title), onBack)
+        DetourBrandedHeader(stringResource(R.string.routes_title), {
+            if (selecting) {
+                selecting = false
+                selectedPackages = emptyList()
+            } else onBack()
+        })
         Spacer(Modifier.height(Spacing.space4))
 
-        DetourCard(
+        if (!selecting) {
+            DetourCard(
+                Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .widthIn(max = AppsContentMaxWidth)
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.space16),
+            ) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.space12, vertical = Spacing.space4)
+                        .heightIn(min = DenseAppRowMinHeight)
+                        .clip(AppShapes.extraSmall)
+                        .background(c.surface)
+                        .border(1.dp, searchBorder, AppShapes.extraSmall)
+                        .padding(horizontal = Spacing.space12),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_search),
+                        contentDescription = null,
+                        tint = searchIcon,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(Modifier.width(Spacing.space8))
+                    Box(Modifier.weight(1f)) {
+                        androidx.compose.animation.AnimatedVisibility(
+                            visible = state.query.isEmpty(),
+                            enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)),
+                            exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)),
+                        ) {
+                            Text(
+                                searchHint,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = c.textMuted,
+                            )
+                        }
+                        BasicTextField(
+                            value = state.query,
+                            onValueChange = {
+                                selectedPackages = emptyList()
+                                viewModel.setQuery(it)
+                            },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodyMedium.copy(color = c.textPrimary),
+                            cursorBrush = SolidColor(c.accent),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .onFocusChanged { searchFocused = it.isFocused }
+                                .semantics { contentDescription = searchHint },
+                        )
+                    }
+                }
+
+                GroupDivider(startInset = Spacing.space16.value.toInt())
+                DetourNavigationRow(
+                    title = stringResource(R.string.show_system),
+                    subtitle = routeSummary.takeIf { loadedApps != null },
+                    iconRes = R.drawable.ic_routes,
+                    modifier = Modifier.detourToggleable(
+                        value = showSystem,
+                        onValueChange = ::setShowSystemFromRow,
+                        pressedColor = c.surfaceSelected.copy(alpha = 0.32f),
+                        pressScale = Motion.PRESS_ROW,
+                    ),
+                    trailing = {
+                        DetourSwitch(
+                            checked = showSystem,
+                            onCheckedChange = null,
+                            compact = true,
+                        )
+                    },
+                )
+            }
+        }
+        Column(
             Modifier
                 .align(Alignment.CenterHorizontally)
                 .widthIn(max = AppsContentMaxWidth)
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.space16),
+                .padding(horizontal = Spacing.space16, vertical = Spacing.space8),
         ) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = Spacing.space12, vertical = Spacing.space4)
-                    .heightIn(min = DenseAppRowMinHeight)
-                    .clip(AppShapes.extraSmall)
-                    .background(c.surface)
-                    .border(1.dp, searchBorder, AppShapes.extraSmall)
-                    .padding(horizontal = Spacing.space12),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_search),
-                    contentDescription = null,
-                    tint = searchIcon,
-                    modifier = Modifier.size(18.dp),
+            RouteFilters(filterIndex, onSelect = { filterIndex = it })
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (selecting) stringResource(R.string.routes_selected_count, selectedPackages.size)
+                        else stringResource(R.string.routes_visible_count, apps.size),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = c.textSecondary,
+                    modifier = Modifier.weight(1f),
                 )
-                Spacer(Modifier.width(Spacing.space8))
-                Box(Modifier.weight(1f)) {
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = state.query.isEmpty(),
-                        enter = fadeIn(tween(Motion.CONTENT_IN_MS, easing = Motion.ENTER_EASING)),
-                        exit = fadeOut(tween(Motion.CONTENT_OUT_MS, easing = Motion.EXIT_EASING)),
-                    ) {
-                        Text(
-                            searchHint,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = c.textMuted,
-                        )
-                    }
-                    BasicTextField(
-                        value = state.query,
-                        onValueChange = viewModel::setQuery,
-                        singleLine = true,
-                        textStyle = MaterialTheme.typography.bodyMedium.copy(color = c.textPrimary),
-                        cursorBrush = SolidColor(c.accent),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .onFocusChanged { searchFocused = it.isFocused }
-                            .semantics { contentDescription = searchHint },
-                    )
+                TextButton(
+                    enabled = loadedApps != null && !writeState.saving && (selecting || apps.isNotEmpty()),
+                    onClick = {
+                        keyboard?.hide()
+                        selecting = !selecting
+                        selectedPackages = emptyList()
+                    },
+                ) {
+                    Text(stringResource(if (selecting) R.string.routes_cancel_selection else R.string.routes_select))
                 }
             }
-
-            GroupDivider(startInset = Spacing.space16.value.toInt())
-            DetourNavigationRow(
-                title = stringResource(R.string.show_system),
-                subtitle = routeSummary.takeIf { loadedApps != null },
-                iconRes = R.drawable.ic_routes,
-                modifier = Modifier.detourToggleable(
-                    value = showSystem,
-                    onValueChange = ::setShowSystemFromRow,
-                    pressedColor = c.surfaceSelected.copy(alpha = 0.32f),
-                    pressScale = Motion.PRESS_ROW,
-                ),
-                trailing = {
-                    DetourSwitch(
-                        checked = showSystem,
-                        onCheckedChange = null,
-                        compact = true,
-                    )
-                },
-            )
+            if (selecting) {
+                TextButton(
+                    enabled = apps.isNotEmpty() && !writeState.saving,
+                    onClick = { selectedPackages = apps.map { it.packageName } },
+                ) { Text(stringResource(R.string.routes_select_visible)) }
+            }
+            if (writeState.error) {
+                Text(
+                    stringResource(R.string.routes_save_error),
+                    color = c.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(vertical = Spacing.space4),
+                )
+            }
         }
-
-        Spacer(Modifier.height(Spacing.space8))
         if (state.inventoryStatus == AppsInventoryStatus.ERROR && loadedApps != null) {
             InventoryErrorBanner(
                 onRetry = viewModel::refreshInventory,
@@ -292,9 +365,19 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
                                     .fillMaxWidth()
                                     .clip(shape),
                             ) {
-                                AppRow(app, current) { route ->
-                                    viewModel.setAppRoute(app.packageName, route)
-                                }
+                                AppRow(
+                                    app = app,
+                                    current = current,
+                                    selecting = selecting,
+                                    selected = app.packageName in selectedPackages,
+                                    selectionEnabled = !writeState.saving,
+                                    onToggle = {
+                                        selectedPackages = if (app.packageName in selectedPackages) {
+                                            selectedPackages - app.packageName
+                                        } else selectedPackages + app.packageName
+                                    },
+                                    onSelect = { route -> viewModel.setAppRoute(app.packageName, route) },
+                                )
                                 if (index < apps.lastIndex) {
                                     Box(
                                         Modifier
@@ -310,6 +393,52 @@ fun AppsScreen(viewModel: AppsViewModel, onBack: () -> Unit, modifier: Modifier 
                     }
                 }
             }
+        }
+        if (selecting) {
+            Column(
+                Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .widthIn(max = AppsContentMaxWidth)
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.space16, vertical = Spacing.space8),
+            ) {
+                Text(
+                    stringResource(if (writeState.saving) R.string.routes_saving else R.string.routes_assign_route),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = c.textSecondary,
+                )
+                val largeFont = LocalDensity.current.fontScale > 1.5f
+                Column(Modifier.fillMaxWidth().testTag("apps-bulk-route-actions")) {
+                    AppRoute.entries.chunked(if (largeFont) 1 else 3).forEach { routes ->
+                        Row(Modifier.fillMaxWidth()) {
+                            routes.forEach { route ->
+                                TextButton(
+                                    modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                                    enabled = selectedPackages.isNotEmpty() && !writeState.saving,
+                                    onClick = { viewModel.setAppRoutes(selectedPackages.toSet(), route) },
+                                ) { Text(stringResource(routeCompactLabel(route))) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RouteFilters(selected: Int, onSelect: (Int) -> Unit) {
+    val labels = listOf(stringResource(R.string.routes_filter_all)) +
+        AppRoute.entries.map { stringResource(routeCompactLabel(it)) }
+    val largeFont = LocalDensity.current.fontScale > 1.5f
+    Column(Modifier.testTag("apps-route-filter"), verticalArrangement = Arrangement.spacedBy(Spacing.space4)) {
+        labels.chunked(if (largeFont) 2 else 4).forEachIndexed { row, options ->
+            val offset = row * 2
+            SegmentedControl(
+                options = options,
+                selected = if (selected in offset until offset + options.size) selected - offset else -1,
+                onSelect = { onSelect(offset + it) },
+            )
         }
     }
 }
@@ -383,6 +512,10 @@ private fun InventoryErrorBanner(
 private fun AppRow(
     app: AppInfo,
     current: AppRoute,
+    selecting: Boolean,
+    selected: Boolean,
+    selectionEnabled: Boolean,
+    onToggle: () -> Unit,
     onSelect: (AppRoute) -> Unit,
 ) {
     val ctx = LocalContext.current
@@ -398,7 +531,31 @@ private fun AppRow(
 
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val inline = maxWidth >= AppRouteInlineMinWidth && density.fontScale <= 1.50f
-        if (inline) {
+        if (selecting) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .testTag("app-selection-${app.packageName}")
+                    .background(if (selected) detourColors.surfaceSelected else Color.Transparent)
+                    .toggleable(
+                        value = selected, enabled = selectionEnabled,
+                        role = Role.Checkbox, onValueChange = { onToggle() },
+                    )
+                    .heightIn(min = DenseAppRowMinHeight)
+                    .padding(horizontal = Spacing.space12, vertical = Spacing.space4),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(checked = selected, onCheckedChange = null, enabled = selectionEnabled)
+                Spacer(Modifier.width(Spacing.space8))
+                AppIdentity(app, bitmap, compact = false, modifier = Modifier.weight(1f))
+                Text(
+                    stringResource(routeCompactLabel(current)),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = detourColors.textSecondary,
+                    modifier = Modifier.padding(start = Spacing.space8),
+                )
+            }
+        } else if (inline) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

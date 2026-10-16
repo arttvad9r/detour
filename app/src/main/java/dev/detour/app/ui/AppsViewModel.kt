@@ -23,6 +23,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+data class RouteWriteState(
+    val saving: Boolean = false,
+    val error: Boolean = false,
+    val completedBatches: Int = 0,
+)
+
 enum class AppsInventoryStatus { LOADING, READY, ERROR }
 
 internal data class AppsInventoryState(
@@ -41,6 +47,23 @@ data class AppsUiState(
         AppsInventoryStatus.READY
     },
 )
+
+enum class AppsRouteFilter(val route: AppRoute?) {
+    ALL(null), DIRECT(AppRoute.DIRECT), VPN(AppRoute.VPN), DPI(AppRoute.DPI),
+}
+
+internal fun filterApps(
+    apps: List<AppInfo>,
+    routes: Map<String, AppRoute>,
+    query: String,
+    showSystem: Boolean,
+    filter: AppsRouteFilter,
+): List<AppInfo> = apps.filter { app ->
+    (showSystem || !app.isSystem) &&
+        (query.isBlank() || app.label.contains(query, ignoreCase = true) ||
+            app.packageName.contains(query, ignoreCase = true)) &&
+        (filter.route == null || (routes[app.packageName] ?: AppRoute.DIRECT) == filter.route)
+}
 
 private fun routeFor(settings: TriSettings?, packageName: String): AppRoute =
     settings?.routes?.get(packageName) ?: AppRoute.DIRECT
@@ -83,7 +106,7 @@ class AppsViewModel(
     initialApps: List<AppInfo>?,
     private val loadApps: suspend () -> List<AppInfo>,
     private val setShowSystemApps: suspend (Boolean) -> Unit,
-    private val setRoute: suspend (String, AppRoute) -> Unit,
+    private val setRoutes: suspend (Map<String, AppRoute>) -> Unit,
     private val restartTunnel: () -> Unit,
     private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -94,6 +117,9 @@ class AppsViewModel(
     private val showSystemWriteMutex = Mutex()
     private val routeWriteMutex = Mutex()
     private var refreshJob: Job? = null
+    private var pendingRouteWrites = 0
+    private val _routeWriteState = MutableStateFlow(RouteWriteState())
+    val routeWriteState: StateFlow<RouteWriteState> = _routeWriteState
 
     val uiState: StateFlow<AppsUiState> = combine(
         settings,
@@ -152,34 +178,51 @@ class AppsViewModel(
         }
     }
 
-    fun setAppRoute(packageName: String, route: AppRoute) {
-        val currentIntent = routeOverrides.value[packageName] ?: routeFor(settings.value, packageName)
-        if (currentIntent == route) return
-        routeOverrides.value = routeOverrides.value + (packageName to route)
+    fun setAppRoute(packageName: String, route: AppRoute) =
+        setAppRoutes(setOf(packageName), route)
+
+    fun setAppRoutes(
+        packages: Set<String>,
+        route: AppRoute,
+    ) {
+        if (packages.isEmpty()) return
+        val requested = packages.associateWith { route }
+        routeOverrides.value = routeOverrides.value + requested
+        pendingRouteWrites++
+        _routeWriteState.value = _routeWriteState.value.copy(saving = true, error = false)
 
         viewModelScope.launch {
-            routeWriteMutex.withLock {
-                val desired = routeOverrides.value[packageName] ?: return@withLock
-                try {
-                    if (routeFor(settings.value, packageName) != desired) {
-                        setRoute(packageName, desired)
-                        if (routeFor(settings.value, packageName) != desired) {
-                            settings.first { routeFor(it, packageName) == desired }
+            try {
+                routeWriteMutex.withLock {
+                    // A newer tap may have superseded part of this batch while it waited.
+                    val desired = routeOverrides.value.filterKeys { it in packages }
+                    val changed = desired.filter { (pkg, value) ->
+                        settings.value == null || routeFor(settings.value, pkg) != value
+                    }
+                    try {
+                        if (changed.isNotEmpty()) {
+                            setRoutes(changed)
+                            settings.first { persisted ->
+                                persisted != null && changed.all { (pkg, value) -> routeFor(persisted, pkg) == value }
+                            }
+                            restartTunnel()
                         }
-                        restartTunnel()
+                        _routeWriteState.value = _routeWriteState.value.copy(
+                            completedBatches = _routeWriteState.value.completedBatches + 1,
+                        )
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        _routeWriteState.value = _routeWriteState.value.copy(error = true)
+                    } finally {
+                        routeOverrides.value = routeOverrides.value.filter { (pkg, value) ->
+                            desired[pkg] != value
+                        }
                     }
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (_: Exception) {
-                    if (routeOverrides.value[packageName] == desired) {
-                        routeOverrides.value = routeOverrides.value - packageName
-                    }
-                    return@withLock
                 }
-
-                if (routeOverrides.value[packageName] == desired) {
-                    routeOverrides.value = routeOverrides.value - packageName
-                }
+            } finally {
+                pendingRouteWrites--
+                _routeWriteState.value = _routeWriteState.value.copy(saving = pendingRouteWrites > 0)
             }
         }
     }
@@ -199,7 +242,7 @@ class AppsViewModel(
                     initialApps = initialApps,
                     loadApps = loadApps,
                     setShowSystemApps = store::setShowSystemApps,
-                    setRoute = store::setRoute,
+                    setRoutes = store::setRoutes,
                     restartTunnel = restartTunnel,
                     savedStateHandle = createSavedStateHandle(),
                 )

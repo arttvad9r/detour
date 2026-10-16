@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="routes_filter_all">Все</string>
+    <string name="routes_select">Выбрать</string>
+    <string name="routes_cancel_selection">Отмена</string>
+    <string name="routes_select_visible">Выбрать все в списке</string>
+    <string name="routes_selected_count">Выбрано: %1$d</string>
+    <string name="routes_visible_count">Приложений: %1$d</string>
+    <string name="routes_assign_route">Назначить маршрут</string>
+    <string name="routes_saving">Сохранение…</string>
+    <string name="routes_save_error">Не удалось сохранить маршруты. Повторите попытку.</string>
+</resources>

@@ -309,9 +309,14 @@ class RoutesStore(context: Context) {
         it[RoutesMapping.dnsKey()] = id
         it[RoutesMapping.dnsCustomKey()] = custom
     }
-    suspend fun setRoute(pkg: String, route: AppRoute) = store.edit {
-        val key = RoutesMapping.routeKey(pkg)
-        if (route == AppRoute.DIRECT) it.remove(key) else it[key] = route.name
+    suspend fun setRoute(pkg: String, route: AppRoute) = setRoutes(mapOf(pkg to route))
+
+    /** Apply a whole selection atomically so the tunnel never sees a partial batch. */
+    suspend fun setRoutes(routes: Map<String, AppRoute>) = store.edit { prefs ->
+        routes.forEach { (pkg, route) ->
+            val key = RoutesMapping.routeKey(pkg)
+            if (route == AppRoute.DIRECT) prefs.remove(key) else prefs[key] = route.name
+        }
     }
 
     /** Validated backup is committed in one transaction and replaces old routes. */

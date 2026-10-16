@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="routes_filter_all">All</string>
+    <string name="routes_select">Select</string>
+    <string name="routes_cancel_selection">Cancel</string>
+    <string name="routes_select_visible">Select all in list</string>
+    <string name="routes_selected_count">Selected: %1$d</string>
+    <string name="routes_visible_count">Apps: %1$d</string>
+    <string name="routes_assign_route">Assign route</string>
+    <string name="routes_saving">Saving…</string>
+    <string name="routes_save_error">Could not save routes. Try again.</string>
+</resources>

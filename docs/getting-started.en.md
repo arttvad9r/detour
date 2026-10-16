@@ -55,6 +55,12 @@ Open **App routes** (on Home or in Settings) and pick a route for each app:
 
 A good start is to leave everything direct and turn on VPN or DPI only for the apps that need it. System apps are hidden by default; the switch at the top shows them.
 
+Use search and the **All / Direct / VPN / DPI** filters to find apps.
+To assign a route to several apps, tap **Select**, check individual apps or tap
+**Select all in list**, then choose the route at the bottom of the screen.
+Only apps matching the current search and filters are selected. Changing the search,
+route filter or system-app visibility clears the selection.
+
 ## Connect
 
 Tap **Connect** on Home. The first time, Android asks for VPN permission; allow it.

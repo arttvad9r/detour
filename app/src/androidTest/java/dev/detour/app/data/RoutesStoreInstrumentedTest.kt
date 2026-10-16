@@ -37,6 +37,25 @@ class RoutesStoreInstrumentedTest {
         "&pbk=SbVKOEMjK0sIlbwg4akyBg5mL5KZwwB-ed4eEE7YnRc&sid=6ba85179" +
         "&flow=xtls-rprx-vision"
 
+    @Test fun bulkRoutesPreserveUnrelatedAppsAndRemoveDirectOverrides() = runBlocking {
+        val before = store.snapshot()
+        val bank = "dev.detour.fixture.bank"
+        val video = "dev.detour.fixture.video"
+        val other = "dev.detour.fixture.other"
+        try {
+            store.setRoutes(mapOf(bank to AppRoute.VPN, video to AppRoute.DPI, other to AppRoute.VPN))
+            store.setRoutes(mapOf(bank to AppRoute.DIRECT, video to AppRoute.VPN))
+            val routes = store.snapshot().routes
+            assertFalse(routes.containsKey(bank))
+            assertEquals(AppRoute.VPN, routes[video])
+            assertEquals(AppRoute.VPN, routes[other])
+            assertEquals(before.routes.filterKeys { it !in setOf(bank, video, other) },
+                routes.filterKeys { it !in setOf(bank, video, other) })
+        } finally {
+            store.setRoutes(setOf(bank, video, other).associateWith { before.routes[it] ?: AppRoute.DIRECT })
+        }
+    }
+
     @Test fun addUpdateDeleteRoundTrip() = runBlocking {
         store.addVlessKey(VlessKey("t1", "One", validUri))
         store.updateVlessKey(VlessKey("t1", "Renamed", validUri))
