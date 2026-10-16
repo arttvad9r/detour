@@ -1,0 +1,19 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+  <string name="dpi_test_intro">Выберите сервисы и запустите автоматический подбор стратегии. Сначала отключите Detour и другие VPN.</string>
+  <string name="dpi_result_none">Рабочая стратегия не найдена</string>
+  <string name="dpi_result_all">Лучший результат: все проверенные адреса ответили</string>
+  <string name="dpi_result_partial">Лучший результат пока частичный</string>
+  <string name="dpi_result_ranking">Сначала учитываем адреса без сбоев, затем число успешных проверок и время ответа. Одна лишь скорость не делает стратегию лучше.</string>
+  <string name="dpi_result_repeated">Попыток на адрес: %1$d. «Без сбоев» означает, что в этом запуске прошли все попытки.</string>
+  <string name="dpi_result_single">Попыток на адрес: %1$d. По одной попытке нельзя оценить устойчивость; повторите тест с несколькими.</string>
+  <string name="dpi_result_service">%1$s: адресов без сбоев %2$d/%3$d; успешных проверок %4$d/%5$d.</string>
+  <string name="dpi_result_probe_limit">Проверяем доступность по HTTPS, а не воспроизведение видео или работу всего приложения. В другой сети прежний результат может измениться.</string>
+  <string name="dpi_result_apply_best">Применить лучшую из проверенных</string>
+  <string name="dpi_result_no_success">Нет успешных проверок</string>
+  <string name="dpi_result_incomplete">Тест не завершён</string>
+  <string name="dpi_report_export">Сохранить диагностический отчёт</string>
+  <string name="dpi_report_privacy">Отчёт описывает эту попытку: версии Detour и Android, выбранные группы сервисов, параметры проверки и сводные результаты. В нём нет VPN-ключей, подписок, списка приложений, IP-адресов, доменов, пользовательских команд DPI и логов.</string>
+  <string name="dpi_report_saved">Отчёт сохранён</string>
+  <string name="dpi_report_error">Не удалось сохранить отчёт. Попробуйте другое место.</string>
+</resources>

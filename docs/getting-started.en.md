@@ -90,7 +90,17 @@ DPI bypass behaves differently with every ISP. To find a strategy that works for
 1. Turn off any other VPN, or the test results will be wrong.
 2. Open **Settings → DPI bypass → Proxy Test**.
 3. Pick the sites you want to reach (for example, YouTube) and start the test.
-4. Apply the strategy that opened the most sites.
+4. Review results by service and tap **Apply best tested strategy**.
+
+The default is three attempts per address. Ranking prioritizes addresses that passed
+every attempt, then successful checks, then response time. Zero-success strategies
+cannot be recommended or applied. Partial results are explicitly marked. The test
+checks HTTPS reachability; it does not guarantee video playback or the whole app.
+
+After completion, cancellation or failure, use **Save diagnostic report** to export JSON.
+It includes Detour/Android versions, selected service groups, test settings and aggregate
+results. VPN keys, subscriptions, app inventories, IP addresses, hostnames, custom DPI
+commands and logs are excluded.
 
 ## Other settings
 

@@ -66,6 +66,14 @@ ByeDPI is built as the `ciadpi` executable for Android arm64-v8a and x86_64 and 
 
 This is a comparatively narrow integration boundary: replacing ByeDPI can preserve the same local backend contract without redesigning the rest of the tunnel.
 
+The DPI strategy test uses a separate authenticated loopback proxy and verifies HTTPS
+responses without activating `VpnService`. Results retain service-level aggregates in
+local history. Applying a tested strategy commits its arguments and the custom preset
+atomically before a single tunnel restart. The optional diagnostic export is a separate
+allowlisted JSON format: it does not serialize history records, custom commands, hostnames,
+VPN configuration, app routes or raw engine errors. It records the specific attempt,
+including cancellation/failure, rather than silently exporting a previous successful run.
+
 ## Profiles
 
 VLESS profiles are parsed and validated by Detour before storage. WARP/AmneziaWG imports extract compatible WireGuard outbounds from source YAML/CONF; source routing, DNS, listeners and proxy groups are not adopted.

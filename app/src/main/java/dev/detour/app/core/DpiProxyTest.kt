@@ -60,7 +60,7 @@ data class DpiProxyTestConfig(
         val ATTEMPTS_RANGE = 1..20
         val CONCURRENCY_RANGE = 1..50
         val TIMEOUT_RANGE = 1..15
-        const val DEFAULT_ATTEMPTS = 1
+        const val DEFAULT_ATTEMPTS = 3
         const val DEFAULT_CONCURRENCY = 20
         const val DEFAULT_TIMEOUT_SECONDS = 5
     }
@@ -216,6 +216,7 @@ class DpiProxyTester(
             for ((strategyOffset, strategy) in strategies.withIndex()) {
                 currentCoroutineContext().ensureActive()
                 session.requireClean()
+                onProgress(DpiProxyTestProgress(strategyOffset + 1, strategies.size, 0, hosts.size))
                 val coroutineContext = currentCoroutineContext()
                 val cancelled = { !coroutineContext.isActive || session.isContaminated() }
                 val started = backend.start(
@@ -233,6 +234,7 @@ class DpiProxyTester(
                             DpiProxyTestHostResult(it, config.attemptsPerHost, 0, 0, emptyList())
                         },
                     )
+                    onProgress(DpiProxyTestProgress(strategyOffset + 1, strategies.size, hosts.size, hosts.size))
                     continue
                 }
 

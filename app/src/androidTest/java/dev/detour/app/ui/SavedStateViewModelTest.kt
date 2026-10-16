@@ -56,6 +56,7 @@ class SavedStateViewModelTest {
                     "dpi_editing_custom" to true,
                 ),
             ),
+            saveTestedStrategy = {},
             proxyHistoryStore = DpiProxyTestHistoryStore(ApplicationProvider.getApplicationContext()),
         )
 

@@ -37,6 +37,23 @@ class RoutesStoreInstrumentedTest {
         "&pbk=SbVKOEMjK0sIlbwg4akyBg5mL5KZwwB-ed4eEE7YnRc&sid=6ba85179" +
         "&flow=xtls-rprx-vision"
 
+    @Test fun testedDpiStrategySavesBothFieldsAndRejectsInvalidInput() = runBlocking {
+        val before = store.snapshot()
+        try {
+            store.setTestedDpiStrategy("-d1")
+            val saved = store.snapshot()
+            assertEquals(DpiPreset.CUSTOM, saved.preset)
+            assertEquals("-d1", saved.dpiCustomArgs)
+            var rejected = false
+            try { store.setTestedDpiStrategy("--port 10000") } catch (_: IllegalArgumentException) { rejected = true }
+            assertTrue(rejected)
+            assertEquals(saved, store.snapshot())
+        } finally {
+            store.setCustomArgs(before.dpiCustomArgs)
+            store.setPreset(before.preset)
+        }
+    }
+
     @Test fun setupCompletionSurvivesSettingsRestore() = runBlocking {
         val before = store.snapshot()
         try {

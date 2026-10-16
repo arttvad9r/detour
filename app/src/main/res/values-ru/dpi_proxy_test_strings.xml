@@ -21,7 +21,7 @@
     <string name="dpi_proxy_test_custom_hint">Добавится к выбранным стратегиям и сохранится с результатами.</string>
     <string name="dpi_proxy_test_custom_invalid">Команда некорректна или использует параметры, которые Detour не разрешает в тесте.</string>
     <string name="dpi_proxy_test_custom_strategy">Своя стратегия</string>
-    <string name="dpi_proxy_test_domains_title">Домены</string>
+    <string name="dpi_proxy_test_domains_title">Сервисы</string>
     <string name="dpi_proxy_test_domain_count">Доменов: %1$d</string>
     <string name="dpi_proxy_test_selected_hosts">Выбрано: %1$d хостов</string>
     <string name="dpi_proxy_test_domains_summary">Списков: %1$d · хостов: %2$d</string>

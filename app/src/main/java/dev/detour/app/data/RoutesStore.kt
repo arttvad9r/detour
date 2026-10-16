@@ -316,6 +316,15 @@ class RoutesStore(context: Context) {
         prefs[RoutesMapping.vpnKindKey()] = kind.name
     }
     suspend fun setPreset(preset: DpiPreset) = store.edit { it[RoutesMapping.presetKey()] = preset.id }
+    /** Save a tested strategy in one transaction before restarting the active tunnel. */
+    suspend fun setTestedDpiStrategy(raw: String) {
+        require(dev.detour.app.core.DpiArgs.isValid(raw))
+        store.edit {
+            it[RoutesMapping.customArgsKey()] = raw
+            it[RoutesMapping.presetKey()] = DpiPreset.CUSTOM.id
+        }
+    }
+
     suspend fun setCustomArgs(raw: String) = store.edit { it[RoutesMapping.customArgsKey()] = raw }
     suspend fun setAutoConnect(v: Boolean) = store.edit { it[RoutesMapping.autoConnectKey()] = v }
     suspend fun setTheme(id: String) = store.edit { it[RoutesMapping.themeKey()] = id }

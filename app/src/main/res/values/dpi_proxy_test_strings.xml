@@ -21,7 +21,7 @@
     <string name="dpi_proxy_test_custom_hint">Added to the selected strategies and saved with the results.</string>
     <string name="dpi_proxy_test_custom_invalid">This command is not valid or uses options Detour does not allow in a test.</string>
     <string name="dpi_proxy_test_custom_strategy">Custom strategy</string>
-    <string name="dpi_proxy_test_domains_title">Domains</string>
+    <string name="dpi_proxy_test_domains_title">Services</string>
     <string name="dpi_proxy_test_domain_count">%1$d domains</string>
     <string name="dpi_proxy_test_selected_hosts">Selected: %1$d hosts</string>
     <string name="dpi_proxy_test_domains_summary">%1$d lists · %2$d hosts</string>

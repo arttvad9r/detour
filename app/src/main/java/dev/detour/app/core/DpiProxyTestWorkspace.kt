@@ -1,5 +1,18 @@
 package dev.detour.app.core
 
+data class DpiProxyTestServiceSummary(
+    val serviceId: String,
+    val hostCount: Int,
+    val fullyWorkingHosts: Int,
+    val successes: Int,
+    val attempts: Int,
+) {
+    init {
+        require(hostCount > 0 && fullyWorkingHosts in 0..hostCount)
+        require(attempts >= 0 && successes in 0..attempts)
+    }
+}
+
 /** User-facing summary kept after a proxy-test run. */
 data class DpiProxyTestResultSummary(
     val strategy: DpiProxyTestStrategy,
@@ -10,6 +23,7 @@ data class DpiProxyTestResultSummary(
     val totalSuccesses: Int,
     val totalAttempts: Int,
     val medianLatencyMs: Long?,
+    val services: List<DpiProxyTestServiceSummary> = emptyList(),
 ) {
     init {
         require(hostCount >= 0)
@@ -19,11 +33,15 @@ data class DpiProxyTestResultSummary(
         require(medianLatencyMs == null || medianLatencyMs >= 0)
     }
 
+    val canApply: Boolean get() = backendStarted && completed && totalSuccesses > 0
+
     val fullCoverage: Boolean
         get() = backendStarted && completed && hostCount > 0 && fullyWorkingHosts == hostCount
 }
 
-fun DpiProxyTestStrategyResult.toSummary(): DpiProxyTestResultSummary = DpiProxyTestResultSummary(
+fun DpiProxyTestStrategyResult.toSummary(
+    selectedIds: Set<String> = emptySet(),
+): DpiProxyTestResultSummary = DpiProxyTestResultSummary(
     strategy = strategy,
     backendStarted = backendStarted,
     completed = completed,
@@ -32,6 +50,13 @@ fun DpiProxyTestStrategyResult.toSummary(): DpiProxyTestResultSummary = DpiProxy
     totalSuccesses = totalSuccesses,
     totalAttempts = totalAttempts,
     medianLatencyMs = medianLatencyMs,
+    services = DpiProxyTestCatalog.domainLists.filter { it.id in selectedIds }.mapNotNull { service ->
+        val checks = hosts.filter { it.host in service.hosts }
+        if (checks.isEmpty()) null else DpiProxyTestServiceSummary(
+            service.id, checks.size, checks.count { it.fullyWorking },
+            checks.sumOf { it.successes }, checks.sumOf { it.attempts },
+        )
+    },
 )
 
 /** One completed test session that can be reopened and compared later. */
@@ -83,3 +108,17 @@ object DpiProxyTestStrategySelection {
 
     fun isCustom(strategy: DpiProxyTestStrategy): Boolean = strategy.id == CUSTOM_STRATEGY_ID
 }
+
+/** One ordering for live results and reopened history. */
+fun rankDpiSummaries(results: List<DpiProxyTestResultSummary>): List<DpiProxyTestResultSummary> =
+    results.sortedWith(
+        compareByDescending<DpiProxyTestResultSummary> { it.backendStarted && it.completed }
+            .thenByDescending { it.fullCoverage }
+            .thenByDescending { it.fullyWorkingHosts }
+            .thenByDescending { it.totalSuccesses }
+            .thenBy { it.medianLatencyMs ?: Long.MAX_VALUE }
+            .thenBy { it.strategy.referenceIndex },
+    )
+
+fun DpiProxyTestRun.bestCandidate(): DpiProxyTestResultSummary? =
+    rankDpiSummaries(results).firstOrNull { it.canApply }

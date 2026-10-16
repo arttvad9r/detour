@@ -4,6 +4,7 @@ import android.content.Context
 import dev.detour.app.core.DpiProxyTestConfig
 import dev.detour.app.core.DpiProxyTestResultSummary
 import dev.detour.app.core.DpiProxyTestRun
+import dev.detour.app.core.DpiProxyTestServiceSummary
 import dev.detour.app.core.DpiProxyTestStrategy
 import java.io.File
 import java.io.FileOutputStream
@@ -125,6 +126,12 @@ internal object DpiProxyTestHistoryCodec {
         .put("totalSuccesses", result.totalSuccesses)
         .put("totalAttempts", result.totalAttempts)
         .apply { result.medianLatencyMs?.let { put("medianLatencyMs", it) } }
+        .put("services", JSONArray().apply {
+            result.services.forEach { service -> put(JSONObject()
+                .put("id", service.serviceId).put("hosts", service.hostCount)
+                .put("working", service.fullyWorkingHosts).put("successes", service.successes)
+                .put("attempts", service.attempts)) }
+        })
 
     private fun decodeResult(json: JSONObject): DpiProxyTestResultSummary = DpiProxyTestResultSummary(
         strategy = decodeStrategy(json.getJSONObject("strategy")),
@@ -135,6 +142,15 @@ internal object DpiProxyTestHistoryCodec {
         totalSuccesses = json.getInt("totalSuccesses"),
         totalAttempts = json.getInt("totalAttempts"),
         medianLatencyMs = if (json.has("medianLatencyMs")) json.getLong("medianLatencyMs") else null,
+        services = json.optJSONArray("services")?.let { services ->
+            buildList {
+                for (index in 0 until services.length()) {
+                    val item = services.getJSONObject(index)
+                    add(DpiProxyTestServiceSummary(item.getString("id"), item.getInt("hosts"),
+                        item.getInt("working"), item.getInt("successes"), item.getInt("attempts")))
+                }
+            }
+        }.orEmpty(),
     )
 
     private fun encodeStrategy(strategy: DpiProxyTestStrategy): JSONObject = JSONObject()

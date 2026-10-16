@@ -124,7 +124,7 @@ class DpiProxyTestTest {
     @Test fun `reference configuration ranges match proxy test`() {
         DpiProxyTestConfig(1, 1, 1)
         DpiProxyTestConfig(20, 50, 15)
-        assertEquals(1, DpiProxyTestConfig().attemptsPerHost)
+        assertEquals(3, DpiProxyTestConfig().attemptsPerHost)
         assertEquals(20, DpiProxyTestConfig().concurrency)
         assertEquals(5, DpiProxyTestConfig().timeoutSeconds)
     }

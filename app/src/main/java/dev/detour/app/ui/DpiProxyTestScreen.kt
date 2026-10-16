@@ -1,6 +1,10 @@
 package dev.detour.app.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.testTag
+import dev.detour.app.core.DpiProxyTestReport
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,6 +27,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -166,6 +172,13 @@ private fun ProxyTestMainScreen(
     val context = LocalContext.current
     val c = detourColors
     val listState = rememberLazyListState()
+    var wasRunning by remember { mutableStateOf(false) }
+    LaunchedEffect(state.running) {
+        if (wasRunning && !state.running && state.diagnostic?.outcome == dev.detour.app.core.DpiTestOutcome.COMPLETED) {
+            listState.animateScrollToItem(3 + if (state.error != null) 1 else 0)
+        }
+        wasRunning = state.running
+    }
 
     LazyColumn(
         modifier = modifier
@@ -181,6 +194,9 @@ private fun ProxyTestMainScreen(
         item {
             DetourBrandedHeader(stringResource(R.string.dpi_proxy_test_title), onBack)
             Spacer(Modifier.height(ProxyHeaderGap))
+            Text(stringResource(R.string.dpi_test_intro), style = MaterialTheme.typography.bodySmall,
+                color = c.textSecondary, modifier = Modifier.padding(horizontal = Spacing.space16))
+            Spacer(Modifier.height(Spacing.space12))
         }
 
         item {
@@ -276,11 +292,7 @@ private fun ProxyTestMainScreen(
                             color = c.textMuted,
                         )
                     } else {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
+                        Column(Modifier.fillMaxWidth()) {
                             Text(
                                 text = stringResource(
                                     R.string.dpi_proxy_test_progress_strategy,
@@ -343,13 +355,18 @@ private fun ProxyTestMainScreen(
                 val selectedRun = state.selectedRun ?: state.history.firstOrNull()
                 SectionLabel(
                     stringResource(
-                        if (state.running) {
+                        if (state.running || state.cancelled || state.error != null) {
                             R.string.dpi_proxy_test_previous_run_title
                         } else {
                             R.string.dpi_proxy_test_results_title
                         },
                     ),
                 )
+                if (!state.running && selectedRun != null) {
+                    DpiTestRunSummary(selectedRun, state.applyingStrategyId, state.appliedStrategyId,
+                        state.applyErrorStrategyId, enabled = true, onApply = viewModel::applyProxyStrategy)
+                    Spacer(Modifier.height(ProxySectionGap))
+                }
                 DetourCard(Modifier.padding(horizontal = Spacing.space16)) {
                     var hasPreviousRow = false
 
@@ -381,7 +398,7 @@ private fun ProxyTestMainScreen(
                             ProxyResultNavigationRow(
                                 result = best,
                                 rank = 1,
-                                best = true,
+                                best = state.bestCandidate?.strategy?.id == best.strategy.id,
                                 onClick = { onOpenResultDetail(best.strategy.id) },
                             )
                             if (state.results.size > 1) {
@@ -400,6 +417,12 @@ private fun ProxyTestMainScreen(
                     }
                 }
                 Spacer(Modifier.height(ProxySectionGap))
+            }
+        }
+        if (!state.running) {
+            val report = state.diagnostic ?: state.selectedRun?.let(DpiProxyTestReport::fromRun)
+            if (report != null) {
+                item { DpiReportExport(viewModel, report, state.reportSaveState) }
             }
         }
     }
@@ -778,7 +801,7 @@ private fun ProxyTestResultsScreen(
                         ProxyResultNavigationRow(
                             result = result,
                             rank = index + 1,
-                            best = index == 0,
+                            best = state.bestCandidate?.strategy?.id == result.strategy.id,
                             onClick = { onOpenDetail(result.strategy.id) },
                         )
                         if (index != state.results.lastIndex) {
@@ -875,6 +898,15 @@ private fun ProxyTestResultDetailScreen(
                             style = MaterialTheme.typography.labelMedium,
                             color = c.textMuted,
                         )
+                        result.services.forEach { service ->
+                            val name = DpiProxyTestCatalog.domainLists.firstOrNull { it.id == service.serviceId }?.displayName
+                            if (name != null) {
+                                Text(stringResource(R.string.dpi_result_service, name, service.fullyWorkingHosts,
+                                    service.hostCount, service.successes, service.attempts),
+                                    style = MaterialTheme.typography.bodySmall, color = c.textSecondary,
+                                    modifier = Modifier.padding(vertical = Spacing.space4))
+                            }
+                        }
                         Text(
                             text = result.strategy.command,
                             style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
@@ -886,7 +918,7 @@ private fun ProxyTestResultDetailScreen(
                 Spacer(Modifier.height(ProxySectionGap))
             }
 
-            if (!state.running && result.backendStarted && result.completed) {
+            if (!state.running && result.canApply) {
                 item {
                     val applying = state.applyingStrategyId == result.strategy.id
                     val applied = state.appliedStrategyId == result.strategy.id
@@ -897,7 +929,7 @@ private fun ProxyTestResultDetailScreen(
                             else -> stringResource(R.string.dpi_proxy_test_apply)
                         },
                         onClick = { viewModel.applyProxyStrategy(result.strategy.id) },
-                        enabled = !applying && !applied,
+                        enabled = state.applyingStrategyId == null && !applied,
                         height = 48,
                         modifier = Modifier.padding(horizontal = Spacing.space16),
                     )
@@ -1113,6 +1145,8 @@ private fun strategyTitle(strategy: DpiProxyTestStrategy): String =
 @Composable
 private fun resultStatus(result: DpiProxyTestResultSummary): String = when {
     !result.backendStarted -> stringResource(R.string.dpi_proxy_test_backend_failed)
+    !result.completed -> stringResource(R.string.dpi_result_incomplete)
+    result.totalSuccesses == 0 -> stringResource(R.string.dpi_result_no_success)
     result.fullCoverage -> stringResource(R.string.dpi_proxy_test_full_coverage)
     else -> stringResource(R.string.dpi_proxy_test_partial)
 }
@@ -1218,5 +1252,37 @@ private fun ProxySliderRow(
                 .fillMaxWidth()
                 .height(36.dp),
         )
+    }
+}
+
+
+@Composable
+private fun DpiReportExport(viewModel: DpiViewModel, report: DpiProxyTestReport, status: DpiReportSaveState) {
+    val context = LocalContext.current
+    var pendingPayload by rememberSaveable { mutableStateOf<String?>(null) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        val payload = pendingPayload
+        pendingPayload = null
+        if (uri != null && payload != null) viewModel.saveDiagnostic(context, uri, payload)
+    }
+    Column(Modifier.padding(horizontal = Spacing.space16), verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+        Text(stringResource(R.string.dpi_report_privacy), style = MaterialTheme.typography.bodySmall,
+            color = detourColors.textMuted)
+        DetourButton(stringResource(R.string.dpi_report_export),
+            onClick = {
+                pendingPayload = report.toJson(
+                    appVersion = context.packageManager.getPackageInfo(context.packageName, 0).versionName,
+                    androidApi = android.os.Build.VERSION.SDK_INT,
+                )
+                launcher.launch("detour-dpi-report.json")
+            },
+            enabled = status != DpiReportSaveState.SAVING,
+            style = ButtonStyle.SECONDARY,
+            modifier = Modifier.testTag("dpi-export-report"))
+        when (status) {
+            DpiReportSaveState.SAVED -> Text(stringResource(R.string.dpi_report_saved), color = detourColors.textSecondary)
+            DpiReportSaveState.ERROR -> Text(stringResource(R.string.dpi_report_error), color = detourColors.error)
+            else -> Unit
+        }
     }
 }

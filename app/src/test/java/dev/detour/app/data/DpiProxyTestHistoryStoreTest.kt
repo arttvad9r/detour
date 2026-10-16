@@ -34,6 +34,19 @@ class DpiProxyTestHistoryStoreTest {
         assertTrue(DpiProxyTestHistoryCodec.decode("{\"version\":99,\"runs\":[]}").isEmpty())
     }
 
+    @Test fun `new service aggregates round trip and old v1 results remain readable`() {
+        val service = dev.detour.app.core.DpiProxyTestServiceSummary("youtube", 2, 1, 4, 6)
+        val result = summary(DpiProxyTestCatalog.strategies.first(), 2, 1, 4, 6, 20).copy(services = listOf(service))
+        val run = DpiProxyTestRun("old", 1000, setOf("youtube"), DpiProxyTestConfig(), listOf(result))
+        val encoded = DpiProxyTestHistoryCodec.encode(listOf(run))
+        assertEquals(listOf(service), DpiProxyTestHistoryCodec.decode(encoded).single().results.single().services)
+        val old = org.json.JSONObject(encoded)
+        old.getJSONArray("runs").getJSONObject(0).getJSONArray("results").getJSONObject(0).remove("services")
+        val restored = DpiProxyTestHistoryCodec.decode(old.toString()).single()
+        assertTrue(restored.results.single().services.isEmpty())
+        assertEquals(result.copy(services = emptyList()), restored.results.single())
+    }
+
     private fun summary(
         strategy: dev.detour.app.core.DpiProxyTestStrategy,
         hostCount: Int,

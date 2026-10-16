@@ -1,0 +1,19 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+  <string name="dpi_test_intro">Choose services and start automatic strategy testing. Disconnect Detour and other VPNs first.</string>
+  <string name="dpi_result_none">No working strategy found</string>
+  <string name="dpi_result_all">Best result: all tested addresses responded</string>
+  <string name="dpi_result_partial">Best available result is partial</string>
+  <string name="dpi_result_ranking">Ranked by addresses that passed every attempt, then successful checks, then response time. Faster responses alone do not make a strategy better.</string>
+  <string name="dpi_result_repeated">Attempts per address: %1$d. “Passed” means every attempt succeeded in this run.</string>
+  <string name="dpi_result_single">Attempts per address: %1$d. One attempt cannot establish stability; repeat with more attempts.</string>
+  <string name="dpi_result_service">%1$s: %2$d/%3$d addresses passed every attempt; %4$d/%5$d checks succeeded.</string>
+  <string name="dpi_result_probe_limit">This tests HTTPS reachability, not video playback or the whole app. Old results may change on another network.</string>
+  <string name="dpi_result_apply_best">Apply best tested strategy</string>
+  <string name="dpi_result_no_success">No successful checks</string>
+  <string name="dpi_result_incomplete">Test incomplete</string>
+  <string name="dpi_report_export">Save diagnostic report</string>
+  <string name="dpi_report_privacy">The report describes this attempt: Detour and Android versions, selected service groups, check settings and aggregate results. It excludes VPN keys, subscriptions, app lists, IP addresses, hostnames, custom DPI commands and logs.</string>
+  <string name="dpi_report_saved">Report saved</string>
+  <string name="dpi_report_error">Could not save the report. Try another location.</string>
+</resources>
