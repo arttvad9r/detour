@@ -11,10 +11,9 @@ Android per-app routing client: each app goes Direct, VPN (VLESS Reality, subscr
 ## Commands
 - Debug build: `./gradlew :app:assembleDebug`
 - Core gate before a PR: see `docs/testing.md` (strict dependency verification, unit tests, lint)
-- Instrumentation: claim an emulator with the global `android-emu` skill, then `ANDROID_SERIAL=<serial> ./gradlew :app:connectedDebugAndroidTest`. Never use the owner's physical phone.
+- Instrumentation: claim an emulator with the project-local `android-emu` skill, then `ANDROID_SERIAL=<serial> ./gradlew :app:connectedDebugAndroidTest`. Never use the owner's physical phone.
 
 ## Rules not obvious from the code
-- Never create a tag or GitHub release without explicit permission from the owner.
 - Detour owns DNS, routing and listeners; imported Clash/Mihomo/WireGuard configs contribute only compatible outbounds.
 - WARP/AmneziaWG groups use `fallback`, not `url-test`: switching a live endpoint for small speed gains breaks long-lived QUIC sessions.
 - Subscriptions go through Mihomo `proxy-providers`; don't write provider-specific subscription parsers.
@@ -25,8 +24,3 @@ Android per-app routing client: each app goes Direct, VPN (VLESS Reality, subscr
 - `main` holds released code only; every merge into `main` is a release tagged `vX.Y.Z`.
 - `dev` is the integration branch and must always build and pass checks.
 - Work in `feat/<name>` / `fix/<name>` from `dev`; several branches may run in parallel. Merge verified work into `dev`, then delete the branch.
-- Push, tags and releases only with the owner's explicit permission.
-
-## Status
-- 0.4.0 (2026-10-02): main is the 0.2.1 feature set with updated dependencies; GitHub Releases only.
-- 0.4.0 is the final feature set: `main` and `dev` both match it, and the 0.3.x work (live traffic, subscription UI, import flow) is abandoned.
