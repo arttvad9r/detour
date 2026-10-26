@@ -65,7 +65,7 @@ github.com/easytier/easytier/easytier-go/proto/api/manage
 github.com/easytier/easytier/easytier-go/proto/common
 github.com/easytier/easytier/easytier-go/proto/error
 github.com/easytier/easytier/easytier-go/proto/peer_rpc
-# github.com/enfein/mieru/v3 v3.38.0
+# github.com/enfein/mieru/v3 v3.38.1
 ## explicit; go 1.20
 github.com/enfein/mieru/v3/apis/client
 github.com/enfein/mieru/v3/apis/common
@@ -372,7 +372,7 @@ github.com/metacubex/kcp-go
 # github.com/metacubex/mhurl v0.1.0
 ## explicit; go 1.20
 github.com/metacubex/mhurl
-# github.com/metacubex/mihomo v1.19.32
+# github.com/metacubex/mihomo v1.19.33
 ## explicit; go 1.20
 github.com/metacubex/mihomo/adapter
 github.com/metacubex/mihomo/adapter/inbound
@@ -552,7 +552,7 @@ github.com/metacubex/mihomo/transport/vmess
 github.com/metacubex/mihomo/transport/xhttp
 github.com/metacubex/mihomo/tunnel
 github.com/metacubex/mihomo/tunnel/statistic
-# github.com/metacubex/mipstack v0.0.0-20260930071539-961d4b1c1983
+# github.com/metacubex/mipstack v0.0.0-20261019124225-9a80a07eaeb9
 ## explicit; go 1.20
 github.com/metacubex/mipstack
 # github.com/metacubex/mlkem v0.1.0
@@ -685,7 +685,7 @@ github.com/metacubex/sing-shadowsocks2/internal/shadowio
 github.com/metacubex/sing-shadowsocks2/shadowaead
 github.com/metacubex/sing-shadowsocks2/shadowaead_2022
 github.com/metacubex/sing-shadowsocks2/shadowstream
-# github.com/metacubex/sing-tun v0.4.27
+# github.com/metacubex/sing-tun v0.4.28
 ## explicit; go 1.20
 github.com/metacubex/sing-tun
 github.com/metacubex/sing-tun/internal/fdbased_darwin
@@ -695,6 +695,7 @@ github.com/metacubex/sing-tun/internal/gtcpip/header
 github.com/metacubex/sing-tun/internal/gtcpip/seqnum
 github.com/metacubex/sing-tun/internal/rawfile_darwin
 github.com/metacubex/sing-tun/internal/stopfd_darwin
+github.com/metacubex/sing-tun/internal/systemconfiguration
 github.com/metacubex/sing-tun/internal/tschecksum
 github.com/metacubex/sing-tun/internal/winfw
 github.com/metacubex/sing-tun/internal/winipcfg
@@ -706,7 +707,7 @@ github.com/metacubex/sing-tun/ping
 ## explicit; go 1.20
 github.com/metacubex/sing-vmess
 github.com/metacubex/sing-vmess/packetaddr
-# github.com/metacubex/sing-wireguard v0.0.0-20260826105301-c3ae17d19f9e
+# github.com/metacubex/sing-wireguard v0.0.0-20261002050126-e5fa1a607406
 ## explicit; go 1.20
 github.com/metacubex/sing-wireguard
 # github.com/metacubex/smux v0.0.0-20260105030934-d0c8756d3141
@@ -945,7 +946,7 @@ github.com/metacubex/tailscale-wireguard-go/tun
 # github.com/metacubex/tfo-go v0.0.0-20260623020846-376a77860b8c
 ## explicit; go 1.20
 github.com/metacubex/tfo-go
-# github.com/metacubex/tls v0.1.8
+# github.com/metacubex/tls v0.1.9
 ## explicit; go 1.20
 github.com/metacubex/tls
 # github.com/metacubex/utls v1.8.8
