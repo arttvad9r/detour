@@ -32,6 +32,12 @@ class MainActivitySmokeTest {
         if (rule.onAllNodesWithTag("setup-skip").fetchSemanticsNodes().isNotEmpty()) {
             rule.onNodeWithTag("setup-skip").performClick()
         }
+        // Skipping setup persists to DataStore before navigation completes.
+        // Compose becoming idle alone does not wait for that asynchronous write.
+        rule.waitUntil(10_000) {
+            rule.onAllNodesWithContentDescription(rule.activity.getString(R.string.cd_settings))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
     }
 
     @Test fun emptyHomeGuidesUsersToAppRoutes() {
