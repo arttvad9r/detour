@@ -63,8 +63,8 @@ The Android workflow pins:
 - Android 17 / API 37 16 KB `google_apis_ps16k` x86_64 system image;
 - build-tools 36.0.0;
 - NDK 28.0.13004108;
-- Go 1.26.9;
-- pinned `gomobile` and `govulncheck` versions.
+- Go 1.27.3;
+- pinned, vendored `gobind` and pinned `govulncheck` versions.
 
 Dependency verification runs in strict mode against the committed `gradle/verification-metadata.xml` file, and CI fails if the build changes that file. The Go race/module gate copies the checked-in bridge package into a temporary module, redirects its Mihomo replacement to the exact `.cache/mihomo-src` tree prepared by the Android build, then runs `go mod verify` and `go test -race` with the production `with_gvisor` feature set.
 
