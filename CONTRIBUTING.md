@@ -8,6 +8,7 @@ Contributions are welcome. Keep changes focused, testable and compatible with De
 - Build with `./gradlew :app:assembleDebug`.
 - Run the core gate described in `docs/testing.md` before submitting a pull request.
 - Do not commit generated native binaries, local SDK paths, keystores or credentials.
+- Keep installed AI skills, local assistant settings, one-off audit reports and completed task plans out of Git. Install development tools locally; record lasting project decisions in the maintained documentation under `docs/`.
 
 ## Pull requests
 

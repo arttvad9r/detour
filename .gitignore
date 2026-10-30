@@ -10,6 +10,7 @@ local.properties
 *.aar
 !engine/libs/.gitkeep
 app/src/main/jniLibs/**/*.so
+/engine/mihomo/.build-offline.generated.sh
 
 # IDE / editor
 .idea/
@@ -21,6 +22,13 @@ app/src/main/jniLibs/**/*.so
 .cache/
 .sdk/
 captures/
+
+# Local AI tooling and one-off working notes
+/.agents/
+/.claude/
+/.skillhub.toml
+/.superpowers/
+/docs/plans/
 
 # Signing / secrets
 *.jks
