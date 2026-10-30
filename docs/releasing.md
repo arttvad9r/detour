@@ -19,7 +19,7 @@ The tag controls both Android version fields for the release build:
 
 `MAJOR` must be at most 2100, while `MINOR` and `PATCH` must be at most 999. The computed `versionCode` must still be a positive Android-compatible integer no greater than 2,100,000,000, so not every `MAJOR = 2100` combination is valid. Normal development builds keep the fallback `0.1.0` / `1` values unless Gradle overrides are supplied explicitly.
 
-A release tag must point to a commit contained in `main`, and that exact commit must already have a successful `Android` push workflow on `main`. That gate includes Android 16 and Android 17 instrumentation; do not release from a commit with skipped or failing device tests. The workflow refuses to publish unrelated or unverified revisions.
+A release tag must point to a commit contained in `main`. That exact commit must have successful full `Android` validation: a manual workflow run on `dev` or `main`, including Android 16 and Android 17 instrumentation. Legacy successful `main` push runs are also accepted because they included the same instrumentation. An automatic `dev` push without runtime tests is not sufficient.
 
 Before tagging, complete [the public release checklist](release-checklist.md).
 
@@ -45,27 +45,38 @@ Keep an offline backup of the release keystore and its passwords. Losing the sig
 
 ## Creating a release
 
-After the intended commit is merged to `main` and the `main` CI is green, create and push a tag such as:
+The owner approves the release; a request to release is that approval and authorizes the merge/tag/push. A pull request is optional.
+
+1. Bring any `main` documentation/housekeeping changes into `dev` first, so `main` is an ancestor of the candidate.
+2. Run the `Android` workflow manually on the candidate in `dev`, and verify that the successful run's commit SHA matches the intended release revision. Perform focused runtime smoke where the changed behavior needs it.
+3. Fast-forward `main` to that tested revision, create the version tag on it and push `main` before the tag. If either branch has advanced, reconcile it and validate any changed app/build inputs before releasing. Never force-push to make the release fit.
+
+For example, after the candidate is approved and fully validated (replace the example version):
 
 ```bash
-git checkout main
-git pull --ff-only
+git fetch origin
+git switch main
+git merge --ff-only origin/main
+git merge --ff-only origin/dev
 git tag v0.1.0
+git push origin main
 git push origin v0.1.0
 ```
+
+Continue development from `dev`; no separate release PR is required. Documentation and repository maintenance can be applied to both `main` and `dev` between app releases without a tag or version bump. Do not bring unreleased app, dependency or packaging changes into `main` through that exception.
 
 The `Release` workflow then:
 
 1. validates distribution licensing files;
 2. validates the tag and derives `versionName` / `versionCode`;
-3. verifies that the commit belongs to `main` and has successful Android CI;
+3. verifies that the commit belongs to `main` and has successful full Android validation;
 4. validates all signing secrets and the expected certificate fingerprint;
 5. rebuilds the pinned native engine and ByeDPI binaries;
 6. runs debug unit tests and lint, builds the debug APK, and compiles the instrumentation-test APK;
 7. builds a signed `arm64-v8a` release APK;
 8. runs the pinned engine tests plus source and shipped-binary `govulncheck` scans against the exact Mihomo AAR produced for the release;
 9. verifies the APK signature and signing-certificate identity;
-10. enforces the exact `arm64-v8a` ABI set, 16 KB ELF alignment and the 30 MiB APK budget;
+10. enforces the exact `arm64-v8a` ABI set and 16 KB ELF alignment, and reports APK size;
 11. writes a SHA-256 checksum;
 12. uploads the APK, checksum and size report as a workflow artifact;
 13. creates or updates the matching GitHub Release and attaches the APK and checksum without overwriting existing release assets.
@@ -74,13 +85,7 @@ The published APK is named `detour-MAJOR.MINOR.PATCH-arm64.apk`.
 
 ## Local signed build
 
-The same Gradle path can be exercised locally without putting credentials in Gradle files. On the maintainer machine the git-ignored `keystore/` directory holds the release key (`detour-release.jks`, the two `*.password` files, `detour-release-cert.sha256`) and `keystore/release.env`, which exports the four variables below; a new worktree does not contain it:
-
-```bash
-set -a; . keystore/release.env; set +a
-```
-
-Otherwise export them by hand:
+The same Gradle path can be exercised locally. Supply signing material through environment variables; keep the key/passwords outside tracked files and do not print them in logs:
 
 ```bash
 export DETOUR_RELEASE_KEYSTORE=/absolute/path/to/release.keystore

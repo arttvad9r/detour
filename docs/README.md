@@ -31,6 +31,6 @@ Documentation grouped by audience.
 
 ## Documentation rules
 
-Public user documentation should describe the released/current product line, not draft roadmap branches. When a capability is still experimental or exists only in an unmerged pull request, keep it in the relevant design/PR discussion until it becomes part of the product being shipped.
+Public user documentation should describe the released/current product line. Useful plans, design decisions and audit findings may be kept separately under `docs/`, clearly marked when they describe unshipped work. Disposable agent logs and installed skills stay local.
 
 Examples, tests, screenshots, and issue reports must use synthetic VPN credentials. Never publish real VLESS links, subscription URLs, WireGuard private keys, Amnezia invitation payloads, or Detour backup files containing secrets.

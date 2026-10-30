@@ -1,15 +1,15 @@
+<!-- PRs are optional. Include only the sections/checks relevant to this change. -->
+
 ## Summary
 
 - 
 
 ## Verification
 
-- [ ] Unit tests / relevant tests added or updated
-- [ ] Lint/build passes
+- Relevant checks run and results:
+- Checks skipped and why, if material:
 - [ ] No real VPN credentials, invitation links, private keys or keystores included
-- [ ] Documentation updated when behavior/security/import formats changed
-- [ ] UI changes reuse shared Detour components and were checked in light/dark themes
 
 ## User-visible impact
 
-Describe what changes for users and any migration/compatibility considerations.
+Describe user-visible changes or migration considerations, if any. Omit for housekeeping.

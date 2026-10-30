@@ -112,7 +112,7 @@ Animation durations are time-based and respect Android's animator-duration scale
 
 ## Verification and release performance
 
-CI builds unit tests, lint, debug/release APKs and the Android-test APK, runs source and shipped-binary Go vulnerability scans, creates and verifies a signed arm64 release APK, enforces the release size budget and runs instrumentation on an Android 16 emulator.
+Verification follows the scope described in `testing.md`: app integration runs builds, tests, lint and native security checks; full manual validation adds Android 16/17 instrumentation. The release workflow verifies the signed arm64 artifact, ABI set and 16 KB alignment, and reports APK size. Documentation and housekeeping do not require building the app.
 
 Release code/resource optimization uses the AGP 9 optimization pipeline. The current APK size is dominated by the embedded Go engine rather than Kotlin/Compose bytecode or resources, so size work should target engine feature/dependency composition rather than weakening binary vulnerability verification or adding speculative UI micro-optimizations.
 

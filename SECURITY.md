@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Security fixes are developed on `main` and included in the newest published Detour release. Older releases may not receive backports.
+Security fixes follow the development flow through `dev` and are included in the newest published Detour release on `main`. Older releases may not receive backports.
 
 ## Reporting a vulnerability
 

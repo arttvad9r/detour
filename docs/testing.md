@@ -1,10 +1,27 @@
 # Testing
 
-This document defines the current verification contract. Historical screenshots, one-off device investigations and completed remediation plans are intentionally not kept as active project documentation.
+Choose checks according to what changed. Report what was actually checked and any material gaps; a PR or a full app build is not required for every task.
+
+## Choosing checks
+
+| Change | Relevant validation |
+| --- | --- |
+| Documentation, repository cleanup | Diff/whitespace checks, local links and affected ignore rules; no app build or device tests |
+| CI or tooling configuration | Validate syntax and changed conditions/scripts; run the Android workflow manually if its build behavior needs exercising |
+| App logic or bug fix | Focused regression tests and the affected build/lint tasks |
+| UI | Affected screens and UI tests as useful; light/dark or large-font checks when the change affects them |
+| VPN lifecycle, routing, DNS, credentials or native dependencies | Relevant app/engine tests and device smoke of the changed network/security behavior |
+| Public app release | Full Android validation for the exact release revision, plus the release artifact checks below |
+
+Development branches merge into `dev` after relevant checks and the owner's approval. A request to merge is approval; creating a PR is optional. Do not repeat a successful check unless the inputs changed or there is an unresolved concern.
 
 ## CI gate
 
-Every push and pull request runs the strict Android build/test gate, verifies that dependency-trust metadata was not rewritten, runs the embedded Go package under the race detector against the exact prepared Mihomo source tree, checks Go module integrity, scans source/binaries for known Go vulnerabilities, and verifies APK size/alignment/signing paths.
+Application changes pushed to `dev` run the Android integration gate. Optional PRs also run it. Documentation, `docs/`, `.github/` configuration, `.gitignore` and `.gitattributes` changes alone are excluded; validate those files directly. Feature-branch pushes and pushes to `main` do not automatically repeat the integration gate.
+
+Use the `Android` workflow's manual **Run workflow** action on any development branch when hosted validation is needed before merging. Manual runs include Android 16 and Android 17 instrumentation. Before a release, run it on the exact candidate in `dev` (or `main` if needed). This is the full validation used by the release guard.
+
+The integration gate performs strict Android builds/tests/lint, checks dependency-trust and Go module integrity, runs the embedded Go race detector, scans source/binaries for vulnerabilities, and verifies APK alignment/signing paths. The equivalent local build command is available when the change warrants that coverage:
 
 ```bash
 ./gradlew --dependency-verification strict \
@@ -33,9 +50,9 @@ The first release assembly is the universal compatibility baseline. CI then gene
   -PdetourVersionCode=1001
 ```
 
-CI verifies that signed APK with Android `apksigner`. The arm64 distribution check requires the APK to contain exactly `arm64-v8a` native libraries and enforces a 30 MiB maximum APK size. The universal and arm64 JSON size reports are retained as the `apk-size-reports` workflow artifact for comparison and regression diagnosis when they are available; a prior build failure is not obscured by a secondary missing-report failure.
+CI verifies that signed APK with Android `apksigner`. The arm64 distribution check requires the APK to contain exactly `arm64-v8a` native libraries. APK size is reported for comparison rather than blocked by an arbitrary fixed budget. The universal and arm64 JSON size reports are retained as the `apk-size-reports` workflow artifact when available.
 
-Pull requests and pushes to `main` additionally install hosted Android 16 and Android 17 emulator images and run the instrumentation suite. Ordinary branch pushes still compile the instrumentation APK but skip emulator download and runtime tests. The pull-request gate therefore validates the exact review revision on a device before merge, and the `main` push validates the integrated revision after merge.
+Manual runs and optional pull requests additionally install Android 16 and Android 17 emulator images and execute instrumentation. Automatic `dev` pushes compile the instrumentation APK but skip emulator download and runtime tests.
 
 The Android workflow pins:
 
@@ -51,13 +68,13 @@ The Android workflow pins:
 
 Dependency verification runs in strict mode against the committed `gradle/verification-metadata.xml` file, and CI fails if the build changes that file. The Go race/module gate copies the checked-in bridge package into a temporary module, redirects its Mihomo replacement to the exact `.cache/mihomo-src` tree prepared by the Android build, then runs `go mod verify` and `go test -race` with the production `with_gvisor` feature set.
 
-After release assembly, `tools/apk_size_report.py` records the total APK size, packaged native ABI set, component totals, native library sizes per ABI, and the largest ZIP entries in the GitHub Actions job summary. It also writes machine-readable JSON reports. The arm64 distribution report is a hard gate: exceeding 30 MiB or packaging any ABI other than `arm64-v8a` fails CI.
+After release assembly, `tools/apk_size_report.py` records total APK size, native ABI set, component totals, native library sizes per ABI and the largest ZIP entries. Unexpected ABIs fail verification; size growth is reviewed using the reports.
 
 `engine/vulnscan.sh` covers the checked-in/patched Go engine source and the produced Android binary artifacts. Native source revisions and embedding patches are documented in `pins.md`.
 
 ## Instrumented tests
 
-For pull requests and `main` pushes, hosted CI creates headless Android 16 / API 36 and Android 17 / API 37 emulators after the normal build gate and executes `:app:connectedDebugAndroidTest`. Keeping runtime tests in the same job reuses the already-built Mihomo/ByeDPI artifacts instead of rebuilding the native engine in a second job.
+For manual runs and optional pull requests, hosted CI creates headless Android 16 / API 36 and Android 17 / API 37 emulators after the build gate and executes `:app:connectedDebugAndroidTest`, reusing the already-built native artifacts.
 
 The hosted runtime suite intentionally stays below the VPN data plane. It currently covers:
 
@@ -75,7 +92,7 @@ Run the full suite on a clean leased emulator before seeding profiles or routes 
 Use the standard system font scale (`1.0`) for this run: the large-font tests
 apply their own `2.0` override and compare it against the system-sized control.
 
-With a local emulator or device connected, run the same instrumentation suite with:
+Use a dedicated emulator for local automation. Use the owner's physical phone only with explicit authorization. Select the target serial when running:
 
 ```bash
 ANDROID_SERIAL=<serial> ./gradlew :app:connectedDebugAndroidTest
@@ -103,7 +120,7 @@ Do not maintain manual test-count totals in this file; the test runner is the so
 
 ## Device smoke checklist
 
-Run this after changes to VPN lifecycle, engine/config generation, routing, package inventory, navigation or display policy.
+Use the sections relevant to the changed behavior. A navigation or layout adjustment does not require retesting unrelated VPN profiles or transports. For network/security changes, verify the affected behavior on an emulator or an explicitly authorized physical device with suitable synthetic/test profiles.
 
 ### VPN lifecycle
 
@@ -188,8 +205,8 @@ Frame-rate requests are scheduler hints, not a guarantee of a particular panel m
 
 Before treating a revision as release-ready, record at minimum:
 
-1. green CI for the exact commit;
-2. a fresh Android device/emulator smoke for the areas changed;
-3. for native/routing changes, a successful connect and per-app routing check on the exact produced build.
+1. successful full Android validation for the exact release commit;
+2. focused device/emulator checks where the changes need runtime verification;
+3. for native/routing changes, a successful connect and per-app routing check on the produced build. State clearly if external VPN endpoints or the target network are unavailable rather than claiming coverage.
 
 Do not describe historical device results as validation of a newer commit.

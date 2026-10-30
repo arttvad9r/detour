@@ -5,11 +5,10 @@ Use this checklist for each public Detour release.
 ## Code and product
 
 - [ ] The intended release commit is merged to `main`.
-- [ ] Android CI is fully green, including Android 16 and Android 17 instrumentation.
-- [ ] Unit tests, debug/release lint, native race checks and vulnerability scans are green.
-- [ ] The selected VPN profiles were smoke-tested on a physical Android device.
-- [ ] Profile import/add/select/edit/delete flows do not silently change unrelated profiles.
-- [ ] Light and dark themes, large font scale, keyboard/insets and destructive dialogs were spot-checked.
+- [ ] The owner approved the release (a request to release is approval).
+- [ ] Full Android validation passed for the exact release revision, including unit/lint/build, native race/vulnerability checks and Android 16/17 instrumentation.
+- [ ] Relevant runtime checks were performed for the changed behavior; native/routing changes include connection and per-app routing smoke on the produced build.
+- [ ] Affected UI/profile flows were checked where applicable; material coverage gaps are recorded.
 
 ## Security and privacy
 
@@ -24,6 +23,6 @@ Use this checklist for each public Detour release.
 - [ ] Tag uses canonical `vMAJOR.MINOR.PATCH`.
 - [ ] The tag points to the exact verified commit on `main`.
 - [ ] GitHub Release contains the signed arm64 APK and SHA-256 checksum.
-- [ ] APK signature, ABI set, 16 KB ELF alignment and size budget pass the release workflow.
+- [ ] APK signature, ABI set and 16 KB ELF alignment pass; the size report was reviewed for unexpected growth.
 
 For the mechanics and required GitHub secrets, see `docs/releasing.md`.

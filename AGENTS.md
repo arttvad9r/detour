@@ -10,17 +10,20 @@ Android per-app routing client: each app goes Direct, VPN (VLESS Reality, subscr
 
 ## Commands
 - Debug build: `./gradlew :app:assembleDebug`
-- Core gate before a PR: see `docs/testing.md` (strict dependency verification, unit tests, lint)
-- Instrumentation: use a dedicated emulator; if the local `android-emu` skill is installed, claim one through it. Then run `ANDROID_SERIAL=<serial> ./gradlew :app:connectedDebugAndroidTest`. Never use the owner's physical phone.
+- Choose checks for the change using `docs/testing.md`; documentation and repository housekeeping do not require an app build.
+- Instrumentation: use a dedicated emulator and set `ANDROID_SERIAL` explicitly. Use the owner's physical phone only when they explicitly authorize it.
 
 ## Rules not obvious from the code
 - Detour owns DNS, routing and listeners; imported Clash/Mihomo/WireGuard configs contribute only compatible outbounds.
 - WARP/AmneziaWG groups use `fallback`, not `url-test`: switching a live endpoint for small speed gains breaks long-lived QUIC sessions.
 - Subscriptions go through Mihomo `proxy-providers`; don't write provider-specific subscription parsers.
 - Android allows only one active `VpnService`: Detour and Tailscale cannot run at the same time, split tunneling doesn't change that.
-- Scope: not a NekoBox clone or a generic Mihomo panel; advanced knobs stay out of the main UI.
+- Product direction: a per-app routing client with a simple main UI. Broader configuration and design changes are product decisions for the owner.
 
 ## Git
-- `main` holds released code only; every merge into `main` is a release tagged `vX.Y.Z`.
-- `dev` is the integration branch and must always build and pass checks.
-- Work in `feat/<name>` / `fix/<name>` from `dev`; several branches may run in parallel. Merge verified work into `dev`, then delete the branch.
+- `main` keeps the latest released application code as a stable return point. Documentation, repository cleanup and other small maintenance changes that do not alter the shipped app may also land there without a release or version bump. Build, dependency and packaging changes go through `dev`.
+- Application development happens in branches from `dev`. Branch names are unrestricted. Keep concurrent agent work isolated.
+- Before merging development into `dev`, run checks appropriate to the change and obtain the owner's approval. A request to merge is approval for that merge; do not ask again.
+- Release an approved, tested revision of `dev` by merging it into `main` and tagging the release `vX.Y.Z`. Continue subsequent development on `dev`. See `docs/releasing.md`.
+- Pull requests are optional. A request to merge or release authorizes the required Git operations without creating a PR.
+- Carry maintenance changes into both `main` and `dev` without bringing unreleased application code into `main`. Preserve unrelated local work, avoid rewriting shared history, and remove temporary branches when finished.

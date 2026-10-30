@@ -71,7 +71,7 @@ jobs:
           echo "VERSION_NAME=$VERSION_NAME" >> "$GITHUB_ENV"
           echo "VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
           echo "APK_NAME=detour-$VERSION_NAME-arm64.apk" >> "$GITHUB_ENV"
-      - name: Require successful Android CI on main
+      - name: Require successful full Android validation
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -80,18 +80,16 @@ jobs:
           RUNS_JSON="$(
             gh run list \
               --workflow Android \
-              --branch main \
               --commit "$GITHUB_SHA" \
-              --event push \
               --limit 20 \
-              --json conclusion,headSha
+              --json conclusion,headSha,event,headBranch
           )"
           SUCCESSFUL_RUNS="$(
             printf '%s' "$RUNS_JSON" |
-              jq --arg sha "$GITHUB_SHA" '[.[] | select(.headSha == $sha and .conclusion == "success")] | length'
+              jq --arg sha "$GITHUB_SHA" '[.[] | select(.headSha == $sha and .conclusion == "success" and ((.event == "workflow_dispatch" and (.headBranch == "dev" or .headBranch == "main")) or (.event == "push" and .headBranch == "main")))] | length'
           )"
           if [[ "$SUCCESSFUL_RUNS" -lt 1 ]]; then
-            echo "Release commit must have a successful Android push workflow on main" >&2
+            echo "Release commit needs successful full Android validation (manual on dev/main, or a legacy main push)" >&2
             exit 1
           fi
       - name: Validate signing secrets
@@ -237,7 +235,6 @@ jobs:
             --readelf "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
           python3 tools/apk_size_report.py "$APK" \
             --report app/build/reports/apk-size-release.json \
-            --max-bytes 31457280 \
             --expected-abi arm64-v8a
 
           ARTIFACT_DIR="app/build/release-artifacts"

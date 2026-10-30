@@ -28,7 +28,6 @@ captures/
 /.claude/
 /.skillhub.toml
 /.superpowers/
-/docs/plans/
 
 # Signing / secrets
 *.jks
