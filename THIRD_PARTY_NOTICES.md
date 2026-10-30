@@ -9,8 +9,8 @@ Code authored for Detour is licensed under the MIT License in the repository roo
 ## Mihomo
 
 - Project: MetaCubeX/mihomo
-- Version: v1.19.32
-- Commit: `88dcbf7f1614a67c3b36b848ee3592dfa92ada36`
+- Version: v1.19.33
+- Commit: `3f27ef39f8c96bbfbc8b0b9bb10f5c9ef60149d8`
 - Upstream license: GNU General Public License v3.0 (GPL-3.0)
 - Integration: built as the Android Go engine/AAR and linked into the Detour application.
 

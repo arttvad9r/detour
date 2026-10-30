@@ -2,6 +2,18 @@
 
 All notable user-facing changes to Detour are recorded here.
 
+## 0.4.4 — 2026-10-30
+
+Maintenance release: saved profiles, routes and backups keep their existing format.
+
+### Changed
+- Embedded Mihomo engine 1.19.33, including upstream DNS-over-HTTPS cancellation, WireGuard lifecycle and latency-test fixes. Detour keeps its gVisor TUN stack and embedding patches.
+- AndroidX DataStore 1.3.0.
+- Build toolchain: Gradle 9.8.2, Android Gradle Plugin 9.5.0, Go 1.27.3 and the October Go Android bridge generator; GitHub Actions setup-java 6.1.0.
+
+### Security
+- Updated Mihomo TLS implementation and Go networking/cryptography dependencies to the versions required by the new engine and Android bridge.
+
 ## 0.4.3 — 2026-10-16
 
 ### Added
