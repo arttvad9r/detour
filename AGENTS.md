@@ -11,7 +11,7 @@ Android per-app routing client: each app goes Direct, VPN (VLESS Reality, subscr
 ## Commands
 - Debug build: `./gradlew :app:assembleDebug`
 - Core gate before a PR: see `docs/testing.md` (strict dependency verification, unit tests, lint)
-- Instrumentation: claim an emulator with the project-local `android-emu` skill, then `ANDROID_SERIAL=<serial> ./gradlew :app:connectedDebugAndroidTest`. Never use the owner's physical phone.
+- Instrumentation: use a dedicated emulator; if the local `android-emu` skill is installed, claim one through it. Then run `ANDROID_SERIAL=<serial> ./gradlew :app:connectedDebugAndroidTest`. Never use the owner's physical phone.
 
 ## Rules not obvious from the code
 - Detour owns DNS, routing and listeners; imported Clash/Mihomo/WireGuard configs contribute only compatible outbounds.
