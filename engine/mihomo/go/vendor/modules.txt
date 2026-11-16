@@ -45,7 +45,7 @@ github.com/dlclark/regexp2/syntax
 # github.com/dunglas/httpsfv v1.0.2
 ## explicit; go 1.14
 github.com/dunglas/httpsfv
-# github.com/easytier/easytier/easytier-go v0.0.0-20260910071355-3d0c9c3ca5e2
+# github.com/easytier/easytier/easytier-go v0.0.0-20261111015056-2abb1676b475
 ## explicit; go 1.20
 github.com/easytier/easytier/easytier-go
 github.com/easytier/easytier/easytier-go/internal/artifact
@@ -63,9 +63,11 @@ github.com/easytier/easytier/easytier-go/proto/api/config
 github.com/easytier/easytier/easytier-go/proto/api/instance
 github.com/easytier/easytier/easytier-go/proto/api/manage
 github.com/easytier/easytier/easytier-go/proto/common
+github.com/easytier/easytier/easytier-go/proto/core_config
+github.com/easytier/easytier/easytier-go/proto/easytier
 github.com/easytier/easytier/easytier-go/proto/error
 github.com/easytier/easytier/easytier-go/proto/peer_rpc
-# github.com/enfein/mieru/v3 v3.38.1
+# github.com/enfein/mieru/v3 v3.39.0
 ## explicit; go 1.20
 github.com/enfein/mieru/v3/apis/client
 github.com/enfein/mieru/v3/apis/common
@@ -74,6 +76,7 @@ github.com/enfein/mieru/v3/apis/internal
 github.com/enfein/mieru/v3/apis/model
 github.com/enfein/mieru/v3/apis/server
 github.com/enfein/mieru/v3/apis/trafficpattern
+github.com/enfein/mieru/v3/internal/bufpool
 github.com/enfein/mieru/v3/pkg/appctl/appctlcommon
 github.com/enfein/mieru/v3/pkg/appctl/appctlpb
 github.com/enfein/mieru/v3/pkg/cipher
@@ -372,7 +375,7 @@ github.com/metacubex/kcp-go
 # github.com/metacubex/mhurl v0.1.0
 ## explicit; go 1.20
 github.com/metacubex/mhurl
-# github.com/metacubex/mihomo v1.19.33
+# github.com/metacubex/mihomo v1.19.34
 ## explicit; go 1.20
 github.com/metacubex/mihomo/adapter
 github.com/metacubex/mihomo/adapter/inbound
@@ -621,7 +624,7 @@ github.com/metacubex/sevenzip/internal/pool
 github.com/metacubex/sevenzip/internal/ppmd
 github.com/metacubex/sevenzip/internal/util
 github.com/metacubex/sevenzip/internal/zstd
-# github.com/metacubex/sing v0.5.8
+# github.com/metacubex/sing v0.5.9
 ## explicit; go 1.20
 github.com/metacubex/sing/common
 github.com/metacubex/sing/common/abx
@@ -685,7 +688,7 @@ github.com/metacubex/sing-shadowsocks2/internal/shadowio
 github.com/metacubex/sing-shadowsocks2/shadowaead
 github.com/metacubex/sing-shadowsocks2/shadowaead_2022
 github.com/metacubex/sing-shadowsocks2/shadowstream
-# github.com/metacubex/sing-tun v0.4.28
+# github.com/metacubex/sing-tun v0.4.29
 ## explicit; go 1.20
 github.com/metacubex/sing-tun
 github.com/metacubex/sing-tun/internal/fdbased_darwin
@@ -943,29 +946,30 @@ github.com/metacubex/tailscale-wireguard-go/tsasm/arm/chacha20
 github.com/metacubex/tailscale-wireguard-go/tsasm/arm/chacha20poly1305
 github.com/metacubex/tailscale-wireguard-go/tsasm/arm/poly1305
 github.com/metacubex/tailscale-wireguard-go/tun
-# github.com/metacubex/tfo-go v0.0.0-20260623020846-376a77860b8c
+# github.com/metacubex/tfo-go v0.0.0-20261026151606-08d83ec08c84
 ## explicit; go 1.20
 github.com/metacubex/tfo-go
 # github.com/metacubex/tls v0.1.9
 ## explicit; go 1.20
 github.com/metacubex/tls
-# github.com/metacubex/utls v1.8.8
+# github.com/metacubex/utls v1.9.0-alpha.1
 ## explicit; go 1.20
 github.com/metacubex/utls
 github.com/metacubex/utls/dicttls
+github.com/metacubex/utls/hkdf
+github.com/metacubex/utls/hpke
 github.com/metacubex/utls/internal/boring
 github.com/metacubex/utls/internal/byteorder
 github.com/metacubex/utls/internal/cpu
 github.com/metacubex/utls/internal/fips140tls
 github.com/metacubex/utls/internal/helper
 github.com/metacubex/utls/internal/hkdf
-github.com/metacubex/utls/internal/hpke
-github.com/metacubex/utls/internal/mlkem
 github.com/metacubex/utls/internal/quicvarint
 github.com/metacubex/utls/internal/quicvarint/protocol
 github.com/metacubex/utls/internal/ratelimit
 github.com/metacubex/utls/internal/tls12
 github.com/metacubex/utls/internal/tls13
+github.com/metacubex/utls/mlkem
 # github.com/metacubex/wazero v0.0.0-20260628025728-9ae6bdcf2a7d
 ## explicit; go 1.20
 github.com/metacubex/wazero
@@ -1312,4 +1316,5 @@ google.golang.org/protobuf/reflect/protoreflect
 google.golang.org/protobuf/reflect/protoregistry
 google.golang.org/protobuf/runtime/protoiface
 google.golang.org/protobuf/runtime/protoimpl
+google.golang.org/protobuf/types/descriptorpb
 google.golang.org/protobuf/types/known/timestamppb
